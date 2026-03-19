@@ -1,0 +1,44 @@
+# EditorConfig is awesome: https://editorconfig.org
+
+# top-most EditorConfig file
+root = true
+
+################################################################################
+# DEFAULTS
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 2
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+################################################################################
+# OVERRIDES
+
+# Docker build files
+[Dockerfile]
+indent_size = 4
+
+# Make Files
+[Makefile]
+indent_size = 4
+indent_style = tab
+
+# Git files
+[{.gitconfig,.gitmodules,gitconfig}]
+indent_size = 4
+indent_style = tab
+
+# Golang Files
+[*.go]
+indent_size = 4
+indent_style = tab
+
+# Markdown Files
+[*.{markdown,md}]
+indent_size = 4
+# Markdown uses two spaces at the end of a line to indicate an in-paragraph
+# line break (i.e., a place to use <br>)
+trim_trailing_whitespace = false

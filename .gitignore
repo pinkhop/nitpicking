@@ -1,0 +1,225 @@
+#
+# Place project-specific ignores at the bottom of this file so that you can
+# override the defaults below when needed.
+#
+
+################################################################################
+# DEFAULTS
+
+
+########################################
+# EDITORS / IDEs
+
+####################
+# JETBRAINS
+
+.idea/
+*.iml
+*.ipr
+*.iws
+
+####################
+# VIM
+
+# Swap
+[._]*.swp
+
+# Session
+Session.vim
+Sessionx.vim
+
+# Auto-generated tag files
+tags
+
+# Persistent undo
+[._]*.un~
+
+####################
+# VISUALSTUDIO CODE
+
+.vscode/
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+
+########################################
+# OPERATING SYSTEMS
+
+####################
+# LINUX
+
+*~
+
+# temporary files which can be created if a process still has a handle open of
+# a deleted file
+.fuse_hidden*
+
+# KDE directory preferences
+.directory
+
+# Linux trash folder which might appear on any partition or disk
+.Trash-*
+
+# .nfs files are created when an open file is removed but is still being
+# accessed
+.nfs*
+
+####################
+# MACOS
+
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+####################
+# WINDOWS
+
+# Windows thumbnail cache files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+
+# Dump file
+*.stackdump
+
+# Folder config file
+[Dd]esktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+
+########################################
+# TOOLS
+
+####################
+# BEADS
+
+.beads/
+.claude/rules/beads-issue-tracking.md
+.dolt/
+*.db
+
+####################
+# CLAUDE CODE
+
+.claude/settings.local.json
+CLAUDE.local.md
+
+####################
+# DIRENV
+
+.envrc.local
+.envrc.local.*
+.envrc.secret
+.envrc.secret.*
+
+####################
+# DOTENV
+
+.env.local
+.env.local.*
+.env.secret
+.env.secret.*
+env.local
+env.local.*
+env.secret
+env.secret.*
+
+####################
+# LOCAL FILES
+
+*.local
+*.local.json
+*.local.md
+*.local.properties
+*.local.toml
+*.local.txt
+*.local.yaml
+
+####################
+# MISE
+
+mise.local.toml
+
+
+################################################################################
+# PROJECT LANGUAGES
+
+########################################
+# GO
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+vendor/
+Godeps/
+
+# Go workspace file
+go.work
+
+
+################################################################################
+# PROJECT-SPECIFIC OVERRIDES AND IGNORES
+
+########################################
+# OVERRIDES
+# Overrides of the default ignores go here. Usually, these will be directives
+# that start with "!" (without the quotes).
+
+########################################
+# IGNORES
+# Project-specific files and directories to ignore go here.
+
+# Build output directory (created by `make build`)
+dist/
+
+# Coverage reports (created by `make coverage`)
+coverage/
+

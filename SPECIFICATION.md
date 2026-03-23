@@ -28,15 +28,15 @@
    - 6.3 [Readiness](#63-readiness)
    - 6.4 [Staleness and Stealing](#64-staleness-and-stealing)
    - 6.5 [Soft Deletion](#65-soft-deletion)
-   - 6.6 [Duplicate Handling](#66-duplicate-handling)
 7. [History and Auditability](#7-history-and-auditability)
 8. [Commands](#8-commands)
    - 8.1 [Cross-Cutting Concerns](#81-cross-cutting-concerns)
    - 8.2 [Global Operations](#82-global-operations)
    - 8.3 [Ticket Operations](#83-ticket-operations)
-   - 8.4 [Note Operations](#84-note-operations)
-   - 8.5 [History Operations](#85-history-operations)
-   - 8.6 [Diagnostics](#86-diagnostics)
+   - 8.4 [Relationship Operations](#84-relationship-operations)
+   - 8.5 [Note Operations](#85-note-operations)
+   - 8.6 [History Operations](#86-history-operations)
+   - 8.7 [Diagnostics](#87-diagnostics)
 9. [Agent Ergonomics](#9-agent-ergonomics)
 10. [Concurrency and Atomicity](#10-concurrency-and-atomicity)
 11. [Out of Scope](#11-out-of-scope)
@@ -398,15 +398,6 @@ Deletion is soft — data is retained but invisible to normal operations.
 - Deleted tickets cannot be undeleted.
 - `gc` can physically remove deleted ticket data.
 
-### 6.6 Duplicate Handling
-
-When a ticket is a duplicate:
-
-- One ticket is closed with a `cites` relationship pointing to the surviving ticket.
-- **Preferred heuristic**: keep the ticket with the most complete title, description, and acceptance criteria.
-- **Exception**: if the "weaker" ticket has richer interaction history, closing the "stronger" ticket may be more appropriate.
-- This is a judgement call, not an automated operation.
-
 ---
 
 ## 7. History and Auditability
@@ -539,7 +530,25 @@ Full-text search on title, description, and acceptance criteria. Optionally incl
 - Orderable by: relevance (default), priority, creation time, modification time.
 - Paginated.
 
-### 8.4 Note Operations
+### 8.4 Relationship Operations
+
+#### Add Relationship
+
+Add a `blocks` or `cites` relationship from one ticket to another. Does not require claiming either ticket. Requires an explicit author parameter.
+
+- **Idempotent**: create-if-not-exists. Adding a relationship that already exists is a no-op success.
+- Produces a history entry on the source ticket (the ticket initiating the relationship).
+- Cannot reference a deleted ticket.
+- Cannot create a self-relationship.
+
+#### Remove Relationship
+
+Remove an existing relationship between two tickets. Does not require claiming either ticket. Requires an explicit author parameter.
+
+- **Idempotent**: delete-if-exists. Removing a relationship that does not exist is a no-op success.
+- Produces a history entry on the source ticket.
+
+### 8.5 Note Operations
 
 #### Add Note
 
@@ -567,7 +576,7 @@ Full-text search across all notes in the database.
 - Filterable by: author, created-after date-time, created-after note ID, ticket facets, ticket state.
 - Orderable and paginated.
 
-### 8.5 History Operations
+### 8.6 History Operations
 
 #### Show History
 
@@ -576,7 +585,7 @@ Display the change history for a ticket.
 - Filterable by: author, date range.
 - Orderable and paginated.
 
-### 8.6 Diagnostics
+### 8.7 Diagnostics
 
 #### Doctor
 
@@ -663,6 +672,7 @@ Claiming and stealing are atomic compare-and-swap operations. The claim succeeds
 
 ## 11. Out of Scope
 
+- **Duplicate handling** — detecting or automating duplicate ticket resolution. Users handle duplicates manually using existing commands (close one ticket, add a `cites` relationship to the surviving ticket).
 - Note threading (no reply chains or nested conversations).
 - Multi-machine sync or remote access.
 - Agent orchestration or coordination.

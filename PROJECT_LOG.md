@@ -105,3 +105,28 @@
 - [x] **4.7** GC — physical removal of deleted (and optionally closed) data
 - [x] **4.8** Transaction Management — WithTransaction/WithReadTransaction wrapping sql.Tx
 
+## Phase 5 — CLI Adapter
+
+- [x] **5.1** Exit Code Mapping — updated `exit_codes.go` to match §9: 0 OK, 1 error, 2 not found, 3 claim conflict, 4 validation, 5 database
+- [x] **5.2** JSON Output Infrastructure — `cmdutil.WriteJSON` for structured JSON output
+- [x] **5.3** `np init <PREFIX>` — creates .np/ directory and database
+- [x] **5.4** `np agent-name` — generates Docker-style random agent name
+- [x] **5.5** `np agent-instructions` — prints Markdown workflow instructions
+- [x] **5.6** `np create` — creates tickets with all field flags, optional claim, idempotency key
+- [x] **5.7** `np claim <TICKET-ID>` — claims a ticket with optional steal
+- [x] **5.8** `np next` — claims highest-priority ready ticket with role/facet filters
+- [x] **5.9** `np update <TICKET-ID>` — updates claimed ticket fields
+- [x] **5.10** `np edit <TICKET-ID>` — one-shot claim→update→release
+- [x] **5.11** `np release/close/defer/wait` — state transitions
+- [x] **5.12** `np extend` — extends stale threshold
+- [x] **5.13** `np delete` — soft-deletes with --confirm guard
+- [x] **5.14** `np relate add/remove` — relationship management
+- [x] **5.15** `np show <TICKET-ID>` — full ticket detail view
+- [x] **5.16** `np list` — filtered, ordered, paginated ticket listing
+- [x] **5.17** `np search <QUERY>` — full-text search across tickets
+- [x] **5.18** `np note add/show/list/search` — note management
+- [x] **5.19** `np history <TICKET-ID>` — mutation history
+- [x] **5.20** `np doctor` — diagnostics (stale claims)
+- [x] **5.21** `np gc --confirm` — garbage collection
+- [x] **5.22** Register All Commands — all 23 commands wired into root; service lazily initialized with database discovery
+

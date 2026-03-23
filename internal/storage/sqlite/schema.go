@@ -82,39 +82,19 @@ CREATE TABLE IF NOT EXISTS history (
 
 CREATE INDEX IF NOT EXISTS idx_history_ticket ON history(ticket_id, revision);
 
--- Full-text search for tickets.
+-- Full-text search for tickets (standalone, not external content).
+-- WITHOUT ROWID tables lack rowid, so we use a standalone FTS table
+-- and manage sync manually in the repository layer.
 CREATE VIRTUAL TABLE IF NOT EXISTS tickets_fts USING fts5(
     ticket_id,
     title,
     description,
-    acceptance_criteria,
-    content=tickets,
-    content_rowid=rowid
+    acceptance_criteria
 );
 
--- Full-text search for notes.
+-- Full-text search for notes (standalone).
 CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
     note_id,
-    body,
-    content=notes,
-    content_rowid=note_id
+    body
 );
-
--- Triggers to keep FTS in sync.
-CREATE TRIGGER IF NOT EXISTS tickets_ai AFTER INSERT ON tickets BEGIN
-    INSERT INTO tickets_fts(rowid, ticket_id, title, description, acceptance_criteria)
-    VALUES (new.rowid, new.ticket_id, new.title, new.description, new.acceptance_criteria);
-END;
-
-CREATE TRIGGER IF NOT EXISTS tickets_au AFTER UPDATE ON tickets BEGIN
-    INSERT INTO tickets_fts(tickets_fts, rowid, ticket_id, title, description, acceptance_criteria)
-    VALUES ('delete', old.rowid, old.ticket_id, old.title, old.description, old.acceptance_criteria);
-    INSERT INTO tickets_fts(rowid, ticket_id, title, description, acceptance_criteria)
-    VALUES (new.rowid, new.ticket_id, new.title, new.description, new.acceptance_criteria);
-END;
-
-CREATE TRIGGER IF NOT EXISTS notes_ai AFTER INSERT ON notes BEGIN
-    INSERT INTO notes_fts(rowid, note_id, body)
-    VALUES (new.note_id, new.note_id, new.body);
-END;
 `

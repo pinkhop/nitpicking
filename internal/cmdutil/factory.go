@@ -3,6 +3,7 @@ package cmdutil
 import (
 	"log/slog"
 
+	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/iostreams"
 )
 
@@ -57,6 +58,10 @@ type Factory struct {
 	// it via an admin endpoint for runtime adjustment. Tests that replace
 	// Logger ignore this field.
 	LogLevel *slog.LevelVar
+
+	// Service returns the application service. Constructed lazily — requires
+	// database discovery and SQLite initialization.
+	Service func() service.Service
 
 	// SignalCancelIsError controls whether signal-triggered context
 	// cancellation (SIGINT, SIGTERM) produces a non-zero exit code.

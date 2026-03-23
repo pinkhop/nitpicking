@@ -69,7 +69,7 @@ func TestClassifyError_WrappedContextCanceled_DefaultFalse_ReturnsExitOK(t *test
 	}
 }
 
-func TestClassifyError_ContextCanceled_SignalCancelIsError_ReturnsExitCancel(t *testing.T) {
+func TestClassifyError_ContextCanceled_SignalCancelIsError_ReturnsExitError(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -79,12 +79,12 @@ func TestClassifyError_ContextCanceled_SignalCancelIsError_ReturnsExitCancel(t *
 	code := classifyError(&stderr, context.Canceled, true)
 
 	// Then
-	if code != ExitCancel {
-		t.Errorf("expected ExitCancel (%d), got %d", ExitCancel, code)
+	if code != ExitError {
+		t.Errorf("expected ExitError (%d), got %d", ExitError, code)
 	}
 }
 
-func TestClassifyError_WrappedContextCanceled_SignalCancelIsError_ReturnsExitCancel(t *testing.T) {
+func TestClassifyError_WrappedContextCanceled_SignalCancelIsError_ReturnsExitError(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -95,12 +95,12 @@ func TestClassifyError_WrappedContextCanceled_SignalCancelIsError_ReturnsExitCan
 	code := classifyError(&stderr, wrapped, true)
 
 	// Then
-	if code != ExitCancel {
-		t.Errorf("expected ExitCancel (%d), got %d", ExitCancel, code)
+	if code != ExitError {
+		t.Errorf("expected ExitError (%d), got %d", ExitError, code)
 	}
 }
 
-func TestClassifyError_FlagError_ReturnsExitErrorAndPrintsMessage(t *testing.T) {
+func TestClassifyError_FlagError_ReturnsExitValidationAndPrintsMessage(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -111,8 +111,8 @@ func TestClassifyError_FlagError_ReturnsExitErrorAndPrintsMessage(t *testing.T) 
 	code := classifyError(&stderr, flagErr, false)
 
 	// Then
-	if code != ExitError {
-		t.Errorf("expected ExitError (%d), got %d", ExitError, code)
+	if code != ExitValidation {
+		t.Errorf("expected ExitValidation (%d), got %d", ExitValidation, code)
 	}
 	if !strings.Contains(stderr.String(), "--count must be positive") {
 		t.Errorf("expected flag error message in stderr, got %q", stderr.String())

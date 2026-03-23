@@ -10,9 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmd/root"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
+	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/iostreams"
+	"github.com/pinkhop/nitpicking/internal/storage/sqlite"
 )
 
 // appNameFromArgs derives the application name from the executable path in
@@ -70,14 +73,32 @@ func classifyError(stderr io.Writer, err error, signalCancelIsError bool) ExitCo
 
 	case errors.Is(err, context.Canceled):
 		if signalCancelIsError {
-			return ExitCancel
+			return ExitError
 		}
 		return ExitOK
 
 	default:
+		// Map domain errors to specific exit codes per §9.
+		if errors.Is(err, domain.ErrNotFound) {
+			_, _ = fmt.Fprintln(stderr, err)
+			return ExitNotFound
+		}
+		if errors.Is(err, &domain.ClaimConflictError{}) {
+			_, _ = fmt.Fprintln(stderr, err)
+			return ExitClaimConflict
+		}
+		if errors.Is(err, &domain.ValidationError{}) {
+			_, _ = fmt.Fprintln(stderr, err)
+			return ExitValidation
+		}
+		if errors.Is(err, &domain.DatabaseError{}) {
+			_, _ = fmt.Fprintln(stderr, err)
+			return ExitDatabase
+		}
+
 		if fe, ok := errors.AsType[*cmdutil.FlagError](err); ok {
 			_, _ = fmt.Fprintln(stderr, fe) // #nosec G705 -- CLI stderr output, not rendered in a browser
-			return ExitError
+			return ExitValidation
 		}
 
 		_, _ = fmt.Fprintln(stderr, err)
@@ -105,6 +126,39 @@ func newFactory(appName, appVersion string) *cmdutil.Factory {
 	// usable from the first log line. The level defaults to Info and is updated
 	// by the root command's Before hook after flag parsing.
 	f.LogLevel, f.Logger = newLogger(f.IOStreams)
+
+	// Phase 3: Service — constructed lazily on first access. Database
+	// discovery runs once; the Store is opened once and reused. Commands
+	// that don't need the database (agent-name, agent-instructions) still
+	// call through the service; the service handles non-database operations
+	// without touching storage.
+	var svc service.Service
+	f.Service = func() service.Service {
+		if svc != nil {
+			return svc
+		}
+
+		// Try to discover an existing database. If not found, create a
+		// service backed by a nil transactor — init will create the db.
+		cwd, _ := os.Getwd()
+		dbPath, err := sqlite.DiscoverDatabase(cwd)
+		if err != nil {
+			// No database found — return a service that can handle
+			// non-database operations. Database commands will fail
+			// with appropriate errors.
+			dbPath, _ = sqlite.InitDatabaseDir(cwd)
+		}
+
+		store, err := sqlite.Open(dbPath)
+		if err != nil {
+			// Return a service with a nil-safe transactor — operations
+			// will fail with database errors at call time.
+			svc = service.New(nil)
+			return svc
+		}
+		svc = service.New(store)
+		return svc
+	}
 
 	return f
 }

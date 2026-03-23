@@ -57,3 +57,19 @@
 **Decision:** Per the spec notes on 1.7 and 1.8, `deleted` is a separate boolean flag on the Ticket struct, not a value in the state machine. The state machine only knows about lifecycle states (open, active, claimed, closed, deferred, waiting).
 
 **Why:** The spec explicitly says "deleted is terminal but separate from the state machine." Keeping it as a flag simplifies the state machine and makes the terminal-check logic clearer.
+
+---
+
+## DD-008: FTS5 uses standalone tables, not external content
+
+**Decision:** The FTS5 virtual tables (`tickets_fts`, `notes_fts`) are standalone (not backed by `content=tickets`). Sync is managed manually in the repository layer via INSERT/DELETE on create and update operations.
+
+**Why:** The tickets table is `WITHOUT ROWID` (per §4.7), which means it has no implicit `rowid` column. FTS5's external content mode (`content=`) requires a `content_rowid=` mapping to an integer column, but `WITHOUT ROWID` tables lack this. Standalone FTS tables avoid this incompatibility at the cost of slightly more storage and manual sync.
+
+---
+
+## DD-009: Service is lazily constructed via Factory function field
+
+**Decision:** The `Factory.Service` field is a `func() service.Service` closure that lazily discovers the database, opens the SQLite store, and constructs the service on first access. Commands that don't need the database (agent-name, agent-instructions) still call through the service.
+
+**Why:** Database discovery (walking up directories) is a side-effectful operation that should not happen at factory construction time. Lazy construction means the cost is paid only when needed, and commands like `agent-name` work even without a `.np/` directory.

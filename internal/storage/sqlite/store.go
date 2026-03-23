@@ -201,6 +201,13 @@ func (r *ticketRepo) CreateTicket(ctx context.Context, t ticket.Ticket) error {
 		}
 	}
 
+	// FTS sync.
+	_, err = r.tx.ExecContext(ctx, `INSERT INTO tickets_fts (ticket_id, title, description, acceptance_criteria) VALUES (?, ?, ?, ?)`,
+		t.ID().String(), t.Title(), t.Description(), t.AcceptanceCriteria())
+	if err != nil {
+		return &domain.DatabaseError{Op: "fts insert", Err: err}
+	}
+
 	return nil
 }
 
@@ -251,6 +258,11 @@ func (r *ticketRepo) UpdateTicket(ctx context.Context, t ticket.Ticket) error {
 			return &domain.DatabaseError{Op: "update facet", Err: err}
 		}
 	}
+
+	// FTS sync — delete old entry and insert updated one.
+	_, _ = r.tx.ExecContext(ctx, `DELETE FROM tickets_fts WHERE ticket_id = ?`, t.ID().String())
+	_, _ = r.tx.ExecContext(ctx, `INSERT INTO tickets_fts (ticket_id, title, description, acceptance_criteria) VALUES (?, ?, ?, ?)`,
+		t.ID().String(), t.Title(), t.Description(), t.AcceptanceCriteria())
 
 	return nil
 }
@@ -523,7 +535,15 @@ func (r *noteRepo) CreateNote(ctx context.Context, n note.Note) (int64, error) {
 	if err != nil {
 		return 0, &domain.DatabaseError{Op: "create note", Err: err}
 	}
-	return result.LastInsertId()
+	noteID, err := result.LastInsertId()
+	if err != nil {
+		return 0, &domain.DatabaseError{Op: "get note ID", Err: err}
+	}
+
+	// FTS sync.
+	_, _ = r.tx.ExecContext(ctx, `INSERT INTO notes_fts (note_id, body) VALUES (?, ?)`, noteID, n.Body())
+
+	return noteID, nil
 }
 
 func (r *noteRepo) GetNote(ctx context.Context, id int64) (note.Note, error) {

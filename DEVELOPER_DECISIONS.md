@@ -12,11 +12,11 @@
 
 ---
 
-## DD-002: Claim IDs use 128-bit hex tokens
+## DD-002: Claim IDs use 128-bit hex tokens from the crypto PRNG
 
-**Decision:** Claim IDs are 16 random bytes hex-encoded (32 characters). This provides 128 bits of entropy — equivalent to UUIDs — making them unguessable per the spec's "bearer authentication" requirement.
+**Decision:** Claim IDs are 16 random bytes hex-encoded (32 characters), generated from the default `math/rand/v2` source (backed by `crypto/rand` in Go 1.22+). This provides 128 bits of cryptographic entropy — equivalent to UUIDs — making them unguessable per the spec's "bearer authentication" requirement.
 
-**Why:** The spec requires "random, unguessable token". UUID format would work but adds a dependency; raw hex from `math/rand/v2` (backed by `crypto/rand` in Go 1.22+) is simpler and equally secure.
+**Why:** The spec requires "random, unguessable token". Claim IDs are bearer authentication tokens — presenting the claim ID is the sole proof of ownership — so they must be cryptographically unpredictable. UUID format would work but adds a dependency; raw hex from the crypto-backed default source is simpler and equally secure. See DD-010 for the contrasting treatment of ticket IDs and agent names.
 
 ---
 
@@ -68,8 +68,16 @@
 
 ---
 
-## DD-009: Service is lazily constructed via Factory function field
+## DD-009: Factory provides the database connection, not the application service
 
 **Decision:** The `Factory.Store` field is a `func() (*sqlite.Store, error)` closure that lazily discovers the database and opens the SQLite connection on first access. The Factory provides the architecture-neutral database connection; the application service is constructed from it by `cmdutil.NewTracker(f)`, which commands call when they need the use-case layer.
 
 **Why:** Per the design guide, Factory fields should be infrastructure-level dependencies (database connections, HTTP clients), not application-layer constructs. This separates configuration-driven plumbing from business logic. Database discovery (walking up directories) is a side-effectful operation that should not happen at factory construction time. The `NewTracker` helper avoids boilerplate — every command that needs the service calls it, but the Factory itself remains architecture-neutral.
+
+---
+
+## DD-010: Ticket IDs and agent names use PCG; claim IDs use the crypto PRNG
+
+**Decision:** Ticket ID generation and agent name generation use explicit PCG generators (`rand.New(rand.NewPCG(...))`) seeded from the crypto source at init time. Claim ID generation uses the default `math/rand/v2` source, which is backed by `crypto/rand`.
+
+**Why:** Ticket IDs need collision resistance across a ~33 million ID space, and agent names need variety across ~180,000 combinations — neither requires cryptographic unpredictability. PCG is a high-quality, fast PRNG that is more than sufficient for both. Claim IDs, by contrast, are bearer authentication tokens (presenting the claim ID is the sole proof of ownership), so they must be cryptographically unpredictable. Seeding the PCG generators from the crypto source at init time ensures sequences are unpredictable across process restarts without paying the crypto overhead on every call.

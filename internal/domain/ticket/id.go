@@ -18,6 +18,12 @@ const randomPartLength = 5
 // idSpace is the total number of possible random portions (32^5 = 33,554,432).
 const idSpace = 32 * 32 * 32 * 32 * 32
 
+// prng is a PCG-backed random number generator for ticket ID generation.
+// Seeded from the default crypto source at init time for unpredictable
+// sequences, but uses PCG for speed — ticket IDs need collision resistance,
+// not cryptographic security.
+var prng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+
 // ID represents a ticket identifier in the form PREFIX-random (e.g., "NP-a3bxr").
 // The prefix is uppercase ASCII letters; the random portion is lowercase
 // Crockford Base32 characters. IDs are immutable after construction.
@@ -135,11 +141,11 @@ func isCrockfordChar(r rune) bool {
 	return false
 }
 
-// generateRandom produces a cryptographically random 5-character Crockford
-// Base32 string. Uses crypto/rand/v2 which panics on CSPRNG failure — the
-// correct behavior since a broken random source should halt the process.
+// generateRandom produces a random 5-character Crockford Base32 string using
+// the package-level PCG generator. The generator is seeded from crypto/rand
+// at init time; ongoing generation uses the fast PCG algorithm.
 func generateRandom() string {
-	val := rand.N(idSpace)
+	val := prng.IntN(idSpace)
 	buf := make([]byte, randomPartLength)
 	for i := randomPartLength - 1; i >= 0; i-- {
 		buf[i] = crockfordAlphabet[val%32]

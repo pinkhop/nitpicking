@@ -2,6 +2,12 @@ package identity
 
 import "math/rand/v2"
 
+// prng is a PCG-backed random number generator for agent name generation.
+// Seeded from the default crypto source at init time for unpredictable
+// sequences, but uses PCG for speed — agent names need variety, not
+// cryptographic security.
+var prng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+
 // adjectives is a curated list of positive, non-offensive adjectives for
 // Docker-style agent name generation.
 var adjectives = []string{
@@ -52,8 +58,7 @@ var modifiers = []string{
 
 // GenerateAgentName produces a Docker-style random agent name in the format
 // "adjective-noun-modifier" (e.g., "dashing-storage-glitter"). Each
-// invocation returns a fresh random name. Uses math/rand/v2 which is backed
-// by crypto/rand by default in Go 1.22+.
+// invocation returns a fresh random name using the package-level PCG generator.
 func GenerateAgentName() string {
 	adj := randomElement(adjectives)
 	noun := randomElement(nouns)
@@ -61,7 +66,8 @@ func GenerateAgentName() string {
 	return adj + "-" + noun + "-" + mod
 }
 
-// randomElement returns a cryptographically random element from a string slice.
+// randomElement returns a random element from a string slice using the
+// package-level PCG generator.
 func randomElement(slice []string) string {
-	return slice[rand.N(len(slice))]
+	return slice[prng.IntN(len(slice))]
 }

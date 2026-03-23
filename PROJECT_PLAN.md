@@ -1,0 +1,595 @@
+# Nitpicking — Project Plan
+
+> Derived from `SPECIFICATION.md` v1.0 (2026-03-23)
+> Single senior engineer; serial execution; inside-out development.
+
+---
+
+## Starting Point
+
+The repo contains a Go quick-start template with:
+
+- CLI framework (`urfave/cli/v3`) wired into a root command with a `version` subcommand.
+- Factory pattern for dependency injection (`cmdutil.Factory`).
+- IOStreams abstraction (TTY detection, color, test doubles).
+- Exit codes, structured logging, signal handling, Makefile with build/test/lint/sec targets.
+- No domain code, no persistence, no application-layer logic.
+
+---
+
+## Phase 1 — Core Domain Model
+
+Pure domain types, value objects, and validation. No ports, no persistence. Every task produces unit-tested code with in-memory construction only.
+
+### 1.1 Ticket ID Value Object
+
+Define the `TicketID` type: uppercase prefix (1–10 chars, A–Z), separator `-`, 5 lowercase Crockford Base32 random characters. Implement parsing, validation, generation (with collision retry callback), and `String()`. No database interaction — collision detection is injected.
+
+- **Depends on:** nothing
+- **Package:** `internal/domain/ticket`
+
+### 1.2 Author Value Object
+
+Define the `Author` type with validation: at least one alphanumeric char, max 64 Unicode runes, no whitespace, NFC-normalized on input, case-sensitive equality.
+
+- **Depends on:** nothing
+- **Package:** `internal/domain/identity`
+
+### 1.3 Priority Value Object
+
+Define `Priority` as an enumeration: `P0`–`P4`. Include ordering (lower number = higher urgency), parsing from string, default (`P2`), and `String()`.
+
+- **Depends on:** nothing
+- **Package:** `internal/domain/ticket`
+
+### 1.4 Ticket Role Enumeration
+
+Define `Role` as `Epic` or `Task`. Immutable after creation. Include parsing and `String()`.
+
+- **Depends on:** nothing
+- **Package:** `internal/domain/ticket`
+
+### 1.5 Facet Value Object
+
+Define `Facet` (key–value pair). Key: 1–64 bytes, ASCII printable (0x21–0x7E), no whitespace, at least one alphanumeric. Value: 1–256 bytes, UTF-8, no whitespace, at least one alphanumeric. Key uniqueness is enforced at the collection level. Include a `FacetSet` collection type.
+
+- **Depends on:** nothing
+- **Package:** `internal/domain/ticket`
+
+### 1.6 Task State Machine
+
+Define `TaskState` enum (`open`, `claimed`, `closed`, `deferred`, `waiting`) and a transition function that enforces legal transitions per §5.1 and §5.3. `closed` is terminal. Return typed errors for illegal transitions.
+
+- **Depends on:** nothing
+- **Package:** `internal/domain/ticket`
+
+### 1.7 Epic State Machine
+
+Define `EpicState` enum (`active`, `claimed`, `deferred`, `waiting`) and a transition function per §5.2 and §5.3. No `closed` state — completion is derived. Return typed errors for illegal transitions.
+
+- **Depends on:** nothing
+- **Package:** `internal/domain/ticket`
+
+### 1.8 Ticket Entity — Core Fields
+
+Define the `Ticket` struct carrying all common fields from §4.1: ID, role, title, description, acceptance criteria, priority, state, revision, parent reference, facets, created-at, idempotency key. All fields are immutable after construction; "mutations" return new `Ticket` values. Include factory functions `NewTask` and `NewEpic` with required-field validation (title must contain at least one alphanumeric character).
+
+- **Depends on:** 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7
+- **Package:** `internal/domain/ticket`
+
+### 1.9 Parent Constraints
+
+Implement parent validation rules from §4.1.1: only epics can be parents; a ticket cannot be its own parent; deleted tickets cannot be parents. Cycle detection (A cannot parent B if B is an ancestor of A) is defined as a pure function taking an ancestry-lookup callback — no persistence dependency.
+
+- **Depends on:** 1.8
+- **Package:** `internal/domain/ticket`
+
+### 1.10 Note Entity
+
+Define `Note` with fields from §4.2: auto-assigned sequential ID (displayed as `note-<int>`), ticket ID reference, author, created-at, body (non-empty). Notes are immutable after creation.
+
+- **Depends on:** 1.1, 1.2
+- **Package:** `internal/domain/note`
+
+### 1.11 Relationship Value Object
+
+Define `Relationship` with types from §4.3: `blocked_by`/`blocks`, `cites`/`cited_by`. Include the inverse mapping. Enforce: no self-relationships. Idempotent semantics are a storage concern, but the domain type validates structural rules. A relationship cannot reference a deleted ticket (validated via callback).
+
+- **Depends on:** 1.1
+- **Package:** `internal/domain/ticket`
+
+### 1.12 History Entry Entity
+
+Define `HistoryEntry` per §4.4 and §7: entry ID, ticket ID, zero-based revision, author, timestamp, event type enum (`created`, `claimed`, `released`, `updated`, `state_changed`, `deleted`, `relationship_added`, `relationship_removed`), structured changes (field name → before/after). Immutable. Notes do not produce history entries.
+
+- **Depends on:** 1.1, 1.2
+- **Package:** `internal/domain/history`
+
+### 1.13 Claim Entity
+
+Define `Claim` per §4.5: random unguessable claim ID, ticket ID, author, stale threshold (default 2h, max 24h), last-activity timestamp. Include `IsStale(now)` method. Claims are immutable value objects — "extending" produces a new claim.
+
+- **Depends on:** 1.1, 1.2
+- **Package:** `internal/domain/claim`
+
+### 1.14 Claiming Rules
+
+Implement claiming business logic from §6.1: only non-terminal tickets can be claimed; `closed` and `deleted` tickets cannot be claimed. One-shot claim-update-release as a domain operation. Author attribution rules: gated operations inherit claim author; ungated operations require explicit author.
+
+- **Depends on:** 1.8, 1.13
+- **Package:** `internal/domain/claim`
+
+### 1.15 Epic Completion Derivation
+
+Implement §6.2: an epic is complete when it has children AND all children are closed (tasks) or complete (sub-epics). Incomplete otherwise, including when childless. Pure function taking a list of child statuses.
+
+- **Depends on:** 1.6, 1.7
+- **Package:** `internal/domain/ticket`
+
+### 1.16 Readiness Rules
+
+Implement §6.3: task readiness (state `open`, no unresolved `blocked_by`, no deferred/waiting ancestor) and epic readiness (state `active`, no children, no unresolved `blocked_by`, no deferred/waiting ancestor). Readiness propagation: deferred/waiting epics suppress readiness for unclaimed descendants. Pure functions taking lookup callbacks for blockers and ancestors.
+
+- **Depends on:** 1.6, 1.7, 1.11
+- **Package:** `internal/domain/ticket`
+
+### 1.17 Staleness and Stealing Rules
+
+Implement §6.4: a claim is stale when `now - last_activity > stale_threshold`. Stealing atomicity rules are defined here as preconditions (old claim must be stale, new claim replaces it). Auto-generated note on steal. Threshold extension rules (cannot exceed 24h).
+
+- **Depends on:** 1.13, 1.10
+- **Package:** `internal/domain/claim`
+
+### 1.18 Soft Deletion Rules
+
+Implement §6.5: deleted ticket's ID is reserved; deleted tickets are immutable; cannot be parents or relationship targets; existing relationships retained but invisible. Recursive epic deletion: all unclaimed descendants are deleted; if any descendant is claimed, operation fails with conflict error identifying the claimed ticket(s). Pure function returning the set of tickets to delete or the conflict error.
+
+- **Depends on:** 1.8, 1.13
+- **Package:** `internal/domain/ticket`
+
+### 1.19 Domain Error Types
+
+Define typed errors for the domain: `ErrTicketNotFound`, `ErrClaimConflict`, `ErrIllegalTransition`, `ErrValidation`, `ErrCycleDetected`, `ErrDeletedTicket`, `ErrTerminalState`. These map to exit codes at the adapter layer, not here.
+
+- **Depends on:** nothing (can be developed in parallel with other domain types, but placing here for logical sequencing)
+- **Package:** `internal/domain`
+
+---
+
+## Phase 2 — Port Interfaces
+
+Define the contracts between the core domain and its adapters. No implementations.
+
+### 2.1 Driven Port — Persistence Interface
+
+Define the `Repository` interface (or set of interfaces) that the application layer requires from storage. Methods should cover:
+
+- Ticket CRUD (create, get by ID, update, soft delete, list, search)
+- Note CRUD (create, get by ID, list by ticket, search per-ticket, search global)
+- Claim lifecycle (create, get by ticket, invalidate, update last-activity)
+- Relationship CRUD (create-if-not-exists, delete-if-exists, list by ticket)
+- History (append entry, list by ticket)
+- Ancestry lookup (for cycle detection and readiness propagation)
+- GC (physical removal of deleted/closed data)
+- Database initialization (prefix storage)
+- Ticket ID collision check
+
+Pagination parameters: keyset-based, page size default 20, total count.
+
+- **Depends on:** all Phase 1 types (1.1–1.19)
+- **Package:** `internal/domain/port`
+
+### 2.2 Driving Port — Application Service Interface
+
+Define the use-case boundary — the set of operations the CLI (or any driving adapter) can invoke. This is a facade over domain logic + persistence. Operations map to §8 commands:
+
+- Init, AgentName, AgentInstructions
+- Create, ClaimByID, ClaimNextReady, OneShotUpdate, Update, ExtendStaleThreshold, TransitionState, Delete, Show, List, Search
+- AddNote, ShowNote, ListNotes, SearchNotes (per-ticket), SearchNotes (global)
+- ShowHistory
+- Doctor, GC
+
+Each operation defines its input DTO and output DTO. Errors use domain error types.
+
+- **Depends on:** 2.1, all Phase 1 types
+- **Package:** `internal/app/service` (or `internal/usecase`)
+
+---
+
+## Phase 3 — Application Service Implementation
+
+Implement the driving port. This layer orchestrates domain logic and persistence calls within transactions. Tested with in-memory fakes for the persistence port.
+
+### 3.1 In-Memory Fake Repository
+
+Implement the persistence port interface (§2.1) as an in-memory fake. This is the test double for all application-layer unit tests. Stores tickets, notes, claims, relationships, and history in maps/slices. Supports pagination, filtering, and keyset semantics.
+
+- **Depends on:** 2.1
+- **Package:** `internal/fake`
+
+### 3.2 Initialize Service
+
+Implement database initialization: validate and store the prefix. In the application layer, this translates to calling the persistence port's init method.
+
+- **Depends on:** 2.2, 3.1
+- **Package:** `internal/app/service`
+
+### 3.3 Create Ticket Service
+
+Implement ticket creation: validate all fields, generate ticket ID (with collision retry via persistence port), set defaults (priority P2, state open/active), optionally start as claimed, handle idempotency key. Produce a `created` history entry.
+
+- **Depends on:** 3.1, 3.2
+- **Package:** `internal/app/service`
+
+### 3.4 Claim Services (ClaimByID, ClaimNextReady)
+
+Implement claiming: validate ticket is claimable (not terminal, not already claimed unless stale + steal opt-in), generate claim ID, bind author, set stale threshold. `ClaimNextReady` uses readiness rules and priority ordering. Produce `claimed` history entry. Handle steal fallback with auto-note.
+
+- **Depends on:** 3.1, 3.3
+- **Package:** `internal/app/service`
+
+### 3.5 Update Ticket Service
+
+Implement claimed update: verify claim ID matches, apply field changes (title, description, acceptance criteria, priority, parent, facets), validate parent constraints including cycle detection, produce `updated` history entry. Update claim's last-activity.
+
+- **Depends on:** 3.4
+- **Package:** `internal/app/service`
+
+### 3.6 One-Shot Update Service
+
+Implement atomic claim → update → release for unclaimed tickets. Transient claim; caller provides author. Wraps 3.4 + 3.5 + state transition to release.
+
+- **Depends on:** 3.5
+- **Package:** `internal/app/service`
+
+### 3.7 State Transition Service
+
+Implement `TransitionState`: verify claim, apply state machine transition (release, close, defer, wait), invalidate claim, produce `state_changed` history entry. Closing recalculates parent epic completion.
+
+- **Depends on:** 3.4
+- **Package:** `internal/app/service`
+
+### 3.8 Extend Stale Threshold Service
+
+Implement threshold extension: verify claim, validate new threshold (≤24h), update claim.
+
+- **Depends on:** 3.4
+- **Package:** `internal/app/service`
+
+### 3.9 Delete Ticket Service
+
+Implement soft deletion: verify claim, recursive epic deletion (collect unclaimed descendants, fail if any are claimed), mark as deleted, produce `deleted` history entries.
+
+- **Depends on:** 3.4
+- **Package:** `internal/app/service`
+
+### 3.10 Note Services (Add, Show, List, Search)
+
+Implement note operations: add note (no claim required, validate author and body, update claim last-activity if ticket is claimed), show by ID, list by ticket with filters (author, created-after, after-note-ID), search per-ticket, search global with filters.
+
+- **Depends on:** 3.1, 3.3
+- **Package:** `internal/app/service`
+
+### 3.11 Relationship Services
+
+Implement relationship add/remove: no claim required, validate no self-reference, validate target is not deleted, idempotent semantics, produce history entry on source ticket.
+
+- **Depends on:** 3.1, 3.3
+- **Package:** `internal/app/service`
+
+### 3.12 Show / List / Search Ticket Services
+
+Implement read operations: show (full ticket state including derived readiness and epic completion), list (with filters: role, state, ready predicate, parent, facet; ordering: priority, created, modified; keyset pagination), search (FTS on title/description/acceptance criteria, optionally notes).
+
+- **Depends on:** 3.1, 3.3
+- **Package:** `internal/app/service`
+
+### 3.13 History Service
+
+Implement `ShowHistory`: list history entries for a ticket with filters (author, date range), ordering, and pagination.
+
+- **Depends on:** 3.1, 3.3
+- **Package:** `internal/app/service`
+
+### 3.14 Doctor Service
+
+Implement diagnostics from §8.6: detect circular `blocked_by` chains, deadlocked state (all tickets blocked), stale claims, epics with no task descendants, GC opportunity (40% space savings threshold). Read-only; returns findings.
+
+- **Depends on:** 3.1, 3.3
+- **Package:** `internal/app/service`
+
+### 3.15 GC Service
+
+Implement garbage collection: physically remove deleted (and optionally closed) ticket data via persistence port.
+
+- **Depends on:** 3.1
+- **Package:** `internal/app/service`
+
+### 3.16 Agent Name Generator
+
+Implement Docker-style random name generation (e.g., "dashing-storage-glitter"). Pure function, no persistence.
+
+- **Depends on:** nothing
+- **Package:** `internal/domain/identity` (or `internal/agentname`)
+
+### 3.17 Agent Instructions Generator
+
+Implement Markdown block generation per §8.2: core workflow, claim IDs, state transitions, help pointers. Pure string construction.
+
+- **Depends on:** nothing
+- **Package:** `internal/domain/identity` (or `internal/agentinstructions`)
+
+---
+
+## Phase 4 — Driven Adapter (SQLite)
+
+Implement the persistence port against SQLite. Integration-tested.
+
+### 4.1 Database Discovery
+
+Implement `.np/` directory walk from §3.3: start at cwd, walk up to filesystem root, skip permission/sandbox errors. Return path or "no database found" error.
+
+- **Depends on:** nothing (standalone utility)
+- **Package:** `internal/storage/sqlite`
+
+### 4.2 SQLite Schema and Migrations
+
+Design and implement the SQLite schema: tickets (`WITHOUT ROWID`), notes, claims, relationships, history, facets, FTS virtual tables for search, prefix storage. Include initialization (create `.np/` dir + database + schema).
+
+- **Depends on:** 2.1, 4.1
+- **Package:** `internal/storage/sqlite`
+
+### 4.3 SQLite Repository — Ticket CRUD
+
+Implement create, get-by-ID, update, soft-delete, list (with all filters and keyset pagination), search (FTS).
+
+- **Depends on:** 4.2
+- **Package:** `internal/storage/sqlite`
+
+### 4.4 SQLite Repository — Note CRUD
+
+Implement note create, get-by-ID, list-by-ticket, search per-ticket (FTS), search global (FTS).
+
+- **Depends on:** 4.2
+- **Package:** `internal/storage/sqlite`
+
+### 4.5 SQLite Repository — Claim Lifecycle
+
+Implement claim create, get-by-ticket, invalidate, update-last-activity. Atomic compare-and-swap for claiming and stealing.
+
+- **Depends on:** 4.2
+- **Package:** `internal/storage/sqlite`
+
+### 4.6 SQLite Repository — Relationships, History, Ancestry
+
+Implement relationship create-if-not-exists, delete-if-exists, list-by-ticket. History append and list. Ancestry lookup for cycle detection and readiness propagation.
+
+- **Depends on:** 4.2
+- **Package:** `internal/storage/sqlite`
+
+### 4.7 SQLite Repository — GC
+
+Implement physical removal of deleted (and optionally closed) data, including related notes, history, relationships, facets, and FTS entries. Run `VACUUM` after.
+
+- **Depends on:** 4.2
+- **Package:** `internal/storage/sqlite`
+
+### 4.8 Transaction Management
+
+Implement transaction wrapper ensuring all write operations are atomic. The application service calls persistence methods within a transaction scope provided by the adapter.
+
+- **Depends on:** 4.2
+- **Package:** `internal/storage/sqlite`
+
+---
+
+## Phase 5 — Driving Adapter (CLI)
+
+Wire CLI commands to the application service. Each command is a thin adapter: parse flags/args, call the service, format output (JSON or human-readable).
+
+### 5.1 Exit Code Mapping
+
+Update `exit_codes.go` to match §9 exit codes: 0 success, 1 general error, 2 not found, 3 claim conflict, 4 validation error, 5 database error. Update `classifyError` to map domain errors to these codes.
+
+- **Depends on:** 1.19
+- **Package:** `internal/app`
+
+### 5.2 JSON Output Infrastructure
+
+Implement a shared output formatter: `--json` flag on every command, deterministic output shape (empty list → `[]`, missing optional → null, never omitted), self-describing errors in JSON.
+
+- **Depends on:** nothing
+- **Package:** `internal/cmdutil`
+
+### 5.3 `np init` Command
+
+CLI adapter for §8.2 Initialize: `np init <PREFIX>`. Creates `.np/` directory and database in cwd.
+
+- **Depends on:** 3.2, 4.2, 5.1, 5.2
+- **Package:** `internal/cmd/init`
+
+### 5.4 `np agent-name` Command
+
+CLI adapter for agent name generation.
+
+- **Depends on:** 3.16, 5.2
+- **Package:** `internal/cmd/agentname`
+
+### 5.5 `np agent-instructions` Command
+
+CLI adapter for agent instructions output.
+
+- **Depends on:** 3.17, 5.2
+- **Package:** `internal/cmd/agentinstructions`
+
+### 5.6 `np create` Command
+
+CLI adapter for ticket creation. Flags: `--title`, `--description`, `--acceptance-criteria`, `--priority`, `--role`, `--parent`, `--facet` (repeatable key=value), `--relationship` (repeatable type:id), `--claim`, `--author`, `--idempotency-key`.
+
+- **Depends on:** 3.3, 5.1, 5.2
+- **Package:** `internal/cmd/create`
+
+### 5.7 `np claim` Command
+
+CLI adapter for `ClaimByID`. Flags: `--steal`, `--author`, `--stale-threshold`.
+
+- **Depends on:** 3.4, 5.1, 5.2
+- **Package:** `internal/cmd/claim`
+
+### 5.8 `np next` Command
+
+CLI adapter for `ClaimNextReady`. Flags: `--facet` (filter), `--role` (filter), `--steal-fallback`, `--author`, `--stale-threshold`.
+
+- **Depends on:** 3.4, 5.1, 5.2
+- **Package:** `internal/cmd/next`
+
+### 5.9 `np update` Command
+
+CLI adapter for claimed update. Flags for each mutable field, `--claim-id` required, `--facet-set`, `--facet-remove`, `--relationship-add`, `--relationship-remove`, `--note`.
+
+- **Depends on:** 3.5, 5.1, 5.2
+- **Package:** `internal/cmd/update`
+
+### 5.10 `np edit` Command
+
+CLI adapter for one-shot update. Same field flags as `np update` but no `--claim-id`; requires `--author`.
+
+- **Depends on:** 3.6, 5.1, 5.2
+- **Package:** `internal/cmd/edit`
+
+### 5.11 `np release`, `np close`, `np defer`, `np wait` Commands
+
+CLI adapters for state transitions. Each requires `--claim-id`. `np close` is tasks only.
+
+- **Depends on:** 3.7, 5.1, 5.2
+- **Package:** `internal/cmd/transition`
+
+### 5.12 `np extend` Command
+
+CLI adapter for stale threshold extension. Requires `--claim-id` and new duration.
+
+- **Depends on:** 3.8, 5.1, 5.2
+- **Package:** `internal/cmd/extend`
+
+### 5.13 `np delete` Command
+
+CLI adapter for soft deletion. Requires `--claim-id` and `--confirm` flag.
+
+- **Depends on:** 3.9, 5.1, 5.2
+- **Package:** `internal/cmd/delete`
+
+### 5.14 `np show` Command
+
+CLI adapter for ticket detail view. Positional arg: ticket ID. Displays all fields, facets, relationships, children, derived properties.
+
+- **Depends on:** 3.12, 5.1, 5.2
+- **Package:** `internal/cmd/show`
+
+### 5.15 `np list` Command
+
+CLI adapter for ticket listing. Flags for all filters (role, state, ready, parent, facet) and ordering. Keyset pagination flags (`--after`, `--page-size`).
+
+- **Depends on:** 3.12, 5.1, 5.2
+- **Package:** `internal/cmd/list`
+
+### 5.16 `np search` Command
+
+CLI adapter for full-text search. Positional arg: query. Flags for filters, ordering, pagination, `--include-notes`.
+
+- **Depends on:** 3.12, 5.1, 5.2
+- **Package:** `internal/cmd/search`
+
+### 5.17 `np note add`, `np note show`, `np note list`, `np note search` Commands
+
+CLI adapters for note operations. `np note add` requires `--author` and `--body`. Search has both per-ticket and global modes.
+
+- **Depends on:** 3.10, 5.1, 5.2
+- **Package:** `internal/cmd/note`
+
+### 5.18 `np history` Command
+
+CLI adapter for history listing. Positional arg: ticket ID. Filter/pagination flags.
+
+- **Depends on:** 3.13, 5.1, 5.2
+- **Package:** `internal/cmd/history`
+
+### 5.19 `np doctor` Command
+
+CLI adapter for diagnostics. No required flags. Outputs findings.
+
+- **Depends on:** 3.14, 5.1, 5.2
+- **Package:** `internal/cmd/doctor`
+
+### 5.20 `np gc` Command
+
+CLI adapter for garbage collection. Flags: `--deleted-only` (default), `--include-closed`, `--confirm`.
+
+- **Depends on:** 3.15, 5.1, 5.2
+- **Package:** `internal/cmd/gc`
+
+### 5.21 Register All Commands
+
+Wire all subcommands into the root command. Update `NewRootCmd` to register the full command tree. Add database-discovery to the root `Before` hook (commands that need the database get it from context; `init` and `agent-name` skip it).
+
+- **Depends on:** 5.3–5.20, 4.1
+- **Package:** `internal/cmd/root`
+
+---
+
+## Phase 6 — Integration Testing and Polish
+
+### 6.1 SQLite Integration Tests
+
+Integration tests (build tag: `integration`) for the SQLite repository. Verify all CRUD operations, transactions, keyset pagination, FTS, concurrent claiming (via goroutines), and GC. One `TestMain` to manage test database lifecycle.
+
+- **Depends on:** Phase 4
+
+### 6.2 E2E CLI Tests
+
+E2E tests (build tag: `e2e`) that invoke the `np` binary and verify output. Cover the core workflow: init → create → claim → update → close. Verify JSON output shape, exit codes, and error messages.
+
+- **Depends on:** Phase 5
+
+### 6.3 Human-Readable Output Formatting
+
+Polish the human-readable (non-JSON) output for all commands: table formatting for lists, colored status indicators, relative timestamps when stdout is a TTY, structured ticket detail view.
+
+- **Depends on:** Phase 5
+
+### 6.4 `--help` Text and Usage Strings
+
+Review and polish all command usage strings, flag descriptions, and examples. Ensure `np --help` and `np <command> --help` are useful for both humans and agents per §9.
+
+- **Depends on:** Phase 5
+
+---
+
+## Dependency Graph (Phases)
+
+```
+Phase 1 (Domain) ──→ Phase 2 (Ports) ──→ Phase 3 (App Services + Fakes)
+                                              │
+                                              ├──→ Phase 4 (SQLite Adapter) ──→ 6.1 Integration Tests
+                                              │
+                                              └──→ Phase 5 (CLI Adapter) ──→ 6.2 E2E Tests
+                                                                          ──→ 6.3 Output Polish
+                                                                          ──→ 6.4 Help Text
+```
+
+Within Phase 1, many value objects (1.1–1.7, 1.10–1.12, 1.19) are independent and could theoretically be parallelized, but serial execution is assumed. The recommended order is as listed — it builds from primitive types toward composite entities.
+
+Within Phase 5, commands are independent of each other; the listed order follows a logical workflow progression (init → create → claim → update → transition → query → diagnostics).
+
+---
+
+## Estimated Task Count
+
+| Phase | Tasks | Cumulative |
+|-------|-------|------------|
+| 1 — Core Domain | 19 | 19 |
+| 2 — Ports | 2 | 21 |
+| 3 — App Services | 17 | 38 |
+| 4 — SQLite Adapter | 8 | 46 |
+| 5 — CLI Adapter | 21 | 67 |
+| 6 — Integration/Polish | 4 | 71 |
+| **Total** | **71** | |

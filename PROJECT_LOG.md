@@ -51,3 +51,15 @@
 - [x] **1.21** Agent Instructions Generator — `internal/domain/identity/instructions.go`
   - Markdown block covering core workflow, claim IDs, state transitions, help pointers
 
+## Phase 2 — Port Interfaces
+
+- [x] **2.1** Driven Port — Persistence Interface — `internal/domain/port/repository.go`
+  - TicketRepository, NoteRepository, ClaimRepository, RelationshipRepository, HistoryRepository, DatabaseRepository
+  - UnitOfWork and Transactor abstractions for transaction management
+  - PageRequest/PageResult for keyset pagination; TicketFilter, NoteFilter, HistoryFilter
+- [x] **2.2** Driving Port — Application Service Interface — `internal/app/service/`
+  - Service interface with all §8 commands as methods
+  - Full DTO definitions: CreateTicketInput/Output, ClaimInput/Output, UpdateTicketInput, etc.
+  - TransitionAction enum (release, close, defer, wait)
+  - DoctorFinding, GCInput/Output for diagnostics
+

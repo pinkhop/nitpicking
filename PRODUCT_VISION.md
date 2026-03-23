@@ -13,14 +13,16 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project.
 2. [Motivation: Deficiencies of Beads](#2-motivation-deficiencies-of-beads)
 3. [Ticket Model](#3-ticket-model)
    - 3.1 [Ticket Types](#31-ticket-types)
-   - 3.2 [Objective Labels](#32-objective-labels)
+   - 3.2 [Labels (Convention on Facets)](#32-labels-convention-on-facets)
    - 3.3 [Common Fields](#33-common-fields)
    - 3.4 [States](#34-states)
    - 3.5 [Relationships](#35-relationships)
    - 3.6 [Notes](#36-notes)
+   - 3.7 [Ticket ID Format](#37-ticket-id-format)
+   - 3.8 [Facets](#38-facets)
 4. [Ticket Lifecycle](#4-ticket-lifecycle)
    - 4.1 [Claiming & Updating](#41-claiming--updating)
-   - 4.2 [Objective State Derivation](#42-objective-state-derivation)
+   - 4.2 [Epic Completion Derivation](#42-epic-completion-derivation)
    - 4.3 [Readiness](#43-readiness)
    - 4.4 [Duplicate Handling](#44-duplicate-handling)
    - 4.5 [Stale Tickets & Stealing](#45-stale-tickets--stealing)
@@ -28,7 +30,13 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project.
 5. [History & Auditability](#5-history--auditability)
 6. [Architecture](#6-architecture)
 7. [Commands](#7-commands)
-   - 7.1 [Doctor](#71-doctor)
+   - 7.0 [Cross-Cutting Concerns](#70-cross-cutting-concerns)
+   - 7.1 [Global Operations](#71-global-operations)
+   - 7.2 [Ticket Operations](#72-ticket-operations)
+   - 7.3 [Note Operations](#73-note-operations)
+   - 7.4 [History Operations](#74-history-operations)
+   - 7.5 [Diagnostics](#75-diagnostics)
+   - 7.6 [Agent Ergonomics](#76-agent-ergonomics)
 8. [Out of Scope](#8-out-of-scope)
 9. [Conflicts & Tensions](#9-conflicts--tensions)
 10. [Open Questions for Next Session](#10-open-questions-for-next-session)
@@ -41,7 +49,8 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project.
 - **Non-invasive** — no global hooks, no coupling to git lifecycle, no background daemons.
 - **No database server** — embedded storage only; no Dolt, no Postgres, no separate process.
 - **CLI-driven** — first-class CLI (`np`); designed to be called by AI agents and humans alike.
-- **Per-project databases** — each project/product gets its own ticket database.
+- **Per-project databases** — each project gets its own ticket database. The developer decides the scope boundary by choosing the directory where the database lives — a single repo, a parent directory spanning multiple repos, etc.
+- **No agent orchestration** — the tool tracks issues; it does not coordinate which agent works on what. Developers manage agent coordination externally.
 
 ## 2. Motivation: Deficiencies of Beads
 
@@ -66,35 +75,53 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project.
 
 There are exactly two ticket types (referred to as "roles"):
 
-#### Objective
+#### Epic *(name is provisional — "container" and "task group" are under consideration)*
 
-The high-level "what & why". Analogous to an epic or story in agile.
+A ticket that organizes other tickets. Its completion derives from its children.
 
-- Optionally has an objective ticket as its parent (nesting is allowed).
-- **Cannot** be directly opened or closed — state is derived from children
-  (see [4.2](#42-objective-state-derivation)).
+- Optionally has an epic as its parent (nesting is allowed).
+- **Cannot** be directly completed — completion is derived from children
+  (see [4.2](#42-epic-completion-derivation)).
+- Has three directly settable **planning states**: `active`, `deferred`, `waiting`
+  (see [3.4](#34-states)).
+- **Claimable** — an epic must be claimed to edit its metadata or decompose it into
+  children. This prevents two agents from racing to break down the same epic.
 - Has a **priority** (P0–P4).
-- Optionally carries a **label** (see [3.2](#32-objective-labels)).
 
 #### Task
 
-The low-level "what & how". Describes a step or sequence of steps that progresses the
-project — or its parent objective — closer to completion.
+The actionable work. Describes a step or sequence of steps that progresses the
+project — or its parent epic — closer to completion.
 
-- Optionally has an objective ticket as its parent.
+- Optionally has an epic as its parent.
 - **Cannot** have child tickets of its own (leaf node only).
 
-### 3.2 Objective Labels
+### 3.2 Labels (Convention on Facets)
 
-Labels classify the nature of an objective. They are optional.
+Labels are not a first-class field — they are a **convention** using facets. The
+recommended facet key is `kind` (e.g., `kind:feat`, `kind:fix`). This applies to
+any ticket, not just epics.
 
-| Label           | Definition |
-|-----------------|------------|
-| `bug`           | A defect or failure to meet standards: user-facing issues, failing tests, dependencies with known security vulnerabilities, etc. |
-| `chore`         | Work that delivers no direct user-visible change but keeps the product healthy or enables future work. |
-| `enhancement`   | An improvement to an existing capability — the verb already exists, but it gets better. E.g., "export is now 3× faster", "you can filter the collaborator list by role". |
-| `feature`       | A new capability — something the product couldn't do before. Introduces a new verb for the user. E.g., "now you can export reports", "now you can invite collaborators". |
-| `spike`         | A time-boxed research or investigation to answer a question or reduce uncertainty. The deliverable is knowledge, not code. E.g., "can we integrate with their API?", "what's causing the intermittent timeout?" |
+Users are free to define whatever label vocabulary fits their workflow — corporate Jira
+categories, team-specific conventions, or anything else. For users who don't have an
+existing convention, the recommended default is the
+[Conventional Commits](https://www.conventionalcommits.org/) type vocabulary. Most
+developers already know these types and their boundaries:
+
+| Value      | Definition |
+|------------|------------|
+| `feat`     | A new feature — something the project couldn't do before. |
+| `fix`      | A bug fix or defect correction. |
+| `refactor` | Restructures code without changing external behavior. |
+| `perf`     | A performance improvement. |
+| `test`     | Adds or corrects tests. |
+| `docs`     | Documentation only. |
+| `style`    | Formatting, whitespace, or cosmetic changes — no behavior change. |
+| `build`    | Changes to the build system, dependencies, or tooling. |
+| `ci`       | Changes to CI/CD configuration or automation. |
+| `chore`    | Maintenance and housekeeping that doesn't fit other categories. |
+
+These are suggestions, not enforced values. The system does not validate facet values.
 
 ### 3.3 Common Fields
 
@@ -102,32 +129,62 @@ All tickets — regardless of type — carry these fields:
 
 | Field               | Required | Notes |
 |---------------------|----------|-------|
-| ID                  | Yes      | Auto-assigned, short alphanumeric, **immutable**. |
-| Project ID          | Yes      | **Immutable.** Defaults to the parent ticket's value. Encoding TBD (see [Open Questions](#9-open-questions-for-next-session)). |
+| ID                  | Yes      | `<PREFIX>-<random>`, auto-assigned, **immutable**. See [3.7](#37-ticket-id-format). |
 | Title               | Yes      | Must contain at least one alphanumeric character. |
 | Description         | No       | |
 | Acceptance Criteria | No       | |
 | Revision            | Yes      | Integer; starts at `0`, increments on every update. |
-| State               | Yes      | Starts as `open`. See [3.4](#34-states). |
+| State               | Yes      | See [3.4](#34-states). Tasks start as `open`; epics start as `active`. |
+| Facets              | —        | Zero or more key-value pairs. See [3.8](#38-facets). |
 | Notes               | —        | Zero or more. See [3.6](#36-notes). |
 | Relationships       | —        | Zero or more. See [3.5](#35-relationships). |
 
 ### 3.4 States
 
-| State      | Meaning |
-|------------|---------|
-| `open`     | Available for work. |
-| `claimed`  | An agent or human has claimed the ticket to work on it or update its fields. |
-| `closed`   | Fully resolved. |
-| `deferred` | Should not be worked on now. For objectives, may represent a stretch goal or a future roadmap item. |
-| `waiting`  | Cannot proceed until something **external to the ticket tracker** happens — e.g., a human decision, a permission grant. (Name is provisional; "blocked" is explicitly rejected.) |
+Epics and tasks share the same state vocabulary but differ in which states apply and
+how completion works.
+
+#### State Definitions
+
+| State      | Applies to  | Meaning |
+|------------|-------------|---------|
+| `open`     | Tasks       | Available for work. Default state at creation. |
+| `active`   | Epics       | This epic is live. Children follow their own lifecycles; readiness flows normally. Default state at creation. |
+| `claimed`  | Both        | An agent or human has taken ownership. For tasks: working on it or updating fields. For epics: editing metadata or decomposing into children. |
+| `closed`   | Tasks       | Fully resolved. **Terminal** — cannot be claimed or reopened. Create a new ticket and cite the old one instead. |
+| `deferred` | Both        | Should not be worked on now. For epics: unclaimed descendants are no longer ready (see [4.3](#43-readiness)); claimed descendants continue, but nothing new starts. |
+| `waiting`  | Both        | Cannot proceed until something **external to the ticket tracker** happens — e.g., a human decision, a permission grant. Same readiness propagation as `deferred` for epics. (Name is provisional; "blocked" is explicitly rejected.) |
+
+#### State Transitions
+
+**Claiming is the universal gate for all state changes.** To move a ticket to any new
+state, you must be its current claimer. The only ungated transition is into `claimed`
+itself (from any non-terminal state).
+
+```
+(any non-terminal state) → claimed    take ownership
+claimed → open / active               release without completing
+claimed → closed                      complete (tasks only)
+claimed → deferred                    shelve
+claimed → waiting                     externally blocked
+```
+
+`closed` and `deleted` are terminal — they cannot be claimed.
+
+#### Epic Completion
+
+Epic **completion** is not a state — it is a derived observation
+(see [4.2](#42-epic-completion-derivation)). Critically, completion is **not a lock** —
+new children can always be added to an epic regardless of whether it is currently
+complete. Adding a child flips the epic back to incomplete. "Complete" means "everything
+currently under here is closed", not "this epic is finished forever."
 
 ### 3.5 Relationships
 
-| Relationship  | Semantics |
-|---------------|-----------|
-| `blocked_by`  | This ticket cannot make progress until the referenced ticket is closed. |
-| `see_also`    | This ticket may be related to the referenced ticket. (Name is provisional; "relates_to" is explicitly rejected.) |
+| Relationship    | Inverse        | Semantics |
+|-----------------|----------------|-----------|
+| `blocked_by`    | `blocks`       | This ticket cannot make progress until the referenced ticket is closed. |
+| `cites`         | `cited_by`     | This ticket references the target ticket as relevant context. |
 
 ### 3.6 Notes
 
@@ -136,10 +193,100 @@ claiming the ticket.
 
 | Field      | Required | Notes |
 |------------|----------|-------|
-| ID         | Yes      | Auto-assigned. Tentative format: `<ticket-id>-<random-6-alphanumeric>`. Exists so notes can reference other notes. |
+| ID         | Yes      | Auto-assigned sequential integer, displayed as `note-<integer>` (e.g., `note-368`). Global across the database, not scoped per ticket. |
 | Author     | Yes      | Must contain at least one alphanumeric character. |
 | Created At | Yes      | Automatically applied timestamp. |
 | Body       | Yes      | Free-form text. |
+
+#### Why Flat Notes Are Sufficient
+
+Notes are a flat list — there is no structural threading, no `reply_to` field. This is
+deliberate. Conversational context can be established by convention:
+
+- **Reference by ID** — "I researched the idea in note-368 and found that..." reads
+  naturally in prose.
+- **Topic line** — starting a note with "Re: Using Bolt to cache latest dashboard state"
+  signals what the note responds to without structural coupling.
+
+These conventions are free — agents and humans can use them immediately without any
+tooling support. If note-to-note references become frequent enough that tracing a
+conversation thread is painful, the CLI can add query commands that pattern-match on
+note IDs in body text, build the reference graph at query time, and output threaded
+views. If that proves too slow, a non-canonical index can accelerate the queries without
+changing the data model. The point is that flat notes with conventions scale surprisingly
+far before structural threading is needed — and structural threading, once added, cannot
+be removed.
+
+### 3.7 Ticket ID Format
+
+Ticket IDs have the form `<PREFIX>-<random>` (e.g., `NP-a3bxr`, `NP-k7m2e`).
+
+- The **prefix** is uppercase, set once at database initialization, and immutable. It is
+  expected to be short (e.g., `NP` for "nitpicking", `PLAT` for "platform") but can be
+  longer if the user wants.
+- The **random portion** is 5 lowercase [Crockford Base32](https://www.crockford.com/base32.html)
+  characters, generated randomly on each ticket creation. This gives an ID space of
+  33,554,432 — sufficient for <0.000041% triple-collision probability at 250,000 tickets.
+  On collision, regenerate and retry.
+- The **case contrast** between uppercase prefix and lowercase random portion provides
+  clear visual separation: `NP-a3bxr` is easy to glance-parse.
+- The prefix gives humans a way to identify which database a ticket belongs to without
+  needing to know the directory path — "NP-a3bxr" is unambiguous in conversation even
+  when multiple databases exist on the same machine.
+
+#### Why Random, Not Sequential
+
+Random IDs distribute tickets evenly across SQLite B-tree pages. Sequential integers
+cluster recent (and therefore most active) tickets on the same leaf pages, which is
+exactly where write contention is worst when multiple agents operate concurrently. The
+trade-off is losing "higher = newer" ordering, which is acceptable — queries can sort
+by creation timestamp instead.
+
+**SQLite implementation note:** the ticket table must be created `WITHOUT ROWID` so the
+declared primary key (the random ID) is the actual B-tree key. Otherwise, SQLite's
+implicit `ROWID` reintroduces sequential clustering under the hood.
+
+#### Auto-Generated Prefixes
+
+If the user does not specify a prefix at initialization, one is generated automatically:
+
+- **Preferred:** derive from the directory name (e.g., `~/projects/nitpicking` →
+  `NP`). Derivation heuristic TBD.
+- **Fallback:** random 4 uppercase letters.
+- **Profanity filter:** auto-generated prefixes are checked against a forbidden word list.
+  The list must be obfuscated in the source code (at minimum ROT13) so that `strings` or
+  casual grep does not surface offensive content from the binary or repository.
+
+### 3.8 Facets
+
+Facets are key-value pairs on any ticket. They are the primary mechanism for
+**filtering** — particularly for coordinating agents that work in different scopes under
+a shared database. The name "facets" is deliberate: it implies a small number of
+meaningful dimensions for filtering and classification, not a dumping ground for
+arbitrary metadata.
+
+- Keys and values are short strings. No schema enforcement — any key is valid.
+- A ticket can have multiple facets. Keys are unique per ticket (setting a key that
+  already exists overwrites the previous value).
+- Facets require **claiming** to add, modify, or remove (same as other ticket fields).
+- Facets are queryable: `np claim --ready --filter=repo:auth-service`,
+  `np list --filter=lang:go`, etc. Exact filter syntax is a CLI design decision (deferred).
+
+#### Motivating Use Case
+
+A project database lives in a parent directory containing multiple repos. One agent
+operates per repo. Each repo's tasks are faceted with `repo:<name>`. An agent claims
+work by filtering for its repo: `np claim --ready --filter=repo:auth-service`. This
+enables parallel agents under one database without an orchestration layer — each agent
+self-selects relevant work via facet filters.
+
+#### Design Notes
+
+- No well-known keys are defined. All keys are free-form. Conventions will emerge from
+  usage; premature standardization risks encoding the wrong abstractions.
+- Facets are not a replacement for first-class fields (state, priority, labels). If
+  something has defined semantics and affects the lifecycle or readiness model, it
+  belongs in the ticket model, not in facets.
 
 ---
 
@@ -147,31 +294,77 @@ claiming the ticket.
 
 ### 4.1 Claiming & Updating
 
-- A ticket **must be claimed** before its fields (other than notes and relationships)
-  can be updated.
-- Notes and relationships can be added **without** claiming.
+- A ticket **must be claimed** before its fields can be updated. This includes all state
+  changes — claiming is the universal gate (see [3.4](#34-states)).
+- **Exceptions — no claim required:**
+  - **Notes** — append-only; anyone can comment on any ticket. An agent working on
+    ticket A should be able to leave a note on ticket B without owning B.
+  - **Relationships** — adding a relationship between two tickets should not require
+    claiming either ticket.
+- `closed` and `deleted` tickets **cannot be claimed**.
+- For quick updates to unclaimed tickets (setting facets, fixing a title, etc.), the CLI
+  should support a one-shot claim → update → release as a single command per ticket.
 
-### 4.2 Objective State Derivation
+#### Claim IDs
 
-Objective tickets do not have directly settable open/closed states. Instead:
+When a ticket is claimed, the operation returns a **claim ID** — a random, unguessable
+token that is valid for the duration of the claim. The claim ID serves as bearer
+authentication for the claim: every operation that requires an active claim must present
+the claim ID, and the operation fails if it does not match.
 
-- **Open** when: it has no child tickets (needs to be "tasked out"), **or** any of its
-  children are open.
-- **Closed** when: all of its child tickets are closed.
+- Claim IDs are generated randomly and are opaque to callers.
+- Every command response that involves a claimed ticket includes the claim ID, so the
+  caller always has it available.
+- A claim ID is **invalidated** when the claim ends — whether by the claimer releasing
+  the ticket (closing, deferring, unclaiming, waiting) or by another agent stealing it.
+- When a ticket is stolen, a **new** claim ID is issued to the stealer.
+- The one-shot claim → update → release pattern generates and immediately invalidates
+  a claim ID internally; the caller never needs to see or manage it.
+
+#### Author Attribution
+
+The **author** is bound to the claim at claim time. All gated mutations (updates, state
+transitions, deletion) inherit the author from the claim — the caller does not need to
+pass the author on every operation, and cannot misrepresent authorship while holding a
+claim.
+
+**Ungated operations** (adding notes, adding/removing relationships) have no claim to
+bind to, so they require an **explicit author** parameter. The author name is free-form;
+callers may use a name generated by the agent name command or any name of their choosing.
+
+### 4.2 Epic Completion Derivation
+
+Epic completion is derived from children, never directly set.
+
+- **Complete** when: it has children **and** all of them are closed (for tasks) or
+  complete (for sub-epics).
+- **Incomplete** otherwise — including when the epic has no children (it needs
+  decomposition).
+
+Completion is an observation, not a lock. New children can always be added to a
+complete epic, which flips it back to incomplete. This avoids a race condition where
+closing the last task would lock out adding newly discovered work, and supports organic
+groupings where "complete" just means "nothing pending right now."
+
+An epic with no children is a structural observation, not an error state. It means the
+epic has been identified but not yet broken down. `doctor` can flag epics with no
+descendants that have tasks (see [7.1](#71-doctor)).
 
 ### 4.3 Readiness
 
-A ticket is **ready** when:
+A task is **ready** when all of the following are true:
 
-1. Its state is `open`, **and**
+1. Its state is `open`.
 2. It has no `blocked_by` relationships, **or** every `blocked_by` target has been
    closed or deleted.
+3. No ancestor epic is `deferred` or `waiting`. (Readiness propagates downward — a
+   deferred or waiting epic suppresses readiness for all unclaimed descendants.)
 
 ### 4.4 Duplicate Handling
 
 When a ticket is determined to be a duplicate:
 
-- One ticket is closed with a `see_also` relationship pointing to the surviving ticket.
+- One ticket is closed with a `cites` relationship pointing to the surviving ticket.
 - **Preferred heuristic:** keep the ticket with the most complete and useful title,
   description, and acceptance criteria.
 - **Exception:** if the "weaker" ticket has the richer interaction history (notes,
@@ -180,27 +373,48 @@ When a ticket is determined to be a duplicate:
 
 ### 4.5 Stale Tickets & Stealing
 
-- A `claimed` ticket can become **stale** (criteria TBD — tentatively: no updates and
-  no new notes for 3 hours).
+#### Staleness
+
+- A `claimed` ticket becomes **stale** when it has had no updates and no new notes for
+  its **stale threshold**.
+- **Default threshold:** 2 hours.
+- **Custom threshold:** when claiming a ticket, the claimer can optionally set a custom
+  threshold, up to a maximum of 24 hours.
+- **Extending:** the claimer can extend the threshold at any time, up to the 24-hour
+  maximum. An agent that keeps extending is fine for the tracker's purposes — the goal
+  is to detect abandoned claims, not to police how long work takes.
+
+#### Stealing
+
 - Stale claimed tickets can be **stolen**:
   - Directly by ID, or
   - Automatically when there are no ready tickets available.
+- When a ticket is stolen, a note is **automatically generated** attributed to the
+  stealer (e.g., "Stolen from `<previous-claimer>`."). The stealer inherits the ticket
+  content in whatever state it was left in — how they deal with potentially incomplete
+  work is their concern, not the tracker's.
 
 ### 4.6 Soft Deletion
 
-Deletion is a soft removal. A deleted ticket is treated as though it does not exist,
-with the following exceptions and rules:
+Deletion is implemented as a soft removal but **treated as a hard delete by everything
+unless specifically told otherwise.** The data is retained in the database for history
+reconstruction and potential garbage collection, but from the perspective of all normal
+operations, the ticket does not exist.
 
 - A deleted ticket's **ID is permanently reserved** — it cannot be reused.
-- Deleted tickets appear in list/detail views **only** when the request explicitly opts
-  in to showing deleted tickets. Without the opt-in flag, requesting a deleted ticket by
-  ID returns a "not found" error.
+- Requesting a deleted ticket by ID returns a "not found" error. No opt-in visibility
+  for deleted tickets in normal list/detail views.
 - A deleted ticket is **immutable** — no further changes of any kind.
 - A deleted ticket **cannot be referenced** in new relationships.
-- Existing relationships pointing to a deleted ticket are **ignored / not displayed**.
-  (Whether to physically remove these relationships or merely hide them is an
-  implementation decision — see [Open Questions](#9-open-questions-for-next-session).)
-- Deleting an objective ticket **deletes all its children recursively**.
+- Existing relationships pointing to a deleted ticket are **ignored** — treated as
+  though the relationship does not exist. The relationship data is retained in storage
+  but invisible to all normal operations.
+- Deleting an epic **deletes all its children recursively**.
+- Deleted tickets **cannot be undeleted.**
+
+The `gc` command (see [7.2](#72-gc)) can physically remove deleted ticket data. `gc`
+can be targeted — e.g., remove deleted tickets without discarding closed tickets.
+`doctor` may recommend a `gc` run if significant space can be reclaimed.
 
 ---
 
@@ -277,15 +491,264 @@ The ports define what the adapters must do; the adapters decide how.
 
 ## 7. Commands
 
-### 7.1 Doctor
+### 7.0 Cross-Cutting Concerns
 
-A `doctor` command that diagnoses problems in the ticket database. Examples:
+#### Pagination
+
+All commands that return lists (tickets, notes, history entries) are **paginated** using
+keyset pagination. The default page size is **20 items**.
+
+- The response includes the **total count** of matching items so the caller knows whether
+  more pages exist.
+- To fetch the next page, the caller passes the **last item's sort key and ID** from the
+  current page. The database seeks directly to that position — no scanning past skipped
+  rows.
+- Keyset pagination is stable under concurrent inserts and deletes: no missed or
+  duplicated entries between pages.
+
+#### Agent Name Generation
+
+A command to generate a readable, random agent name for a session — e.g.,
+"dashing-storage-glitter", "slow-green-scissors". The format follows the same style as
+Docker's auto-generated container names.
+
+Persisting the name or reusing it across sessions is out of scope — the user handles that
+through instructions to their agents.
+
+### 7.1 Global Operations
+
+#### Initialize
+
+Initialize the database, including assigning a **prefix** for ticket IDs
+(see [3.7](#37-ticket-id-format)). The prefix can be specified explicitly or
+auto-generated.
+
+#### Agent Name
+
+Generate a readable, random agent name for a session (see [7.0](#70-cross-cutting-concerns)).
+
+#### Agent Instructions
+
+Generate a concise Markdown block describing how to use `np`, suitable for pasting into
+`CLAUDE.md`, a rule file, or a system prompt. The output covers:
+
+- Core workflow: claim → work → transition state.
+- How claim IDs work and when to pass them.
+- Always move a ticket to an appropriate unclaimed state when done (close, defer, wait,
+  or release).
+- How to discover more: `np --help` and `np <command> --help`.
+
+The instructions must state that `np` is the **exclusive** tool for task management,
+to-dos, and planning — agents must not use built-in task management, to-do lists, or
+planning features from their own platform. If the user wants softer language, they can
+edit the generated text before pasting it.
+
+The instructions must be **brief** — enough to get an agent started and know where to
+find details. An agent's context window is precious; a wall of documentation defeats the
+purpose.
+
+### 7.2 Ticket Operations
+
+#### Create
+
+Create a ticket. All properties on the ticket may be set at creation: title, description,
+acceptance criteria, priority, type (task or epic), parent epic, facets, and relationships.
+The caller may optionally have the ticket start as **claimed** by them, which returns a
+claim ID (see [4.1](#41-claiming--updating)).
+
+The caller may optionally provide an **idempotency key** — an opaque string. If a ticket
+with the same idempotency key already exists, the operation returns the existing ticket
+instead of creating a duplicate. This prevents double-creation when an agent crashes
+after the write succeeds but before it reads the response.
+
+#### Claim by ID
+
+Claim a specific ticket by its ID. Returns a claim ID.
+
+- If the ticket is already claimed and **stale**, the caller may optionally indicate that
+  stealing is allowed. If stealing succeeds, a new claim ID is issued and an auto-generated
+  note is added (see [4.5](#45-stale-tickets--stealing)).
+- If the ticket is claimed and **not stale**, the operation fails — the caller cannot
+  steal a non-stale ticket.
+
+#### Claim Next Ready
+
+Claim the highest-priority unclaimed ready ticket. Filterable by facet. Returns the
+claimed ticket and a claim ID.
+
+- Variant: if no ready tickets are available, optionally **steal** the highest-priority
+  stale claimed ticket instead. The caller must explicitly opt into this fallback.
+
+#### Update
+
+Update one or more properties, facets (full CRUD), relationships (create/delete), and/or
+parent assignment on a claimed ticket. Optionally add a note as part of the same
+operation. Requires the claim ID. All changes are applied as a **single atomic mutation**.
+
+#### Transition State
+
+Change the state of a claimed ticket. Requires the claim ID. Valid transitions from
+`claimed`:
+
+- **Release** — return to `open` (tasks) or `active` (epics) without completing.
+- **Close** — mark as complete (tasks only). Terminal.
+- **Defer** — shelve.
+- **Wait** — externally blocked.
+
+All of these transitions **end the claim** and invalidate the claim ID.
+
+#### Delete
+
+Soft-delete a ticket (see [4.6](#46-soft-deletion)). Requires claiming the ticket first.
+Deleting an epic **recursively deletes** all its children.
+
+#### Show
+
+Display the full current state of a ticket: all fields, facets, relationships, parent,
+children (for epics), and derived properties (readiness, completion status). Notes are
+**excluded** — they have their own paginated listing.
+
+#### List
+
+List tickets. Displays high-level information by default: ID, type, state, priority, and
+title. Optionally include creation and/or modification timestamps.
+
+- **Filterable** by state, or by the computed "ready" predicate (see [4.3](#43-readiness)).
+- **Filterable** by facet. `key:*` matches all tickets with that key regardless of value.
+  Negative facet matching (exclude tickets with a facet) may be supported.
+- **Orderable** by priority, creation time, modification time, or other criteria.
+- **Paginated** (see [7.0](#70-cross-cutting-concerns)).
+
+#### Search
+
+Search tickets using full-text search on title, description, and acceptance criteria.
+Optionally include notes in the FTS scope. Also filterable by facet (including `key:*`
+and possibly negative matching).
+
+- Same high-level display as **List**.
+- **Filterable** by state.
+- **Orderable** and **paginated**.
+
+### 7.3 Note Operations
+
+#### Add Note
+
+Add a note to a ticket. Does **not** require claiming. Requires an **explicit author**
+and body (see [4.1 Author Attribution](#41-claiming--updating)).
+
+#### Show Note
+
+Display a single note by its ID.
+
+#### List Notes
+
+List notes on a specific ticket.
+
+- **Filterable** by author, by created-after date-time, or by created-after a specific
+  note ID.
+- **Orderable** and **paginated**.
+
+#### Search Notes (Per-Ticket)
+
+Search notes on a specific ticket using full-text search.
+
+#### Search Notes (Global)
+
+Search all notes across all tickets using full-text search.
+
+- **Filterable** by author, created-after date-time, created-after a specific note ID,
+  ticket facets, and ticket state.
+- **Orderable** and **paginated**.
+
+### 7.4 History Operations
+
+#### Show History
+
+Display the change history for a ticket.
+
+- **Filterable** by author and/or date range.
+- **Orderable** and **paginated**.
+
+### 7.5 Diagnostics
+
+#### Doctor
+
+A diagnostic command that identifies problems in the ticket database. Examples:
 
 - **Circular `blocked_by` relationships** — dependency cycles.
 - **Deadlocked state** — all remaining tickets are blocked (e.g., on `claimed`,
   `deferred`, or `waiting` tickets).
-- **Stale `claimed` tickets** — tickets that have been claimed but show no activity
-  (threshold TBD; tentatively 3 hours with no updates or new notes).
+- **Stale `claimed` tickets** — tickets that have been claimed but show no activity.
+- **Epics with no task descendants** — epic subtrees that have no tasks at any leaf,
+  indicating decomposition work is needed.
+
+#### GC
+
+Physically compact the database by removing deleted (and optionally closed) ticket data.
+Analogous to `git gc` — not part of normal workflow, available if the database grows
+unwieldy toward the end of a long project. Can be targeted — e.g., remove only deleted
+tickets without discarding closed tickets. `doctor` may recommend a `gc` run if
+significant space can be reclaimed.
+
+### 7.6 Agent Ergonomics
+
+These principles apply across all commands and define what makes the CLI "designed for
+AI agent workflows."
+
+#### Structured Output
+
+Every command supports a **JSON output mode**. When enabled, the command emits
+structured JSON instead of human-readable text. The JSON mode is the primary interface
+for agent callers; human-readable output is a convenience layer on top.
+
+#### Deterministic Output Shape
+
+The JSON structure for a given command is the **same regardless of the result**. An
+empty list is `[]`, not a missing field or `null`. A missing optional field is always
+present with a null or default value — never omitted. This lets agents use rigid
+parsing without defensive coding.
+
+#### Predictable Exit Codes
+
+Exit codes distinguish failure classes so agents can branch without parsing error text.
+At minimum:
+
+| Code | Meaning |
+|------|---------|
+| 0    | Success. |
+| 1    | General / unexpected error. |
+| 2    | Not found (ticket, note, etc.). |
+| 3    | Claim conflict (ticket is claimed and not stale, or claim ID mismatch). |
+| 4    | Validation error (bad input). |
+| 5    | Database error (corruption, locked, etc.). |
+
+The exact codes will be finalized during implementation; the principle is that common,
+actionable failure modes have distinct codes.
+
+#### Self-Describing Errors
+
+In JSON mode, error responses include **structured context** — not just a message
+string. When a claim fails, the response includes who holds the claim and when it
+becomes stale. When validation fails, the response identifies which fields are invalid
+and why. The goal is to give the agent enough information to decide its next action
+without guessing.
+
+#### No Interactive Prompts
+
+Every operation must be completable in a **single invocation**. No "are you sure?"
+confirmations, no pagers, no editors. If a destructive operation needs a safety gate,
+it uses a required flag (e.g., `--confirm`), not an interactive prompt.
+
+#### Idempotent Where Natural
+
+Operations that can be idempotent should be:
+
+- **Relationships** — "create if not exists", "delete if exists" (already defined in
+  the concurrency model).
+- **Ticket creation** — optional idempotency key (see [7.2 Create](#72-ticket-operations)).
+
+Operations that are inherently non-idempotent (claiming, adding notes) remain so —
+idempotency is not forced where it would distort the semantics.
 
 ---
 
@@ -300,60 +763,61 @@ A `doctor` command that diagnoses problems in the ticket database. Examples:
 The following areas contain ideas that may conflict with each other or with the stated
 design principles. They should be resolved before implementation.
 
-### 9.1 Objective State: Derived vs. Explicit
+### ~~9.1 Objective State: Derived vs. Explicit~~ — RESOLVED
 
-Objectives derive their open/closed state from children, yet objectives also participate
-in the full state model (`open`, `claimed`, `deferred`, `waiting`). This raises
-questions:
+Resolved: epics have a separate state model from tasks. Epics have three directly
+settable planning states (`active`, `deferred`, `waiting`) plus `claimed`. Completion is
+derived from children, never directly set. `deferred` and `waiting` propagate downward
+as readiness constraints — unclaimed descendants are no longer ready, but claimed
+descendants continue. See [3.4](#34-states) and [4.2](#42-epic-completion-derivation).
 
-- Can an objective be `deferred` or `waiting` independently of its children's states?
-- If an objective is `deferred`, what happens to its open children — are they implicitly
-  deferred too, or can they still be worked?
-- If an objective is `waiting`, does that block its children from being claimed?
-- "Cannot be directly opened or closed" needs to be reconciled with the claim that state
-  "starts as `open`" — who or what sets an objective to `deferred` or `waiting` if not a
-  direct state change?
+### ~~9.2 Claiming Objectives~~ — RESOLVED
 
-### 9.2 Claiming Objectives
+Resolved: epics are claimable. Claiming an epic means "I am editing this epic's metadata
+or decomposing it into children." This is the mechanism that prevents two agents from
+racing to break down the same epic. See [3.1](#31-ticket-types).
 
-If objectives cannot be directly opened or closed, can they be `claimed`? The claiming
-rule says a ticket must be claimed to update its fields, but objectives have fields
-(title, description, acceptance criteria, priority, label) that might need updating.
-Either objectives need to be claimable despite not being directly openable/closable, or
-there needs to be an exception for objectives.
+### ~~9.3 Per-Project Database vs. Cross-Project Tickets~~ — RESOLVED
 
-### 9.3 Per-Project Database vs. Cross-Project Tickets
+Resolved: the developer decides the scope boundary by choosing where the database lives.
+A project is not necessarily a repo — it might be a parent directory containing multiple
+repos (e.g., all microservices and front-ends for a SaaS platform). Placing the database
+at that level gives all repos a shared ticket space. The tool does not manage cross-database
+references or multi-database federation; if work spans a boundary, the developer moves the
+boundary.
 
-The design principle says "each project/product gets its own ticket database", but the
-open question about multi-project support describes objectives whose tasks span multiple
-repos. These two ideas are in tension:
+Agent coordination (parallel agents, orchestration) is explicitly **out of scope**.
+The tool tracks issues; it does not orchestrate who works on them. Developers coordinate
+agents externally (e.g., serial execution via Ralph Loop, or manual assignment). This is
+intentionally limiting — orchestration complexity is the path to insurmountable adoption
+friction.
 
-- If each repo has its own database, a cross-cutting objective can't have children in
-  other databases.
-- If a single database covers multiple projects, the "per-project" principle is relaxed.
+### ~~9.4 Project ID Semantics~~ — RESOLVED
 
-### 9.4 Project ID Semantics
+Resolved by 9.3: since the database scope is determined by directory placement rather
+than a project ID encoding scheme, Project ID as a ticket field is no longer needed.
+The database *is* the project boundary. Ticket IDs only need to be unique within their
+database.
 
-Project ID is described as "required; immutable; defaults to parent's value" but also
-"needs more thinking through". The tentative encoding (`<project-id>-<ticket-id>`) would
-bake the project identity into the ticket ID itself — which is clean for single-project
-use but complicates the multi-project scenario.
+### ~~9.5 Soft Deletion: Relationship Cleanup~~ — RESOLVED
 
-### 9.5 Soft Deletion: Relationship Cleanup
+Resolved: soft deletion keeps everything in place — the ticket, its relationships, its
+history. Nothing is physically removed. This is the simplest approach and preserves full
+reconstructability. `doctor` accounts for deleted tickets when analyzing the graph (e.g.,
+a `blocked_by` pointing to a deleted ticket is not a live blocker).
 
-The spec says existing relationships to deleted tickets are "ignored / not shown" but
-acknowledges uncertainty about whether to physically remove them ("removing them might
-require a lot of locks and a big transaction"). This is an implementation concern, but it
-also has semantic implications: if relationships are kept but hidden, `doctor` might need
-to account for phantom edges when detecting cycles or deadlocks.
+If the database grows unwieldy toward the end of a long project, a `gc` command (analogous
+to `git gc`) can physically compact closed and deleted data. This is not expected to be
+normal operation — it exists "in case", not "as part of the workflow."
 
-### 9.6 Task State vs. Objective Derivation
+### ~~9.6 Task State vs. Objective Derivation~~ — RESOLVED
 
-Tasks can be `deferred` or `waiting`, but these states affect the parent objective's
-derived state. If all children of an objective are `deferred`, is the objective open
-(because no child is closed, so "not all children are closed") or effectively deferred
-itself? The derivation rules only address open vs. closed — they don't account for
-`deferred` or `waiting` children.
+Resolved: epic completion is defined strictly as "has children and all children are
+closed/complete." Tasks that are `deferred` or `waiting` are not closed, so they keep
+the parent epic incomplete — which is accurate. The epic's own planning state
+(`active`, `deferred`, `waiting`) is an independent, directly settable concern. If all
+children are deferred, the epic is incomplete and likely should itself be marked
+`deferred` — but that is a judgment call, not an automatic derivation.
 
 ---
 
@@ -361,84 +825,71 @@ itself? The derivation rules only address open vs. closed — they don't account
 
 ### Ticket Identity & Project Scoping
 
-1. **ID format** — what specific alphanumeric scheme? Length? Case sensitivity?
-   Collision avoidance strategy?
-2. **Project ID encoding** — separate field vs. baked into the ticket ID
-   (`<project-id>-<ticket-id>`)? How does the system discover which
-   directory/repo/worktree maps to a given project?
-3. **Single vs. multi-project databases** — should the design commit to one model, or
-   support both? What are the trade-offs for the "parent directory covering multiple
-   repos" use case?
+1. ~~**ID format**~~ — RESOLVED. See [3.7](#37-ticket-id-format).
+2. ~~**Project ID encoding**~~ — RESOLVED. See [9.4](#94-project-id-semantics).
+3. ~~**Single vs. multi-project databases**~~ — RESOLVED. See [9.3](#93-per-project-database-vs-cross-project-tickets).
 
 ### State Machine
 
-4. **Full state transitions** — what are the legal state transitions for tasks?
-   E.g., can a `closed` ticket be reopened? Can a `deferred` ticket go directly to
-   `claimed`?
-5. **Objective states beyond open/closed** — how do `deferred`, `waiting`, and `claimed`
-   interact with the derived-state model for objectives? (See
-   [Conflict 9.1](#91-objective-state-derived-vs-explicit).)
-6. **Claiming objectives** — are objectives claimable? If so, what does that mean given
-   their state is derived? (See [Conflict 9.2](#92-claiming-objectives).)
+4. ~~**Full state transitions**~~ — RESOLVED. See [3.4](#34-states).
+5. ~~**Objective states beyond open/closed**~~ — RESOLVED. See [9.1](#91-objective-state-derived-vs-explicit).
+6. ~~**Claiming objectives**~~ — RESOLVED. See [9.2](#92-claiming-objectives).
 
 ### Deletion
 
-7. **Relationship cleanup on deletion** — hide or physically remove? What are the
-   implications for `doctor` and for storage growth over time?
-8. **Undelete** — should soft-deleted tickets be restorable, or is deletion final
-   (just soft for ID reservation and optional visibility)?
+7. ~~**Relationship cleanup on deletion**~~ — RESOLVED. See [9.5](#95-soft-deletion-relationship-cleanup).
+8. ~~**Undelete**~~ — RESOLVED. No. Deleted tickets cannot be undeleted. See [4.6](#46-soft-deletion).
 
 ### Staleness & Stealing
 
-9. **Stale threshold** — 3 hours is tentative. Should this be configurable? Should it
-   differ for human vs. agent authors?
-10. **Steal semantics** — when a ticket is stolen, what happens to the previous
-    claimant's in-progress work? Is a note automatically added? Is the history updated?
+9. ~~**Stale threshold**~~ — RESOLVED. See [4.5](#45-stale-tickets--stealing).
+10. ~~**Steal semantics**~~ — RESOLVED. See [4.5](#45-stale-tickets--stealing).
 
 ### Metadata / Key-Value Pairs
 
-11. **Structured metadata** — the idea of short key-value pairs
-    (e.g., `jira:FOO-152`, `repo:https://...`, `lang:typescript`) is appealing but risks
-    scope creep. Should this be a first-class feature, a free-form tag bag, or deferred
-    entirely?
-12. **Well-known keys** — if metadata is supported, should certain keys
-    (`repo`, `dir`, `git:worktree`) have defined semantics, or is everything free-form?
+11. ~~**Structured metadata**~~ — RESOLVED. Free-form key-value facets are a first-class feature. See [3.8](#38-facets).
+12. ~~**Well-known keys**~~ — RESOLVED. No well-known keys. All keys are free-form; conventions emerge from usage.
 
 ### Labels
 
-13. **Additional objective labels** — are there other labels beyond `bug`, `chore`,
-    `enhancement`, `feature`, and `spike` that would be valuable? Candidates to
-    consider: `debt` (technical debt), `security`, `documentation`, `deprecation`.
-14. **Labels on tasks** — should tasks also carry labels, or are labels strictly an
-    objective concern?
+13. ~~**Additional epic labels**~~ — RESOLVED. Labels are now a convention on facets (`kind:<value>`), not a first-class field. Users define their own vocabulary. See [3.2](#32-labels-convention-on-facets).
+14. ~~**Labels on tasks**~~ — RESOLVED. Facets apply to any ticket, so labels (via the `kind` facet) work on both epics and tasks.
 
-### Architecture & Ports (Deferred Adapter Decisions)
+### Architecture & Ports
 
-Per the [hexagonal architecture](#6-architecture) decision, CLI structure and SQLite
-schema are deferred until the core domain and port interfaces are solid. The questions
-below apply once adapter work begins.
+15. ~~**Driven port contract**~~ — RESOLVED. Not an open question — the driven port
+    interface will emerge as the core domain is implemented. The core discovers what
+    persistence operations it needs; the port interface is defined to match. Transaction
+    boundaries, query patterns, and operation granularity will become obvious as
+    operations like recursive deletion and readiness queries are built.
+16. ~~**Concurrency model**~~ — RESOLVED. Claiming is the concurrency control mechanism.
+    All mutable ticket fields are gated by exclusive claiming, so there is no concurrent
+    modification to handle. The remaining ungated operations have simple solutions:
+    notes are append-only (no contention); relationships use idempotent semantics
+    ("create if not exists", "delete if exists" — both succeed from the caller's
+    perspective). Claiming and stealing are atomic compare-and-swap operations (claim
+    succeeds only if ticket is unclaimed or stale; loser gets an error and picks another
+    ticket). SQLite's transaction isolation handles the CAS naturally.
+17. ~~**Atomicity guarantees**~~ — RESOLVED. Three levels:
+    - **Writes:** a CLI execution that changes the database is atomic. The entire
+      mutation succeeds or fails as a unit (e.g., recursive epic deletion is one
+      transaction, not many).
+    - **Single-ticket reads:** atomic — the ticket is always in an internally coherent
+      state.
+    - **Multi-ticket reads** (list, search): atomic **per ticket**, not across the
+      result set. Each ticket is coherent, but cross-ticket relationships may reflect
+      different points in time. E.g., ticket A may list B as a child, but B's state
+      may have changed between when A and B were each loaded. This avoids locking the
+      entire database for read operations. If a cross-ticket consistent read proves
+      necessary, it can be enabled per-query (e.g., a flag) — but not until there is a
+      demonstrated need.
 
-15. **Driven port contract** — what operations must the persistence port expose? This
-    falls out of the core domain implementation but is worth enumerating early: CRUD for
-    tickets/notes/relationships, history queries, readiness queries, soft-deletion
-    semantics, etc.
-16. **Concurrency model** — if multiple agents or terminals operate on the same database
-    simultaneously, what locking or conflict-resolution strategy applies? This is partly
-    a core concern (claiming semantics) and partly an adapter concern (SQLite locking).
-17. **Atomicity guarantees** — "all changes are atomic" — what defines the transaction
-    boundary? Single field update? Entire ticket mutation? Recursive deletion? The core
-    defines the logical boundary; the adapter must honour it.
+### ~~CLI Design~~ — RESOLVED
 
-### CLI Design (Deferred)
-
-18. **Command vocabulary** — beyond `doctor`, what commands are needed? Likely
-    candidates: `create`, `show`, `list`, `claim`, `update`, `close`, `delete`,
-    `note`, `link`, `steal`, `search`. Deferred until the driving port is defined.
-19. **Output formats** — should the CLI support structured output (JSON) for agent
-    consumption alongside human-readable output?
-20. **Agent ergonomics** — what makes a CLI "designed for AI agent workflows"
-    specifically? Predictable exit codes? Machine-readable output? Idempotent
-    operations?
+18. ~~**Command vocabulary**~~ — RESOLVED. See [7. Commands](#7-commands).
+19. ~~**Output formats**~~ — RESOLVED. Every command supports JSON output mode.
+    See [7.6 Agent Ergonomics](#76-agent-ergonomics).
+20. ~~**Agent ergonomics**~~ — RESOLVED. See [7.6 Agent Ergonomics](#76-agent-ergonomics).
 
 ### SQLite Schema (Deferred)
 

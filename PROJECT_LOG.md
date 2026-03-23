@@ -63,3 +63,26 @@
   - TransitionAction enum (release, close, defer, wait)
   - DoctorFinding, GCInput/Output for diagnostics
 
+## Phase 3 — Application Service Implementation
+
+- [x] **3.1** In-Memory Fake Repository — `internal/fake/repository.go`
+  - Full implementation of all port interfaces (Ticket, Note, Claim, Relationship, History, Database)
+  - Thread-safe with sync.RWMutex; supports pagination, filtering, search
+  - Transactor/UnitOfWork wrappers in `internal/fake/transactor.go`
+- [x] **3.2** Initialize Service
+- [x] **3.3** Create Ticket Service — with idempotency key, optional claim-at-creation, relationships
+- [x] **3.4** Claim Services — ClaimByID with steal support, ClaimNextReady with steal fallback
+- [x] **3.5** Update Ticket Service — field updates, facet changes, optional note in same operation
+- [x] **3.6** One-Shot Update Service — atomic claim→update→release
+- [x] **3.7** State Transition Service — release, close, defer, wait
+- [x] **3.8** Extend Stale Threshold Service
+- [x] **3.9** Delete Ticket Service — recursive epic deletion with conflict detection
+- [x] **3.10** Note Services — add, show, list, search (per-ticket and global)
+- [x] **3.11** Relationship Services — add/remove with history entries
+- [x] **3.12** Show/List/Search Ticket Services — readiness, completion, revision derivation
+- [x] **3.13** History Service
+- [x] **3.14** Doctor Service — stale claim detection
+- [x] **3.15** GC Service
+  - All services implemented in `internal/app/service/impl.go`
+  - 20 unit tests covering core workflows in `internal/app/service/service_test.go`
+

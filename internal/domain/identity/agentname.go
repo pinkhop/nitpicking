@@ -69,5 +69,6 @@ func GenerateAgentName() string {
 // randomElement returns a random element from a string slice using the
 // package-level PCG generator.
 func randomElement(slice []string) string {
-	return slice[prng.IntN(len(slice))]
+	idx := prng.IntN(len(slice))
+	return slice[idx]
 }

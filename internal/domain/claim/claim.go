@@ -133,7 +133,9 @@ func (c Claim) WithStaleThreshold(d time.Duration) (Claim, error) {
 // source should halt the process.
 func generateClaimID() string {
 	var buf [claimIDBytes]byte
-	binary.BigEndian.PutUint64(buf[:8], rand.Uint64())
-	binary.BigEndian.PutUint64(buf[8:], rand.Uint64())
+	hi := rand.Uint64()
+	lo := rand.Uint64()
+	binary.BigEndian.PutUint64(buf[:8], hi)
+	binary.BigEndian.PutUint64(buf[8:], lo)
 	return hex.EncodeToString(buf[:])
 }

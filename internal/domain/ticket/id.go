@@ -148,7 +148,8 @@ func generateRandom() string {
 	val := prng.IntN(idSpace)
 	buf := make([]byte, randomPartLength)
 	for i := randomPartLength - 1; i >= 0; i-- {
-		buf[i] = crockfordAlphabet[val%32]
+		charIdx := val % 32
+		buf[i] = crockfordAlphabet[charIdx]
 		val /= 32
 	}
 	return string(buf)

@@ -8,18 +8,37 @@ Nitpicking (`np`) is a local-only, non-invasive, single-machine, CLI-driven issu
 
 ## Language & Tooling
 
-- **Language:** Go (1.24+)
-- **Build output:** `dist/` (created by `make build`)
+- **Module:** `github.com/pinkhop/nitpicking`
+- **Language:** Go 1.26+
+- **CLI framework:** `github.com/urfave/cli/v3`
+- **Build output:** `dist/` (created by `make build`); static binary, `CGO_ENABLED=0`
 - **Coverage reports:** `coverage/` (created by `make coverage`)
 - **Editor config:** `.editorconfig` — Go files use tabs, indent size 4; most other files use spaces, indent size 2
 
 ## Commands
 
 ```bash
-make build      # Build binary to dist/
-make test       # Run unit tests
-make coverage   # Run tests with coverage report to coverage/
-make lint       # Run linter
+# Build
+make build              # Build static binary to dist/np (VERSION=x.y.z to set version)
+make clean              # Remove dist/, coverage/, and test cache
+
+# Test
+make test               # Run unit tests (alias for test-units)
+make test-integration   # Integration tests (requires external systems; build tag: integration)
+make test-e2e           # E2E tests (requires full environment; build tag: e2e)
+make coverage           # Unit tests with HTML coverage report to coverage/
+
+# Format
+make fmt                # Run all formatters (gofumpt + goimports)
+
+# Lint (make lint runs all)
+make lint               # go vet, gofumpt, goimports, ineffassign, errcheck, staticcheck
+
+# Security
+make sec                # gosec (static security scan) + govulncheck (CVE check)
+
+# CI
+make ci                 # Full pipeline: build → lint → sec → test-units
 ```
 
 ## Architecture
@@ -40,19 +59,15 @@ The core domain is unit-tested with in-memory fakes for the persistence port —
 
 ## Domain Model (key concepts)
 
-- **Two ticket types ("roles"):** Epic (organizes other tickets; completion derived from children) and Task (leaf node; directly stateful).
-- **Priority:** P0–P4 on all tickets. Default P2. Lower number = higher urgency. Drives "claim next ready" ordering (P0 first, ties broken by creation time).
-- **Claiming gates all mutations.** To change a ticket's state, you must be its current claimer. The only ungated transition is into `claimed` itself. Notes and relationships can be added without claiming. Claims are bearer-authenticated via random **claim IDs**.
-- **Task states:** `open`, `claimed`, `closed`, `deferred`, `waiting`. `closed` is terminal.
-- **Epic states:** `active`, `claimed`, `deferred`, `waiting`. Completion is derived (all children closed/complete), not a state — and not a lock (new children can always be added).
-- **Readiness:** Tasks are ready when `open`, unblocked, and no ancestor epic is `deferred`/`waiting`. Epics are ready when `active`, have no children (need decomposition), and are unblocked.
-- **Facets:** key-value pairs for filtering and agent coordination (e.g., `repo:auth-service`). Keys: 1–64 bytes ASCII printable. Values: 1–256 bytes UTF-8. No whitespace in either.
-- **Relationships:** `blocked_by`/`blocks` and `cites`/`cited_by`. No self-referential relationships. Cycles detected by `doctor`, not prevented at write time.
-- **Parent constraints:** Only epics can be parents. No self-parenting. No ancestor cycles. Cannot parent to a deleted ticket.
-- **Soft deletion:** treated as hard delete by all normal operations; data retained for history reconstruction and `gc`. No undelete. Epic deletion fails if any descendant is currently claimed.
-- **Ticket IDs:** `<PREFIX>-<random>` (e.g., `NP-a3bxr`). Prefix: uppercase ASCII letters, 1–10 chars, set at db init. Random: 5 lowercase Crockford Base32 characters. `WITHOUT ROWID` table.
-- **History:** every ticket mutation produces a history entry (event-sourcing compatible). Notes do not produce history entries. Revision = history count − 1.
-- **Database discovery:** `np` walks up from `cwd` looking for a `.np/` directory. Permission/sandbox errors during the walk are silently ignored.
-- **All changes are atomic and auditable** (author + timestamp, NFC-normalized, case-sensitive).
+- **Two ticket types:** Epic (organizes children; completion derived) and Task (leaf node; directly stateful). See state machines, claiming, readiness, and all other domain details in `SPECIFICATION.md`.
+- **Claiming gates all mutations.** Bearer-authenticated via random claim IDs. Notes and relationships can be added without claiming.
+- **Ticket IDs:** `<PREFIX>-<random>` (e.g., `NP-a3bxr`). Prefix set at db init; random part is 5 lowercase Crockford Base32 characters.
+- **Database discovery:** `np` walks up from `cwd` looking for a `.np/` directory.
 
-See `SPECIFICATION.md` for the full specification and `PRODUCT_IDEAS.md` for product context and resolved design decisions.
+See `SPECIFICATION.md` for the full specification and `PRODUCT_VISION.md` for product context and resolved design decisions.
+
+## Gotchas
+
+- **No golangci-lint.** Linting uses six individual tools invoked separately via `make lint`. All are managed as Go tool dependencies in `go.mod`.
+- **Integration/E2E tests use build tags.** They won't run with `make test`; use `make test-integration` or `make test-e2e` explicitly.
+- **Version injection via ldflags.** `make build` injects the version string into `internal/app.version`; pass `VERSION=x.y.z` to override the default `"dev"`.

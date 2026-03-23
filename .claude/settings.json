@@ -1,0 +1,51 @@
+{
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log)",
+      "Bash(git log *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(go build *)",
+      "Bash(go doc *)",
+      "Bash(go env *)",
+      "Bash(go fix *)",
+      "Bash(go generate *)",
+      "Bash(go get *)",
+      "Bash(go list *)",
+      "Bash(go mod *)",
+      "Bash(go test *)",
+      "Bash(go tool *)",
+      "Bash(go version)",
+      "Bash(go vet *)",
+      "Bash(make build *)",
+      "Bash(make build)",
+      "Bash(make ci)",
+      "Bash(make clean)",
+      "Bash(make coverage)",
+      "Bash(make fmt)",
+      "Bash(make gofumpt)",
+      "Bash(make goimports)",
+      "Bash(make help)",
+      "Bash(make lint-errcheck)",
+      "Bash(make lint-gofumpt)",
+      "Bash(make lint-goimports)",
+      "Bash(make lint-ineffassign)",
+      "Bash(make lint-staticcheck)",
+      "Bash(make lint-vet)",
+      "Bash(make lint)",
+      "Bash(make sec-gosec)",
+      "Bash(make sec-govulncheck)",
+      "Bash(make sec)",
+      "Bash(make test-e2e)",
+      "Bash(make test-integration)",
+      "Bash(make test-units)",
+      "Bash(make test)"
+    ]
+  }
+}

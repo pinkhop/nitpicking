@@ -10,7 +10,7 @@
 2. [Design Principles](#2-design-principles)
 3. [Architecture](#3-architecture)
 4. [Data Model](#4-data-model)
-   - 4.1 [Ticket](#41-ticket)
+   - 4.1 [Ticket](#41-ticket) — 4.1.1 [Parent Constraints](#411-parent-constraints)
    - 4.2 [Note](#42-note)
    - 4.3 [Relationship](#43-relationship)
    - 4.4 [History Entry](#44-history-entry)
@@ -147,7 +147,7 @@ All tickets carry these fields regardless of role:
 | Priority            | Yes      | Yes     | `P0`–`P4`. Default: `P2`. Lower number = higher urgency. Changing requires claiming. |
 | State               | Yes      | Yes     | See [5](#5-state-machines). Tasks start as `open`; epics start as `active`. |
 | Revision            | Yes      | No      | Integer; derived from history entry count (`revision = history count − 1`). Starts at `0`. |
-| Parent              | No       | Yes     | Reference to a parent epic. Tasks and epics may have a parent epic. |
+| Parent              | No       | Yes     | Reference to a parent epic. Tasks and epics may have a parent epic. See [4.1.1](#411-parent-constraints). |
 | Facets              | —        | Yes     | Zero or more key–value pairs. See [4.6](#46-facet). |
 | Notes               | —        | —       | Zero or more. See [4.2](#42-note). Managed separately. |
 | Relationships       | —        | —       | Zero or more. See [4.3](#43-relationship). |
@@ -156,9 +156,17 @@ All tickets carry these fields regardless of role:
 
 All mutable fields (except notes and relationships) require claiming to modify.
 
+#### 4.1.1 Parent Constraints
+
+- Only an epic can be a parent. Setting a task as a parent is invalid.
+- A ticket cannot be its own parent.
+- Assigning a parent must not create a cycle — e.g., epic A cannot be the parent of epic B if B is already an ancestor of A.
+- A deleted ticket cannot be assigned as a parent.
+- Changing or removing a parent recalculates the old parent's completion status (see [6.2](#62-epic-completion-derivation)).
+
 ### 4.2 Note
 
-Notes are comments on a ticket. They can be added at any time by anyone without claiming.
+Notes are comments on a ticket. They can be added at any time by anyone without claiming. Notes cannot be added to deleted tickets (deleted tickets are immutable). Notes **can** be added to closed tickets — closure is terminal for state changes, not for commentary.
 
 | Field      | Required | Notes |
 |------------|----------|-------|
@@ -178,9 +186,12 @@ Notes are a flat list — no threading, no `reply_to` field. Conversational cont
 | `cites`         | `cited_by`     | This ticket references the target ticket as relevant context. |
 
 - Relationships can be added or removed without claiming either ticket.
+- A ticket cannot have a relationship with itself.
 - Use idempotent semantics: "create if not exists", "delete if exists".
 - A relationship cannot reference a deleted ticket.
 - Existing relationships pointing to a deleted ticket are retained in storage but invisible to normal operations.
+- Circular `blocked_by` chains are **not prevented at creation time** — they are detected by the `doctor` command. Preventing cycles at write time would require a graph traversal on every relationship insert, which is disproportionate to the risk. Cycles are rare and non-catastrophic; `doctor` identifies them for manual resolution.
+- Adding or removing a relationship produces a history entry on the ticket that initiated the relationship (the source ticket, not the target).
 
 ### 4.4 History Entry
 
@@ -206,7 +217,7 @@ A claim represents active ownership of a ticket.
 | Ticket ID       | The ticket being claimed. |
 | Author          | Bound at claim time. All gated mutations inherit this author. |
 | Stale Threshold | Duration after which the claim becomes stale. Default: 2 hours. Configurable up to 24 hours. |
-| Last Activity   | Timestamp of the most recent gated mutation or note on the claimed ticket. Used for staleness calculation. |
+| Last Activity   | Timestamp of the most recent gated mutation or any note added to the claimed ticket (by any author, not just the claimer). Used for staleness calculation. |
 
 A claim is invalidated when:
 - The claimer releases the ticket (close, defer, wait, or release).
@@ -216,18 +227,34 @@ A claim is invalidated when:
 
 Facets are key–value pairs on any ticket for filtering and agent coordination.
 
-- Keys and values are short strings. No schema enforcement.
+- **Keys**: 1–64 bytes, ASCII printable characters only (0x21–0x7E), no whitespace. Must contain at least one alphanumeric character.
+- **Values**: 1–256 bytes, free-form UTF-8 text. No whitespace. Must contain at least one alphanumeric character.
 - Keys are unique per ticket — setting an existing key overwrites the previous value.
 - Require claiming to add, modify, or remove.
 - Queryable: exact key–value match, `key:*` wildcard (matches any value for that key), and optionally negative matching.
 
-**Labels** are a convention on facets, not a first-class field. The recommended facet key for labels is `kind` (e.g., `kind:feat`, `kind:fix`). Users define their own vocabulary.
+**Labels** are a convention on facets, not a first-class field. The recommended facet key for labels is `kind` (e.g., `kind:feat`, `kind:fix`). Users define their own vocabulary. For users without an existing convention, the recommended default is the [Conventional Commits](https://www.conventionalcommits.org/) type vocabulary:
+
+| Value      | Definition |
+|------------|------------|
+| `feat`     | A new feature. |
+| `fix`      | A bug fix or defect correction. |
+| `refactor` | Restructures code without changing external behavior. |
+| `perf`     | A performance improvement. |
+| `test`     | Adds or corrects tests. |
+| `docs`     | Documentation only. |
+| `style`    | Formatting, whitespace, or cosmetic changes. |
+| `build`    | Changes to the build system, dependencies, or tooling. |
+| `ci`       | Changes to CI/CD configuration or automation. |
+| `chore`    | Maintenance that doesn't fit other categories. |
+
+These are suggestions, not enforced values. The system does not validate facet values against this list.
 
 ### 4.7 Ticket ID Format
 
 Ticket IDs have the form `<PREFIX>-<random>` (e.g., `NP-a3bxr`).
 
-- **Prefix**: uppercase, set once at database initialization, immutable. Must be specified by the user — no auto-generation.
+- **Prefix**: uppercase ASCII letters only (`A`–`Z`), 1–10 characters. Set once at database initialization, immutable. Must be specified by the user — no auto-generation.
 - **Random portion**: 5 lowercase Crockford Base32 characters, generated randomly per ticket. ID space: 33,554,432. On collision, regenerate and retry.
 - **Case contrast**: uppercase prefix, lowercase random portion, for visual separation.
 
@@ -318,11 +345,28 @@ Completion is an observation, not a lock. New children can always be added to a 
 
 ### 6.3 Readiness
 
+Readiness identifies tickets that can be worked on right now.
+
+#### Task Readiness
+
 A task is **ready** when all of the following are true:
 
 1. Its state is `open`.
 2. It has no `blocked_by` relationships, **or** every `blocked_by` target has been closed or deleted.
 3. No ancestor epic is `deferred` or `waiting`.
+
+#### Epic Readiness
+
+An epic is **ready** when all of the following are true:
+
+1. Its state is `active`.
+2. It has **no children** — it needs decomposition into tasks and/or sub-epics.
+3. It has no `blocked_by` relationships, **or** every `blocked_by` target has been closed or deleted.
+4. No ancestor epic is `deferred` or `waiting`.
+
+An epic that already has children is not ready — its work is defined; progress comes from completing its descendants.
+
+#### Readiness Propagation
 
 Readiness propagates downward — a deferred or waiting epic suppresses readiness for all unclaimed descendants.
 
@@ -350,7 +394,7 @@ Deletion is soft — data is retained but invisible to normal operations.
 - A deleted ticket is immutable — no further changes.
 - A deleted ticket cannot be referenced in new relationships.
 - Existing relationships pointing to a deleted ticket are retained in storage but invisible.
-- Deleting an epic recursively deletes all its children.
+- Deleting an epic recursively deletes all its unclaimed descendants in a single atomic transaction. If any descendant is currently claimed, the deletion fails with a claim-conflict error identifying the claimed descendant(s). The caller must wait for those claims to end — or steal them if stale — before retrying.
 - Deleted tickets cannot be undeleted.
 - `gc` can physically remove deleted ticket data.
 
@@ -367,7 +411,9 @@ When a ticket is a duplicate:
 
 ## 7. History and Auditability
 
-Every mutation transaction produces exactly one history entry. This includes creation, field updates, state transitions, claiming, releasing, and deletion.
+Every mutation to a ticket's own state produces exactly one history entry. This includes creation, field updates, state transitions, claiming, releasing, relationship changes, and deletion.
+
+**Notes do not produce history entries.** Notes are separate entities with their own storage and listing; they are not part of the ticket's field state. Adding a note does, however, update the claim's `Last Activity` timestamp for staleness purposes.
 
 History is per-ticket: an ordered, append-only sequence of entries that fully describes the ticket's evolution from creation to its current state.
 
@@ -436,15 +482,25 @@ Claim a specific ticket. Returns a claim ID.
 
 #### Claim Next Ready
 
-Claim the highest-priority unclaimed ready ticket.
+Claim the highest-priority unclaimed ready ticket — task or epic (see [6.3](#63-readiness)).
 
 - **Ordering**: lowest `P` number first; ties broken by earliest creation time.
-- Filterable by facet.
+- Filterable by facet and by role (to claim only tasks or only epics).
 - **Steal fallback**: if no ready tickets are available, optionally steal the highest-priority stale claimed ticket. Caller must explicitly opt in.
+
+#### One-Shot Update
+
+Update one or more properties on an **unclaimed** ticket in a single atomic claim → update → release transaction. The claim ID is generated and immediately invalidated internally; the caller never sees or manages it. Requires an explicit author (bound to the transient claim). Intended for quick fixes — correcting a title, setting a facet — without the overhead of a separate claim/release cycle.
+
+- Fails if the ticket is already claimed (same as a regular claim attempt).
 
 #### Update
 
 Update one or more properties, facets (add/modify/remove), relationships (add/remove), and/or parent assignment. Optionally add a note in the same operation. Requires the claim ID. All changes are a single atomic mutation.
+
+#### Extend Stale Threshold
+
+Reset or extend the stale threshold on the caller's active claim. Requires the claim ID. The new threshold cannot exceed 24 hours.
 
 #### Transition State
 
@@ -461,7 +517,7 @@ All transitions end the claim and invalidate the claim ID.
 
 #### Delete
 
-Soft-delete a claimed ticket. Requires the claim ID. Deleting an epic recursively deletes all children.
+Soft-delete a claimed ticket. Requires the claim ID. Deleting an epic recursively deletes all unclaimed descendants. Fails with a claim-conflict error if any descendant is currently claimed.
 
 #### Show
 
@@ -471,7 +527,7 @@ Display the full current state of a ticket: all fields, facets, relationships, p
 
 List tickets with high-level information: ID, role, state, priority, title. Optionally include timestamps.
 
-- Filterable by: state, the computed "ready" predicate, facet (`key:value` exact match, `key:*` wildcard, optionally negative matching).
+- Filterable by: role (epic or task), state, the computed "ready" predicate, parent epic, facet (`key:value` exact match, `key:*` wildcard, optionally negative matching).
 - Orderable by: priority, creation time, modification time.
 - Paginated.
 
@@ -479,8 +535,9 @@ List tickets with high-level information: ID, role, state, priority, title. Opti
 
 Full-text search on title, description, and acceptance criteria. Optionally include notes.
 
-- Filterable by: state, facet.
-- Orderable and paginated.
+- Filterable by: role, state, facet.
+- Orderable by: relevance (default), priority, creation time, modification time.
+- Paginated.
 
 ### 8.4 Note Operations
 

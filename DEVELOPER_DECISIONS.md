@@ -70,6 +70,6 @@
 
 ## DD-009: Service is lazily constructed via Factory function field
 
-**Decision:** The `Factory.Tracker` field is a `func() service.Service` closure that lazily discovers the database, opens the SQLite store, and constructs the service on first access. Commands that don't need the database (agent-name, agent-instructions) still call through the service.
+**Decision:** The `Factory.Store` field is a `func() (*sqlite.Store, error)` closure that lazily discovers the database and opens the SQLite connection on first access. The Factory provides the architecture-neutral database connection; the application service is constructed from it by `cmdutil.NewTracker(f)`, which commands call when they need the use-case layer.
 
-**Why:** Database discovery (walking up directories) is a side-effectful operation that should not happen at factory construction time. Lazy construction means the cost is paid only when needed, and commands like `agent-name` work even without a `.np/` directory. The field is named `Tracker` (not `Service`) because it describes what the caller gets — an issue tracker — rather than using the generic architectural term.
+**Why:** Per the design guide, Factory fields should be infrastructure-level dependencies (database connections, HTTP clients), not application-layer constructs. This separates configuration-driven plumbing from business logic. Database discovery (walking up directories) is a side-effectful operation that should not happen at factory construction time. The `NewTracker` helper avoids boilerplate — every command that needs the service calls it, but the Factory itself remains architecture-neutral.

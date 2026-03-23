@@ -165,7 +165,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				IdempotencyKey:     idempotencyKey,
 			}
 
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			result, err := svc.CreateTicket(ctx, input)
 			if err != nil {
 				return fmt.Errorf("creating ticket: %w", err)

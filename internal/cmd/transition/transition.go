@@ -60,7 +60,10 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 				Action:   action,
 			}
 
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			if err := svc.TransitionState(ctx, input); err != nil {
 				return fmt.Errorf("transitioning ticket: %w", err)
 			}

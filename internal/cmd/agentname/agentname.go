@@ -30,7 +30,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			name, err := svc.AgentName(ctx)
 			if err != nil {
 				return fmt.Errorf("generating agent name: %w", err)

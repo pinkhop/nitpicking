@@ -88,7 +88,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				StaleThreshold: threshold,
 			}
 
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			result, err := svc.ClaimByID(ctx, input)
 			if err != nil {
 				return fmt.Errorf("claiming ticket: %w", err)

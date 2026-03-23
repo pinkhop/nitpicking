@@ -37,7 +37,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("prefix argument is required")
 			}
 
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			if err := svc.Init(ctx, prefix); err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -47,7 +50,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			cs := f.IOStreams.ColorScheme()
-			_, err := fmt.Fprintf(f.IOStreams.Out, "%s Initialized database with prefix %s\n",
+			_, err = fmt.Fprintf(f.IOStreams.Out, "%s Initialized database with prefix %s\n",
 				cs.SuccessIcon(), cs.Bold(prefix))
 			return err
 		},

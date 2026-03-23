@@ -68,7 +68,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				ClaimID:  claimID,
 			}
 
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			if err := svc.DeleteTicket(ctx, input); err != nil {
 				return fmt.Errorf("deleting ticket: %w", err)
 			}

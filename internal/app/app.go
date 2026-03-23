@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmd/root"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain"
@@ -127,37 +126,30 @@ func newFactory(appName, appVersion string) *cmdutil.Factory {
 	// by the root command's Before hook after flag parsing.
 	f.LogLevel, f.Logger = newLogger(f.IOStreams)
 
-	// Phase 3: Service — constructed lazily on first access. Database
-	// discovery runs once; the Store is opened once and reused. Commands
-	// that don't need the database (agent-name, agent-instructions) still
-	// call through the service; the service handles non-database operations
-	// without touching storage.
-	var svc service.Service
-	f.Tracker = func() service.Service {
-		if svc != nil {
-			return svc
+	// Phase 3: Store — the SQLite database connection, constructed lazily.
+	// Database discovery runs once on first access; the Store is memoized.
+	var store *sqlite.Store
+	f.Store = func() (*sqlite.Store, error) {
+		if store != nil {
+			return store, nil
 		}
 
-		// Try to discover an existing database. If not found, create a
-		// service backed by a nil transactor — init will create the db.
 		cwd, _ := os.Getwd()
 		dbPath, err := sqlite.DiscoverDatabase(cwd)
 		if err != nil {
-			// No database found — return a service that can handle
-			// non-database operations. Database commands will fail
-			// with appropriate errors.
-			dbPath, _ = sqlite.InitDatabaseDir(cwd)
+			// No database found — create the .np/ directory so that
+			// init can populate it.
+			dbPath, err = sqlite.InitDatabaseDir(cwd)
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		store, err := sqlite.Open(dbPath)
+		store, err = sqlite.Open(dbPath)
 		if err != nil {
-			// Return a service with a nil-safe transactor — operations
-			// will fail with database errors at call time.
-			svc = service.New(nil)
-			return svc
+			return nil, err
 		}
-		svc = service.New(store)
-		return svc
+		return store, nil
 	}
 
 	return f

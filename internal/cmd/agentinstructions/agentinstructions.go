@@ -31,7 +31,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			instructions, err := svc.AgentInstructions(ctx)
 			if err != nil {
 				return fmt.Errorf("retrieving agent instructions: %w", err)

@@ -3,8 +3,8 @@ package cmdutil
 import (
 	"log/slog"
 
-	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/iostreams"
+	"github.com/pinkhop/nitpicking/internal/storage/sqlite"
 )
 
 // Factory provides lazy-loaded, substitutable dependencies to commands.
@@ -59,10 +59,11 @@ type Factory struct {
 	// Logger ignore this field.
 	LogLevel *slog.LevelVar
 
-	// Tracker returns the issue tracker service — the application-layer facade
-	// over domain logic and persistence. Constructed lazily on first access;
-	// database discovery and SQLite initialization happen at that point.
-	Tracker func() service.Service
+	// Store returns the SQLite database connection. Constructed lazily on
+	// first access — database discovery and opening happen at that point.
+	// Commands that need the application service construct it from this
+	// connection via cmdutil.NewTracker.
+	Store func() (*sqlite.Store, error)
 
 	// SignalCancelIsError controls whether signal-triggered context
 	// cancellation (SIGINT, SIGTERM) produces a non-zero exit code.

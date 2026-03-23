@@ -54,7 +54,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				IncludeClosed: includeClosed,
 			}
 
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			result, err := svc.GC(ctx, input)
 			if err != nil {
 				return fmt.Errorf("running garbage collection: %w", err)

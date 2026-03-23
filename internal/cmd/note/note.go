@@ -112,7 +112,10 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				Body:     body,
 			}
 
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			result, err := svc.AddNote(ctx, input)
 			if err != nil {
 				return fmt.Errorf("adding note: %w", err)
@@ -163,7 +166,10 @@ func newShowCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			n, err := svc.ShowNote(ctx, noteID)
 			if err != nil {
 				return fmt.Errorf("showing note: %w", err)
@@ -237,7 +243,10 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 				Page:     port.PageRequest{PageSize: pageSize},
 			}
 
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			result, err := svc.ListNotes(ctx, input)
 			if err != nil {
 				return fmt.Errorf("listing notes: %w", err)
@@ -334,7 +343,10 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 				input.TicketID = tid
 			}
 
-			svc := f.Tracker()
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
 			result, err := svc.SearchNotes(ctx, input)
 			if err != nil {
 				return fmt.Errorf("searching notes: %w", err)

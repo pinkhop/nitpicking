@@ -16,7 +16,7 @@
 
 **Decision:** Claim IDs are 16 random bytes hex-encoded (32 characters). This provides 128 bits of entropy — equivalent to UUIDs — making them unguessable per the spec's "bearer authentication" requirement.
 
-**Why:** The spec requires "random, unguessable token". UUID format would work but adds a dependency; raw hex from `crypto/rand` is simpler and equally secure.
+**Why:** The spec requires "random, unguessable token". UUID format would work but adds a dependency; raw hex from `math/rand/v2` (backed by `crypto/rand` in Go 1.22+) is simpler and equally secure.
 
 ---
 
@@ -70,6 +70,6 @@
 
 ## DD-009: Service is lazily constructed via Factory function field
 
-**Decision:** The `Factory.Service` field is a `func() service.Service` closure that lazily discovers the database, opens the SQLite store, and constructs the service on first access. Commands that don't need the database (agent-name, agent-instructions) still call through the service.
+**Decision:** The `Factory.Tracker` field is a `func() service.Service` closure that lazily discovers the database, opens the SQLite store, and constructs the service on first access. Commands that don't need the database (agent-name, agent-instructions) still call through the service.
 
-**Why:** Database discovery (walking up directories) is a side-effectful operation that should not happen at factory construction time. Lazy construction means the cost is paid only when needed, and commands like `agent-name` work even without a `.np/` directory.
+**Why:** Database discovery (walking up directories) is a side-effectful operation that should not happen at factory construction time. Lazy construction means the cost is paid only when needed, and commands like `agent-name` work even without a `.np/` directory. The field is named `Tracker` (not `Service`) because it describes what the caller gets — an issue tracker — rather than using the generic architectural term.

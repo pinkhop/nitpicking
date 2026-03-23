@@ -40,7 +40,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			svc := f.Service()
+			svc := f.Tracker()
 			result, err := svc.Doctor(ctx)
 			if err != nil {
 				return fmt.Errorf("running diagnostics: %w", err)

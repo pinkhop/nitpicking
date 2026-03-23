@@ -1,9 +1,8 @@
 package ticket
 
 import (
-	"crypto/rand"
 	"fmt"
-	"math/big"
+	"math/rand/v2"
 	"strings"
 	"unicode"
 )
@@ -17,7 +16,7 @@ const crockfordAlphabet = "0123456789abcdefghjkmnpqrstvwxyz"
 const randomPartLength = 5
 
 // idSpace is the total number of possible random portions (32^5 = 33,554,432).
-var idSpace = new(big.Int).SetInt64(32 * 32 * 32 * 32 * 32)
+const idSpace = 32 * 32 * 32 * 32 * 32
 
 // ID represents a ticket identifier in the form PREFIX-random (e.g., "NP-a3bxr").
 // The prefix is uppercase ASCII letters; the random portion is lowercase
@@ -60,11 +59,7 @@ func GenerateID(prefix string, collisionCheck func(ID) (bool, error)) (ID, error
 
 	const maxRetries = 10
 	for range maxRetries {
-		random, err := generateRandom()
-		if err != nil {
-			return ID{}, fmt.Errorf("generating ticket ID: %w", err)
-		}
-
+		random := generateRandom()
 		id := ID{prefix: prefix, random: random}
 
 		if collisionCheck != nil {
@@ -141,20 +136,16 @@ func isCrockfordChar(r rune) bool {
 }
 
 // generateRandom produces a cryptographically random 5-character Crockford
-// Base32 string.
-func generateRandom() (string, error) {
-	n, err := rand.Int(rand.Reader, idSpace)
-	if err != nil {
-		return "", fmt.Errorf("reading random bytes: %w", err)
-	}
-
-	val := n.Int64()
+// Base32 string. Uses crypto/rand/v2 which panics on CSPRNG failure — the
+// correct behavior since a broken random source should halt the process.
+func generateRandom() string {
+	val := rand.N(idSpace)
 	buf := make([]byte, randomPartLength)
 	for i := randomPartLength - 1; i >= 0; i-- {
 		buf[i] = crockfordAlphabet[val%32]
 		val /= 32
 	}
-	return string(buf), nil
+	return string(buf)
 }
 
 // containsAlphanumeric reports whether s contains at least one Unicode letter

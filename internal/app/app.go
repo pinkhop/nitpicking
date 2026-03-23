@@ -133,7 +133,7 @@ func newFactory(appName, appVersion string) *cmdutil.Factory {
 	// call through the service; the service handles non-database operations
 	// without touching storage.
 	var svc service.Service
-	f.Service = func() service.Service {
+	f.Tracker = func() service.Service {
 		if svc != nil {
 			return svc
 		}

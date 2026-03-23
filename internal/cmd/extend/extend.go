@@ -66,7 +66,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("invalid threshold duration: %s", err)
 			}
 
-			svc := f.Service()
+			svc := f.Tracker()
 			if err := svc.ExtendStaleThreshold(ctx, ticketID, claimID, duration); err != nil {
 				return fmt.Errorf("extending stale threshold: %w", err)
 			}

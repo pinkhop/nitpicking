@@ -65,7 +65,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 			}
 
-			svc := f.Service()
+			svc := f.Tracker()
 			result, err := svc.ShowTicket(ctx, ticketID)
 			if err != nil {
 				return fmt.Errorf("showing ticket: %w", err)

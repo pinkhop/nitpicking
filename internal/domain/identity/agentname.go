@@ -1,9 +1,6 @@
 package identity
 
-import (
-	"crypto/rand"
-	"math/big"
-)
+import "math/rand/v2"
 
 // adjectives is a curated list of positive, non-offensive adjectives for
 // Docker-style agent name generation.
@@ -55,29 +52,16 @@ var modifiers = []string{
 
 // GenerateAgentName produces a Docker-style random agent name in the format
 // "adjective-noun-modifier" (e.g., "dashing-storage-glitter"). Each
-// invocation returns a fresh random name.
-func GenerateAgentName() (string, error) {
-	adj, err := randomElement(adjectives)
-	if err != nil {
-		return "", err
-	}
-	noun, err := randomElement(nouns)
-	if err != nil {
-		return "", err
-	}
-	mod, err := randomElement(modifiers)
-	if err != nil {
-		return "", err
-	}
-
-	return adj + "-" + noun + "-" + mod, nil
+// invocation returns a fresh random name. Uses math/rand/v2 which is backed
+// by crypto/rand by default in Go 1.22+.
+func GenerateAgentName() string {
+	adj := randomElement(adjectives)
+	noun := randomElement(nouns)
+	mod := randomElement(modifiers)
+	return adj + "-" + noun + "-" + mod
 }
 
 // randomElement returns a cryptographically random element from a string slice.
-func randomElement(slice []string) (string, error) {
-	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(slice))))
-	if err != nil {
-		return "", err
-	}
-	return slice[n.Int64()], nil
+func randomElement(slice []string) string {
+	return slice[rand.N(len(slice))]
 }

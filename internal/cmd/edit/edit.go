@@ -152,7 +152,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				input.FacetSet = append(input.FacetSet, facet)
 			}
 
-			svc := f.Service()
+			svc := f.Tracker()
 			if err := svc.OneShotUpdate(ctx, input); err != nil {
 				return fmt.Errorf("editing ticket: %w", err)
 			}

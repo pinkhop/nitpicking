@@ -1,9 +1,10 @@
 package claim
 
 import (
-	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
@@ -56,10 +57,7 @@ func NewClaim(p NewClaimParams) (Claim, error) {
 		return Claim{}, fmt.Errorf("stale threshold %v exceeds maximum %v", threshold, MaxStaleThreshold)
 	}
 
-	claimID, err := generateClaimID()
-	if err != nil {
-		return Claim{}, fmt.Errorf("generating claim ID: %w", err)
-	}
+	claimID := generateClaimID()
 
 	now := p.Now
 	if now.IsZero() {
@@ -130,10 +128,12 @@ func (c Claim) WithStaleThreshold(d time.Duration) (Claim, error) {
 }
 
 // generateClaimID produces a cryptographically random hex-encoded claim ID.
-func generateClaimID() (string, error) {
-	buf := make([]byte, claimIDBytes)
-	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("reading random bytes: %w", err)
-	}
-	return hex.EncodeToString(buf), nil
+// Uses math/rand/v2 which is backed by crypto/rand by default in Go 1.22+.
+// Panics on CSPRNG failure — the correct behavior since a broken random
+// source should halt the process.
+func generateClaimID() string {
+	var buf [claimIDBytes]byte
+	binary.BigEndian.PutUint64(buf[:8], rand.Uint64())
+	binary.BigEndian.PutUint64(buf[8:], rand.Uint64())
+	return hex.EncodeToString(buf[:])
 }

@@ -54,7 +54,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				IncludeClosed: includeClosed,
 			}
 
-			svc := f.Service()
+			svc := f.Tracker()
 			result, err := svc.GC(ctx, input)
 			if err != nil {
 				return fmt.Errorf("running garbage collection: %w", err)

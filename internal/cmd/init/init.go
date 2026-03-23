@@ -37,7 +37,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("prefix argument is required")
 			}
 
-			svc := f.Service()
+			svc := f.Tracker()
 			if err := svc.Init(ctx, prefix); err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}

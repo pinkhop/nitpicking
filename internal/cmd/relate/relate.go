@@ -93,7 +93,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				TargetID: targetID,
 			}
 
-			svc := f.Service()
+			svc := f.Tracker()
 			if err := svc.AddRelationship(ctx, sourceID, rel, parsedAuthor); err != nil {
 				return fmt.Errorf("adding relationship: %w", err)
 			}
@@ -178,7 +178,7 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 				TargetID: targetID,
 			}
 
-			svc := f.Service()
+			svc := f.Tracker()
 			if err := svc.RemoveRelationship(ctx, sourceID, rel, parsedAuthor); err != nil {
 				return fmt.Errorf("removing relationship: %w", err)
 			}

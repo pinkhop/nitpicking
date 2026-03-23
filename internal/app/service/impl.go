@@ -37,7 +37,7 @@ func (s *serviceImpl) Init(ctx context.Context, prefix string) error {
 }
 
 func (s *serviceImpl) AgentName(_ context.Context) (string, error) {
-	return identity.GenerateAgentName()
+	return identity.GenerateAgentName(), nil
 }
 
 func (s *serviceImpl) AgentInstructions(_ context.Context) (string, error) {

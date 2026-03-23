@@ -59,9 +59,10 @@ type Factory struct {
 	// Logger ignore this field.
 	LogLevel *slog.LevelVar
 
-	// Service returns the application service. Constructed lazily — requires
-	// database discovery and SQLite initialization.
-	Service func() service.Service
+	// Tracker returns the issue tracker service — the application-layer facade
+	// over domain logic and persistence. Constructed lazily on first access;
+	// database discovery and SQLite initialization happen at that point.
+	Tracker func() service.Service
 
 	// SignalCancelIsError controls whether signal-triggered context
 	// cancellation (SIGINT, SIGTERM) produces a non-zero exit code.

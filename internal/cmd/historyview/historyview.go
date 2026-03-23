@@ -78,7 +78,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Page:     port.PageRequest{PageSize: pageSize},
 			}
 
-			svc := f.Service()
+			svc := f.Tracker()
 			result, err := svc.ShowHistory(ctx, input)
 			if err != nil {
 				return fmt.Errorf("showing history: %w", err)

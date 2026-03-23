@@ -107,7 +107,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				StaleThreshold: threshold,
 			}
 
-			svc := f.Service()
+			svc := f.Tracker()
 			result, err := svc.ClaimNextReady(ctx, input)
 			if err != nil {
 				return fmt.Errorf("claiming next ready ticket: %w", err)

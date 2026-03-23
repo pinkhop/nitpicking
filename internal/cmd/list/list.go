@@ -145,7 +145,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Page:    port.PageRequest{PageSize: pageSize},
 			}
 
-			svc := f.Service()
+			svc := f.Tracker()
 			result, err := svc.ListTickets(ctx, input)
 			if err != nil {
 				return fmt.Errorf("listing tickets: %w", err)

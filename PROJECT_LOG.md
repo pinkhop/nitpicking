@@ -130,3 +130,19 @@
 - [x] **5.21** `np gc --confirm` — garbage collection
 - [x] **5.22** Register All Commands — all 23 commands wired into root; service lazily initialized with database discovery
 
+## Phase 6 — Integration Testing and Polish
+
+- [x] **6.1** SQLite Integration Tests — `internal/storage/sqlite/store_integration_test.go`
+  - Full lifecycle: create→update→show→close
+  - Notes on closed tickets (spec compliance)
+  - List with pagination (5 tickets, page size 3)
+  - Delete and verify not found
+  - Extend stale threshold
+  - Build tag: `integration`
+- [x] **6.2** E2E CLI Tests — `test/e2e/e2e_test.go`
+  - Init + create workflow with JSON output verification
+  - List JSON output with total count
+  - Exit code verification (not found = exit 2)
+  - Agent name generation without database
+  - Build tag: `e2e`
+

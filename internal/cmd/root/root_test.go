@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/google/gops/agent"
-
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/iostreams"
 )
@@ -135,87 +133,6 @@ func newTestFactory() *cmdutil.Factory {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// NewRootCmd — gops agent behavior
-// ---------------------------------------------------------------------------
-
-// TestNewRootCmd_NoGopsFlag_AgentNotStarted verifies that passing --no-gops
-// prevents the gops agent from starting, leaving the agent slot free for a
-// subsequent Listen call in the same test process.
-func TestNewRootCmd_NoGopsFlag_AgentNotStarted(t *testing.T) {
-	t.Parallel()
-
-	// Given
-	f := newTestFactory()
-	cmd := NewRootCmd(f)
-
-	// When
-	err := cmd.Run(context.Background(), []string{"np", "--no-gops", "version"})
-	// Then
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// The agent was never started, so a fresh Listen call must succeed.
-	// If the agent were already running, Listen would return an error.
-	if listenErr := agent.Listen(agent.Options{}); listenErr != nil {
-		t.Errorf("expected gops agent to not be running after --no-gops, got: %v", listenErr)
-	}
-	t.Cleanup(agent.Close)
-}
-
-// TestNewRootCmd_NoGopsEnvVar_AgentNotStarted verifies that NO_GOPS=1 has the
-// same effect as --no-gops via urfave/cli's flag-layering mechanism.
-// Not parallel: t.Setenv and t.Parallel cannot be combined.
-func TestNewRootCmd_NoGopsEnvVar_AgentNotStarted(t *testing.T) {
-	t.Setenv("NO_GOPS", "1")
-
-	// Given
-	f := newTestFactory()
-	cmd := NewRootCmd(f)
-
-	// When
-	err := cmd.Run(context.Background(), []string{"np", "version"})
-	// Then
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if listenErr := agent.Listen(agent.Options{}); listenErr != nil {
-		t.Errorf("expected gops agent to not be running after NO_GOPS=1, got: %v", listenErr)
-	}
-	t.Cleanup(agent.Close)
-}
-
-// TestNewRootCmd_GopsAgent_LifecycleStartsAndCleans verifies that the gops
-// agent is started by the Before hook and cleaned up by the After hook when
-// --no-gops is absent. After cmd.Run returns, agent.Listen must succeed again,
-// confirming the full start-and-close lifecycle executed correctly.
-//
-// Not parallel: agent.Listen is process-wide state. Running this concurrently
-// with other tests that call Listen would cause non-deterministic failures.
-// Any new root command test that exercises the full Before+After path without
-// --no-gops must also skip t.Parallel() for the same reason.
-func TestNewRootCmd_GopsAgent_LifecycleStartsAndCleans(t *testing.T) {
-	// Given
-	f := newTestFactory()
-	cmd := NewRootCmd(f)
-
-	// When — Before starts the agent, After closes it
-	err := cmd.Run(context.Background(), []string{"np", "version"})
-	// Then
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// After hook called agent.Close(), so a fresh Listen must succeed.
-	if listenErr := agent.Listen(agent.Options{}); listenErr != nil {
-		t.Errorf("expected gops agent to be closed after After hook ran, but Listen returned: %v", listenErr)
-	}
-	t.Cleanup(agent.Close)
-}
-
-// ---------------------------------------------------------------------------
-// NewRootCmd — Before hook behavior
-// ---------------------------------------------------------------------------
-
 func TestNewRootCmd_BeforeHook_SetsLogLevel(t *testing.T) {
 	t.Parallel()
 
@@ -223,11 +140,9 @@ func TestNewRootCmd_BeforeHook_SetsLogLevel(t *testing.T) {
 	f := newTestFactory()
 	cmd := NewRootCmd(f)
 
-	// When — run with --log-level=debug and "version" subcommand.
-	// --no-gops prevents the process-wide gops agent from starting, keeping
-	// this test isolated from other parallel tests that also call Run.
-	err := cmd.Run(context.Background(), []string{"np", "--no-gops", "--log-level", "debug", "version"})
-	// Then — the Before hook should have set the level to Debug
+	// When
+	err := cmd.Run(context.Background(), []string{"np", "--log-level", "debug", "version"})
+	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

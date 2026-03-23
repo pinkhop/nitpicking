@@ -9,7 +9,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/google/gops/agent"
 	"github.com/urfave/cli/v3"
 
 	"github.com/pinkhop/nitpicking/internal/cmd/agentinstructions"
@@ -94,12 +93,6 @@ func LoggerFrom(ctx context.Context) *slog.Logger {
 // the After hook tears down infrastructure started in Before.
 func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 	var env, logLevel string
-	var noGops bool
-
-	// gopsStarted tracks whether the gops agent was successfully started in
-	// Before, so After knows whether to call agent.Close(). This parallels
-	// the rootSpan pattern used in the OpenTelemetry integration.
-	var gopsStarted bool
 
 	// stopSignals deregisters the signal handler installed in Before.
 	// Declared here so the After hook can call it during teardown.
@@ -137,13 +130,6 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 					}
 				},
 			},
-			&cli.BoolFlag{
-				Name:        "no-gops",
-				Sources:     cli.EnvVars("NO_GOPS"),
-				Usage:       "Disable the gops diagnostics agent",
-				Value:       false,
-				Destination: &noGops,
-			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			// The Before hook on the root command runs before EVERY subcommand.
@@ -166,31 +152,14 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			// cancellation for every subcommand. This is a process-wide
 			// concern — multiple NotifyContext calls on the same signals
 			// interfere with each other — so it belongs here alongside
-			// other process-wide lifecycle management (gops, telemetry).
+			// other process-wide lifecycle management (telemetry).
 			// Tests that call run() directly bypass Before entirely and
 			// pass their own cancellable context.
 			ctx, stopSignals = signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
-			// Start the gops diagnostics agent unless explicitly disabled.
-			// The agent listens on a temp socket (no address configuration
-			// needed) and enables runtime inspection via the `gops` CLI tool.
-			// A startup failure is non-fatal — log a warning and continue,
-			// because diagnostics must not block the application from running.
-			if !noGops {
-				if err := agent.Listen(agent.Options{}); err != nil {
-					LoggerFrom(ctx).Warn("gops agent failed to start", "error", err)
-				} else {
-					gopsStarted = true
-				}
-			}
-
 			return ctx, nil
 		},
 		After: func(ctx context.Context, cmd *cli.Command) error {
-			// Stop the gops diagnostics agent if it was started in Before.
-			if gopsStarted {
-				agent.Close()
-			}
 			// Deregister the signal handler installed in Before.
 			if stopSignals != nil {
 				stopSignals()

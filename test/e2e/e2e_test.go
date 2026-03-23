@@ -37,10 +37,8 @@ func runNP(t *testing.T, dir string, args ...string) (stdout, stderr string, exi
 	t.Helper()
 
 	binary := npBinary(t)
-	allArgs := append([]string{"--no-gops"}, args...)
-	cmd := exec.Command(binary, allArgs...)
+	cmd := exec.Command(binary, args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "NO_GOPS=1")
 
 	var outBuf, errBuf strings.Builder
 	cmd.Stdout = &outBuf

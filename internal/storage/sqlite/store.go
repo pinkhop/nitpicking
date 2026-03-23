@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -33,8 +34,8 @@ func Open(dbPath string) (*Store, error) {
 
 	// Apply schema.
 	if _, err := db.Exec(schemaSQL); err != nil {
-		db.Close()
-		return nil, &domain.DatabaseError{Op: "apply schema", Err: err}
+		closeErr := db.Close()
+		return nil, &domain.DatabaseError{Op: "apply schema", Err: errors.Join(err, closeErr)}
 	}
 
 	return &Store{db: db}, nil
@@ -43,6 +44,19 @@ func Open(dbPath string) (*Store, error) {
 // Close closes the database connection.
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+// closeRows closes a sql.Rows and captures the error into errp when no prior
+// error has been set. Intended for use with defer and named return values:
+//
+//	defer closeRows(rows, &err)
+//
+// If the caller already has an error (e.g., from a scan failure), the close
+// error is dropped — the original error is more informative.
+func closeRows(rows *sql.Rows, errp *error) {
+	if closeErr := rows.Close(); closeErr != nil && *errp == nil {
+		*errp = &domain.DatabaseError{Op: "close rows", Err: closeErr}
+	}
 }
 
 // --- Transactor ---
@@ -267,7 +281,7 @@ func (r *ticketRepo) UpdateTicket(ctx context.Context, t ticket.Ticket) error {
 	return nil
 }
 
-func (r *ticketRepo) ListTickets(ctx context.Context, filter port.TicketFilter, orderBy port.TicketOrderBy, page port.PageRequest) ([]port.TicketListItem, port.PageResult, error) {
+func (r *ticketRepo) ListTickets(ctx context.Context, filter port.TicketFilter, orderBy port.TicketOrderBy, page port.PageRequest) (_ []port.TicketListItem, _ port.PageResult, err error) {
 	page = page.Normalize()
 
 	where, args := buildTicketWhere(filter)
@@ -287,7 +301,7 @@ func (r *ticketRepo) ListTickets(ctx context.Context, filter port.TicketFilter, 
 	if err != nil {
 		return nil, port.PageResult{}, &domain.DatabaseError{Op: "list tickets", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	var items []port.TicketListItem
 	for rows.Next() {
@@ -317,7 +331,7 @@ func (r *ticketRepo) ListTickets(ctx context.Context, filter port.TicketFilter, 
 	return items, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *ticketRepo) SearchTickets(ctx context.Context, query string, filter port.TicketFilter, orderBy port.TicketOrderBy, page port.PageRequest) ([]port.TicketListItem, port.PageResult, error) {
+func (r *ticketRepo) SearchTickets(ctx context.Context, query string, filter port.TicketFilter, orderBy port.TicketOrderBy, page port.PageRequest) (_ []port.TicketListItem, _ port.PageResult, err error) {
 	page = page.Normalize()
 
 	where, args := buildTicketWhere(filter)
@@ -340,7 +354,7 @@ func (r *ticketRepo) SearchTickets(ctx context.Context, query string, filter por
 	if err != nil {
 		return nil, port.PageResult{}, &domain.DatabaseError{Op: "search tickets", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	var items []port.TicketListItem
 	for rows.Next() {
@@ -363,12 +377,12 @@ func (r *ticketRepo) SearchTickets(ctx context.Context, query string, filter por
 	return items, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *ticketRepo) GetChildStatuses(ctx context.Context, epicID ticket.ID) ([]ticket.ChildStatus, error) {
+func (r *ticketRepo) GetChildStatuses(ctx context.Context, epicID ticket.ID) (_ []ticket.ChildStatus, err error) {
 	rows, err := r.tx.QueryContext(ctx, `SELECT role, state FROM tickets WHERE parent_id = ? AND deleted = 0`, epicID.String())
 	if err != nil {
 		return nil, &domain.DatabaseError{Op: "get child statuses", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	var children []ticket.ChildStatus
 	for rows.Next() {
@@ -391,14 +405,14 @@ func (r *ticketRepo) GetDescendants(ctx context.Context, epicID ticket.ID) ([]ti
 	return r.getDescendantsRecursive(ctx, epicID)
 }
 
-func (r *ticketRepo) getDescendantsRecursive(ctx context.Context, parentID ticket.ID) ([]ticket.DescendantInfo, error) {
+func (r *ticketRepo) getDescendantsRecursive(ctx context.Context, parentID ticket.ID) (_ []ticket.DescendantInfo, err error) {
 	rows, err := r.tx.QueryContext(ctx,
 		`SELECT t.ticket_id, t.role, COALESCE(c.author, '') as claim_author FROM tickets t LEFT JOIN claims c ON t.ticket_id = c.ticket_id WHERE t.parent_id = ? AND t.deleted = 0`,
 		parentID.String())
 	if err != nil {
 		return nil, &domain.DatabaseError{Op: "get descendants", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	var descendants []ticket.DescendantInfo
 	type childInfo struct {
@@ -506,12 +520,12 @@ func (r *ticketRepo) GetTicketByIdempotencyKey(ctx context.Context, key string) 
 	return t, nil
 }
 
-func (r *ticketRepo) loadFacets(ctx context.Context, ticketID string) (ticket.FacetSet, error) {
+func (r *ticketRepo) loadFacets(ctx context.Context, ticketID string) (_ ticket.FacetSet, err error) {
 	rows, err := r.tx.QueryContext(ctx, `SELECT key, value FROM facets WHERE ticket_id = ?`, ticketID)
 	if err != nil {
 		return ticket.NewFacetSet(), &domain.DatabaseError{Op: "load facets", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	fs := ticket.NewFacetSet()
 	for rows.Next() {
@@ -566,7 +580,7 @@ func (r *noteRepo) GetNote(ctx context.Context, id int64) (note.Note, error) {
 	})
 }
 
-func (r *noteRepo) ListNotes(ctx context.Context, ticketID ticket.ID, filter port.NoteFilter, page port.PageRequest) ([]note.Note, port.PageResult, error) {
+func (r *noteRepo) ListNotes(ctx context.Context, ticketID ticket.ID, filter port.NoteFilter, page port.PageRequest) (_ []note.Note, _ port.PageResult, err error) {
 	page = page.Normalize()
 
 	where := `WHERE ticket_id = ?`
@@ -586,7 +600,9 @@ func (r *noteRepo) ListNotes(ctx context.Context, ticketID ticket.ID, filter por
 	}
 
 	var total int
-	r.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM notes `+where, args...).Scan(&total)
+	if err := r.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM notes `+where, args...).Scan(&total); err != nil {
+		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count notes", Err: err}
+	}
 
 	query := `SELECT note_id, ticket_id, author, created_at, body FROM notes ` + where + ` ORDER BY note_id LIMIT ?`
 	args = append(args, page.PageSize)
@@ -595,7 +611,7 @@ func (r *noteRepo) ListNotes(ctx context.Context, ticketID ticket.ID, filter por
 	if err != nil {
 		return nil, port.PageResult{}, &domain.DatabaseError{Op: "list notes", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	var notes []note.Note
 	for rows.Next() {
@@ -614,7 +630,7 @@ func (r *noteRepo) ListNotes(ctx context.Context, ticketID ticket.ID, filter por
 	return notes, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *noteRepo) SearchNotes(ctx context.Context, query string, filter port.NoteFilter, page port.PageRequest) ([]note.Note, port.PageResult, error) {
+func (r *noteRepo) SearchNotes(ctx context.Context, query string, filter port.NoteFilter, page port.PageRequest) (_ []note.Note, _ port.PageResult, err error) {
 	page = page.Normalize()
 
 	where := `WHERE n.note_id IN (SELECT note_id FROM notes_fts WHERE notes_fts MATCH ?)`
@@ -626,7 +642,9 @@ func (r *noteRepo) SearchNotes(ctx context.Context, query string, filter port.No
 	}
 
 	var total int
-	r.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM notes n `+where, args...).Scan(&total)
+	if err := r.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM notes n `+where, args...).Scan(&total); err != nil {
+		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count note search results", Err: err}
+	}
 
 	selectQuery := `SELECT n.note_id, n.ticket_id, n.author, n.created_at, n.body FROM notes n ` + where + ` ORDER BY n.note_id LIMIT ?`
 	args = append(args, page.PageSize)
@@ -635,7 +653,7 @@ func (r *noteRepo) SearchNotes(ctx context.Context, query string, filter port.No
 	if err != nil {
 		return nil, port.PageResult{}, &domain.DatabaseError{Op: "search notes", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	var notes []note.Note
 	for rows.Next() {
@@ -703,12 +721,12 @@ func (r *claimRepo) UpdateClaimThreshold(ctx context.Context, claimID string, th
 	return nil
 }
 
-func (r *claimRepo) ListStaleClaims(ctx context.Context, now time.Time) ([]claim.Claim, error) {
+func (r *claimRepo) ListStaleClaims(ctx context.Context, now time.Time) (_ []claim.Claim, err error) {
 	rows, err := r.tx.QueryContext(ctx, `SELECT claim_id, ticket_id, author, stale_threshold, last_activity FROM claims`)
 	if err != nil {
 		return nil, &domain.DatabaseError{Op: "list stale claims", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	var stale []claim.Claim
 	for rows.Next() {
@@ -768,13 +786,13 @@ func (r *relRepo) DeleteRelationship(ctx context.Context, sourceID, targetID tic
 	return n > 0, nil
 }
 
-func (r *relRepo) ListRelationships(ctx context.Context, ticketID ticket.ID) ([]ticket.Relationship, error) {
+func (r *relRepo) ListRelationships(ctx context.Context, ticketID ticket.ID) (_ []ticket.Relationship, err error) {
 	rows, err := r.tx.QueryContext(ctx, `SELECT source_id, target_id, rel_type FROM relationships WHERE source_id = ? OR target_id = ?`,
 		ticketID.String(), ticketID.String())
 	if err != nil {
 		return nil, &domain.DatabaseError{Op: "list relationships", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	var rels []ticket.Relationship
 	for rows.Next() {
@@ -791,14 +809,14 @@ func (r *relRepo) ListRelationships(ctx context.Context, ticketID ticket.ID) ([]
 	return rels, nil
 }
 
-func (r *relRepo) GetBlockerStatuses(ctx context.Context, ticketID ticket.ID) ([]ticket.BlockerStatus, error) {
+func (r *relRepo) GetBlockerStatuses(ctx context.Context, ticketID ticket.ID) (_ []ticket.BlockerStatus, err error) {
 	rows, err := r.tx.QueryContext(ctx,
 		`SELECT t.state, t.deleted FROM relationships r JOIN tickets t ON r.target_id = t.ticket_id WHERE r.source_id = ? AND r.rel_type = 'blocked_by'`,
 		ticketID.String())
 	if err != nil {
 		return nil, &domain.DatabaseError{Op: "get blocker statuses", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	var statuses []ticket.BlockerStatus
 	for rows.Next() {
@@ -833,7 +851,7 @@ func (r *histRepo) AppendHistory(ctx context.Context, entry history.Entry) (int6
 	return result.LastInsertId()
 }
 
-func (r *histRepo) ListHistory(ctx context.Context, ticketID ticket.ID, filter port.HistoryFilter, page port.PageRequest) ([]history.Entry, port.PageResult, error) {
+func (r *histRepo) ListHistory(ctx context.Context, ticketID ticket.ID, filter port.HistoryFilter, page port.PageRequest) (_ []history.Entry, _ port.PageResult, err error) {
 	page = page.Normalize()
 
 	where := `WHERE ticket_id = ?`
@@ -853,7 +871,9 @@ func (r *histRepo) ListHistory(ctx context.Context, ticketID ticket.ID, filter p
 	}
 
 	var total int
-	r.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM history `+where, args...).Scan(&total)
+	if err := r.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM history `+where, args...).Scan(&total); err != nil {
+		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count history", Err: err}
+	}
 
 	query := `SELECT entry_id, ticket_id, revision, author, timestamp, event_type, changes FROM history ` + where + ` ORDER BY revision LIMIT ?`
 	args = append(args, page.PageSize)
@@ -862,7 +882,7 @@ func (r *histRepo) ListHistory(ctx context.Context, ticketID ticket.ID, filter p
 	if err != nil {
 		return nil, port.PageResult{}, &domain.DatabaseError{Op: "list history", Err: err}
 	}
-	defer rows.Close()
+	defer closeRows(rows, &err)
 
 	var entries []history.Entry
 	for rows.Next() {

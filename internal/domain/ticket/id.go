@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"strings"
-	"unicode"
 )
 
 // crockfordAlphabet is the lowercase Crockford Base32 encoding alphabet.
@@ -153,15 +152,4 @@ func generateRandom() string {
 		val /= 32
 	}
 	return string(buf)
-}
-
-// containsAlphanumeric reports whether s contains at least one Unicode letter
-// or digit. Used for title and author validation.
-func containsAlphanumeric(s string) bool {
-	for _, r := range s {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			return true
-		}
-	}
-	return false
 }

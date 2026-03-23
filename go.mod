@@ -3,7 +3,6 @@ module github.com/pinkhop/nitpicking
 go 1.26.1
 
 require (
-	github.com/google/gops v0.3.29
 	github.com/urfave/cli/v3 v3.7.0
 	golang.org/x/term v0.41.0
 	golang.org/x/text v0.35.0

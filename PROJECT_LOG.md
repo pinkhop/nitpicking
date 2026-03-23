@@ -86,3 +86,22 @@
   - All services implemented in `internal/app/service/impl.go`
   - 20 unit tests covering core workflows in `internal/app/service/service_test.go`
 
+## Phase 4 — SQLite Adapter
+
+- [x] **4.1** Database Discovery — `internal/storage/sqlite/discover.go`
+  - Walk-up search from cwd for .np/ directory; permission errors silently skipped
+  - InitDatabaseDir creates .np/ directory
+- [x] **4.2** SQLite Schema — `internal/storage/sqlite/schema.go`
+  - WITHOUT ROWID tables for tickets, facets, claims, relationships
+  - AUTOINCREMENT for notes and history entries
+  - FTS5 virtual tables for tickets and notes with sync triggers
+  - Indexes on parent_id, state, priority+created_at, idempotency_key
+- [x] **4.3** Ticket CRUD — `internal/storage/sqlite/store.go`
+  - Create, Get (with includeDeleted), Update, List (with filters/pagination), Search (FTS5)
+  - GetChildStatuses, GetDescendants (recursive), HasChildren, GetAncestorStatuses
+- [x] **4.4** Note CRUD — CreateNote, GetNote, ListNotes, SearchNotes
+- [x] **4.5** Claim Lifecycle — CreateClaim, GetByTicket, GetByID, Invalidate, UpdateActivity, UpdateThreshold, ListStale
+- [x] **4.6** Relationships, History, Ancestry — full CRUD with JSON serialization for history changes
+- [x] **4.7** GC — physical removal of deleted (and optionally closed) data
+- [x] **4.8** Transaction Management — WithTransaction/WithReadTransaction wrapping sql.Tx
+

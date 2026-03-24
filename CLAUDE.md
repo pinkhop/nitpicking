@@ -155,6 +155,15 @@ np create --role task --title "Write tests" --author <your-name> --parent <EPIC-
 
 Use `--claim` on create to atomically create and claim in one step.
 
+Use `--from-json` to provide ticket fields as JSON (compatible with `show --json` output):
+
+```bash
+np create --from-json '{"role":"task","title":"Fix bug","priority":"P0"}' --author <your-name>
+np show <TICKET-ID> --json | np create --from-json - --author <your-name>   # clone a ticket
+```
+
+Precedence: explicit flags > JSON values > env vars. Facets with different keys from all sources are merged; for the same key, the higher-precedence source wins.
+
 ## Priorities
 
 | Level | Meaning |

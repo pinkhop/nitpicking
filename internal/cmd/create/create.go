@@ -31,13 +31,13 @@ type createOutput struct {
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput         bool
+		fromJSON           string
 		role               string
 		title              string
 		description        string
 		acceptanceCriteria string
 		priority           string
 		parent             string
-		facets             []string
 		claim              bool
 		author             string
 		idempotencyKey     string
@@ -53,17 +53,20 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &jsonOutput,
 			},
 			&cli.StringFlag{
+				Name:        "from-json",
+				Usage:       `JSON string with ticket fields (use "-" to read from stdin)`,
+				Destination: &fromJSON,
+			},
+			&cli.StringFlag{
 				Name:        "role",
 				Aliases:     []string{"r"},
 				Usage:       "Ticket role: task or epic",
-				Required:    true,
 				Destination: &role,
 			},
 			&cli.StringFlag{
 				Name:        "title",
 				Aliases:     []string{"t"},
 				Usage:       "Ticket title",
-				Required:    true,
 				Destination: &title,
 			},
 			&cli.StringFlag{
@@ -111,6 +114,50 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			// If --from-json is provided, parse it and apply JSON values as
+			// defaults for any fields not explicitly set via flags. Precedence
+			// (highest to lowest): flags > JSON > env vars.
+			var tj ticketJSON
+			if fromJSON != "" {
+				data, err := readJSONSource(fromJSON, f.IOStreams.In)
+				if err != nil {
+					return err
+				}
+				parsed, err := parseTicketJSON(data)
+				if err != nil {
+					return cmdutil.FlagErrorf("%s", err)
+				}
+				tj = parsed
+
+				// Apply JSON defaults where flags were not explicitly set.
+				if !cmd.IsSet("role") && tj.Role != "" {
+					role = tj.Role
+				}
+				if !cmd.IsSet("title") && tj.Title != "" {
+					title = tj.Title
+				}
+				if !cmd.IsSet("description") && tj.Description != "" {
+					description = tj.Description
+				}
+				if !cmd.IsSet("acceptance-criteria") && tj.AcceptanceCriteria != "" {
+					acceptanceCriteria = tj.AcceptanceCriteria
+				}
+				if !cmd.IsSet("priority") && tj.Priority != "" {
+					priority = tj.Priority
+				}
+				if !cmd.IsSet("parent") && tj.ParentID != "" {
+					parent = tj.ParentID
+				}
+			}
+
+			// Validate required fields (may come from flags or JSON).
+			if role == "" {
+				return cmdutil.FlagErrorf("--role is required (via flag or --from-json)")
+			}
+			if title == "" {
+				return cmdutil.FlagErrorf("--title is required (via flag or --from-json)")
+			}
+
 			// Parse role.
 			parsedRole, err := ticket.ParseRole(role)
 			if err != nil {
@@ -135,11 +182,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			// Parse facets: merge NP_FACETS env var (space-separated) with
-			// explicit --facet flags. Explicit flags take precedence.
-			facets = cmd.StringSlice("facet")
-			facets = mergeFacetSources(os.Getenv("NP_FACETS"), facets)
-			parsedFacets, err := parseFacets(facets)
+			// Parse facets: three-way merge of env, JSON, and flags.
+			// Precedence: flags > JSON > env. Different keys are merged;
+			// same key uses the highest-precedence source.
+			flagFacets := cmd.StringSlice("facet")
+			envFacets := envFacetStrings(os.Getenv("NP_FACETS"))
+			jsonFacets := jsonFacetsToStrings(tj.Facets)
+			mergedFacets := mergeFacetsFromJSON(envFacets, jsonFacets, flagFacets)
+			parsedFacets, err := parseFacets(mergedFacets)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
@@ -214,37 +264,13 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// parseFacets converts a slice of "key:value" strings into a slice of
-// validated ticket.Facet values.
-// mergeFacetSources combines facets from the NP_FACETS env var (space-separated
-// key:value pairs) with explicitly provided --facet flag values. Explicit flags
-// take precedence: if the same key appears in both sources, the flag value wins.
-func mergeFacetSources(envValue string, flagFacets []string) []string {
+// envFacetStrings splits the NP_FACETS env var (space-separated key:value
+// pairs) into individual facet strings.
+func envFacetStrings(envValue string) []string {
 	if envValue == "" {
-		return flagFacets
+		return nil
 	}
-
-	// Build a set of keys provided by explicit flags.
-	explicitKeys := make(map[string]bool)
-	for _, f := range flagFacets {
-		key, _, ok := strings.Cut(f, ":")
-		if ok {
-			explicitKeys[key] = true
-		}
-	}
-
-	// Prepend env facets that don't conflict with explicit flags.
-	envParts := strings.Fields(envValue)
-	merged := make([]string, 0, len(envParts)+len(flagFacets))
-	for _, part := range envParts {
-		key, _, ok := strings.Cut(part, ":")
-		if ok && !explicitKeys[key] {
-			merged = append(merged, part)
-		}
-	}
-	merged = append(merged, flagFacets...)
-
-	return merged
+	return strings.Fields(envValue)
 }
 
 func parseFacets(raw []string) ([]ticket.Facet, error) {

@@ -19,6 +19,11 @@ const (
 
 	// RelCitedBy is the inverse of RelCites — the source is cited by the target.
 	RelCitedBy
+
+	// RelRefs indicates the two issues are contextually related. Unlike
+	// cites/cited_by, refs is symmetric — there is no directional distinction.
+	// If A refs B, then B refs A implicitly.
+	RelRefs
 )
 
 // relationTypeStrings maps each RelationType to its canonical string.
@@ -27,6 +32,7 @@ var relationTypeStrings = map[RelationType]string{
 	RelBlocks:    "blocks",
 	RelCites:     "cites",
 	RelCitedBy:   "cited_by",
+	RelRefs:      "refs",
 }
 
 // String returns the canonical string representation.
@@ -44,7 +50,13 @@ func ParseRelationType(s string) (RelationType, error) {
 			return rt, nil
 		}
 	}
-	return 0, fmt.Errorf("invalid relationship type %q: must be blocked_by, blocks, cites, or cited_by", s)
+	return 0, fmt.Errorf("invalid relationship type %q: must be blocked_by, blocks, cites, cited_by, or refs", s)
+}
+
+// IsSymmetric reports whether the relationship type is symmetric — i.e., if
+// A relates to B, then B implicitly relates to A with the same type.
+func (rt RelationType) IsSymmetric() bool {
+	return rt == RelRefs
 }
 
 // Inverse returns the inverse relationship type.
@@ -58,6 +70,8 @@ func (rt RelationType) Inverse() RelationType {
 		return RelCitedBy
 	case RelCitedBy:
 		return RelCites
+	case RelRefs:
+		return RelRefs
 	default:
 		return 0
 	}
@@ -78,7 +92,7 @@ func NewRelationship(sourceID, targetID ID, relType RelationType) (Relationship,
 	if sourceID == targetID {
 		return Relationship{}, fmt.Errorf("an issue cannot have a relationship with itself")
 	}
-	if relType < RelBlockedBy || relType > RelCitedBy {
+	if relType < RelBlockedBy || relType > RelRefs {
 		return Relationship{}, fmt.Errorf("invalid relationship type")
 	}
 	return Relationship{sourceID: sourceID, targetID: targetID, relType: relType}, nil

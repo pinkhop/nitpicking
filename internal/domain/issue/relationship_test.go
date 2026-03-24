@@ -57,6 +57,74 @@ func TestNewRelationship_ZeroIDs_Fails(t *testing.T) {
 	}
 }
 
+func TestNewRelationship_Refs_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	src := mustID(t)
+	tgt := mustID(t)
+
+	// When
+	rel, err := issue.NewRelationship(src, tgt, issue.RelRefs)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rel.Type() != issue.RelRefs {
+		t.Errorf("expected refs, got %s", rel.Type())
+	}
+}
+
+func TestRelationType_Refs_IsSymmetric(t *testing.T) {
+	t.Parallel()
+
+	// When
+	isSymmetric := issue.RelRefs.IsSymmetric()
+
+	// Then
+	if !isSymmetric {
+		t.Error("expected refs to be symmetric")
+	}
+}
+
+func TestRelationType_BlockedBy_IsNotSymmetric(t *testing.T) {
+	t.Parallel()
+
+	// When
+	isSymmetric := issue.RelBlockedBy.IsSymmetric()
+
+	// Then
+	if isSymmetric {
+		t.Error("expected blocked_by to not be symmetric")
+	}
+}
+
+func TestRelationType_Refs_InverseIsSelf(t *testing.T) {
+	t.Parallel()
+
+	// When
+	inv := issue.RelRefs.Inverse()
+
+	// Then — symmetric types are their own inverse.
+	if inv != issue.RelRefs {
+		t.Errorf("expected refs inverse to be refs, got %s", inv)
+	}
+}
+
+func TestParseRelationType_Refs_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// When
+	rt, err := issue.ParseRelationType("refs")
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rt != issue.RelRefs {
+		t.Errorf("expected RelRefs, got %v", rt)
+	}
+}
+
 func TestRelationType_Inverse(t *testing.T) {
 	t.Parallel()
 
@@ -68,6 +136,7 @@ func TestRelationType_Inverse(t *testing.T) {
 		{issue.RelBlocks, issue.RelBlockedBy},
 		{issue.RelCites, issue.RelCitedBy},
 		{issue.RelCitedBy, issue.RelCites},
+		{issue.RelRefs, issue.RelRefs},
 	}
 
 	for _, tc := range cases {
@@ -96,6 +165,7 @@ func TestParseRelationType_ValidTypes(t *testing.T) {
 		{"blocks", issue.RelBlocks},
 		{"cites", issue.RelCites},
 		{"cited_by", issue.RelCitedBy},
+		{"refs", issue.RelRefs},
 	}
 
 	for _, tc := range cases {

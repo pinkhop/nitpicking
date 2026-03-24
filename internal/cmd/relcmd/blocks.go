@@ -215,25 +215,16 @@ func newRelRemoveCmd(f *cmdutil.Factory, typeName string, relType issue.Relation
 	}
 }
 
-// newRelTypeListCmd constructs a "list" subcommand that shows relationships
-// filtered by the given types.
+// newRelTypeListCmd constructs a "list <ID>" subcommand that shows
+// relationships filtered by the given types.
 func newRelTypeListCmd(f *cmdutil.Factory, typeName string, types ...issue.RelationType) *cli.Command {
-	var (
-		jsonOutput bool
-		issueArg   string
-	)
+	var jsonOutput bool
 
 	return &cli.Command{
-		Name:  "list",
-		Usage: fmt.Sprintf("List %s relationships for an issue", typeName),
+		Name:      "list",
+		Usage:     fmt.Sprintf("List %s relationships for an issue", typeName),
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "issue",
-				Aliases:     []string{"i"},
-				Usage:       "Issue ID (required)",
-				Required:    true,
-				Destination: &issueArg,
-			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -242,13 +233,18 @@ func newRelTypeListCmd(f *cmdutil.Factory, typeName string, types ...issue.Relat
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			rawID := cmd.Args().Get(0)
+			if rawID == "" {
+				return cmdutil.FlagErrorf("issue ID argument is required")
+			}
+
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			issueID, err := resolver.Resolve(ctx, issueArg)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}

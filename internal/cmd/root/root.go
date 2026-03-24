@@ -13,6 +13,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/blocked"
 	"github.com/pinkhop/nitpicking/internal/cmd/claim"
 	"github.com/pinkhop/nitpicking/internal/cmd/comment"
+	"github.com/pinkhop/nitpicking/internal/cmd/completion"
 	"github.com/pinkhop/nitpicking/internal/cmd/create"
 	"github.com/pinkhop/nitpicking/internal/cmd/dimensioncmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/doctor"
@@ -97,6 +98,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				quickstart.NewCmd(f),
 				cmdinit.NewCmd(f),
 				agent.NewCmd(f),
+				completion.NewCmd(f),
 				version.NewCmd(f),
 			}},
 			{"Issue Lifecycle", []*cli.Command{

@@ -27,7 +27,7 @@ import (
 
 // NewCmd constructs the "issue" parent command with all issue management
 // subcommands. Some subcommands wrap existing top-level commands (list,
-// search, update, delete); others are new (close, reopen, defer, note,
+// search, update, delete); others are new (close, reopen, defer, comment,
 // orphans).
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	queryCmd := search.NewCmd(f)
@@ -51,7 +51,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			newDeferCmd(f),
 			cmddelete.NewCmd(f),
 			historyview.NewCmd(f),
-			newNoteCmd(f),
+			newCommentCmd(f),
 			newOrphansCmd(f),
 		},
 	}
@@ -612,10 +612,10 @@ func newEditCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newNoteCmd constructs the "issue note" subcommand, which adds a comment to
-// an issue. A simplified wrapper around "comment add" with the issue ID as a
-// positional argument.
-func newNoteCmd(f *cmdutil.Factory) *cli.Command {
+// newCommentCmd constructs the "issue comment" subcommand, which adds a
+// comment to an issue. A simplified wrapper around "comment add" with the
+// issue ID as a positional argument.
+func newCommentCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		author     string
@@ -623,9 +623,8 @@ func newNoteCmd(f *cmdutil.Factory) *cli.Command {
 	)
 
 	return &cli.Command{
-		Name:      "note",
-		Aliases:   []string{"comment"},
-		Usage:     "Add a note (comment) to an issue",
+		Name:      "comment",
+		Usage:     "Add a comment to an issue",
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -639,7 +638,7 @@ func newNoteCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "body",
 				Aliases:     []string{"b", "m"},
-				Usage:       "Note body text (required)",
+				Usage:       "Comment body text (required)",
 				Required:    true,
 				Destination: &body,
 			},
@@ -678,7 +677,7 @@ func newNoteCmd(f *cmdutil.Factory) *cli.Command {
 				Body:    body,
 			})
 			if err != nil {
-				return fmt.Errorf("adding note: %w", err)
+				return fmt.Errorf("adding comment: %w", err)
 			}
 
 			if jsonOutput {

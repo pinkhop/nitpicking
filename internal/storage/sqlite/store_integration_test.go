@@ -104,7 +104,7 @@ func TestIntegration_FullIssueLifecycle(t *testing.T) {
 	}
 }
 
-func TestIntegration_NoteOnClosedIssue(t *testing.T) {
+func TestIntegration_CommentOnClosedIssue(t *testing.T) {
 	// Given
 	svc := setupIntegrationService(t)
 	ctx := context.Background()

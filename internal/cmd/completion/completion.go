@@ -62,7 +62,7 @@ _np() {
 
     case "${words[1]}" in
         issue)
-            COMPREPLY=($(compgen -W "list query update edit close release reopen defer delete note orphans" -- "${cur}"))
+            COMPREPLY=($(compgen -W "list query update edit close release reopen defer delete comment orphans" -- "${cur}"))
             ;;
         epic)
             COMPREPLY=($(compgen -W "status close-eligible children" -- "${cur}"))
@@ -153,7 +153,7 @@ complete -c np -n "__fish_use_subcommand" -a "graph" -d "Generate Graphviz DOT g
 complete -c np -n "__fish_use_subcommand" -a "completion" -d "Output shell completion script"
 
 # issue subcommands.
-complete -c np -n "__fish_seen_subcommand_from issue" -a "list query update edit close release reopen defer delete note orphans"
+complete -c np -n "__fish_seen_subcommand_from issue" -a "list query update edit close release reopen defer delete comment orphans"
 
 # epic subcommands.
 complete -c np -n "__fish_seen_subcommand_from epic" -a "status close-eligible children"

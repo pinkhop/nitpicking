@@ -77,7 +77,7 @@ type UpdateIssueInput struct {
 	DimensionRemove    []string
 	RelationshipAdd    []RelationshipInput
 	RelationshipRemove []RelationshipInput
-	NoteBody           string
+	CommentBody        string
 }
 
 // OneShotUpdateInput holds the parameters for an atomic claim→update→release.

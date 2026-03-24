@@ -29,7 +29,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		acceptanceCriteria string
 		priority           string
 		parent             string
-		noteBody           string
+		commentBody        string
 	)
 
 	return &cli.Command{
@@ -91,7 +91,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "comment",
 				Usage:       "Add a comment to the issue",
 				Category:    "Options",
-				Destination: &noteBody,
+				Destination: &commentBody,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -121,7 +121,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				IssueID:         issueID,
 				ClaimID:         claimID,
 				DimensionRemove: cmd.StringSlice("dimension-remove"),
-				NoteBody:        noteBody,
+				CommentBody:     commentBody,
 			}
 
 			// Set optional pointer fields only when flags are explicitly provided.

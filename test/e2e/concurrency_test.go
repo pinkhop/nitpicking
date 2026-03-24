@@ -196,7 +196,7 @@ func TestE2E_Concurrency_ClaimReadyClaimsDifferentIssues(t *testing.T) {
 	}
 }
 
-func TestE2E_Concurrency_ConcurrentNotesOnSameIssue(t *testing.T) {
+func TestE2E_Concurrency_ConcurrentCommentsOnSameIssue(t *testing.T) {
 	// Given — an issue that two agents will add comments to simultaneously.
 	// Comments do not require claiming, so both should succeed.
 	dir := initDB(t, "CONC")

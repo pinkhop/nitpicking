@@ -122,7 +122,7 @@ func TestE2E_Update_DimensionSetAndRemove(t *testing.T) {
 	}
 }
 
-func TestE2E_Update_NoteFlag_AddsNote(t *testing.T) {
+func TestE2E_Update_CommentFlag_AddsComment(t *testing.T) {
 	// Given — a claimed task.
 	dir := initDB(t, "UFLAG")
 	author := "flag-agent"

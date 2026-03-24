@@ -66,6 +66,10 @@ The core domain is unit-tested with in-memory fakes for the persistence port —
 
 See `SPECIFICATION.md` for the full specification and `PRODUCT_VISION.md` for product context and resolved design decisions.
 
+## Compatibility
+
+This project has **no other users yet** — the sole consumer is the developer. There are no backward-compatibility obligations for CLI commands, flags, database schema, or file formats. Deprecated commands and aliases exist only as transitional conveniences and can be removed freely.
+
 ## Gotchas
 
 - **No golangci-lint.** Linting uses six individual tools invoked separately via `make lint`. All are managed as Go tool dependencies in `go.mod`.
@@ -279,7 +283,7 @@ np issue defer <ID> --claim <CLAIM-ID>                 # defer a claimed issue
 np issue defer <ID> --claim <CLAIM-ID> --until 2026-04-01  # defer with revisit date
 np issue delete <ID> --claim <CLAIM-ID> --confirm      # delete a claimed issue
 np issue history <ID>                                  # audit trail of all changes
-np issue note <ID> --author <name> --body "Note text"  # add a comment (alias: comment)
+np issue comment <ID> --author <name> --body "Comment text"  # add a comment
 np issue orphans                                       # list issues with no parent epic
 ```
 

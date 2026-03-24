@@ -418,12 +418,12 @@ func (s *serviceImpl) UpdateIssue(ctx context.Context, input UpdateIssueInput) e
 		}
 
 		// Add comment if provided.
-		if input.NoteBody != "" {
+		if input.CommentBody != "" {
 			n, err := comment.NewComment(comment.NewCommentParams{
 				IssueID:   input.IssueID,
 				Author:    c.Author(),
 				CreatedAt: now,
-				Body:      input.NoteBody,
+				Body:      input.CommentBody,
 			})
 			if err != nil {
 				return err

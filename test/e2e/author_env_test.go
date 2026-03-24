@@ -4,7 +4,7 @@ package e2e_test
 
 import "testing"
 
-func TestE2E_AuthorEnvVar_NoteAddUsesNPAUTHOR(t *testing.T) {
+func TestE2E_AuthorEnvVar_CommentAddUsesNPAUTHOR(t *testing.T) {
 	// Given — an issue exists.
 	dir := initDB(t, "AENV")
 	taskID := createTask(t, dir, "Author env test", "setup-agent")

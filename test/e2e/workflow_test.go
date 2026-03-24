@@ -338,7 +338,7 @@ func TestE2E_AtomicEdit(t *testing.T) {
 	}
 }
 
-func TestE2E_NotesOnClosedIssue(t *testing.T) {
+func TestE2E_CommentsOnClosedIssue(t *testing.T) {
 	// Given — a task that has been closed.
 	dir := initDB(t, "WF")
 	author := "comments-agent"

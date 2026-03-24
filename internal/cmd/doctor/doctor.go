@@ -22,16 +22,95 @@ type findingOutput struct {
 	Suggestion string   `json:"suggestion,omitzero"`
 }
 
+// checkOutput is the JSON representation of a single diagnostic check result
+// emitted in verbose mode.
+type checkOutput struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Detail string `json:"detail"`
+}
+
 // doctorOutput is the JSON representation of the doctor command result.
 type doctorOutput struct {
 	Findings []findingOutput `json:"findings"`
+	Checks   []checkOutput   `json:"checks,omitzero"`
 	Healthy  bool            `json:"healthy"`
+}
+
+// checkDefinition maps finding categories to a named diagnostic check.
+type checkDefinition struct {
+	// Name is the check's identifier shown in output.
+	Name string
+	// Categories lists the finding categories that belong to this check.
+	Categories []string
+	// PassDetail is the human-readable message when the check passes.
+	PassDetail string
+}
+
+// diagnosticChecks defines the ordered list of checks doctor performs.
+// Each check maps to one or more finding categories.
+var diagnosticChecks = []checkDefinition{
+	{
+		Name:       "stale_claims",
+		Categories: []string{"stale_claim"},
+		PassDetail: "No stale claims found",
+	},
+	{
+		Name:       "readiness",
+		Categories: []string{"no_ready_issues", "close_eligible_blocker", "deferred_blocker"},
+		PassDetail: "Ready issues available",
+	},
+	{
+		Name:       "instructions",
+		Categories: []string{"instructions"},
+		PassDetail: "Agent instruction files reference np",
+	},
+}
+
+// deriveChecks computes the pass/fail status of each diagnostic check based
+// on the findings returned by the doctor analysis. A check fails when any
+// finding matches one of its categories.
+func deriveChecks(findings []service.DoctorFinding) []checkOutput {
+	// Index findings by category for fast lookup.
+	categoryFindings := make(map[string][]service.DoctorFinding)
+	for _, f := range findings {
+		categoryFindings[f.Category] = append(categoryFindings[f.Category], f)
+	}
+
+	checks := make([]checkOutput, 0, len(diagnosticChecks))
+	for _, def := range diagnosticChecks {
+		var matched []service.DoctorFinding
+		for _, cat := range def.Categories {
+			matched = append(matched, categoryFindings[cat]...)
+		}
+
+		if len(matched) == 0 {
+			checks = append(checks, checkOutput{
+				Name:   def.Name,
+				Status: "pass",
+				Detail: def.PassDetail,
+			})
+			continue
+		}
+
+		// Use the first matched finding's message as the detail.
+		checks = append(checks, checkOutput{
+			Name:   def.Name,
+			Status: "fail",
+			Detail: matched[0].Message,
+		})
+	}
+
+	return checks
 }
 
 // NewCmd constructs the "doctor" command, which runs diagnostics on the
 // database and reports any integrity issues or inconsistencies.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
-	var jsonOutput bool
+	var (
+		jsonOutput bool
+		verbose    bool
+	)
 
 	return &cli.Command{
 		Name:  "doctor",
@@ -41,6 +120,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
 				Destination: &jsonOutput,
+			},
+			&cli.BoolFlag{
+				Name:        "verbose",
+				Aliases:     []string{"v"},
+				Usage:       "Show per-check pass/fail status for every diagnostic",
+				Destination: &verbose,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -73,15 +158,35 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 						Suggestion: finding.Suggestion,
 					})
 				}
+				if verbose {
+					out.Checks = deriveChecks(result.Findings)
+				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)
 			}
 
 			cs := f.IOStreams.ColorScheme()
 			w := f.IOStreams.Out
 
+			if verbose {
+				checks := deriveChecks(result.Findings)
+				for _, c := range checks {
+					icon := cs.SuccessIcon()
+					if c.Status == "fail" {
+						icon = cs.ErrorIcon()
+					}
+					_, _ = fmt.Fprintf(w, "%s %s — %s\n", icon, c.Name, c.Detail)
+				}
+				if !healthy {
+					_, _ = fmt.Fprintln(w)
+				}
+			}
+
 			if healthy {
-				_, err := fmt.Fprintf(w, "%s No issues found.\n", cs.SuccessIcon())
-				return err
+				if !verbose {
+					_, err := fmt.Fprintf(w, "%s No issues found.\n", cs.SuccessIcon())
+					return err
+				}
+				return nil
 			}
 
 			for _, finding := range result.Findings {

@@ -289,6 +289,7 @@ The `admin` command groups maintenance operations:
 
 ```bash
 np admin doctor                        # detect stale claims, no-ready-issues analysis, suggest unblock actions
+np admin doctor --verbose              # show per-check pass/fail for every diagnostic
 np admin gc --confirm                  # garbage-collect deleted issues
 np admin gc --confirm --include-closed # also remove closed issues
 np admin graph                         # generate Graphviz DOT of all issues and relationships

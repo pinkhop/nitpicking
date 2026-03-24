@@ -51,7 +51,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:    "list",
 		Aliases: []string{"ls"},
-		Usage:   "List tickets with optional filters",
+		Usage:   "List tickets",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",

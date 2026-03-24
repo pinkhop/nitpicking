@@ -1,4 +1,4 @@
-package ticket
+package issue
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain"
 )
 
-// State represents the lifecycle state of a ticket. Task and epic state
+// State represents the lifecycle state of an issue. Task and epic state
 // machines share some states but differ in allowed transitions and terminal
 // states.
 type State int
@@ -26,10 +26,10 @@ const (
 	// reclaimed or reopened. Only valid for tasks.
 	StateClosed
 
-	// StateDeferred indicates the ticket should not be worked on now.
+	// StateDeferred indicates the issue should not be worked on now.
 	StateDeferred
 
-	// StateWaiting indicates the ticket cannot proceed until something
+	// StateWaiting indicates the issue cannot proceed until something
 	// external happens.
 	StateWaiting
 )
@@ -63,7 +63,7 @@ func ParseState(s string) (State, error) {
 }
 
 // IsTerminal reports whether the state is terminal — no further transitions
-// are allowed. For the ticket domain, only "closed" is a terminal state
+// are allowed. For the issue domain, only "closed" is a terminal state
 // within the state machine. "Deleted" is a separate concept checked
 // independently.
 func (s State) IsTerminal() bool {
@@ -133,7 +133,7 @@ func DefaultStateForRole(r Role) State {
 	return StateOpen
 }
 
-// ReleaseStateForRole returns the state a ticket transitions to when released
+// ReleaseStateForRole returns the state an issue transitions to when released
 // from claimed. Tasks return to open; epics return to active.
 func ReleaseStateForRole(r Role) State {
 	return DefaultStateForRole(r)

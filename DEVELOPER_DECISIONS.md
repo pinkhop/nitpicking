@@ -16,13 +16,13 @@
 
 **Decision:** Claim IDs are 16 random bytes hex-encoded (32 characters), generated from the default `math/rand/v2` source (backed by `crypto/rand` in Go 1.22+). This provides 128 bits of cryptographic entropy — equivalent to UUIDs — making them unguessable per the spec's "bearer authentication" requirement.
 
-**Why:** The spec requires "random, unguessable token". Claim IDs are bearer authentication tokens — presenting the claim ID is the sole proof of ownership — so they must be cryptographically unpredictable. UUID format would work but adds a dependency; raw hex from the crypto-backed default source is simpler and equally secure. See DD-010 for the contrasting treatment of ticket IDs and agent names.
+**Why:** The spec requires "random, unguessable token". Claim IDs are bearer authentication tokens — presenting the claim ID is the sole proof of ownership — so they must be cryptographically unpredictable. UUID format would work but adds a dependency; raw hex from the crypto-backed default source is simpler and equally secure. See DD-010 for the contrasting treatment of issue IDs and agent names.
 
 ---
 
 ## DD-003: FacetSet uses value semantics (copy-on-write)
 
-**Decision:** FacetSet is an immutable value type. All mutation methods (Set, Remove) return a new FacetSet with a cloned underlying map. The Ticket type stores a FacetSet by value.
+**Decision:** FacetSet is an immutable value type. All mutation methods (Set, Remove) return a new FacetSet with a cloned underlying map. The Issue type stores a FacetSet by value.
 
 **Why:** The CLAUDE.md coding standards require immutable structures for concurrent access. Copy-on-write maps are simple and correct, and facet sets are small (typically under 10 entries).
 
@@ -36,9 +36,9 @@
 
 ---
 
-## DD-005: Ticket entity stores no revision or author
+## DD-005: Issue entity stores no revision or author
 
-**Decision:** Per the spec (§4.1), `revision = history count − 1` and `author` is derived from the most recent history entry. The Ticket struct omits both fields. They are computed at read time from the history.
+**Decision:** Per the spec (§4.1), `revision = history count − 1` and `author` is derived from the most recent history entry. The Issue struct omits both fields. They are computed at read time from the history.
 
 **Why:** Storing derived values invites inconsistency. The history is the source of truth.
 
@@ -54,7 +54,7 @@
 
 ## DD-007: Deleted is a flag, not a state
 
-**Decision:** Per the spec notes on 1.7 and 1.8, `deleted` is a separate boolean flag on the Ticket struct, not a value in the state machine. The state machine only knows about lifecycle states (open, active, claimed, closed, deferred, waiting).
+**Decision:** Per the spec notes on 1.7 and 1.8, `deleted` is a separate boolean flag on the Issue struct, not a value in the state machine. The state machine only knows about lifecycle states (open, active, claimed, closed, deferred, waiting).
 
 **Why:** The spec explicitly says "deleted is terminal but separate from the state machine." Keeping it as a flag simplifies the state machine and makes the terminal-check logic clearer.
 
@@ -62,9 +62,9 @@
 
 ## DD-008: FTS5 uses standalone tables, not external content
 
-**Decision:** The FTS5 virtual tables (`tickets_fts`, `notes_fts`) are standalone (not backed by `content=tickets`). Sync is managed manually in the repository layer via INSERT/DELETE on create and update operations.
+**Decision:** The FTS5 virtual tables (`issues_fts`, `notes_fts`) are standalone (not backed by `content=issues`). Sync is managed manually in the repository layer via INSERT/DELETE on create and update operations.
 
-**Why:** The tickets table is `WITHOUT ROWID` (per §4.7), which means it has no implicit `rowid` column. FTS5's external content mode (`content=`) requires a `content_rowid=` mapping to an integer column, but `WITHOUT ROWID` tables lack this. Standalone FTS tables avoid this incompatibility at the cost of slightly more storage and manual sync.
+**Why:** The issues table is `WITHOUT ROWID` (per §4.7), which means it has no implicit `rowid` column. FTS5's external content mode (`content=`) requires a `content_rowid=` mapping to an integer column, but `WITHOUT ROWID` tables lack this. Standalone FTS tables avoid this incompatibility at the cost of slightly more storage and manual sync.
 
 ---
 
@@ -76,8 +76,8 @@
 
 ---
 
-## DD-010: Ticket IDs and agent names use PCG; claim IDs use the crypto PRNG
+## DD-010: Issue IDs and agent names use PCG; claim IDs use the crypto PRNG
 
-**Decision:** Ticket ID generation and agent name generation use explicit PCG generators (`rand.New(rand.NewPCG(...))`) seeded from the crypto source at init time. Claim ID generation uses the default `math/rand/v2` source, which is backed by `crypto/rand`.
+**Decision:** Issue ID generation and agent name generation use explicit PCG generators (`rand.New(rand.NewPCG(...))`) seeded from the crypto source at init time. Claim ID generation uses the default `math/rand/v2` source, which is backed by `crypto/rand`.
 
-**Why:** Ticket IDs need collision resistance across a ~33 million ID space, and agent names need variety across ~180,000 combinations — neither requires cryptographic unpredictability. PCG is a high-quality, fast PRNG that is more than sufficient for both. Claim IDs, by contrast, are bearer authentication tokens (presenting the claim ID is the sole proof of ownership), so they must be cryptographically unpredictable. Seeding the PCG generators from the crypto source at init time ensures sequences are unpredictable across process restarts without paying the crypto overhead on every call.
+**Why:** Issue IDs need collision resistance across a ~33 million ID space, and agent names need variety across ~180,000 combinations — neither requires cryptographic unpredictability. PCG is a high-quality, fast PRNG that is more than sufficient for both. Claim IDs, by contrast, are bearer authentication tokens (presenting the claim ID is the sole proof of ownership), so they must be cryptographically unpredictable. Seeding the PCG generators from the crypto source at init time ensures sequences are unpredictable across process restarts without paying the crypto overhead on every call.

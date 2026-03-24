@@ -9,8 +9,8 @@ import (
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 	"github.com/pinkhop/nitpicking/internal/fake"
 )
 
@@ -91,9 +91,9 @@ func TestAgentName_ReturnsNonEmpty(t *testing.T) {
 	}
 }
 
-// --- CreateTicket ---
+// --- CreateIssue ---
 
-func TestCreateTicket_Task_Succeeds(t *testing.T) {
+func TestCreateIssue_Task_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -101,8 +101,8 @@ func TestCreateTicket_Task_Succeeds(t *testing.T) {
 	author := mustAuthor(t, "alice")
 
 	// When
-	output, err := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	output, err := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Fix login bug",
 		Author: author,
 	})
@@ -110,26 +110,26 @@ func TestCreateTicket_Task_Succeeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if output.Ticket.ID().IsZero() {
-		t.Error("expected non-zero ticket ID")
+	if output.Issue.ID().IsZero() {
+		t.Error("expected non-zero issue ID")
 	}
-	if output.Ticket.Title() != "Fix login bug" {
-		t.Errorf("expected title, got %q", output.Ticket.Title())
+	if output.Issue.Title() != "Fix login bug" {
+		t.Errorf("expected title, got %q", output.Issue.Title())
 	}
-	if output.Ticket.State() != ticket.StateOpen {
-		t.Errorf("expected open state, got %s", output.Ticket.State())
+	if output.Issue.State() != issue.StateOpen {
+		t.Errorf("expected open state, got %s", output.Issue.State())
 	}
 }
 
-func TestCreateTicket_WithClaim_ReturnsClaimID(t *testing.T) {
+func TestCreateIssue_WithClaim_ReturnsClaimID(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc, _ := setupService(t)
 
 	// When
-	output, err := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	output, err := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: mustAuthor(t, "alice"),
 		Claim:  true,
@@ -143,22 +143,22 @@ func TestCreateTicket_WithClaim_ReturnsClaimID(t *testing.T) {
 	}
 }
 
-func TestCreateTicket_IdempotencyKey_ReturnsSameTicket(t *testing.T) {
+func TestCreateIssue_IdempotencyKey_ReturnsSameIssue(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	input := service.CreateTicketInput{
-		Role:           ticket.RoleTask,
+	input := service.CreateIssueInput{
+		Role:           issue.RoleTask,
 		Title:          "Idempotent task",
 		Author:         author,
 		IdempotencyKey: "idem-1",
 	}
 
 	// When — create twice with same key
-	out1, err1 := svc.CreateTicket(context.Background(), input)
-	out2, err2 := svc.CreateTicket(context.Background(), input)
+	out1, err1 := svc.CreateIssue(context.Background(), input)
+	out2, err2 := svc.CreateIssue(context.Background(), input)
 
 	// Then
 	if err1 != nil {
@@ -167,20 +167,20 @@ func TestCreateTicket_IdempotencyKey_ReturnsSameTicket(t *testing.T) {
 	if err2 != nil {
 		t.Fatalf("second create failed: %v", err2)
 	}
-	if out1.Ticket.ID() != out2.Ticket.ID() {
-		t.Errorf("expected same ticket ID, got %s and %s", out1.Ticket.ID(), out2.Ticket.ID())
+	if out1.Issue.ID() != out2.Issue.ID() {
+		t.Errorf("expected same issue ID, got %s and %s", out1.Issue.ID(), out2.Issue.ID())
 	}
 }
 
-func TestCreateTicket_InvalidTitle_Fails(t *testing.T) {
+func TestCreateIssue_InvalidTitle_Fails(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc, _ := setupService(t)
 
 	// When
-	_, err := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	_, err := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "---",
 		Author: mustAuthor(t, "alice"),
 	})
@@ -193,22 +193,22 @@ func TestCreateTicket_InvalidTitle_Fails(t *testing.T) {
 
 // --- ClaimByID ---
 
-func TestClaimByID_UnclaimedTicket_Succeeds(t *testing.T) {
+func TestClaimByID_UnclaimedIssue_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 	})
 
 	// When
 	output, err := svc.ClaimByID(context.Background(), service.ClaimInput{
-		TicketID: created.Ticket.ID(),
-		Author:   author,
+		IssueID: created.Issue.ID(),
+		Author:  author,
 	})
 	// Then
 	if err != nil {
@@ -225,8 +225,8 @@ func TestClaimByID_AlreadyClaimed_Fails(t *testing.T) {
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 		Claim:  true,
@@ -235,8 +235,8 @@ func TestClaimByID_AlreadyClaimed_Fails(t *testing.T) {
 	// When
 	bob := mustAuthor(t, "bob")
 	_, err := svc.ClaimByID(context.Background(), service.ClaimInput{
-		TicketID: created.Ticket.ID(),
-		Author:   bob,
+		IssueID: created.Issue.ID(),
+		Author:  bob,
 	})
 
 	// Then
@@ -253,8 +253,8 @@ func TestTransitionState_Close_Succeeds(t *testing.T) {
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 		Claim:  true,
@@ -262,19 +262,19 @@ func TestTransitionState_Close_Succeeds(t *testing.T) {
 
 	// When
 	err := svc.TransitionState(context.Background(), service.TransitionInput{
-		TicketID: created.Ticket.ID(),
-		ClaimID:  created.ClaimID,
-		Action:   service.ActionClose,
+		IssueID: created.Issue.ID(),
+		ClaimID: created.ClaimID,
+		Action:  service.ActionClose,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify ticket is closed.
-	show, _ := svc.ShowTicket(context.Background(), created.Ticket.ID())
-	if show.Ticket.State() != ticket.StateClosed {
-		t.Errorf("expected closed, got %s", show.Ticket.State())
+	// Verify issue is closed.
+	show, _ := svc.ShowIssue(context.Background(), created.Issue.ID())
+	if show.Issue.State() != issue.StateClosed {
+		t.Errorf("expected closed, got %s", show.Issue.State())
 	}
 }
 
@@ -284,8 +284,8 @@ func TestTransitionState_Release_ReturnsToDefault(t *testing.T) {
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 		Claim:  true,
@@ -293,31 +293,31 @@ func TestTransitionState_Release_ReturnsToDefault(t *testing.T) {
 
 	// When
 	err := svc.TransitionState(context.Background(), service.TransitionInput{
-		TicketID: created.Ticket.ID(),
-		ClaimID:  created.ClaimID,
-		Action:   service.ActionRelease,
+		IssueID: created.Issue.ID(),
+		ClaimID: created.ClaimID,
+		Action:  service.ActionRelease,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	show, _ := svc.ShowTicket(context.Background(), created.Ticket.ID())
-	if show.Ticket.State() != ticket.StateOpen {
-		t.Errorf("expected open after release, got %s", show.Ticket.State())
+	show, _ := svc.ShowIssue(context.Background(), created.Issue.ID())
+	if show.Issue.State() != issue.StateOpen {
+		t.Errorf("expected open after release, got %s", show.Issue.State())
 	}
 }
 
-// --- UpdateTicket ---
+// --- UpdateIssue ---
 
-func TestUpdateTicket_ChangesTitle(t *testing.T) {
+func TestUpdateIssue_ChangesTitle(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Original",
 		Author: author,
 		Claim:  true,
@@ -325,19 +325,19 @@ func TestUpdateTicket_ChangesTitle(t *testing.T) {
 
 	// When
 	newTitle := "Updated title"
-	err := svc.UpdateTicket(context.Background(), service.UpdateTicketInput{
-		TicketID: created.Ticket.ID(),
-		ClaimID:  created.ClaimID,
-		Title:    &newTitle,
+	err := svc.UpdateIssue(context.Background(), service.UpdateIssueInput{
+		IssueID: created.Issue.ID(),
+		ClaimID: created.ClaimID,
+		Title:   &newTitle,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	show, _ := svc.ShowTicket(context.Background(), created.Ticket.ID())
-	if show.Ticket.Title() != "Updated title" {
-		t.Errorf("expected Updated title, got %q", show.Ticket.Title())
+	show, _ := svc.ShowIssue(context.Background(), created.Issue.ID())
+	if show.Issue.Title() != "Updated title" {
+		t.Errorf("expected Updated title, got %q", show.Issue.Title())
 	}
 }
 
@@ -349,8 +349,8 @@ func TestOneShotUpdate_ChangesAndReleases(t *testing.T) {
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Original",
 		Author: author,
 	})
@@ -358,21 +358,21 @@ func TestOneShotUpdate_ChangesAndReleases(t *testing.T) {
 	// When
 	newTitle := "Quick fix"
 	err := svc.OneShotUpdate(context.Background(), service.OneShotUpdateInput{
-		TicketID: created.Ticket.ID(),
-		Author:   author,
-		Title:    &newTitle,
+		IssueID: created.Issue.ID(),
+		Author:  author,
+		Title:   &newTitle,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	show, _ := svc.ShowTicket(context.Background(), created.Ticket.ID())
-	if show.Ticket.Title() != "Quick fix" {
-		t.Errorf("expected Quick fix, got %q", show.Ticket.Title())
+	show, _ := svc.ShowIssue(context.Background(), created.Issue.ID())
+	if show.Issue.Title() != "Quick fix" {
+		t.Errorf("expected Quick fix, got %q", show.Issue.Title())
 	}
-	if show.Ticket.State() != ticket.StateOpen {
-		t.Errorf("expected open after one-shot, got %s", show.Ticket.State())
+	if show.Issue.State() != issue.StateOpen {
+		t.Errorf("expected open after one-shot, got %s", show.Issue.State())
 	}
 }
 
@@ -384,17 +384,17 @@ func TestAddNote_Succeeds(t *testing.T) {
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 	})
 
 	// When
 	output, err := svc.AddNote(context.Background(), service.AddNoteInput{
-		TicketID: created.Ticket.ID(),
-		Author:   author,
-		Body:     "This is a note.",
+		IssueID: created.Issue.ID(),
+		Author:  author,
+		Body:    "This is a note.",
 	})
 	// Then
 	if err != nil {
@@ -405,85 +405,85 @@ func TestAddNote_Succeeds(t *testing.T) {
 	}
 }
 
-func TestAddNote_DeletedTicket_Fails(t *testing.T) {
+func TestAddNote_DeletedIssue_Fails(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 		Claim:  true,
 	})
 
-	// Delete the ticket.
-	_ = svc.DeleteTicket(context.Background(), service.DeleteInput{
-		TicketID: created.Ticket.ID(),
-		ClaimID:  created.ClaimID,
+	// Delete the issue.
+	_ = svc.DeleteIssue(context.Background(), service.DeleteInput{
+		IssueID: created.Issue.ID(),
+		ClaimID: created.ClaimID,
 	})
 
 	// When
 	_, err := svc.AddNote(context.Background(), service.AddNoteInput{
-		TicketID: created.Ticket.ID(),
-		Author:   author,
-		Body:     "Note on deleted ticket",
+		IssueID: created.Issue.ID(),
+		Author:  author,
+		Body:    "Note on deleted issue",
 	})
 
 	// Then
-	if !errors.Is(err, domain.ErrDeletedTicket) {
-		t.Errorf("expected ErrDeletedTicket, got %v", err)
+	if !errors.Is(err, domain.ErrDeletedIssue) {
+		t.Errorf("expected ErrDeletedIssue, got %v", err)
 	}
 }
 
-func TestAddNote_ClosedTicket_Succeeds(t *testing.T) {
+func TestAddNote_ClosedIssue_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 		Claim:  true,
 	})
 
 	_ = svc.TransitionState(context.Background(), service.TransitionInput{
-		TicketID: created.Ticket.ID(),
-		ClaimID:  created.ClaimID,
-		Action:   service.ActionClose,
+		IssueID: created.Issue.ID(),
+		ClaimID: created.ClaimID,
+		Action:  service.ActionClose,
 	})
 
-	// When — notes CAN be added to closed tickets
+	// When — notes CAN be added to closed issues
 	_, err := svc.AddNote(context.Background(), service.AddNoteInput{
-		TicketID: created.Ticket.ID(),
-		Author:   author,
-		Body:     "Post-mortem note",
+		IssueID: created.Issue.ID(),
+		Author:  author,
+		Body:    "Post-mortem note",
 	})
 	// Then
 	if err != nil {
-		t.Fatalf("expected success adding note to closed ticket, got: %v", err)
+		t.Fatalf("expected success adding note to closed issue, got: %v", err)
 	}
 }
 
-// --- ShowTicket ---
+// --- ShowIssue ---
 
-func TestShowTicket_ReturnsRevisionAndAuthor(t *testing.T) {
+func TestShowIssue_ReturnsRevisionAndAuthor(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 	})
 
 	// When
-	show, err := svc.ShowTicket(context.Background(), created.Ticket.ID())
+	show, err := svc.ShowIssue(context.Background(), created.Issue.ID())
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -496,33 +496,33 @@ func TestShowTicket_ReturnsRevisionAndAuthor(t *testing.T) {
 	}
 }
 
-func TestShowTicket_IncludesNoteCount(t *testing.T) {
+func TestShowIssue_IncludesNoteCount(t *testing.T) {
 	t.Parallel()
 
-	// Given: a ticket with two notes.
+	// Given: an issue with two notes.
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
-		Role: ticket.RoleTask, Title: "Task with notes", Author: author,
+	created, err := svc.CreateIssue(t.Context(), service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task with notes", Author: author,
 	})
 	if err != nil {
-		t.Fatalf("precondition: create ticket: %v", err)
+		t.Fatalf("precondition: create issue: %v", err)
 	}
 	_, err = svc.AddNote(t.Context(), service.AddNoteInput{
-		TicketID: created.Ticket.ID(), Author: author, Body: "Note one",
+		IssueID: created.Issue.ID(), Author: author, Body: "Note one",
 	})
 	if err != nil {
 		t.Fatalf("precondition: add note 1: %v", err)
 	}
 	_, err = svc.AddNote(t.Context(), service.AddNoteInput{
-		TicketID: created.Ticket.ID(), Author: author, Body: "Note two",
+		IssueID: created.Issue.ID(), Author: author, Body: "Note two",
 	})
 	if err != nil {
 		t.Fatalf("precondition: add note 2: %v", err)
 	}
 
 	// When
-	show, err := svc.ShowTicket(t.Context(), created.Ticket.ID())
+	show, err := svc.ShowIssue(t.Context(), created.Issue.ID())
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -532,9 +532,9 @@ func TestShowTicket_IncludesNoteCount(t *testing.T) {
 	}
 }
 
-// --- ListTickets ---
+// --- ListIssues ---
 
-func TestListTickets_FilterByReady(t *testing.T) {
+func TestListIssues_FilterByReady(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -542,28 +542,28 @@ func TestListTickets_FilterByReady(t *testing.T) {
 	author := mustAuthor(t, "alice")
 
 	// Create two tasks — one open (ready), one claimed (not ready).
-	_, _ = svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	_, _ = svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Ready task",
 		Author: author,
 	})
-	_, _ = svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	_, _ = svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Claimed task",
 		Author: author,
 		Claim:  true,
 	})
 
 	// When
-	output, err := svc.ListTickets(context.Background(), service.ListTicketsInput{
-		Filter: port.TicketFilter{Ready: true},
+	output, err := svc.ListIssues(context.Background(), service.ListIssuesInput{
+		Filter: port.IssueFilter{Ready: true},
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if output.TotalCount != 1 {
-		t.Errorf("expected 1 ready ticket, got %d", output.TotalCount)
+		t.Errorf("expected 1 ready issue, got %d", output.TotalCount)
 	}
 }
 
@@ -577,16 +577,16 @@ func TestBlockedByCompleteEpic_TaskBecomesReady(t *testing.T) {
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "agent-a")
 
-	epicOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
-		Role: ticket.RoleEpic, Title: "Blocker epic", Author: author,
+	epicOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleEpic, Title: "Blocker epic", Author: author,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create epic: %v", err)
 	}
-	epicID := epicOut.Ticket.ID()
+	epicID := epicOut.Issue.ID()
 
-	childOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
-		Role: ticket.RoleTask, Title: "Child task", Author: author,
+	childOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Child task", Author: author,
 		ParentID: epicID, Claim: true,
 	})
 	if err != nil {
@@ -594,29 +594,29 @@ func TestBlockedByCompleteEpic_TaskBecomesReady(t *testing.T) {
 	}
 
 	err = svc.TransitionState(ctx, service.TransitionInput{
-		TicketID: childOut.Ticket.ID(), ClaimID: childOut.ClaimID,
+		IssueID: childOut.Issue.ID(), ClaimID: childOut.ClaimID,
 		Action: service.ActionClose,
 	})
 	if err != nil {
 		t.Fatalf("precondition: close child: %v", err)
 	}
 
-	blockedOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
-		Role: ticket.RoleTask, Title: "Blocked task", Author: author,
+	blockedOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Blocked task", Author: author,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create blocked task: %v", err)
 	}
 
-	err = svc.AddRelationship(ctx, blockedOut.Ticket.ID(),
-		service.RelationshipInput{Type: ticket.RelBlockedBy, TargetID: epicID}, author)
+	err = svc.AddRelationship(ctx, blockedOut.Issue.ID(),
+		service.RelationshipInput{Type: issue.RelBlockedBy, TargetID: epicID}, author)
 	if err != nil {
 		t.Fatalf("precondition: add blocked_by: %v", err)
 	}
 
-	// When — list ready tickets.
-	listOut, err := svc.ListTickets(ctx, service.ListTicketsInput{
-		Filter: port.TicketFilter{Ready: true},
+	// When — list ready issues.
+	listOut, err := svc.ListIssues(ctx, service.ListIssuesInput{
+		Filter: port.IssueFilter{Ready: true},
 	})
 	// Then — the blocked task should appear as ready because its epic
 	// blocker is complete.
@@ -626,17 +626,17 @@ func TestBlockedByCompleteEpic_TaskBecomesReady(t *testing.T) {
 
 	found := false
 	for _, item := range listOut.Items {
-		if item.ID == blockedOut.Ticket.ID() {
+		if item.ID == blockedOut.Issue.ID() {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected blocked task %s to be ready (epic blocker is complete), but it was not in ready list", blockedOut.Ticket.ID())
+		t.Errorf("expected blocked task %s to be ready (epic blocker is complete), but it was not in ready list", blockedOut.Issue.ID())
 	}
 }
 
-func TestShowTicket_BlockedByCompleteEpic_IsReady(t *testing.T) {
+func TestShowIssue_BlockedByCompleteEpic_IsReady(t *testing.T) {
 	t.Parallel()
 
 	// Given — same setup: task blocked by a complete epic.
@@ -644,44 +644,44 @@ func TestShowTicket_BlockedByCompleteEpic_IsReady(t *testing.T) {
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "agent-b")
 
-	epicOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
-		Role: ticket.RoleEpic, Title: "Blocker epic", Author: author,
+	epicOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleEpic, Title: "Blocker epic", Author: author,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create epic: %v", err)
 	}
 
-	childOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
-		Role: ticket.RoleTask, Title: "Child task", Author: author,
-		ParentID: epicOut.Ticket.ID(), Claim: true,
+	childOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Child task", Author: author,
+		ParentID: epicOut.Issue.ID(), Claim: true,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create child: %v", err)
 	}
 
 	err = svc.TransitionState(ctx, service.TransitionInput{
-		TicketID: childOut.Ticket.ID(), ClaimID: childOut.ClaimID,
+		IssueID: childOut.Issue.ID(), ClaimID: childOut.ClaimID,
 		Action: service.ActionClose,
 	})
 	if err != nil {
 		t.Fatalf("precondition: close child: %v", err)
 	}
 
-	blockedOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
-		Role: ticket.RoleTask, Title: "Blocked task", Author: author,
+	blockedOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Blocked task", Author: author,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create blocked task: %v", err)
 	}
 
-	err = svc.AddRelationship(ctx, blockedOut.Ticket.ID(),
-		service.RelationshipInput{Type: ticket.RelBlockedBy, TargetID: epicOut.Ticket.ID()}, author)
+	err = svc.AddRelationship(ctx, blockedOut.Issue.ID(),
+		service.RelationshipInput{Type: issue.RelBlockedBy, TargetID: epicOut.Issue.ID()}, author)
 	if err != nil {
 		t.Fatalf("precondition: add blocked_by: %v", err)
 	}
 
 	// When — show the blocked task.
-	showOut, err := svc.ShowTicket(ctx, blockedOut.Ticket.ID())
+	showOut, err := svc.ShowIssue(ctx, blockedOut.Issue.ID())
 	// Then — the blocked task should be ready.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -691,15 +691,15 @@ func TestShowTicket_BlockedByCompleteEpic_IsReady(t *testing.T) {
 	}
 }
 
-func TestListTickets_ExcludeClosed_HidesClosedTickets(t *testing.T) {
+func TestListIssues_ExcludeClosed_HidesClosedIssues(t *testing.T) {
 	t.Parallel()
 
 	// Given: one open task and one closed task.
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
 
-	_, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	_, err := svc.CreateIssue(t.Context(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Open task",
 		Author: author,
 	})
@@ -707,8 +707,8 @@ func TestListTickets_ExcludeClosed_HidesClosedTickets(t *testing.T) {
 		t.Fatalf("precondition: create open task: %v", err)
 	}
 
-	closed, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	closed, err := svc.CreateIssue(t.Context(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Closed task",
 		Author: author,
 		Claim:  true,
@@ -717,39 +717,39 @@ func TestListTickets_ExcludeClosed_HidesClosedTickets(t *testing.T) {
 		t.Fatalf("precondition: create closed task: %v", err)
 	}
 	err = svc.TransitionState(t.Context(), service.TransitionInput{
-		TicketID: closed.Ticket.ID(),
-		ClaimID:  closed.ClaimID,
-		Action:   service.ActionClose,
+		IssueID: closed.Issue.ID(),
+		ClaimID: closed.ClaimID,
+		Action:  service.ActionClose,
 	})
 	if err != nil {
 		t.Fatalf("precondition: close task: %v", err)
 	}
 
 	// When: listing with ExcludeClosed.
-	output, err := svc.ListTickets(t.Context(), service.ListTicketsInput{
-		Filter: port.TicketFilter{ExcludeClosed: true},
+	output, err := svc.ListIssues(t.Context(), service.ListIssuesInput{
+		Filter: port.IssueFilter{ExcludeClosed: true},
 	})
 	// Then: only the open task appears.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if output.TotalCount != 1 {
-		t.Errorf("expected 1 ticket, got %d", output.TotalCount)
+		t.Errorf("expected 1 issue, got %d", output.TotalCount)
 	}
 	if len(output.Items) == 1 && output.Items[0].Title != "Open task" {
 		t.Errorf("expected Open task, got %q", output.Items[0].Title)
 	}
 }
 
-func TestListTickets_ExcludeClosed_WithExplicitClosedState_ShowsClosed(t *testing.T) {
+func TestListIssues_ExcludeClosed_WithExplicitClosedState_ShowsClosed(t *testing.T) {
 	t.Parallel()
 
 	// Given: one open task and one closed task.
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
 
-	_, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	_, err := svc.CreateIssue(t.Context(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Open task",
 		Author: author,
 	})
@@ -757,8 +757,8 @@ func TestListTickets_ExcludeClosed_WithExplicitClosedState_ShowsClosed(t *testin
 		t.Fatalf("precondition: create open task: %v", err)
 	}
 
-	closed, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	closed, err := svc.CreateIssue(t.Context(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Closed task",
 		Author: author,
 		Claim:  true,
@@ -767,9 +767,9 @@ func TestListTickets_ExcludeClosed_WithExplicitClosedState_ShowsClosed(t *testin
 		t.Fatalf("precondition: create closed task: %v", err)
 	}
 	err = svc.TransitionState(t.Context(), service.TransitionInput{
-		TicketID: closed.Ticket.ID(),
-		ClaimID:  closed.ClaimID,
-		Action:   service.ActionClose,
+		IssueID: closed.Issue.ID(),
+		ClaimID: closed.ClaimID,
+		Action:  service.ActionClose,
 	})
 	if err != nil {
 		t.Fatalf("precondition: close task: %v", err)
@@ -777,10 +777,10 @@ func TestListTickets_ExcludeClosed_WithExplicitClosedState_ShowsClosed(t *testin
 
 	// When: ExcludeClosed is set but States explicitly requests closed — States
 	// takes precedence because it represents an explicit user intent.
-	output, err := svc.ListTickets(t.Context(), service.ListTicketsInput{
-		Filter: port.TicketFilter{
+	output, err := svc.ListIssues(t.Context(), service.ListIssuesInput{
+		Filter: port.IssueFilter{
 			ExcludeClosed: true,
-			States:        []ticket.State{ticket.StateClosed},
+			States:        []issue.State{issue.StateClosed},
 		},
 	})
 	// Then: only the closed task appears; ExcludeClosed is overridden.
@@ -788,7 +788,7 @@ func TestListTickets_ExcludeClosed_WithExplicitClosedState_ShowsClosed(t *testin
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if output.TotalCount != 1 {
-		t.Errorf("expected 1 ticket, got %d", output.TotalCount)
+		t.Errorf("expected 1 issue, got %d", output.TotalCount)
 	}
 	if len(output.Items) == 1 && output.Items[0].Title != "Closed task" {
 		t.Errorf("expected Closed task, got %q", output.Items[0].Title)
@@ -804,20 +804,20 @@ func TestGetGraphData_ReturnsNodesAndRelationships(t *testing.T) {
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
 
-	a, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
-		Role: ticket.RoleTask, Title: "Task A", Author: author,
+	a, err := svc.CreateIssue(t.Context(), service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task A", Author: author,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create A: %v", err)
 	}
-	b, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
-		Role: ticket.RoleTask, Title: "Task B", Author: author,
+	b, err := svc.CreateIssue(t.Context(), service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task B", Author: author,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create B: %v", err)
 	}
-	err = svc.AddRelationship(t.Context(), a.Ticket.ID(),
-		service.RelationshipInput{Type: ticket.RelBlockedBy, TargetID: b.Ticket.ID()}, author)
+	err = svc.AddRelationship(t.Context(), a.Issue.ID(),
+		service.RelationshipInput{Type: issue.RelBlockedBy, TargetID: b.Issue.ID()}, author)
 	if err != nil {
 		t.Fatalf("precondition: add relationship: %v", err)
 	}
@@ -836,25 +836,25 @@ func TestGetGraphData_ReturnsNodesAndRelationships(t *testing.T) {
 	}
 }
 
-// --- DeleteTicket ---
+// --- DeleteIssue ---
 
-func TestDeleteTicket_TaskSucceeds(t *testing.T) {
+func TestDeleteIssue_TaskSucceeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 		Claim:  true,
 	})
 
 	// When
-	err := svc.DeleteTicket(context.Background(), service.DeleteInput{
-		TicketID: created.Ticket.ID(),
-		ClaimID:  created.ClaimID,
+	err := svc.DeleteIssue(context.Background(), service.DeleteInput{
+		IssueID: created.Issue.ID(),
+		ClaimID: created.ClaimID,
 	})
 	// Then
 	if err != nil {
@@ -862,9 +862,9 @@ func TestDeleteTicket_TaskSucceeds(t *testing.T) {
 	}
 
 	// Show should fail.
-	_, err = svc.ShowTicket(context.Background(), created.Ticket.ID())
+	_, err = svc.ShowIssue(context.Background(), created.Issue.ID())
 	if !errors.Is(err, domain.ErrNotFound) {
-		t.Errorf("expected ErrNotFound for deleted ticket, got %v", err)
+		t.Errorf("expected ErrNotFound for deleted issue, got %v", err)
 	}
 }
 
@@ -876,15 +876,15 @@ func TestExtendStaleThreshold_Succeeds(t *testing.T) {
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 		Claim:  true,
 	})
 
 	// When
-	err := svc.ExtendStaleThreshold(context.Background(), created.Ticket.ID(), created.ClaimID, 12*time.Hour)
+	err := svc.ExtendStaleThreshold(context.Background(), created.Issue.ID(), created.ClaimID, 12*time.Hour)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -899,15 +899,15 @@ func TestShowHistory_ReturnsEntries(t *testing.T) {
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
-	created, _ := svc.CreateTicket(context.Background(), service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	created, _ := svc.CreateIssue(context.Background(), service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Task",
 		Author: author,
 	})
 
 	// When
 	output, err := svc.ShowHistory(context.Background(), service.ListHistoryInput{
-		TicketID: created.Ticket.ID(),
+		IssueID: created.Issue.ID(),
 	})
 	// Then
 	if err != nil {

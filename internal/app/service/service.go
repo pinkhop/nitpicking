@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/note"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // Service defines the driving port — the use-case boundary that CLI and
@@ -24,61 +24,61 @@ type Service interface {
 	// AgentInstructions returns Markdown instructions for agents.
 	AgentInstructions(ctx context.Context) (string, error)
 
-	// GetPrefix returns the database's configured ticket ID prefix.
+	// GetPrefix returns the database's configured issue ID prefix.
 	GetPrefix(ctx context.Context) (string, error)
 
-	// --- Ticket Operations ---
+	// --- Issue Operations ---
 
-	// CreateTicket creates a new ticket.
-	CreateTicket(ctx context.Context, input CreateTicketInput) (CreateTicketOutput, error)
+	// CreateIssue creates a new issue.
+	CreateIssue(ctx context.Context, input CreateIssueInput) (CreateIssueOutput, error)
 
-	// ClaimByID claims a specific ticket.
+	// ClaimByID claims a specific issue.
 	ClaimByID(ctx context.Context, input ClaimInput) (ClaimOutput, error)
 
-	// ClaimNextReady claims the highest-priority ready ticket.
+	// ClaimNextReady claims the highest-priority ready issue.
 	ClaimNextReady(ctx context.Context, input ClaimNextReadyInput) (ClaimOutput, error)
 
 	// OneShotUpdate performs an atomic claim→update→release.
 	OneShotUpdate(ctx context.Context, input OneShotUpdateInput) error
 
-	// UpdateTicket updates a claimed ticket's fields.
-	UpdateTicket(ctx context.Context, input UpdateTicketInput) error
+	// UpdateIssue updates a claimed issue's fields.
+	UpdateIssue(ctx context.Context, input UpdateIssueInput) error
 
 	// ExtendStaleThreshold extends the stale threshold on an active claim.
-	ExtendStaleThreshold(ctx context.Context, ticketID ticket.ID, claimID string, threshold time.Duration) error
+	ExtendStaleThreshold(ctx context.Context, issueID issue.ID, claimID string, threshold time.Duration) error
 
-	// TransitionState changes the state of a claimed ticket.
+	// TransitionState changes the state of a claimed issue.
 	TransitionState(ctx context.Context, input TransitionInput) error
 
-	// DeleteTicket soft-deletes a claimed ticket.
-	DeleteTicket(ctx context.Context, input DeleteInput) error
+	// DeleteIssue soft-deletes a claimed issue.
+	DeleteIssue(ctx context.Context, input DeleteInput) error
 
-	// ShowTicket returns the full detail view of a ticket.
-	ShowTicket(ctx context.Context, id ticket.ID) (ShowTicketOutput, error)
+	// ShowIssue returns the full detail view of an issue.
+	ShowIssue(ctx context.Context, id issue.ID) (ShowIssueOutput, error)
 
-	// ListTickets returns a filtered, ordered, paginated list of tickets.
-	ListTickets(ctx context.Context, input ListTicketsInput) (ListTicketsOutput, error)
+	// ListIssues returns a filtered, ordered, paginated list of issues.
+	ListIssues(ctx context.Context, input ListIssuesInput) (ListIssuesOutput, error)
 
-	// SearchTickets performs full-text search on tickets.
-	SearchTickets(ctx context.Context, input SearchTicketsInput) (ListTicketsOutput, error)
+	// SearchIssues performs full-text search on issues.
+	SearchIssues(ctx context.Context, input SearchIssuesInput) (ListIssuesOutput, error)
 
 	// --- Relationship Operations ---
 
-	// AddRelationship adds a relationship between two tickets.
-	AddRelationship(ctx context.Context, sourceID ticket.ID, rel RelationshipInput, author identity.Author) error
+	// AddRelationship adds a relationship between two issues.
+	AddRelationship(ctx context.Context, sourceID issue.ID, rel RelationshipInput, author identity.Author) error
 
-	// RemoveRelationship removes a relationship between two tickets.
-	RemoveRelationship(ctx context.Context, sourceID ticket.ID, rel RelationshipInput, author identity.Author) error
+	// RemoveRelationship removes a relationship between two issues.
+	RemoveRelationship(ctx context.Context, sourceID issue.ID, rel RelationshipInput, author identity.Author) error
 
 	// --- Note Operations ---
 
-	// AddNote adds a note to a ticket.
+	// AddNote adds a note to an issue.
 	AddNote(ctx context.Context, input AddNoteInput) (AddNoteOutput, error)
 
 	// ShowNote retrieves a single note by ID.
 	ShowNote(ctx context.Context, noteID int64) (note.Note, error)
 
-	// ListNotes lists notes for a ticket.
+	// ListNotes lists notes for an issue.
 	ListNotes(ctx context.Context, input ListNotesInput) (ListNotesOutput, error)
 
 	// SearchNotes searches notes by text.
@@ -86,12 +86,12 @@ type Service interface {
 
 	// --- History Operations ---
 
-	// ShowHistory lists history entries for a ticket.
+	// ShowHistory lists history entries for an issue.
 	ShowHistory(ctx context.Context, input ListHistoryInput) (ListHistoryOutput, error)
 
 	// --- Graph ---
 
-	// GetGraphData returns all non-deleted tickets and their relationships
+	// GetGraphData returns all non-deleted issues and their relationships
 	// in a single read-only transaction, for rendering as a graph.
 	GetGraphData(ctx context.Context) (GraphDataOutput, error)
 

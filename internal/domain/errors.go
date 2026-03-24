@@ -9,7 +9,7 @@ import (
 // Sentinel errors for domain failure categories. Adapters use errors.Is to
 // classify these into exit codes or HTTP status codes.
 var (
-	// ErrNotFound indicates a requested entity (ticket, note, etc.) does not
+	// ErrNotFound indicates a requested entity (issue, note, etc.) does not
 	// exist or has been soft-deleted.
 	ErrNotFound = errors.New("not found")
 
@@ -21,13 +21,13 @@ var (
 	// create a cycle in the hierarchy.
 	ErrCycleDetected = errors.New("cycle detected")
 
-	// ErrDeletedTicket indicates an operation was attempted on a soft-deleted
-	// ticket, which is immutable.
-	ErrDeletedTicket = errors.New("ticket is deleted")
+	// ErrDeletedIssue indicates an operation was attempted on a soft-deleted
+	// issue, which is immutable.
+	ErrDeletedIssue = errors.New("issue is deleted")
 
-	// ErrTerminalState indicates an operation was attempted on a ticket in a
+	// ErrTerminalState indicates an operation was attempted on an issue in a
 	// terminal state (closed or deleted) that forbids further mutations.
-	ErrTerminalState = errors.New("ticket is in a terminal state")
+	ErrTerminalState = errors.New("issue is in a terminal state")
 )
 
 // ValidationError carries structured detail about which fields failed
@@ -67,12 +67,12 @@ func NewMultiValidationError(fields map[string]string) *ValidationError {
 	return &ValidationError{Fields: fields}
 }
 
-// ClaimConflictError indicates a ticket is already claimed and the claim is
+// ClaimConflictError indicates an issue is already claimed and the claim is
 // not stale. It carries structured context so that callers (especially AI
 // agents) can decide whether to wait or steal.
 type ClaimConflictError struct {
-	// TicketID is the ID of the ticket that could not be claimed.
-	TicketID string
+	// IssueID is the ID of the issue that could not be claimed.
+	IssueID string
 
 	// CurrentHolder is the author who holds the active claim.
 	CurrentHolder string
@@ -85,8 +85,8 @@ type ClaimConflictError struct {
 // Error returns a human-readable description of the claim conflict.
 func (e *ClaimConflictError) Error() string {
 	return fmt.Sprintf(
-		"claim conflict: ticket %s is claimed by %q until %s",
-		e.TicketID, e.CurrentHolder, e.StaleAt.Format(time.RFC3339),
+		"claim conflict: issue %s is claimed by %q until %s",
+		e.IssueID, e.CurrentHolder, e.StaleAt.Format(time.RFC3339),
 	)
 }
 
@@ -100,7 +100,7 @@ func (e *ClaimConflictError) Is(target error) bool {
 // DatabaseError wraps a storage-layer error with additional context. The
 // adapter layer maps this to exit code 5.
 type DatabaseError struct {
-	// Op describes the operation that failed (e.g., "create ticket", "begin transaction").
+	// Op describes the operation that failed (e.g., "create issue", "begin transaction").
 	Op string
 
 	// Err is the underlying storage error.

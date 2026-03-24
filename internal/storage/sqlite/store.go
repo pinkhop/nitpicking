@@ -15,9 +15,9 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/claim"
 	"github.com/pinkhop/nitpicking/internal/domain/history"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/note"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // Store provides SQLite-backed persistence for the nitpicking domain.
@@ -68,7 +68,8 @@ func Create(dbPath string) (*Store, error) {
 }
 
 // Open opens an existing SQLite database at dbPath. It does not apply schema
-// DDL — the database must already have been created with Create.
+// DDL — the database must already have been created with Create. It runs any
+// pending one-shot migrations (e.g. the ticket→issue rename) before returning.
 func Open(dbPath string) (*Store, error) {
 	pool, err := sqlitex.NewPool(dbPath, sqlitex.PoolOptions{
 		PoolSize:    1,
@@ -77,6 +78,19 @@ func Open(dbPath string) (*Store, error) {
 	if err != nil {
 		return nil, &domain.DatabaseError{Op: "open database", Err: err}
 	}
+
+	conn, err := pool.Take(context.Background())
+	if err != nil {
+		closeErr := pool.Close()
+		return nil, &domain.DatabaseError{Op: "take connection for migration", Err: errors.Join(err, closeErr)}
+	}
+	err = migrateTicketsToIssues(conn)
+	pool.Put(conn)
+	if err != nil {
+		closeErr := pool.Close()
+		return nil, &domain.DatabaseError{Op: "migrate tickets to issues", Err: errors.Join(err, closeErr)}
+	}
+
 	return &Store{pool: pool}, nil
 }
 
@@ -141,7 +155,7 @@ type connUnitOfWork struct {
 	conn *sqlite.Conn
 }
 
-func (u *connUnitOfWork) Tickets() port.TicketRepository             { return &ticketRepo{conn: u.conn} }
+func (u *connUnitOfWork) Issues() port.IssueRepository               { return &issueRepo{conn: u.conn} }
 func (u *connUnitOfWork) Notes() port.NoteRepository                 { return &noteRepo{conn: u.conn} }
 func (u *connUnitOfWork) Claims() port.ClaimRepository               { return &claimRepo{conn: u.conn} }
 func (u *connUnitOfWork) Relationships() port.RelationshipRepository { return &relRepo{conn: u.conn} }
@@ -175,11 +189,11 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 		op    string
 		query string
 	}{
-		{"gc facets", `DELETE FROM facets WHERE ticket_id IN (SELECT ticket_id FROM tickets WHERE deleted = 1)`},
-		{"gc notes", `DELETE FROM notes WHERE ticket_id IN (SELECT ticket_id FROM tickets WHERE deleted = 1)`},
-		{"gc history", `DELETE FROM history WHERE ticket_id IN (SELECT ticket_id FROM tickets WHERE deleted = 1)`},
-		{"gc relationships", `DELETE FROM relationships WHERE source_id IN (SELECT ticket_id FROM tickets WHERE deleted = 1) OR target_id IN (SELECT ticket_id FROM tickets WHERE deleted = 1)`},
-		{"gc tickets", `DELETE FROM tickets WHERE deleted = 1`},
+		{"gc facets", `DELETE FROM facets WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
+		{"gc notes", `DELETE FROM notes WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
+		{"gc history", `DELETE FROM history WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
+		{"gc relationships", `DELETE FROM relationships WHERE source_id IN (SELECT issue_id FROM issues WHERE deleted = 1) OR target_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
+		{"gc issues", `DELETE FROM issues WHERE deleted = 1`},
 	}
 
 	for _, q := range gcQueries {
@@ -193,10 +207,10 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 			op    string
 			query string
 		}{
-			{"gc closed facets", `DELETE FROM facets WHERE ticket_id IN (SELECT ticket_id FROM tickets WHERE state = 'closed')`},
-			{"gc closed notes", `DELETE FROM notes WHERE ticket_id IN (SELECT ticket_id FROM tickets WHERE state = 'closed')`},
-			{"gc closed history", `DELETE FROM history WHERE ticket_id IN (SELECT ticket_id FROM tickets WHERE state = 'closed')`},
-			{"gc closed tickets", `DELETE FROM tickets WHERE state = 'closed'`},
+			{"gc closed facets", `DELETE FROM facets WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
+			{"gc closed notes", `DELETE FROM notes WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
+			{"gc closed history", `DELETE FROM history WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
+			{"gc closed issues", `DELETE FROM issues WHERE state = 'closed'`},
 		}
 
 		for _, q := range closedQueries {
@@ -209,11 +223,11 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 	return nil
 }
 
-// --- TicketRepository ---
+// --- IssueRepository ---
 
-type ticketRepo struct{ conn *sqlite.Conn }
+type issueRepo struct{ conn *sqlite.Conn }
 
-func (r *ticketRepo) CreateTicket(_ context.Context, t ticket.Ticket) error {
+func (r *issueRepo) CreateIssue(_ context.Context, t issue.Issue) error {
 	parentID := nullable(t.ParentID())
 	var idemKey any
 	if t.IdempotencyKey() != "" {
@@ -221,7 +235,7 @@ func (r *ticketRepo) CreateTicket(_ context.Context, t ticket.Ticket) error {
 	}
 
 	err := sqlitex.Execute(r.conn,
-		`INSERT INTO tickets (ticket_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO issues (issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		&sqlitex.ExecOptions{
 			Args: []any{
 				t.ID().String(), t.Role().String(), t.Title(), t.Description(), t.AcceptanceCriteria(),
@@ -230,12 +244,12 @@ func (r *ticketRepo) CreateTicket(_ context.Context, t ticket.Ticket) error {
 			},
 		})
 	if err != nil {
-		return &domain.DatabaseError{Op: "create ticket", Err: err}
+		return &domain.DatabaseError{Op: "create issue", Err: err}
 	}
 
 	// Save facets.
 	for k, v := range t.Facets().All() {
-		if err := sqlitex.Execute(r.conn, `INSERT INTO facets (ticket_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
+		if err := sqlitex.Execute(r.conn, `INSERT INTO facets (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 			Args: []any{t.ID().String(), k, v},
 		}); err != nil {
 			return &domain.DatabaseError{Op: "create facet", Err: err}
@@ -243,7 +257,7 @@ func (r *ticketRepo) CreateTicket(_ context.Context, t ticket.Ticket) error {
 	}
 
 	// FTS sync.
-	err = sqlitex.Execute(r.conn, `INSERT INTO tickets_fts (ticket_id, title, description, acceptance_criteria) VALUES (?, ?, ?, ?)`, &sqlitex.ExecOptions{
+	err = sqlitex.Execute(r.conn, `INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (?, ?, ?, ?)`, &sqlitex.ExecOptions{
 		Args: []any{t.ID().String(), t.Title(), t.Description(), t.AcceptanceCriteria()},
 	})
 	if err != nil {
@@ -253,35 +267,35 @@ func (r *ticketRepo) CreateTicket(_ context.Context, t ticket.Ticket) error {
 	return nil
 }
 
-func (r *ticketRepo) GetTicket(_ context.Context, id ticket.ID, includeDeleted bool) (ticket.Ticket, error) {
-	query := `SELECT ticket_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted FROM tickets WHERE ticket_id = ?`
+func (r *issueRepo) GetIssue(_ context.Context, id issue.ID, includeDeleted bool) (issue.Issue, error) {
+	query := `SELECT issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted FROM issues WHERE issue_id = ?`
 	if !includeDeleted {
 		query += ` AND deleted = 0`
 	}
 
-	t, err := scanTicketRow(r.conn, query, id.String())
+	t, err := scanIssueRow(r.conn, query, id.String())
 	if err != nil {
 		if isNotFound(err) {
-			return ticket.Ticket{}, domain.ErrNotFound
+			return issue.Issue{}, domain.ErrNotFound
 		}
-		return ticket.Ticket{}, &domain.DatabaseError{Op: "get ticket", Err: err}
+		return issue.Issue{}, &domain.DatabaseError{Op: "get issue", Err: err}
 	}
 
 	// Load facets.
 	facets, err := r.loadFacets(id.String())
 	if err != nil {
-		return ticket.Ticket{}, err
+		return issue.Issue{}, err
 	}
 	t = t.WithFacets(facets)
 
 	return t, nil
 }
 
-func (r *ticketRepo) UpdateTicket(_ context.Context, t ticket.Ticket) error {
+func (r *issueRepo) UpdateIssue(_ context.Context, t issue.Issue) error {
 	parentID := nullable(t.ParentID())
 
 	err := sqlitex.Execute(r.conn,
-		`UPDATE tickets SET title = ?, description = ?, acceptance_criteria = ?, priority = ?, state = ?, parent_id = ?, deleted = ? WHERE ticket_id = ?`,
+		`UPDATE issues SET title = ?, description = ?, acceptance_criteria = ?, priority = ?, state = ?, parent_id = ?, deleted = ? WHERE issue_id = ?`,
 		&sqlitex.ExecOptions{
 			Args: []any{
 				t.Title(), t.Description(), t.AcceptanceCriteria(), t.Priority().String(),
@@ -289,15 +303,15 @@ func (r *ticketRepo) UpdateTicket(_ context.Context, t ticket.Ticket) error {
 			},
 		})
 	if err != nil {
-		return &domain.DatabaseError{Op: "update ticket", Err: err}
+		return &domain.DatabaseError{Op: "update issue", Err: err}
 	}
 
 	// Replace facets.
-	_ = sqlitex.Execute(r.conn, `DELETE FROM facets WHERE ticket_id = ?`, &sqlitex.ExecOptions{
+	_ = sqlitex.Execute(r.conn, `DELETE FROM facets WHERE issue_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{t.ID().String()},
 	})
 	for k, v := range t.Facets().All() {
-		if err := sqlitex.Execute(r.conn, `INSERT INTO facets (ticket_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
+		if err := sqlitex.Execute(r.conn, `INSERT INTO facets (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 			Args: []any{t.ID().String(), k, v},
 		}); err != nil {
 			return &domain.DatabaseError{Op: "update facet", Err: err}
@@ -305,42 +319,42 @@ func (r *ticketRepo) UpdateTicket(_ context.Context, t ticket.Ticket) error {
 	}
 
 	// FTS sync — delete old entry and insert updated one.
-	_ = sqlitex.Execute(r.conn, `DELETE FROM tickets_fts WHERE ticket_id = ?`, &sqlitex.ExecOptions{
+	_ = sqlitex.Execute(r.conn, `DELETE FROM issues_fts WHERE issue_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{t.ID().String()},
 	})
-	_ = sqlitex.Execute(r.conn, `INSERT INTO tickets_fts (ticket_id, title, description, acceptance_criteria) VALUES (?, ?, ?, ?)`, &sqlitex.ExecOptions{
+	_ = sqlitex.Execute(r.conn, `INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (?, ?, ?, ?)`, &sqlitex.ExecOptions{
 		Args: []any{t.ID().String(), t.Title(), t.Description(), t.AcceptanceCriteria()},
 	})
 
 	return nil
 }
 
-func (r *ticketRepo) ListTickets(_ context.Context, filter port.TicketFilter, orderBy port.TicketOrderBy, page port.PageRequest) ([]port.TicketListItem, port.PageResult, error) {
+func (r *issueRepo) ListIssues(_ context.Context, filter port.IssueFilter, orderBy port.IssueOrderBy, page port.PageRequest) ([]port.IssueListItem, port.PageResult, error) {
 	page = page.Normalize()
-	where, args := buildTicketWhere(filter)
+	where, args := buildIssueWhere(filter)
 
 	// Count total.
-	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM tickets t `+where, args...)
+	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM issues t `+where, args...)
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count tickets", Err: err}
+		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count issues", Err: err}
 	}
 
-	orderClause := ticketOrderClause(orderBy)
-	query := `SELECT t.ticket_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM tickets t ` + where + orderClause + ` LIMIT ?`
+	orderClause := issueOrderClause(orderBy)
+	query := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM issues t ` + where + orderClause + ` LIMIT ?`
 	args = append(args, page.PageSize)
 
-	var items []port.TicketListItem
+	var items []port.IssueListItem
 	err = sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			id, _ := ticket.ParseID(stmt.ColumnText(0))
-			role, _ := ticket.ParseRole(stmt.ColumnText(1))
-			state, _ := ticket.ParseState(stmt.ColumnText(2))
-			priority, _ := ticket.ParsePriority(stmt.ColumnText(3))
+			id, _ := issue.ParseID(stmt.ColumnText(0))
+			role, _ := issue.ParseRole(stmt.ColumnText(1))
+			state, _ := issue.ParseState(stmt.ColumnText(2))
+			priority, _ := issue.ParsePriority(stmt.ColumnText(3))
 			createdAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(5))
-			parentID, _ := ticket.ParseID(stmt.ColumnText(7))
+			parentID, _ := issue.ParseID(stmt.ColumnText(7))
 
-			items = append(items, port.TicketListItem{
+			items = append(items, port.IssueListItem{
 				ID: id, Role: role, State: state, Priority: priority,
 				Title: stmt.ColumnText(4), ParentID: parentID, CreatedAt: createdAt,
 				IsDeleted: stmt.ColumnInt(6) != 0,
@@ -349,40 +363,40 @@ func (r *ticketRepo) ListTickets(_ context.Context, filter port.TicketFilter, or
 		},
 	})
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "list tickets", Err: err}
+		return nil, port.PageResult{}, &domain.DatabaseError{Op: "list issues", Err: err}
 	}
 
 	return items, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *ticketRepo) SearchTickets(_ context.Context, query string, filter port.TicketFilter, orderBy port.TicketOrderBy, page port.PageRequest) ([]port.TicketListItem, port.PageResult, error) {
+func (r *issueRepo) SearchIssues(_ context.Context, query string, filter port.IssueFilter, orderBy port.IssueOrderBy, page port.PageRequest) ([]port.IssueListItem, port.PageResult, error) {
 	page = page.Normalize()
-	where, args := buildTicketWhere(filter)
+	where, args := buildIssueWhere(filter)
 
-	ftsWhere := ` AND t.ticket_id IN (SELECT ticket_id FROM tickets_fts WHERE tickets_fts MATCH ?)`
+	ftsWhere := ` AND t.issue_id IN (SELECT issue_id FROM issues_fts WHERE issues_fts MATCH ?)`
 	args = append(args, query)
 
-	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM tickets t `+where+ftsWhere, args...)
+	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM issues t `+where+ftsWhere, args...)
 	if err != nil {
 		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count search results", Err: err}
 	}
 
-	orderClause := ticketOrderClause(orderBy)
-	selectQuery := `SELECT t.ticket_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM tickets t ` + where + ftsWhere + orderClause + ` LIMIT ?`
+	orderClause := issueOrderClause(orderBy)
+	selectQuery := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM issues t ` + where + ftsWhere + orderClause + ` LIMIT ?`
 	args = append(args, page.PageSize)
 
-	var items []port.TicketListItem
+	var items []port.IssueListItem
 	err = sqlitex.Execute(r.conn, selectQuery, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			id, _ := ticket.ParseID(stmt.ColumnText(0))
-			role, _ := ticket.ParseRole(stmt.ColumnText(1))
-			state, _ := ticket.ParseState(stmt.ColumnText(2))
-			priority, _ := ticket.ParsePriority(stmt.ColumnText(3))
+			id, _ := issue.ParseID(stmt.ColumnText(0))
+			role, _ := issue.ParseRole(stmt.ColumnText(1))
+			state, _ := issue.ParseState(stmt.ColumnText(2))
+			priority, _ := issue.ParsePriority(stmt.ColumnText(3))
 			createdAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(5))
-			parentID, _ := ticket.ParseID(stmt.ColumnText(7))
+			parentID, _ := issue.ParseID(stmt.ColumnText(7))
 
-			items = append(items, port.TicketListItem{
+			items = append(items, port.IssueListItem{
 				ID: id, Role: role, State: state, Priority: priority,
 				Title: stmt.ColumnText(4), ParentID: parentID, CreatedAt: createdAt,
 				IsDeleted: stmt.ColumnInt(6) != 0,
@@ -391,21 +405,21 @@ func (r *ticketRepo) SearchTickets(_ context.Context, query string, filter port.
 		},
 	})
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "search tickets", Err: err}
+		return nil, port.PageResult{}, &domain.DatabaseError{Op: "search issues", Err: err}
 	}
 
 	return items, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *ticketRepo) GetChildStatuses(_ context.Context, epicID ticket.ID) ([]ticket.ChildStatus, error) {
-	var children []ticket.ChildStatus
-	err := sqlitex.Execute(r.conn, `SELECT role, state FROM tickets WHERE parent_id = ? AND deleted = 0`, &sqlitex.ExecOptions{
+func (r *issueRepo) GetChildStatuses(_ context.Context, epicID issue.ID) ([]issue.ChildStatus, error) {
+	var children []issue.ChildStatus
+	err := sqlitex.Execute(r.conn, `SELECT role, state FROM issues WHERE parent_id = ? AND deleted = 0`, &sqlitex.ExecOptions{
 		Args: []any{epicID.String()},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			role, _ := ticket.ParseRole(stmt.ColumnText(0))
-			state, _ := ticket.ParseState(stmt.ColumnText(1))
-			children = append(children, ticket.ChildStatus{
-				Role: role, State: state, IsComplete: state == ticket.StateClosed,
+			role, _ := issue.ParseRole(stmt.ColumnText(0))
+			state, _ := issue.ParseState(stmt.ColumnText(1))
+			children = append(children, issue.ChildStatus{
+				Role: role, State: state, IsComplete: state == issue.StateClosed,
 			})
 			return nil
 		},
@@ -416,26 +430,26 @@ func (r *ticketRepo) GetChildStatuses(_ context.Context, epicID ticket.ID) ([]ti
 	return children, nil
 }
 
-func (r *ticketRepo) GetDescendants(_ context.Context, epicID ticket.ID) ([]ticket.DescendantInfo, error) {
+func (r *issueRepo) GetDescendants(_ context.Context, epicID issue.ID) ([]issue.DescendantInfo, error) {
 	return r.getDescendantsRecursive(epicID)
 }
 
-func (r *ticketRepo) getDescendantsRecursive(parentID ticket.ID) ([]ticket.DescendantInfo, error) {
+func (r *issueRepo) getDescendantsRecursive(parentID issue.ID) ([]issue.DescendantInfo, error) {
 	type childInfo struct {
-		id      ticket.ID
-		role    ticket.Role
+		id      issue.ID
+		role    issue.Role
 		claimed bool
 		author  string
 	}
 	var childInfos []childInfo
 
 	err := sqlitex.Execute(r.conn,
-		`SELECT t.ticket_id, t.role, COALESCE(c.author, '') as claim_author FROM tickets t LEFT JOIN claims c ON t.ticket_id = c.ticket_id WHERE t.parent_id = ? AND t.deleted = 0`,
+		`SELECT t.issue_id, t.role, COALESCE(c.author, '') as claim_author FROM issues t LEFT JOIN claims c ON t.issue_id = c.issue_id WHERE t.parent_id = ? AND t.deleted = 0`,
 		&sqlitex.ExecOptions{
 			Args: []any{parentID.String()},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
-				id, _ := ticket.ParseID(stmt.ColumnText(0))
-				role, _ := ticket.ParseRole(stmt.ColumnText(1))
+				id, _ := issue.ParseID(stmt.ColumnText(0))
+				role, _ := issue.ParseRole(stmt.ColumnText(1))
 				claimAuthor := stmt.ColumnText(2)
 				childInfos = append(childInfos, childInfo{id: id, role: role, claimed: claimAuthor != "", author: claimAuthor})
 				return nil
@@ -445,12 +459,12 @@ func (r *ticketRepo) getDescendantsRecursive(parentID ticket.ID) ([]ticket.Desce
 		return nil, &domain.DatabaseError{Op: "get descendants", Err: err}
 	}
 
-	var descendants []ticket.DescendantInfo
+	var descendants []issue.DescendantInfo
 	for _, ci := range childInfos {
-		descendants = append(descendants, ticket.DescendantInfo{
+		descendants = append(descendants, issue.DescendantInfo{
 			ID: ci.id, IsClaimed: ci.claimed, ClaimedBy: ci.author,
 		})
-		if ci.role == ticket.RoleEpic {
+		if ci.role == issue.RoleEpic {
 			sub, err := r.getDescendantsRecursive(ci.id)
 			if err != nil {
 				return nil, err
@@ -462,22 +476,22 @@ func (r *ticketRepo) getDescendantsRecursive(parentID ticket.ID) ([]ticket.Desce
 	return descendants, nil
 }
 
-func (r *ticketRepo) HasChildren(_ context.Context, epicID ticket.ID) (bool, error) {
-	count, err := queryInt(r.conn, `SELECT COUNT(*) FROM tickets WHERE parent_id = ? AND deleted = 0`, epicID.String())
+func (r *issueRepo) HasChildren(_ context.Context, epicID issue.ID) (bool, error) {
+	count, err := queryInt(r.conn, `SELECT COUNT(*) FROM issues WHERE parent_id = ? AND deleted = 0`, epicID.String())
 	if err != nil {
 		return false, &domain.DatabaseError{Op: "has children", Err: err}
 	}
 	return count > 0, nil
 }
 
-func (r *ticketRepo) GetAncestorStatuses(_ context.Context, id ticket.ID) ([]ticket.AncestorStatus, error) {
-	var ancestors []ticket.AncestorStatus
+func (r *issueRepo) GetAncestorStatuses(_ context.Context, id issue.ID) ([]issue.AncestorStatus, error) {
+	var ancestors []issue.AncestorStatus
 	current := id.String()
 
 	for {
 		var parentID string
 		var found bool
-		err := sqlitex.Execute(r.conn, `SELECT parent_id FROM tickets WHERE ticket_id = ? AND deleted = 0`, &sqlitex.ExecOptions{
+		err := sqlitex.Execute(r.conn, `SELECT parent_id FROM issues WHERE issue_id = ? AND deleted = 0`, &sqlitex.ExecOptions{
 			Args: []any{current},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
 				if !stmt.ColumnIsNull(0) {
@@ -493,7 +507,7 @@ func (r *ticketRepo) GetAncestorStatuses(_ context.Context, id ticket.ID) ([]tic
 
 		var stateStr string
 		var stateFound bool
-		err = sqlitex.Execute(r.conn, `SELECT state FROM tickets WHERE ticket_id = ? AND deleted = 0`, &sqlitex.ExecOptions{
+		err = sqlitex.Execute(r.conn, `SELECT state FROM issues WHERE issue_id = ? AND deleted = 0`, &sqlitex.ExecOptions{
 			Args: []any{parentID},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
 				stateStr = stmt.ColumnText(0)
@@ -505,20 +519,20 @@ func (r *ticketRepo) GetAncestorStatuses(_ context.Context, id ticket.ID) ([]tic
 			break
 		}
 
-		state, _ := ticket.ParseState(stateStr)
-		ancestors = append(ancestors, ticket.AncestorStatus{State: state})
+		state, _ := issue.ParseState(stateStr)
+		ancestors = append(ancestors, issue.AncestorStatus{State: state})
 		current = parentID
 	}
 
 	return ancestors, nil
 }
 
-func (r *ticketRepo) GetParentID(_ context.Context, id ticket.ID) (ticket.ID, error) {
+func (r *issueRepo) GetParentID(_ context.Context, id issue.ID) (issue.ID, error) {
 	var parentID string
 	var found bool
 	var isNull bool
 
-	err := sqlitex.Execute(r.conn, `SELECT parent_id FROM tickets WHERE ticket_id = ?`, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, `SELECT parent_id FROM issues WHERE issue_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{id.String()},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			found = true
@@ -530,49 +544,49 @@ func (r *ticketRepo) GetParentID(_ context.Context, id ticket.ID) (ticket.ID, er
 		},
 	})
 	if err != nil {
-		return ticket.ID{}, &domain.DatabaseError{Op: "get parent ID", Err: err}
+		return issue.ID{}, &domain.DatabaseError{Op: "get parent ID", Err: err}
 	}
 	if !found {
-		return ticket.ID{}, domain.ErrNotFound
+		return issue.ID{}, domain.ErrNotFound
 	}
 	if isNull || parentID == "" {
-		return ticket.ID{}, nil
+		return issue.ID{}, nil
 	}
-	return ticket.ParseID(parentID)
+	return issue.ParseID(parentID)
 }
 
-func (r *ticketRepo) TicketIDExists(_ context.Context, id ticket.ID) (bool, error) {
-	count, err := queryInt(r.conn, `SELECT COUNT(*) FROM tickets WHERE ticket_id = ?`, id.String())
+func (r *issueRepo) IssueIDExists(_ context.Context, id issue.ID) (bool, error) {
+	count, err := queryInt(r.conn, `SELECT COUNT(*) FROM issues WHERE issue_id = ?`, id.String())
 	if err != nil {
-		return false, &domain.DatabaseError{Op: "check ticket exists", Err: err}
+		return false, &domain.DatabaseError{Op: "check issue exists", Err: err}
 	}
 	return count > 0, nil
 }
 
-func (r *ticketRepo) GetTicketByIdempotencyKey(_ context.Context, key string) (ticket.Ticket, error) {
-	t, err := scanTicketRow(r.conn,
-		`SELECT ticket_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted FROM tickets WHERE idempotency_key = ?`, key)
+func (r *issueRepo) GetIssueByIdempotencyKey(_ context.Context, key string) (issue.Issue, error) {
+	t, err := scanIssueRow(r.conn,
+		`SELECT issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted FROM issues WHERE idempotency_key = ?`, key)
 	if err != nil {
 		if isNotFound(err) {
-			return ticket.Ticket{}, domain.ErrNotFound
+			return issue.Issue{}, domain.ErrNotFound
 		}
-		return ticket.Ticket{}, &domain.DatabaseError{Op: "get by idempotency key", Err: err}
+		return issue.Issue{}, &domain.DatabaseError{Op: "get by idempotency key", Err: err}
 	}
 	return t, nil
 }
 
-func (r *ticketRepo) loadFacets(ticketID string) (ticket.FacetSet, error) {
-	fs := ticket.NewFacetSet()
-	err := sqlitex.Execute(r.conn, `SELECT key, value FROM facets WHERE ticket_id = ?`, &sqlitex.ExecOptions{
-		Args: []any{ticketID},
+func (r *issueRepo) loadFacets(issueID string) (issue.FacetSet, error) {
+	fs := issue.NewFacetSet()
+	err := sqlitex.Execute(r.conn, `SELECT key, value FROM facets WHERE issue_id = ?`, &sqlitex.ExecOptions{
+		Args: []any{issueID},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			f, _ := ticket.NewFacet(stmt.ColumnText(0), stmt.ColumnText(1))
+			f, _ := issue.NewFacet(stmt.ColumnText(0), stmt.ColumnText(1))
 			fs = fs.Set(f)
 			return nil
 		},
 	})
 	if err != nil {
-		return ticket.NewFacetSet(), &domain.DatabaseError{Op: "load facets", Err: err}
+		return issue.NewFacetSet(), &domain.DatabaseError{Op: "load facets", Err: err}
 	}
 	return fs, nil
 }
@@ -582,8 +596,8 @@ func (r *ticketRepo) loadFacets(ticketID string) (ticket.FacetSet, error) {
 type noteRepo struct{ conn *sqlite.Conn }
 
 func (r *noteRepo) CreateNote(_ context.Context, n note.Note) (int64, error) {
-	err := sqlitex.Execute(r.conn, `INSERT INTO notes (ticket_id, author, created_at, body) VALUES (?, ?, ?, ?)`, &sqlitex.ExecOptions{
-		Args: []any{n.TicketID().String(), n.Author().String(), n.CreatedAt().Format(time.RFC3339Nano), n.Body()},
+	err := sqlitex.Execute(r.conn, `INSERT INTO notes (issue_id, author, created_at, body) VALUES (?, ?, ?, ?)`, &sqlitex.ExecOptions{
+		Args: []any{n.IssueID().String(), n.Author().String(), n.CreatedAt().Format(time.RFC3339Nano), n.Body()},
 	})
 	if err != nil {
 		return 0, &domain.DatabaseError{Op: "create note", Err: err}
@@ -603,17 +617,17 @@ func (r *noteRepo) GetNote(_ context.Context, id int64) (note.Note, error) {
 	var result note.Note
 	var found bool
 
-	err := sqlitex.Execute(r.conn, `SELECT ticket_id, author, created_at, body FROM notes WHERE note_id = ?`, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, `SELECT issue_id, author, created_at, body FROM notes WHERE note_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{id},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			found = true
-			ticketID, _ := ticket.ParseID(stmt.ColumnText(0))
+			issueID, _ := issue.ParseID(stmt.ColumnText(0))
 			author, _ := identity.NewAuthor(stmt.ColumnText(1))
 			createdAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(2))
 
 			var err error
 			result, err = note.NewNote(note.NewNoteParams{
-				ID: id, TicketID: ticketID, Author: author, CreatedAt: createdAt, Body: stmt.ColumnText(3),
+				ID: id, IssueID: issueID, Author: author, CreatedAt: createdAt, Body: stmt.ColumnText(3),
 			})
 			return err
 		},
@@ -627,11 +641,11 @@ func (r *noteRepo) GetNote(_ context.Context, id int64) (note.Note, error) {
 	return result, nil
 }
 
-func (r *noteRepo) ListNotes(_ context.Context, ticketID ticket.ID, filter port.NoteFilter, page port.PageRequest) ([]note.Note, port.PageResult, error) {
+func (r *noteRepo) ListNotes(_ context.Context, issueID issue.ID, filter port.NoteFilter, page port.PageRequest) ([]note.Note, port.PageResult, error) {
 	page = page.Normalize()
 
-	where := `WHERE ticket_id = ?`
-	args := []any{ticketID.String()}
+	where := `WHERE issue_id = ?`
+	args := []any{issueID.String()}
 
 	if !filter.Author.IsZero() {
 		where += ` AND author = ?`
@@ -651,18 +665,18 @@ func (r *noteRepo) ListNotes(_ context.Context, ticketID ticket.ID, filter port.
 		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count notes", Err: err}
 	}
 
-	query := `SELECT note_id, ticket_id, author, created_at, body FROM notes ` + where + ` ORDER BY note_id LIMIT ?`
+	query := `SELECT note_id, issue_id, author, created_at, body FROM notes ` + where + ` ORDER BY note_id LIMIT ?`
 	args = append(args, page.PageSize)
 
 	var notes []note.Note
 	err = sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			tid, _ := ticket.ParseID(stmt.ColumnText(1))
+			tid, _ := issue.ParseID(stmt.ColumnText(1))
 			author, _ := identity.NewAuthor(stmt.ColumnText(2))
 			created, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(3))
 			n, _ := note.NewNote(note.NewNoteParams{
-				ID: stmt.ColumnInt64(0), TicketID: tid, Author: author, CreatedAt: created, Body: stmt.ColumnText(4),
+				ID: stmt.ColumnInt64(0), IssueID: tid, Author: author, CreatedAt: created, Body: stmt.ColumnText(4),
 			})
 			notes = append(notes, n)
 			return nil
@@ -681,9 +695,9 @@ func (r *noteRepo) SearchNotes(_ context.Context, query string, filter port.Note
 	where := `WHERE n.note_id IN (SELECT note_id FROM notes_fts WHERE notes_fts MATCH ?)`
 	args := []any{query}
 
-	if !filter.TicketID.IsZero() {
-		where += ` AND n.ticket_id = ?`
-		args = append(args, filter.TicketID.String())
+	if !filter.IssueID.IsZero() {
+		where += ` AND n.issue_id = ?`
+		args = append(args, filter.IssueID.String())
 	}
 
 	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM notes n `+where, args...)
@@ -691,18 +705,18 @@ func (r *noteRepo) SearchNotes(_ context.Context, query string, filter port.Note
 		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count note search results", Err: err}
 	}
 
-	selectQuery := `SELECT n.note_id, n.ticket_id, n.author, n.created_at, n.body FROM notes n ` + where + ` ORDER BY n.note_id LIMIT ?`
+	selectQuery := `SELECT n.note_id, n.issue_id, n.author, n.created_at, n.body FROM notes n ` + where + ` ORDER BY n.note_id LIMIT ?`
 	args = append(args, page.PageSize)
 
 	var notes []note.Note
 	err = sqlitex.Execute(r.conn, selectQuery, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			tid, _ := ticket.ParseID(stmt.ColumnText(1))
+			tid, _ := issue.ParseID(stmt.ColumnText(1))
 			author, _ := identity.NewAuthor(stmt.ColumnText(2))
 			created, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(3))
 			n, _ := note.NewNote(note.NewNoteParams{
-				ID: stmt.ColumnInt64(0), TicketID: tid, Author: author, CreatedAt: created, Body: stmt.ColumnText(4),
+				ID: stmt.ColumnInt64(0), IssueID: tid, Author: author, CreatedAt: created, Body: stmt.ColumnText(4),
 			})
 			notes = append(notes, n)
 			return nil
@@ -720,8 +734,8 @@ func (r *noteRepo) SearchNotes(_ context.Context, query string, filter port.Note
 type claimRepo struct{ conn *sqlite.Conn }
 
 func (r *claimRepo) CreateClaim(_ context.Context, c claim.Claim) error {
-	err := sqlitex.Execute(r.conn, `INSERT OR REPLACE INTO claims (claim_id, ticket_id, author, stale_threshold, last_activity) VALUES (?, ?, ?, ?, ?)`, &sqlitex.ExecOptions{
-		Args: []any{c.ID(), c.TicketID().String(), c.Author().String(), int64(c.StaleThreshold()), c.LastActivity().Format(time.RFC3339Nano)},
+	err := sqlitex.Execute(r.conn, `INSERT OR REPLACE INTO claims (claim_id, issue_id, author, stale_threshold, last_activity) VALUES (?, ?, ?, ?, ?)`, &sqlitex.ExecOptions{
+		Args: []any{c.ID(), c.IssueID().String(), c.Author().String(), int64(c.StaleThreshold()), c.LastActivity().Format(time.RFC3339Nano)},
 	})
 	if err != nil {
 		return &domain.DatabaseError{Op: "create claim", Err: err}
@@ -729,12 +743,12 @@ func (r *claimRepo) CreateClaim(_ context.Context, c claim.Claim) error {
 	return nil
 }
 
-func (r *claimRepo) GetClaimByTicket(_ context.Context, ticketID ticket.ID) (claim.Claim, error) {
-	return r.scanClaim(`SELECT claim_id, ticket_id, author, stale_threshold, last_activity FROM claims WHERE ticket_id = ?`, ticketID.String())
+func (r *claimRepo) GetClaimByIssue(_ context.Context, issueID issue.ID) (claim.Claim, error) {
+	return r.scanClaim(`SELECT claim_id, issue_id, author, stale_threshold, last_activity FROM claims WHERE issue_id = ?`, issueID.String())
 }
 
 func (r *claimRepo) GetClaimByID(_ context.Context, claimID string) (claim.Claim, error) {
-	return r.scanClaim(`SELECT claim_id, ticket_id, author, stale_threshold, last_activity FROM claims WHERE claim_id = ?`, claimID)
+	return r.scanClaim(`SELECT claim_id, issue_id, author, stale_threshold, last_activity FROM claims WHERE claim_id = ?`, claimID)
 }
 
 func (r *claimRepo) InvalidateClaim(_ context.Context, claimID string) error {
@@ -772,9 +786,9 @@ func (r *claimRepo) UpdateClaimThreshold(_ context.Context, claimID string, thre
 
 func (r *claimRepo) ListStaleClaims(_ context.Context, now time.Time) ([]claim.Claim, error) {
 	var stale []claim.Claim
-	err := sqlitex.Execute(r.conn, `SELECT claim_id, ticket_id, author, stale_threshold, last_activity FROM claims`, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, `SELECT claim_id, issue_id, author, stale_threshold, last_activity FROM claims`, &sqlitex.ExecOptions{
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			tid, _ := ticket.ParseID(stmt.ColumnText(1))
+			tid, _ := issue.ParseID(stmt.ColumnText(1))
 			author, _ := identity.NewAuthor(stmt.ColumnText(2))
 			lastAct, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(4))
 			c := claim.ReconstructClaim(stmt.ColumnText(0), tid, author, time.Duration(stmt.ColumnInt64(3)), lastAct)
@@ -798,7 +812,7 @@ func (r *claimRepo) scanClaim(query string, args ...any) (claim.Claim, error) {
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			found = true
-			tid, _ := ticket.ParseID(stmt.ColumnText(1))
+			tid, _ := issue.ParseID(stmt.ColumnText(1))
 			author, _ := identity.NewAuthor(stmt.ColumnText(2))
 			lastAct, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(4))
 			result = claim.ReconstructClaim(stmt.ColumnText(0), tid, author, time.Duration(stmt.ColumnInt64(3)), lastAct)
@@ -818,7 +832,7 @@ func (r *claimRepo) scanClaim(query string, args ...any) (claim.Claim, error) {
 
 type relRepo struct{ conn *sqlite.Conn }
 
-func (r *relRepo) CreateRelationship(_ context.Context, rel ticket.Relationship) (bool, error) {
+func (r *relRepo) CreateRelationship(_ context.Context, rel issue.Relationship) (bool, error) {
 	err := sqlitex.Execute(r.conn, `INSERT OR IGNORE INTO relationships (source_id, target_id, rel_type) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 		Args: []any{rel.SourceID().String(), rel.TargetID().String(), rel.Type().String()},
 	})
@@ -828,7 +842,7 @@ func (r *relRepo) CreateRelationship(_ context.Context, rel ticket.Relationship)
 	return r.conn.Changes() > 0, nil
 }
 
-func (r *relRepo) DeleteRelationship(_ context.Context, sourceID, targetID ticket.ID, relType ticket.RelationType) (bool, error) {
+func (r *relRepo) DeleteRelationship(_ context.Context, sourceID, targetID issue.ID, relType issue.RelationType) (bool, error) {
 	err := sqlitex.Execute(r.conn, `DELETE FROM relationships WHERE source_id = ? AND target_id = ? AND rel_type = ?`, &sqlitex.ExecOptions{
 		Args: []any{sourceID.String(), targetID.String(), relType.String()},
 	})
@@ -838,15 +852,15 @@ func (r *relRepo) DeleteRelationship(_ context.Context, sourceID, targetID ticke
 	return r.conn.Changes() > 0, nil
 }
 
-func (r *relRepo) ListRelationships(_ context.Context, ticketID ticket.ID) ([]ticket.Relationship, error) {
-	var rels []ticket.Relationship
+func (r *relRepo) ListRelationships(_ context.Context, issueID issue.ID) ([]issue.Relationship, error) {
+	var rels []issue.Relationship
 	err := sqlitex.Execute(r.conn, `SELECT source_id, target_id, rel_type FROM relationships WHERE source_id = ? OR target_id = ?`, &sqlitex.ExecOptions{
-		Args: []any{ticketID.String(), ticketID.String()},
+		Args: []any{issueID.String(), issueID.String()},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			src, _ := ticket.ParseID(stmt.ColumnText(0))
-			tgt, _ := ticket.ParseID(stmt.ColumnText(1))
-			rt, _ := ticket.ParseRelationType(stmt.ColumnText(2))
-			rel, _ := ticket.NewRelationship(src, tgt, rt)
+			src, _ := issue.ParseID(stmt.ColumnText(0))
+			tgt, _ := issue.ParseID(stmt.ColumnText(1))
+			rt, _ := issue.ParseRelationType(stmt.ColumnText(2))
+			rel, _ := issue.NewRelationship(src, tgt, rt)
 			rels = append(rels, rel)
 			return nil
 		},
@@ -857,25 +871,25 @@ func (r *relRepo) ListRelationships(_ context.Context, ticketID ticket.ID) ([]ti
 	return rels, nil
 }
 
-func (r *relRepo) GetBlockerStatuses(_ context.Context, ticketID ticket.ID) ([]ticket.BlockerStatus, error) {
-	var statuses []ticket.BlockerStatus
+func (r *relRepo) GetBlockerStatuses(_ context.Context, issueID issue.ID) ([]issue.BlockerStatus, error) {
+	var statuses []issue.BlockerStatus
 	err := sqlitex.Execute(r.conn,
-		`SELECT t.state, t.deleted, t.role, t.ticket_id FROM relationships r JOIN tickets t ON r.target_id = t.ticket_id WHERE r.source_id = ? AND r.rel_type = 'blocked_by'`,
+		`SELECT t.state, t.deleted, t.role, t.issue_id FROM relationships r JOIN issues t ON r.target_id = t.issue_id WHERE r.source_id = ? AND r.rel_type = 'blocked_by'`,
 		&sqlitex.ExecOptions{
-			Args: []any{ticketID.String()},
+			Args: []any{issueID.String()},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
-				state, _ := ticket.ParseState(stmt.ColumnText(0))
+				state, _ := issue.ParseState(stmt.ColumnText(0))
 				deleted := stmt.ColumnInt(1) != 0
-				role, _ := ticket.ParseRole(stmt.ColumnText(2))
+				role, _ := issue.ParseRole(stmt.ColumnText(2))
 				targetID := stmt.ColumnText(3)
 
 				isComplete := false
-				if role == ticket.RoleEpic {
+				if role == issue.RoleEpic {
 					isComplete = r.isEpicComplete(targetID)
 				}
 
-				statuses = append(statuses, ticket.BlockerStatus{
-					IsClosed:   state == ticket.StateClosed,
+				statuses = append(statuses, issue.BlockerStatus{
+					IsClosed:   state == issue.StateClosed,
 					IsDeleted:  deleted,
 					IsComplete: isComplete,
 				})
@@ -893,19 +907,19 @@ func (r *relRepo) GetBlockerStatuses(_ context.Context, ticketID ticket.ID) ([]t
 // (sub-epics).
 func (r *relRepo) isEpicComplete(epicID string) bool {
 	type child struct {
-		role  ticket.Role
-		state ticket.State
+		role  issue.Role
+		state issue.State
 		id    string
 	}
 
 	var children []child
 	_ = sqlitex.Execute(r.conn,
-		`SELECT role, state, ticket_id FROM tickets WHERE parent_id = ? AND deleted = 0`,
+		`SELECT role, state, issue_id FROM issues WHERE parent_id = ? AND deleted = 0`,
 		&sqlitex.ExecOptions{
 			Args: []any{epicID},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
-				role, _ := ticket.ParseRole(stmt.ColumnText(0))
-				state, _ := ticket.ParseState(stmt.ColumnText(1))
+				role, _ := issue.ParseRole(stmt.ColumnText(0))
+				state, _ := issue.ParseState(stmt.ColumnText(1))
 				children = append(children, child{role: role, state: state, id: stmt.ColumnText(2)})
 				return nil
 			},
@@ -917,11 +931,11 @@ func (r *relRepo) isEpicComplete(epicID string) bool {
 
 	for _, c := range children {
 		switch c.role {
-		case ticket.RoleTask:
-			if c.state != ticket.StateClosed {
+		case issue.RoleTask:
+			if c.state != issue.StateClosed {
 				return false
 			}
-		case ticket.RoleEpic:
+		case issue.RoleEpic:
 			if !r.isEpicComplete(c.id) {
 				return false
 			}
@@ -938,10 +952,10 @@ func (r *histRepo) AppendHistory(_ context.Context, entry history.Entry) (int64,
 	changesJSON, _ := json.Marshal(entry.Changes())
 
 	err := sqlitex.Execute(r.conn,
-		`INSERT INTO history (ticket_id, revision, author, timestamp, event_type, changes) VALUES (?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO history (issue_id, revision, author, timestamp, event_type, changes) VALUES (?, ?, ?, ?, ?, ?)`,
 		&sqlitex.ExecOptions{
 			Args: []any{
-				entry.TicketID().String(), entry.Revision(), entry.Author().String(),
+				entry.IssueID().String(), entry.Revision(), entry.Author().String(),
 				entry.Timestamp().Format(time.RFC3339Nano), entry.EventType().String(), string(changesJSON),
 			},
 		})
@@ -951,11 +965,11 @@ func (r *histRepo) AppendHistory(_ context.Context, entry history.Entry) (int64,
 	return r.conn.LastInsertRowID(), nil
 }
 
-func (r *histRepo) ListHistory(_ context.Context, ticketID ticket.ID, filter port.HistoryFilter, page port.PageRequest) ([]history.Entry, port.PageResult, error) {
+func (r *histRepo) ListHistory(_ context.Context, issueID issue.ID, filter port.HistoryFilter, page port.PageRequest) ([]history.Entry, port.PageResult, error) {
 	page = page.Normalize()
 
-	where := `WHERE ticket_id = ?`
-	args := []any{ticketID.String()}
+	where := `WHERE issue_id = ?`
+	args := []any{issueID.String()}
 
 	if !filter.Author.IsZero() {
 		where += ` AND author = ?`
@@ -975,14 +989,14 @@ func (r *histRepo) ListHistory(_ context.Context, ticketID ticket.ID, filter por
 		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count history", Err: err}
 	}
 
-	query := `SELECT entry_id, ticket_id, revision, author, timestamp, event_type, changes FROM history ` + where + ` ORDER BY revision LIMIT ?`
+	query := `SELECT entry_id, issue_id, revision, author, timestamp, event_type, changes FROM history ` + where + ` ORDER BY revision LIMIT ?`
 	args = append(args, page.PageSize)
 
 	var entries []history.Entry
 	err = sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			tid, _ := ticket.ParseID(stmt.ColumnText(1))
+			tid, _ := issue.ParseID(stmt.ColumnText(1))
 			author, _ := identity.NewAuthor(stmt.ColumnText(3))
 			ts, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(4))
 			eventType, _ := history.ParseEventType(stmt.ColumnText(5))
@@ -991,7 +1005,7 @@ func (r *histRepo) ListHistory(_ context.Context, ticketID ticket.ID, filter por
 			_ = json.Unmarshal([]byte(stmt.ColumnText(6)), &changes)
 
 			entries = append(entries, history.NewEntry(history.NewEntryParams{
-				ID: stmt.ColumnInt64(0), TicketID: tid, Revision: stmt.ColumnInt(2), Author: author,
+				ID: stmt.ColumnInt64(0), IssueID: tid, Revision: stmt.ColumnInt(2), Author: author,
 				Timestamp: ts, EventType: eventType, Changes: changes,
 			}))
 			return nil
@@ -1004,25 +1018,25 @@ func (r *histRepo) ListHistory(_ context.Context, ticketID ticket.ID, filter por
 	return entries, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *histRepo) CountHistory(_ context.Context, ticketID ticket.ID) (int, error) {
-	count, err := queryInt(r.conn, `SELECT COUNT(*) FROM history WHERE ticket_id = ?`, ticketID.String())
+func (r *histRepo) CountHistory(_ context.Context, issueID issue.ID) (int, error) {
+	count, err := queryInt(r.conn, `SELECT COUNT(*) FROM history WHERE issue_id = ?`, issueID.String())
 	if err != nil {
 		return 0, &domain.DatabaseError{Op: "count history", Err: err}
 	}
 	return count, nil
 }
 
-func (r *histRepo) GetLatestHistory(_ context.Context, ticketID ticket.ID) (history.Entry, error) {
+func (r *histRepo) GetLatestHistory(_ context.Context, issueID issue.ID) (history.Entry, error) {
 	var result history.Entry
 	var found bool
 
 	err := sqlitex.Execute(r.conn,
-		`SELECT entry_id, ticket_id, revision, author, timestamp, event_type, changes FROM history WHERE ticket_id = ? ORDER BY revision DESC LIMIT 1`,
+		`SELECT entry_id, issue_id, revision, author, timestamp, event_type, changes FROM history WHERE issue_id = ? ORDER BY revision DESC LIMIT 1`,
 		&sqlitex.ExecOptions{
-			Args: []any{ticketID.String()},
+			Args: []any{issueID.String()},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
 				found = true
-				tid, _ := ticket.ParseID(stmt.ColumnText(1))
+				tid, _ := issue.ParseID(stmt.ColumnText(1))
 				author, _ := identity.NewAuthor(stmt.ColumnText(3))
 				ts, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(4))
 				eventType, _ := history.ParseEventType(stmt.ColumnText(5))
@@ -1031,7 +1045,7 @@ func (r *histRepo) GetLatestHistory(_ context.Context, ticketID ticket.ID) (hist
 				_ = json.Unmarshal([]byte(stmt.ColumnText(6)), &changes)
 
 				result = history.NewEntry(history.NewEntryParams{
-					ID: stmt.ColumnInt64(0), TicketID: tid, Revision: stmt.ColumnInt(2), Author: author,
+					ID: stmt.ColumnInt64(0), IssueID: tid, Revision: stmt.ColumnInt(2), Author: author,
 					Timestamp: ts, EventType: eventType, Changes: changes,
 				})
 				return nil
@@ -1048,10 +1062,10 @@ func (r *histRepo) GetLatestHistory(_ context.Context, ticketID ticket.ID) (hist
 
 // --- Helper functions ---
 
-// scanTicketRow executes a query expected to return a single ticket row and
-// scans it into a domain Ticket.
-func scanTicketRow(conn *sqlite.Conn, query string, args ...any) (ticket.Ticket, error) {
-	var t ticket.Ticket
+// scanIssueRow executes a query expected to return a single issue row and
+// scans it into a domain Issue.
+func scanIssueRow(conn *sqlite.Conn, query string, args ...any) (issue.Issue, error) {
+	var t issue.Issue
 	var found bool
 
 	err := sqlitex.Execute(conn, query, &sqlitex.ExecOptions{
@@ -1077,27 +1091,27 @@ func scanTicketRow(conn *sqlite.Conn, query string, args ...any) (ticket.Ticket,
 			}
 			deleted := stmt.ColumnInt(10)
 
-			id, _ := ticket.ParseID(idStr)
-			priority, _ := ticket.ParsePriority(priorityStr)
-			state, _ := ticket.ParseState(stateStr)
+			id, _ := issue.ParseID(idStr)
+			priority, _ := issue.ParsePriority(priorityStr)
+			state, _ := issue.ParseState(stateStr)
 			createdAt, _ := time.Parse(time.RFC3339Nano, createdAtStr)
 
-			var pid ticket.ID
+			var pid issue.ID
 			if parentIDStr != "" {
-				pid, _ = ticket.ParseID(parentIDStr)
+				pid, _ = issue.ParseID(parentIDStr)
 			}
 
-			role, _ := ticket.ParseRole(roleStr)
+			role, _ := issue.ParseRole(roleStr)
 
 			switch role {
-			case ticket.RoleTask:
-				t, _ = ticket.NewTask(ticket.NewTaskParams{
+			case issue.RoleTask:
+				t, _ = issue.NewTask(issue.NewTaskParams{
 					ID: id, Title: title, Description: desc, AcceptanceCriteria: ac,
 					Priority: priority, ParentID: pid, CreatedAt: createdAt,
 					IdempotencyKey: idemKey,
 				})
-			case ticket.RoleEpic:
-				t, _ = ticket.NewEpic(ticket.NewEpicParams{
+			case issue.RoleEpic:
+				t, _ = issue.NewEpic(issue.NewEpicParams{
 					ID: id, Title: title, Description: desc, AcceptanceCriteria: ac,
 					Priority: priority, ParentID: pid, CreatedAt: createdAt,
 					IdempotencyKey: idemKey,
@@ -1113,10 +1127,10 @@ func scanTicketRow(conn *sqlite.Conn, query string, args ...any) (ticket.Ticket,
 		},
 	})
 	if err != nil {
-		return ticket.Ticket{}, err
+		return issue.Issue{}, err
 	}
 	if !found {
-		return ticket.Ticket{}, errNotFound
+		return issue.Issue{}, errNotFound
 	}
 	return t, nil
 }
@@ -1144,10 +1158,10 @@ func queryInt(conn *sqlite.Conn, query string, args ...any) (int, error) {
 	return val, err
 }
 
-// nullable converts a ticket.ID to a value suitable for SQL binding. Returns
+// nullable converts an issue.ID to a value suitable for SQL binding. Returns
 // nil (which binds as NULL) for zero IDs, or the string representation
 // otherwise.
-func nullable(id ticket.ID) any {
+func nullable(id issue.ID) any {
 	if id.IsZero() {
 		return nil
 	}
@@ -1169,7 +1183,7 @@ func isNotFound(err error) bool {
 	return err == errNotFound
 }
 
-func buildTicketWhere(filter port.TicketFilter) (string, []any) {
+func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 	conditions := []string{"1=1"}
 	var args []any
 
@@ -1202,11 +1216,11 @@ func buildTicketWhere(filter port.TicketFilter) (string, []any) {
 
 	if !filter.DescendantsOf.IsZero() {
 		// Recursive CTE walks the parent_id chain to find all descendants.
-		conditions = append(conditions, `t.ticket_id IN (
+		conditions = append(conditions, `t.issue_id IN (
 			WITH RECURSIVE desc(tid) AS (
-				SELECT ticket_id FROM tickets WHERE parent_id = ?
+				SELECT issue_id FROM issues WHERE parent_id = ?
 				UNION ALL
-				SELECT c.ticket_id FROM tickets c JOIN desc d ON c.parent_id = d.tid
+				SELECT c.issue_id FROM issues c JOIN desc d ON c.parent_id = d.tid
 			)
 			SELECT tid FROM desc
 		)`)
@@ -1215,11 +1229,11 @@ func buildTicketWhere(filter port.TicketFilter) (string, []any) {
 
 	if !filter.AncestorsOf.IsZero() {
 		// Recursive CTE walks up the parent chain to find all ancestors.
-		conditions = append(conditions, `t.ticket_id IN (
+		conditions = append(conditions, `t.issue_id IN (
 			WITH RECURSIVE anc(aid) AS (
-				SELECT parent_id FROM tickets WHERE ticket_id = ?
+				SELECT parent_id FROM issues WHERE issue_id = ?
 				UNION ALL
-				SELECT p.parent_id FROM tickets p JOIN anc a ON p.ticket_id = a.aid WHERE p.parent_id IS NOT NULL
+				SELECT p.parent_id FROM issues p JOIN anc a ON p.issue_id = a.aid WHERE p.parent_id IS NOT NULL
 			)
 			SELECT aid FROM anc WHERE aid IS NOT NULL
 		)`)
@@ -1229,17 +1243,17 @@ func buildTicketWhere(filter port.TicketFilter) (string, []any) {
 	for _, ff := range filter.FacetFilters {
 		if ff.Negate {
 			if ff.Value == "" {
-				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM facets f WHERE f.ticket_id = t.ticket_id AND f.key = ?)`)
+				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM facets f WHERE f.issue_id = t.issue_id AND f.key = ?)`)
 			} else {
-				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM facets f WHERE f.ticket_id = t.ticket_id AND f.key = ? AND f.value = ?)`)
+				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM facets f WHERE f.issue_id = t.issue_id AND f.key = ? AND f.value = ?)`)
 				args = append(args, ff.Key, ff.Value)
 				continue
 			}
 		} else {
 			if ff.Value == "" {
-				conditions = append(conditions, `EXISTS (SELECT 1 FROM facets f WHERE f.ticket_id = t.ticket_id AND f.key = ?)`)
+				conditions = append(conditions, `EXISTS (SELECT 1 FROM facets f WHERE f.issue_id = t.issue_id AND f.key = ?)`)
 			} else {
-				conditions = append(conditions, `EXISTS (SELECT 1 FROM facets f WHERE f.ticket_id = t.ticket_id AND f.key = ? AND f.value = ?)`)
+				conditions = append(conditions, `EXISTS (SELECT 1 FROM facets f WHERE f.issue_id = t.issue_id AND f.key = ? AND f.value = ?)`)
 				args = append(args, ff.Key, ff.Value)
 				continue
 			}
@@ -1256,27 +1270,27 @@ func buildTicketWhere(filter port.TicketFilter) (string, []any) {
 
 		// Epics with children are already decomposed — not ready.
 		conditions = append(conditions, `(t.role = 'task' OR NOT EXISTS (
-			SELECT 1 FROM tickets c WHERE c.parent_id = t.ticket_id AND c.deleted = 0
+			SELECT 1 FROM issues c WHERE c.parent_id = t.issue_id AND c.deleted = 0
 		))`)
 
 		// No unresolved blocked_by relationships. A blocker is resolved if its
-		// target ticket is closed, deleted, or a complete epic (all non-deleted
+		// target issue is closed, deleted, or a complete epic (all non-deleted
 		// children closed; checked one level deep — sufficient because the
 		// readiness filter runs on list queries where deep nesting is rare,
-		// and the per-ticket GetBlockerStatuses path handles full recursion).
+		// and the per-issue GetBlockerStatuses path handles full recursion).
 		conditions = append(conditions, `NOT EXISTS (
 			SELECT 1 FROM relationships r
-			JOIN tickets bt ON r.target_id = bt.ticket_id
-			WHERE r.source_id = t.ticket_id
+			JOIN issues bt ON r.target_id = bt.issue_id
+			WHERE r.source_id = t.issue_id
 			  AND r.rel_type = 'blocked_by'
 			  AND bt.deleted = 0
 			  AND bt.state != 'closed'
 			  AND NOT (
 			    bt.role = 'epic'
-			    AND EXISTS (SELECT 1 FROM tickets ec WHERE ec.parent_id = bt.ticket_id AND ec.deleted = 0)
+			    AND EXISTS (SELECT 1 FROM issues ec WHERE ec.parent_id = bt.issue_id AND ec.deleted = 0)
 			    AND NOT EXISTS (
-			      SELECT 1 FROM tickets ec
-			      WHERE ec.parent_id = bt.ticket_id
+			      SELECT 1 FROM issues ec
+			      WHERE ec.parent_id = bt.issue_id
 			        AND ec.deleted = 0
 			        AND ec.state != 'closed'
 			    )
@@ -1284,15 +1298,15 @@ func buildTicketWhere(filter port.TicketFilter) (string, []any) {
 		)`)
 
 		// No ancestor epic is deferred or waiting. Walk the parent chain with
-		// a recursive CTE and reject tickets that have any such ancestor.
+		// a recursive CTE and reject issues that have any such ancestor.
 		conditions = append(conditions, `NOT EXISTS (
 			WITH RECURSIVE ancestors(aid) AS (
 				SELECT t.parent_id
 				UNION ALL
-				SELECT p.parent_id FROM tickets p JOIN ancestors a ON p.ticket_id = a.aid WHERE p.parent_id IS NOT NULL
+				SELECT p.parent_id FROM issues p JOIN ancestors a ON p.issue_id = a.aid WHERE p.parent_id IS NOT NULL
 			)
 			SELECT 1 FROM ancestors a
-			JOIN tickets anc ON anc.ticket_id = a.aid
+			JOIN issues anc ON anc.issue_id = a.aid
 			WHERE anc.state IN ('deferred', 'waiting')
 		)`)
 	}
@@ -1300,7 +1314,7 @@ func buildTicketWhere(filter port.TicketFilter) (string, []any) {
 	return "WHERE " + strings.Join(conditions, " AND "), args
 }
 
-func ticketOrderClause(orderBy port.TicketOrderBy) string {
+func issueOrderClause(orderBy port.IssueOrderBy) string {
 	switch orderBy {
 	case port.OrderByPriority:
 		return " ORDER BY t.priority, t.created_at"

@@ -1,4 +1,4 @@
-// Package graph renders ticket hierarchies and relationships as Graphviz DOT
+// Package graph renders issue hierarchies and relationships as Graphviz DOT
 // format text. The renderer is a pure function with no external dependencies —
 // it accepts structured input and returns a DOT string.
 package graph
@@ -7,34 +7,34 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
-// Node represents a ticket in the graph with the minimum attributes needed
+// Node represents an issue in the graph with the minimum attributes needed
 // for rendering.
 type Node struct {
-	ID       ticket.ID
-	Role     ticket.Role
-	State    ticket.State
+	ID       issue.ID
+	Role     issue.Role
+	State    issue.State
 	Title    string
-	ParentID ticket.ID
+	ParentID issue.ID
 }
 
-// Edge represents a relationship between two tickets in the graph.
+// Edge represents a relationship between two issues in the graph.
 type Edge struct {
-	SourceID ticket.ID
-	TargetID ticket.ID
-	Type     ticket.RelationType
+	SourceID issue.ID
+	TargetID issue.ID
+	Type     issue.RelationType
 }
 
-// stateColors maps ticket states to Graphviz fill colors.
-var stateColors = map[ticket.State]string{
-	ticket.StateOpen:     "white",
-	ticket.StateActive:   "lightblue",
-	ticket.StateClaimed:  "yellow",
-	ticket.StateClosed:   "gray",
-	ticket.StateDeferred: "lightyellow",
-	ticket.StateWaiting:  "orange",
+// stateColors maps issue states to Graphviz fill colors.
+var stateColors = map[issue.State]string{
+	issue.StateOpen:     "white",
+	issue.StateActive:   "lightblue",
+	issue.StateClaimed:  "yellow",
+	issue.StateClosed:   "gray",
+	issue.StateDeferred: "lightyellow",
+	issue.StateWaiting:  "orange",
 }
 
 // RenderDOT generates a Graphviz DOT string from the given nodes and edges.
@@ -44,7 +44,7 @@ var stateColors = map[ticket.State]string{
 func RenderDOT(nodes []Node, edges []Edge) string {
 	var b strings.Builder
 
-	b.WriteString("digraph tickets {\n")
+	b.WriteString("digraph issues {\n")
 	b.WriteString("  rankdir=TB;\n")
 	b.WriteString("  node [shape=box, style=filled, fontname=\"Helvetica\"];\n\n")
 
@@ -104,10 +104,10 @@ func RenderDOT(nodes []Node, edges []Edge) string {
 	// Render relationship edges.
 	for _, e := range edges {
 		switch e.Type {
-		case ticket.RelBlockedBy:
+		case issue.RelBlockedBy:
 			fmt.Fprintf(&b, "  %q -> %q [style=dashed, color=red, label=\"blocked_by\"];\n",
 				e.SourceID.String(), e.TargetID.String())
-		case ticket.RelCites:
+		case issue.RelCites:
 			fmt.Fprintf(&b, "  %q -> %q [style=dotted, color=gray, label=\"cites\"];\n",
 				e.SourceID.String(), e.TargetID.String())
 		}

@@ -1,4 +1,4 @@
-package ticket_test
+package issue_test
 
 import (
 	"errors"
@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
-func mustID(t *testing.T) ticket.ID {
+func mustID(t *testing.T) issue.ID {
 	t.Helper()
-	id, err := ticket.GenerateID("NP", nil)
+	id, err := issue.GenerateID("NP", nil)
 	if err != nil {
 		t.Fatalf("failed to generate ID: %v", err)
 	}
@@ -26,7 +26,7 @@ func TestNewTask_ValidParams_Succeeds(t *testing.T) {
 	now := time.Now()
 
 	// When
-	tk, err := ticket.NewTask(ticket.NewTaskParams{
+	tk, err := issue.NewTask(issue.NewTaskParams{
 		ID:        id,
 		Title:     "Fix login bug",
 		CreatedAt: now,
@@ -38,16 +38,16 @@ func TestNewTask_ValidParams_Succeeds(t *testing.T) {
 	if tk.ID() != id {
 		t.Errorf("expected ID %s, got %s", id, tk.ID())
 	}
-	if tk.Role() != ticket.RoleTask {
+	if tk.Role() != issue.RoleTask {
 		t.Errorf("expected task role, got %s", tk.Role())
 	}
 	if tk.Title() != "Fix login bug" {
 		t.Errorf("expected title, got %q", tk.Title())
 	}
-	if tk.State() != ticket.StateOpen {
+	if tk.State() != issue.StateOpen {
 		t.Errorf("expected open state, got %s", tk.State())
 	}
-	if tk.Priority() != ticket.P2 {
+	if tk.Priority() != issue.P2 {
 		t.Errorf("expected default P2, got %s", tk.Priority())
 	}
 	if !tk.IsTask() {
@@ -65,22 +65,22 @@ func TestNewEpic_ValidParams_Succeeds(t *testing.T) {
 	id := mustID(t)
 
 	// When
-	tk, err := ticket.NewEpic(ticket.NewEpicParams{
+	tk, err := issue.NewEpic(issue.NewEpicParams{
 		ID:       id,
 		Title:    "Auth overhaul",
-		Priority: ticket.P1,
+		Priority: issue.P1,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if tk.Role() != ticket.RoleEpic {
+	if tk.Role() != issue.RoleEpic {
 		t.Errorf("expected epic role, got %s", tk.Role())
 	}
-	if tk.State() != ticket.StateActive {
+	if tk.State() != issue.StateActive {
 		t.Errorf("expected active state, got %s", tk.State())
 	}
-	if tk.Priority() != ticket.P1 {
+	if tk.Priority() != issue.P1 {
 		t.Errorf("expected P1, got %s", tk.Priority())
 	}
 	if !tk.IsEpic() {
@@ -92,7 +92,7 @@ func TestNewTask_EmptyTitle_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := ticket.NewTask(ticket.NewTaskParams{
+	_, err := issue.NewTask(issue.NewTaskParams{
 		ID:    mustID(t),
 		Title: "",
 	})
@@ -110,7 +110,7 @@ func TestNewTask_NonAlphanumericTitle_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := ticket.NewTask(ticket.NewTaskParams{
+	_, err := issue.NewTask(issue.NewTaskParams{
 		ID:    mustID(t),
 		Title: "---",
 	})
@@ -125,7 +125,7 @@ func TestNewTask_ZeroID_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := ticket.NewTask(ticket.NewTaskParams{
+	_, err := issue.NewTask(issue.NewTaskParams{
 		Title: "Valid title",
 	})
 
@@ -142,16 +142,16 @@ func TestNewTask_ExplicitP0_PreservesP0(t *testing.T) {
 	id := mustID(t)
 
 	// When
-	tk, err := ticket.NewTask(ticket.NewTaskParams{
+	tk, err := issue.NewTask(issue.NewTaskParams{
 		ID:       id,
 		Title:    "Critical security fix",
-		Priority: ticket.P0,
+		Priority: issue.P0,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if tk.Priority() != ticket.P0 {
+	if tk.Priority() != issue.P0 {
 		t.Errorf("expected P0, got %s", tk.Priority())
 	}
 }
@@ -163,25 +163,25 @@ func TestNewEpic_ExplicitP0_PreservesP0(t *testing.T) {
 	id := mustID(t)
 
 	// When
-	tk, err := ticket.NewEpic(ticket.NewEpicParams{
+	tk, err := issue.NewEpic(issue.NewEpicParams{
 		ID:       id,
 		Title:    "Critical epic",
-		Priority: ticket.P0,
+		Priority: issue.P0,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if tk.Priority() != ticket.P0 {
+	if tk.Priority() != issue.P0 {
 		t.Errorf("expected P0, got %s", tk.Priority())
 	}
 }
 
-func TestTicket_WithTitle_ReturnsNewTicket(t *testing.T) {
+func TestIssue_WithTitle_ReturnsNewIssue(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	original, _ := ticket.NewTask(ticket.NewTaskParams{
+	original, _ := issue.NewTask(issue.NewTaskParams{
 		ID:    mustID(t),
 		Title: "Original",
 	})
@@ -200,32 +200,32 @@ func TestTicket_WithTitle_ReturnsNewTicket(t *testing.T) {
 	}
 }
 
-func TestTicket_WithPriority_ReturnsNewTicket(t *testing.T) {
+func TestIssue_WithPriority_ReturnsNewIssue(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	original, _ := ticket.NewTask(ticket.NewTaskParams{
+	original, _ := issue.NewTask(issue.NewTaskParams{
 		ID:    mustID(t),
 		Title: "Task",
 	})
 
 	// When
-	updated := original.WithPriority(ticket.P0)
+	updated := original.WithPriority(issue.P0)
 
 	// Then
-	if updated.Priority() != ticket.P0 {
+	if updated.Priority() != issue.P0 {
 		t.Errorf("expected P0, got %s", updated.Priority())
 	}
-	if original.Priority() != ticket.P2 {
+	if original.Priority() != issue.P2 {
 		t.Error("expected original unchanged")
 	}
 }
 
-func TestTicket_WithDeleted_MarksAsDeleted(t *testing.T) {
+func TestIssue_WithDeleted_MarksAsDeleted(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	tk, _ := ticket.NewTask(ticket.NewTaskParams{
+	tk, _ := issue.NewTask(issue.NewTaskParams{
 		ID:    mustID(t),
 		Title: "Task",
 	})
@@ -242,32 +242,32 @@ func TestTicket_WithDeleted_MarksAsDeleted(t *testing.T) {
 	}
 }
 
-func TestTicket_WithState_ReturnsNewTicket(t *testing.T) {
+func TestIssue_WithState_ReturnsNewIssue(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	tk, _ := ticket.NewTask(ticket.NewTaskParams{
+	tk, _ := issue.NewTask(issue.NewTaskParams{
 		ID:    mustID(t),
 		Title: "Task",
 	})
 
 	// When
-	claimed := tk.WithState(ticket.StateClaimed)
+	claimed := tk.WithState(issue.StateClaimed)
 
 	// Then
-	if claimed.State() != ticket.StateClaimed {
+	if claimed.State() != issue.StateClaimed {
 		t.Errorf("expected claimed, got %s", claimed.State())
 	}
-	if tk.State() != ticket.StateOpen {
+	if tk.State() != issue.StateOpen {
 		t.Error("expected original unchanged")
 	}
 }
 
-func TestTicket_WithParentID_SetsAndClears(t *testing.T) {
+func TestIssue_WithParentID_SetsAndClears(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	tk, _ := ticket.NewTask(ticket.NewTaskParams{
+	tk, _ := issue.NewTask(issue.NewTaskParams{
 		ID:    mustID(t),
 		Title: "Task",
 	})
@@ -282,7 +282,7 @@ func TestTicket_WithParentID_SetsAndClears(t *testing.T) {
 	}
 
 	// When — clear parent
-	var zeroID ticket.ID
+	var zeroID issue.ID
 	withoutParent := withParent.WithParentID(zeroID)
 
 	// Then

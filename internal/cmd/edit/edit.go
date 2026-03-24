@@ -10,17 +10,17 @@ import (
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 // editOutput is the JSON representation of the edit command result.
 type editOutput struct {
-	TicketID string `json:"ticket_id"`
-	Updated  bool   `json:"updated"`
+	IssueID string `json:"issue_id"`
+	Updated bool   `json:"updated"`
 }
 
 // NewCmd constructs the "edit" command, which performs an atomic
-// claim-update-release on a ticket without requiring a separate claim step.
+// claim-update-release on an issue without requiring a separate claim step.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput         bool
@@ -34,8 +34,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "edit",
-		Usage:     "Atomically claim, update, and release a ticket",
-		ArgsUsage: "<TICKET-ID>",
+		Usage:     "Atomically claim, update, and release an issue",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -90,7 +90,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
 			if rawID == "" {
-				return cmdutil.FlagErrorf("ticket ID argument is required")
+				return cmdutil.FlagErrorf("issue ID argument is required")
 			}
 
 			parsedAuthor, err := identity.NewAuthor(author)
@@ -104,13 +104,13 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			ticketID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
 			input := service.OneShotUpdateInput{
-				TicketID:    ticketID,
+				IssueID:     issueID,
 				Author:      parsedAuthor,
 				FacetRemove: cmd.StringSlice("facet-remove"),
 			}
@@ -126,7 +126,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				input.AcceptanceCriteria = &acceptanceCriteria
 			}
 			if cmd.IsSet("priority") {
-				p, err := ticket.ParsePriority(priority)
+				p, err := issue.ParsePriority(priority)
 				if err != nil {
 					return cmdutil.FlagErrorf("%s", err)
 				}
@@ -134,7 +134,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			if cmd.IsSet("parent") {
 				if parent == "" {
-					zeroID := ticket.ID{}
+					zeroID := issue.ID{}
 					input.ParentID = &zeroID
 				} else {
 					pid, err := resolver.Resolve(ctx, parent)
@@ -152,26 +152,26 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				if !ok {
 					return cmdutil.FlagErrorf("invalid facet %q: must be in key:value format", s)
 				}
-				facet, err := ticket.NewFacet(key, value)
+				facet, err := issue.NewFacet(key, value)
 				if err != nil {
 					return cmdutil.FlagErrorf("invalid facet %q: %s", s, err)
 				}
 				input.FacetSet = append(input.FacetSet, facet)
 			}
 			if err := svc.OneShotUpdate(ctx, input); err != nil {
-				return fmt.Errorf("editing ticket: %w", err)
+				return fmt.Errorf("editing issue: %w", err)
 			}
 
 			if jsonOutput {
 				return cmdutil.WriteJSON(f.IOStreams.Out, editOutput{
-					TicketID: ticketID.String(),
-					Updated:  true,
+					IssueID: issueID.String(),
+					Updated: true,
 				})
 			}
 
 			cs := f.IOStreams.ColorScheme()
 			_, err = fmt.Fprintf(f.IOStreams.Out, "%s Edited %s\n",
-				cs.SuccessIcon(), cs.Bold(ticketID.String()))
+				cs.SuccessIcon(), cs.Bold(issueID.String()))
 			return err
 		},
 	}

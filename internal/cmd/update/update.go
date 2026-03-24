@@ -9,17 +9,17 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 // updateOutput is the JSON representation of the update command result.
 type updateOutput struct {
-	TicketID string `json:"ticket_id"`
-	Updated  bool   `json:"updated"`
+	IssueID string `json:"issue_id"`
+	Updated bool   `json:"updated"`
 }
 
 // NewCmd constructs the "update" command, which updates fields on a claimed
-// ticket. The caller must hold an active claim and provide its claim ID.
+// issue. The caller must hold an active claim and provide its claim ID.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput         bool
@@ -34,8 +34,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "update",
-		Usage:     "Atomically update one or more fields on a claimed ticket",
-		ArgsUsage: "<TICKET-ID>",
+		Usage:     "Atomically update one or more fields on a claimed issue",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -45,7 +45,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the ticket",
+				Usage:       "Active claim ID for the issue",
 				Required:    true,
 				Destination: &claimID,
 			},
@@ -87,14 +87,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:        "note",
-				Usage:       "Add a note to the ticket",
+				Usage:       "Add a note to the issue",
 				Destination: &noteBody,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
 			if rawID == "" {
-				return cmdutil.FlagErrorf("ticket ID argument is required")
+				return cmdutil.FlagErrorf("issue ID argument is required")
 			}
 
 			svc, err := cmdutil.NewTracker(f)
@@ -103,13 +103,13 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			ticketID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
-			input := service.UpdateTicketInput{
-				TicketID:    ticketID,
+			input := service.UpdateIssueInput{
+				IssueID:     issueID,
 				ClaimID:     claimID,
 				FacetRemove: cmd.StringSlice("facet-remove"),
 				NoteBody:    noteBody,
@@ -126,7 +126,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				input.AcceptanceCriteria = &acceptanceCriteria
 			}
 			if cmd.IsSet("priority") {
-				p, err := ticket.ParsePriority(priority)
+				p, err := issue.ParsePriority(priority)
 				if err != nil {
 					return cmdutil.FlagErrorf("%s", err)
 				}
@@ -134,7 +134,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			if cmd.IsSet("parent") {
 				if parent == "" {
-					zeroID := ticket.ID{}
+					zeroID := issue.ID{}
 					input.ParentID = &zeroID
 				} else {
 					pid, err := resolver.Resolve(ctx, parent)
@@ -152,26 +152,26 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				if !ok {
 					return cmdutil.FlagErrorf("invalid facet %q: must be in key:value format", s)
 				}
-				facet, err := ticket.NewFacet(key, value)
+				facet, err := issue.NewFacet(key, value)
 				if err != nil {
 					return cmdutil.FlagErrorf("invalid facet %q: %s", s, err)
 				}
 				input.FacetSet = append(input.FacetSet, facet)
 			}
-			if err := svc.UpdateTicket(ctx, input); err != nil {
-				return fmt.Errorf("updating ticket: %w", err)
+			if err := svc.UpdateIssue(ctx, input); err != nil {
+				return fmt.Errorf("updating issue: %w", err)
 			}
 
 			if jsonOutput {
 				return cmdutil.WriteJSON(f.IOStreams.Out, updateOutput{
-					TicketID: ticketID.String(),
-					Updated:  true,
+					IssueID: issueID.String(),
+					Updated: true,
 				})
 			}
 
 			cs := f.IOStreams.ColorScheme()
 			_, err = fmt.Fprintf(f.IOStreams.Out, "%s Updated %s\n",
-				cs.SuccessIcon(), cs.Bold(ticketID.String()))
+				cs.SuccessIcon(), cs.Bold(issueID.String()))
 			return err
 		},
 	}

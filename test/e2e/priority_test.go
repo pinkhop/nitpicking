@@ -32,16 +32,16 @@ func TestE2E_Priority_CreateAcceptsCaseInsensitiveAndBareNumber(t *testing.T) {
 				t.Fatalf("create with --priority %s failed (exit %d): %s", tc.input, code, stderr)
 			}
 
-			// Then — the ticket's priority is normalized to canonical form.
+			// Then — the issue's priority is normalized to canonical form.
 			result := parseJSON(t, stdout)
-			ticketID, ok := result["id"].(string)
-			if !ok || ticketID == "" {
+			issueID, ok := result["id"].(string)
+			if !ok || issueID == "" {
 				t.Fatalf("missing id in create response")
 			}
 
-			ticket := showTicket(t, dir, ticketID)
-			if ticket["priority"] != tc.expected {
-				t.Errorf("expected priority %s, got %v", tc.expected, ticket["priority"])
+			issue := showIssue(t, dir, issueID)
+			if issue["priority"] != tc.expected {
+				t.Errorf("expected priority %s, got %v", tc.expected, issue["priority"])
 			}
 		})
 	}
@@ -65,9 +65,9 @@ func TestE2E_Priority_UpdateAcceptsCaseInsensitiveAndBareNumber(t *testing.T) {
 	}
 
 	// Then — priority is normalized to P0.
-	ticket := showTicket(t, dir, taskID)
-	if ticket["priority"] != "P0" {
-		t.Errorf("expected priority P0, got %v", ticket["priority"])
+	issue := showIssue(t, dir, taskID)
+	if issue["priority"] != "P0" {
+		t.Errorf("expected priority P0, got %v", issue["priority"])
 	}
 }
 
@@ -89,8 +89,8 @@ func TestE2E_Priority_EditAcceptsBareNumber(t *testing.T) {
 	}
 
 	// Then — priority is normalized to P1.
-	ticket := showTicket(t, dir, taskID)
-	if ticket["priority"] != "P1" {
-		t.Errorf("expected priority P1, got %v", ticket["priority"])
+	issue := showIssue(t, dir, taskID)
+	if issue["priority"] != "P1" {
+		t.Errorf("expected priority P1, got %v", issue["priority"])
 	}
 }

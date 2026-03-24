@@ -1,4 +1,4 @@
-package ticket
+package issue
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"unicode"
 )
 
-// Facet represents a validated key–value pair attached to a ticket for
+// Facet represents a validated key–value pair attached to an issue for
 // filtering and agent coordination.
 type Facet struct {
 	key   string

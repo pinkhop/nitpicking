@@ -51,8 +51,8 @@ func TestE2E_ClaimEnvVar_UpdateUsesNPCLAIM(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("update with NP_CLAIM failed (exit %d): %s", code, stderr)
 	}
-	ticket := showTicket(t, dir, taskID)
-	if ticket["title"] != "Updated via env" {
-		t.Errorf("expected title 'Updated via env', got %v", ticket["title"])
+	issue := showIssue(t, dir, taskID)
+	if issue["title"] != "Updated via env" {
+		t.Errorf("expected title 'Updated via env', got %v", issue["title"])
 	}
 }

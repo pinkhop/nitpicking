@@ -1,16 +1,16 @@
-package ticket_test
+package issue_test
 
 import (
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 func TestIsTaskReady_OpenNoBlockersNoAncestors_Ready(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := ticket.IsTaskReady(ticket.StateOpen, nil, nil)
+	result := issue.IsTaskReady(issue.StateOpen, nil, nil)
 
 	// Then
 	if !result {
@@ -21,11 +21,11 @@ func TestIsTaskReady_OpenNoBlockersNoAncestors_Ready(t *testing.T) {
 func TestIsTaskReady_NotOpen_NotReady(t *testing.T) {
 	t.Parallel()
 
-	cases := []ticket.State{
-		ticket.StateClaimed,
-		ticket.StateClosed,
-		ticket.StateDeferred,
-		ticket.StateWaiting,
+	cases := []issue.State{
+		issue.StateClaimed,
+		issue.StateClosed,
+		issue.StateDeferred,
+		issue.StateWaiting,
 	}
 
 	for _, state := range cases {
@@ -33,7 +33,7 @@ func TestIsTaskReady_NotOpen_NotReady(t *testing.T) {
 			t.Parallel()
 
 			// When
-			result := ticket.IsTaskReady(state, nil, nil)
+			result := issue.IsTaskReady(state, nil, nil)
 
 			// Then
 			if result {
@@ -47,12 +47,12 @@ func TestIsTaskReady_UnresolvedBlocker_NotReady(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	blockers := []ticket.BlockerStatus{
+	blockers := []issue.BlockerStatus{
 		{IsClosed: false, IsDeleted: false},
 	}
 
 	// When
-	result := ticket.IsTaskReady(ticket.StateOpen, blockers, nil)
+	result := issue.IsTaskReady(issue.StateOpen, blockers, nil)
 
 	// Then
 	if result {
@@ -64,12 +64,12 @@ func TestIsTaskReady_ClosedBlocker_Ready(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	blockers := []ticket.BlockerStatus{
+	blockers := []issue.BlockerStatus{
 		{IsClosed: true, IsDeleted: false},
 	}
 
 	// When
-	result := ticket.IsTaskReady(ticket.StateOpen, blockers, nil)
+	result := issue.IsTaskReady(issue.StateOpen, blockers, nil)
 
 	// Then
 	if !result {
@@ -81,12 +81,12 @@ func TestIsTaskReady_DeletedBlocker_Ready(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	blockers := []ticket.BlockerStatus{
+	blockers := []issue.BlockerStatus{
 		{IsClosed: false, IsDeleted: true},
 	}
 
 	// When
-	result := ticket.IsTaskReady(ticket.StateOpen, blockers, nil)
+	result := issue.IsTaskReady(issue.StateOpen, blockers, nil)
 
 	// Then
 	if !result {
@@ -98,12 +98,12 @@ func TestIsTaskReady_DeferredAncestor_NotReady(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	ancestors := []ticket.AncestorStatus{
-		{State: ticket.StateDeferred},
+	ancestors := []issue.AncestorStatus{
+		{State: issue.StateDeferred},
 	}
 
 	// When
-	result := ticket.IsTaskReady(ticket.StateOpen, nil, ancestors)
+	result := issue.IsTaskReady(issue.StateOpen, nil, ancestors)
 
 	// Then
 	if result {
@@ -115,12 +115,12 @@ func TestIsTaskReady_WaitingAncestor_NotReady(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	ancestors := []ticket.AncestorStatus{
-		{State: ticket.StateWaiting},
+	ancestors := []issue.AncestorStatus{
+		{State: issue.StateWaiting},
 	}
 
 	// When
-	result := ticket.IsTaskReady(ticket.StateOpen, nil, ancestors)
+	result := issue.IsTaskReady(issue.StateOpen, nil, ancestors)
 
 	// Then
 	if result {
@@ -132,7 +132,7 @@ func TestIsEpicReady_ActiveNoChildrenNoBlockers_Ready(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := ticket.IsEpicReady(ticket.StateActive, false, nil, nil)
+	result := issue.IsEpicReady(issue.StateActive, false, nil, nil)
 
 	// Then
 	if !result {
@@ -144,7 +144,7 @@ func TestIsEpicReady_HasChildren_NotReady(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := ticket.IsEpicReady(ticket.StateActive, true, nil, nil)
+	result := issue.IsEpicReady(issue.StateActive, true, nil, nil)
 
 	// Then
 	if result {
@@ -155,10 +155,10 @@ func TestIsEpicReady_HasChildren_NotReady(t *testing.T) {
 func TestIsEpicReady_NotActive_NotReady(t *testing.T) {
 	t.Parallel()
 
-	cases := []ticket.State{
-		ticket.StateClaimed,
-		ticket.StateDeferred,
-		ticket.StateWaiting,
+	cases := []issue.State{
+		issue.StateClaimed,
+		issue.StateDeferred,
+		issue.StateWaiting,
 	}
 
 	for _, state := range cases {
@@ -166,7 +166,7 @@ func TestIsEpicReady_NotActive_NotReady(t *testing.T) {
 			t.Parallel()
 
 			// When
-			result := ticket.IsEpicReady(state, false, nil, nil)
+			result := issue.IsEpicReady(state, false, nil, nil)
 
 			// Then
 			if result {
@@ -180,12 +180,12 @@ func TestIsEpicReady_UnresolvedBlocker_NotReady(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	blockers := []ticket.BlockerStatus{
+	blockers := []issue.BlockerStatus{
 		{IsClosed: false, IsDeleted: false},
 	}
 
 	// When
-	result := ticket.IsEpicReady(ticket.StateActive, false, blockers, nil)
+	result := issue.IsEpicReady(issue.StateActive, false, blockers, nil)
 
 	// Then
 	if result {
@@ -197,12 +197,12 @@ func TestIsTaskReady_CompleteEpicBlocker_Ready(t *testing.T) {
 	t.Parallel()
 
 	// Given — a blocker that is not closed and not deleted, but is a complete epic.
-	blockers := []ticket.BlockerStatus{
+	blockers := []issue.BlockerStatus{
 		{IsClosed: false, IsDeleted: false, IsComplete: true},
 	}
 
 	// When
-	result := ticket.IsTaskReady(ticket.StateOpen, blockers, nil)
+	result := issue.IsTaskReady(issue.StateOpen, blockers, nil)
 
 	// Then
 	if !result {
@@ -214,12 +214,12 @@ func TestIsEpicReady_CompleteEpicBlocker_Ready(t *testing.T) {
 	t.Parallel()
 
 	// Given — a blocker that is a complete epic (not closed, not deleted).
-	blockers := []ticket.BlockerStatus{
+	blockers := []issue.BlockerStatus{
 		{IsClosed: false, IsDeleted: false, IsComplete: true},
 	}
 
 	// When
-	result := ticket.IsEpicReady(ticket.StateActive, false, blockers, nil)
+	result := issue.IsEpicReady(issue.StateActive, false, blockers, nil)
 
 	// Then
 	if !result {
@@ -231,12 +231,12 @@ func TestIsTaskReady_IncompleteEpicBlocker_NotReady(t *testing.T) {
 	t.Parallel()
 
 	// Given — a blocker that is an incomplete epic.
-	blockers := []ticket.BlockerStatus{
+	blockers := []issue.BlockerStatus{
 		{IsClosed: false, IsDeleted: false, IsComplete: false},
 	}
 
 	// When
-	result := ticket.IsTaskReady(ticket.StateOpen, blockers, nil)
+	result := issue.IsTaskReady(issue.StateOpen, blockers, nil)
 
 	// Then
 	if result {

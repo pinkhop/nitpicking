@@ -113,10 +113,10 @@ func TestE2E_CreateFromJSON_FlagOverridesJSON(t *testing.T) {
 }
 
 func TestE2E_CreateFromJSON_ShowOutputCompatibility(t *testing.T) {
-	// Given: create a ticket, then pipe its show output into a new create.
+	// Given: create an issue, then pipe its show output into a new create.
 	dir := initDB(t, "TEST")
 
-	originalID := createTask(t, dir, "Original ticket", "e2e-agent")
+	originalID := createTask(t, dir, "Original issue", "e2e-agent")
 	showStdout, _, showCode := runNP(t, dir, "show", originalID, "--json")
 	if showCode != 0 {
 		t.Fatalf("show failed (exit %d)", showCode)
@@ -129,20 +129,20 @@ func TestE2E_CreateFromJSON_ShowOutputCompatibility(t *testing.T) {
 		"--json",
 	)
 
-	// Then: new ticket is created with the same title and role.
+	// Then: new issue is created with the same title and role.
 	if code != 0 {
 		t.Fatalf("create from show output failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
-	if result["title"] != "Original ticket" {
-		t.Errorf("title: got %v, want %q", result["title"], "Original ticket")
+	if result["title"] != "Original issue" {
+		t.Errorf("title: got %v, want %q", result["title"], "Original issue")
 	}
 	if result["role"] != "task" {
 		t.Errorf("role: got %v, want %q", result["role"], "task")
 	}
-	// New ticket should have a different ID.
+	// New issue should have a different ID.
 	if result["id"] == originalID {
-		t.Error("new ticket should have a different ID from the original")
+		t.Error("new issue should have a different ID from the original")
 	}
 }
 
@@ -217,7 +217,7 @@ func TestE2E_CreateFromJSON_FacetsMerge(t *testing.T) {
 	listResult := parseJSON(t, listStdout)
 	count, _ := listResult["total_count"].(float64)
 	if count != 1 {
-		t.Errorf("expected 1 ticket with kind:feature, got %v", count)
+		t.Errorf("expected 1 issue with kind:feature, got %v", count)
 	}
 
 	// Verify area:auth (from JSON, no conflict).
@@ -229,7 +229,7 @@ func TestE2E_CreateFromJSON_FacetsMerge(t *testing.T) {
 	listResult2 := parseJSON(t, listStdout2)
 	count2, _ := listResult2["total_count"].(float64)
 	if count2 != 1 {
-		t.Errorf("expected 1 ticket with area:auth, got %v", count2)
+		t.Errorf("expected 1 issue with area:auth, got %v", count2)
 	}
 
 	// Suppress unused variable warning for showStdout.

@@ -11,11 +11,11 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
-// listItemOutput is the JSON representation of a single ticket in a list.
+// listItemOutput is the JSON representation of a single issue in a list.
 type listItemOutput struct {
 	ID        string `json:"id"`
 	Role      string `json:"role"`
@@ -33,7 +33,7 @@ type listOutput struct {
 }
 
 // NewCmd constructs the "list" command, which returns a filtered, ordered,
-// paginated list of tickets.
+// paginated list of issues.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput    bool
@@ -52,7 +52,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:    "list",
 		Aliases: []string{"ls"},
-		Usage:   "List tickets",
+		Usage:   "List issues",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -73,12 +73,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:        "ready",
-				Usage:       "Show only ready tickets",
+				Usage:       "Show only ready issues",
 				Destination: &ready,
 			},
 			&cli.BoolFlag{
 				Name:        "include-closed",
-				Usage:       "Include closed tickets in the output (hidden by default)",
+				Usage:       "Include closed issues in the output (hidden by default)",
 				Destination: &includeClosed,
 			},
 			&cli.StringFlag{
@@ -88,12 +88,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:        "descendants-of",
-				Usage:       "Recursively list all descendants of the given ticket ID",
+				Usage:       "Recursively list all descendants of the given issue ID",
 				Destination: &descendantsOf,
 			},
 			&cli.StringFlag{
 				Name:        "ancestors-of",
-				Usage:       "List the parent chain of the given ticket ID up to the root",
+				Usage:       "List the parent chain of the given issue ID up to the root",
 				Destination: &ancestorsOf,
 			},
 			&cli.StringSliceFlag{
@@ -118,12 +118,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			var filter port.TicketFilter
+			var filter port.IssueFilter
 			filter.Ready = ready
 			filter.ExcludeClosed = !includeClosed && state == ""
 
 			if role != "" {
-				parsedRole, err := ticket.ParseRole(role)
+				parsedRole, err := issue.ParseRole(role)
 				if err != nil {
 					return cmdutil.FlagErrorf("%s", err)
 				}
@@ -131,11 +131,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			if state != "" {
-				parsedState, err := ticket.ParseState(state)
+				parsedState, err := issue.ParseState(state)
 				if err != nil {
 					return cmdutil.FlagErrorf("%s", err)
 				}
-				filter.States = []ticket.State{parsedState}
+				filter.States = []issue.State{parsedState}
 			}
 
 			svc, err := cmdutil.NewTracker(f)
@@ -187,14 +187,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
-			input := service.ListTicketsInput{
+			input := service.ListIssuesInput{
 				Filter:  filter,
 				OrderBy: orderBy,
 				Page:    port.PageRequest{PageSize: pageSize},
 			}
-			result, err := svc.ListTickets(ctx, input)
+			result, err := svc.ListIssues(ctx, input)
 			if err != nil {
-				return fmt.Errorf("listing tickets: %w", err)
+				return fmt.Errorf("listing issues: %w", err)
 			}
 
 			if jsonOutput {
@@ -221,7 +221,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			w := f.IOStreams.Out
 
 			if len(result.Items) == 0 {
-				_, _ = fmt.Fprintln(w, "No tickets found.")
+				_, _ = fmt.Fprintln(w, "No issues found.")
 				return nil
 			}
 
@@ -249,10 +249,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			shown := len(result.Items)
 			if shown < result.TotalCount {
 				_, _ = fmt.Fprintf(w, "\n%s\n",
-					cs.Dim(fmt.Sprintf("Showing %d of %d tickets", shown, result.TotalCount)))
+					cs.Dim(fmt.Sprintf("Showing %d of %d issues", shown, result.TotalCount)))
 			} else {
 				_, _ = fmt.Fprintf(w, "\n%s\n",
-					cs.Dim(fmt.Sprintf("%d tickets", result.TotalCount)))
+					cs.Dim(fmt.Sprintf("%d issues", result.TotalCount)))
 			}
 
 			return nil
@@ -261,8 +261,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 }
 
 // parseOrderBy converts a user-provided sort order string into a
-// port.TicketOrderBy constant. An empty string defaults to priority ordering.
-func parseOrderBy(s string) (port.TicketOrderBy, error) {
+// port.IssueOrderBy constant. An empty string defaults to priority ordering.
+func parseOrderBy(s string) (port.IssueOrderBy, error) {
 	switch strings.ToLower(s) {
 	case "", "priority":
 		return port.OrderByPriority, nil

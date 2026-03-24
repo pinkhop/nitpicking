@@ -2,7 +2,7 @@
 
 // Package e2e_test contains end-to-end tests that exercise the np binary
 // through realistic multi-step workflows. Each test simulates a complete
-// usage pattern — from database initialization through ticket lifecycle
+// usage pattern — from database initialization through issue lifecycle
 // to final state verification.
 package e2e_test
 
@@ -37,7 +37,7 @@ func initDB(t *testing.T, prefix string) string {
 	return dir
 }
 
-// createTask creates a task ticket and returns its ID. The test fails if
+// createTask creates a task issue and returns its ID. The test fails if
 // creation does not succeed.
 func createTask(t *testing.T, dir, title, author string) string {
 	t.Helper()
@@ -59,46 +59,46 @@ func createTask(t *testing.T, dir, title, author string) string {
 	return id
 }
 
-// claimTicket claims a ticket and returns the claim ID. The test fails if
+// claimIssue claims an issue and returns the claim ID. The test fails if
 // claiming does not succeed.
-func claimTicket(t *testing.T, dir, ticketID, author string) string {
+func claimIssue(t *testing.T, dir, issueID, author string) string {
 	t.Helper()
 
-	stdout, stderr, code := runNP(t, dir, "claim", "id", ticketID,
+	stdout, stderr, code := runNP(t, dir, "claim", "id", issueID,
 		"--author", author,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("claim %s failed (exit %d): %s", ticketID, code, stderr)
+		t.Fatalf("claim %s failed (exit %d): %s", issueID, code, stderr)
 	}
 	result := parseJSON(t, stdout)
 	claimID, ok := result["claim_id"].(string)
 	if !ok || claimID == "" {
-		t.Fatalf("claim %s: missing claim_id in response", ticketID)
+		t.Fatalf("claim %s: missing claim_id in response", issueID)
 	}
 	return claimID
 }
 
-// showTicket returns the full JSON representation of a ticket. The test
+// showIssue returns the full JSON representation of an issue. The test
 // fails if the show command does not succeed.
-func showTicket(t *testing.T, dir, ticketID string) map[string]any {
+func showIssue(t *testing.T, dir, issueID string) map[string]any {
 	t.Helper()
 
-	stdout, stderr, code := runNP(t, dir, "show", ticketID, "--json")
+	stdout, stderr, code := runNP(t, dir, "show", issueID, "--json")
 	if code != 0 {
-		t.Fatalf("show %s failed (exit %d): %s", ticketID, code, stderr)
+		t.Fatalf("show %s failed (exit %d): %s", issueID, code, stderr)
 	}
 	return parseJSON(t, stdout)
 }
 
 func TestE2E_TaskLifecycle_CreateClaimUpdateClose(t *testing.T) {
-	// Given — a fresh database with a task ticket.
+	// Given — a fresh database with a task issue.
 	dir := initDB(t, "WF")
 	author := "workflow-agent"
 	taskID := createTask(t, dir, "Implement feature X", author)
 
 	// When — claim the task, update its fields, add a note, and close it.
-	claimID := claimTicket(t, dir, taskID, author)
+	claimID := claimIssue(t, dir, taskID, author)
 
 	_, stderr, code := runNP(t, dir, "update", taskID,
 		"--claim", claimID,
@@ -112,7 +112,7 @@ func TestE2E_TaskLifecycle_CreateClaimUpdateClose(t *testing.T) {
 	}
 
 	_, stderr, code = runNP(t, dir, "note", "add",
-		"--ticket", taskID,
+		"--issue", taskID,
 		"--body", "Root cause found in auth module",
 		"--author", author,
 		"--json",
@@ -135,18 +135,18 @@ func TestE2E_TaskLifecycle_CreateClaimUpdateClose(t *testing.T) {
 		t.Errorf("expected action 'close', got %v", closeResult["action"])
 	}
 
-	ticket := showTicket(t, dir, taskID)
-	if ticket["state"] != "closed" {
-		t.Errorf("expected state 'closed', got %v", ticket["state"])
+	issue := showIssue(t, dir, taskID)
+	if issue["state"] != "closed" {
+		t.Errorf("expected state 'closed', got %v", issue["state"])
 	}
-	if ticket["title"] != "Implement feature X (revised)" {
-		t.Errorf("expected revised title, got %v", ticket["title"])
+	if issue["title"] != "Implement feature X (revised)" {
+		t.Errorf("expected revised title, got %v", issue["title"])
 	}
-	if ticket["priority"] != "P1" {
-		t.Errorf("expected priority P1, got %v", ticket["priority"])
+	if issue["priority"] != "P1" {
+		t.Errorf("expected priority P1, got %v", issue["priority"])
 	}
-	if ticket["description"] != "Updated after investigation" {
-		t.Errorf("expected updated description, got %v", ticket["description"])
+	if issue["description"] != "Updated after investigation" {
+		t.Errorf("expected updated description, got %v", issue["description"])
 	}
 }
 
@@ -158,7 +158,7 @@ func TestE2E_TaskLifecycle_ClaimReleaseReclaimClose(t *testing.T) {
 	taskID := createTask(t, dir, "Refactor logging", agent1)
 
 	// When — agent1 claims and releases, then agent2 claims and closes.
-	claim1 := claimTicket(t, dir, taskID, agent1)
+	claim1 := claimIssue(t, dir, taskID, agent1)
 
 	_, stderr, code := runNP(t, dir, "release", taskID,
 		"--claim", claim1,
@@ -168,7 +168,7 @@ func TestE2E_TaskLifecycle_ClaimReleaseReclaimClose(t *testing.T) {
 		t.Fatalf("release failed (exit %d): %s", code, stderr)
 	}
 
-	claim2 := claimTicket(t, dir, taskID, agent2)
+	claim2 := claimIssue(t, dir, taskID, agent2)
 
 	_, stderr, code = runNP(t, dir, "state", "close", taskID,
 		"--claim", claim2,
@@ -179,9 +179,9 @@ func TestE2E_TaskLifecycle_ClaimReleaseReclaimClose(t *testing.T) {
 	}
 
 	// Then — the task is closed and the history shows both agents' actions.
-	ticket := showTicket(t, dir, taskID)
-	if ticket["state"] != "closed" {
-		t.Errorf("expected state 'closed', got %v", ticket["state"])
+	issue := showIssue(t, dir, taskID)
+	if issue["state"] != "closed" {
+		t.Errorf("expected state 'closed', got %v", issue["state"])
 	}
 
 	histStdout, stderr, code := runNP(t, dir, "history", taskID, "--json")
@@ -203,7 +203,7 @@ func TestE2E_TaskLifecycle_DeferAndWait(t *testing.T) {
 	waitID := createTask(t, dir, "Blocked on external API", author)
 
 	// When — defer one task and mark the other as waiting.
-	deferClaim := claimTicket(t, dir, deferID, author)
+	deferClaim := claimIssue(t, dir, deferID, author)
 	_, stderr, code := runNP(t, dir, "state", "defer", deferID,
 		"--claim", deferClaim,
 		"--json",
@@ -212,7 +212,7 @@ func TestE2E_TaskLifecycle_DeferAndWait(t *testing.T) {
 		t.Fatalf("defer failed (exit %d): %s", code, stderr)
 	}
 
-	waitClaim := claimTicket(t, dir, waitID, author)
+	waitClaim := claimIssue(t, dir, waitID, author)
 	_, stderr, code = runNP(t, dir, "state", "wait", waitID,
 		"--claim", waitClaim,
 		"--json",
@@ -222,14 +222,14 @@ func TestE2E_TaskLifecycle_DeferAndWait(t *testing.T) {
 	}
 
 	// Then — each task reflects the correct terminal/non-terminal state.
-	deferTicket := showTicket(t, dir, deferID)
-	if deferTicket["state"] != "deferred" {
-		t.Errorf("expected deferred state, got %v", deferTicket["state"])
+	deferIssue := showIssue(t, dir, deferID)
+	if deferIssue["state"] != "deferred" {
+		t.Errorf("expected deferred state, got %v", deferIssue["state"])
 	}
 
-	waitTicket := showTicket(t, dir, waitID)
-	if waitTicket["state"] != "waiting" {
-		t.Errorf("expected waiting state, got %v", waitTicket["state"])
+	waitIssue := showIssue(t, dir, waitID)
+	if waitIssue["state"] != "waiting" {
+		t.Errorf("expected waiting state, got %v", waitIssue["state"])
 	}
 }
 
@@ -253,7 +253,7 @@ func TestE2E_EpicWithChildren_DerivedCompletion(t *testing.T) {
 	child2 := createTaskWithParent(t, dir, "Write integration tests", author, epicID)
 
 	// When — close the first child; the epic should not yet be complete.
-	claim1 := claimTicket(t, dir, child1, author)
+	claim1 := claimIssue(t, dir, child1, author)
 	_, stderr, code = runNP(t, dir, "state", "close", child1,
 		"--claim", claim1,
 		"--json",
@@ -262,13 +262,13 @@ func TestE2E_EpicWithChildren_DerivedCompletion(t *testing.T) {
 		t.Fatalf("close child1 failed (exit %d): %s", code, stderr)
 	}
 
-	epicAfterOne := showTicket(t, dir, epicID)
+	epicAfterOne := showIssue(t, dir, epicID)
 	if epicAfterOne["is_complete"] == true {
 		t.Error("epic should not be complete with one open child")
 	}
 
 	// Close the second child — the epic should now be complete.
-	claim2 := claimTicket(t, dir, child2, author)
+	claim2 := claimIssue(t, dir, child2, author)
 	_, stderr, code = runNP(t, dir, "state", "close", child2,
 		"--claim", claim2,
 		"--json",
@@ -278,7 +278,7 @@ func TestE2E_EpicWithChildren_DerivedCompletion(t *testing.T) {
 	}
 
 	// Then — the epic is derived-complete.
-	epicAfterAll := showTicket(t, dir, epicID)
+	epicAfterAll := showIssue(t, dir, epicID)
 	if epicAfterAll["is_complete"] != true {
 		t.Errorf("epic should be complete after all children closed, got is_complete=%v", epicAfterAll["is_complete"])
 	}
@@ -323,25 +323,25 @@ func TestE2E_AtomicEdit(t *testing.T) {
 		t.Fatalf("edit failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — the ticket is updated but not claimed (edit releases automatically).
-	ticket := showTicket(t, dir, taskID)
-	if ticket["title"] != "Revised via edit" {
-		t.Errorf("expected 'Revised via edit', got %v", ticket["title"])
+	// Then — the issue is updated but not claimed (edit releases automatically).
+	issue := showIssue(t, dir, taskID)
+	if issue["title"] != "Revised via edit" {
+		t.Errorf("expected 'Revised via edit', got %v", issue["title"])
 	}
-	if ticket["description"] != "Quick fix applied" {
-		t.Errorf("expected 'Quick fix applied', got %v", ticket["description"])
+	if issue["description"] != "Quick fix applied" {
+		t.Errorf("expected 'Quick fix applied', got %v", issue["description"])
 	}
-	if ticket["state"] != "open" {
-		t.Errorf("expected state 'open' after edit (auto-release), got %v", ticket["state"])
+	if issue["state"] != "open" {
+		t.Errorf("expected state 'open' after edit (auto-release), got %v", issue["state"])
 	}
 }
 
-func TestE2E_NotesOnClosedTicket(t *testing.T) {
+func TestE2E_NotesOnClosedIssue(t *testing.T) {
 	// Given — a task that has been closed.
 	dir := initDB(t, "WF")
 	author := "notes-agent"
 	taskID := createTask(t, dir, "Closed task", author)
-	claimID := claimTicket(t, dir, taskID, author)
+	claimID := claimIssue(t, dir, taskID, author)
 
 	_, stderr, code := runNP(t, dir, "state", "close", taskID,
 		"--claim", claimID,
@@ -351,20 +351,20 @@ func TestE2E_NotesOnClosedTicket(t *testing.T) {
 		t.Fatalf("close failed (exit %d): %s", code, stderr)
 	}
 
-	// When — add notes to the closed ticket (notes don't require claiming).
+	// When — add notes to the closed issue (notes don't require claiming).
 	_, stderr, code = runNP(t, dir, "note", "add",
-		"--ticket", taskID,
+		"--issue", taskID,
 		"--body", "Post-mortem: root cause was a race condition",
 		"--author", author,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("note add on closed ticket failed (exit %d): %s", code, stderr)
+		t.Fatalf("note add on closed issue failed (exit %d): %s", code, stderr)
 	}
 
 	_, stderr, code = runNP(t, dir, "note", "add",
-		"--ticket", taskID,
-		"--body", "Follow-up ticket created for monitoring",
+		"--issue", taskID,
+		"--body", "Follow-up issue created for monitoring",
 		"--author", "other-agent",
 		"--json",
 	)
@@ -372,15 +372,15 @@ func TestE2E_NotesOnClosedTicket(t *testing.T) {
 		t.Fatalf("second note add failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — both notes are present on the closed ticket.
-	noteStdout, stderr, code := runNP(t, dir, "note", "list", "--ticket", taskID, "--json")
+	// Then — both notes are present on the closed issue.
+	noteStdout, stderr, code := runNP(t, dir, "note", "list", "--issue", taskID, "--json")
 	if code != 0 {
 		t.Fatalf("note list failed (exit %d): %s", code, stderr)
 	}
 	noteResult := parseJSON(t, noteStdout)
 	noteCount, ok := noteResult["total_count"].(float64)
 	if !ok || noteCount != 2 {
-		t.Errorf("expected 2 notes on closed ticket, got %v", noteResult["total_count"])
+		t.Errorf("expected 2 notes on closed issue, got %v", noteResult["total_count"])
 	}
 }
 
@@ -412,18 +412,18 @@ func TestE2E_RelationshipsAndSearch(t *testing.T) {
 		t.Fatalf("relate cites failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — the blocked ticket shows the relationship and is not ready.
-	blockedTicket := showTicket(t, dir, blockedID)
-	if blockedTicket["is_ready"] == true {
-		t.Error("blocked ticket should not be ready while blocker is open")
+	// Then — the blocked issue shows the relationship and is not ready.
+	blockedIssue := showIssue(t, dir, blockedID)
+	if blockedIssue["is_ready"] == true {
+		t.Error("blocked issue should not be ready while blocker is open")
 	}
 
-	rels, ok := blockedTicket["relationships"].([]any)
+	rels, ok := blockedIssue["relationships"].([]any)
 	if !ok || len(rels) == 0 {
-		t.Fatalf("expected relationships on blocked ticket, got %v", blockedTicket["relationships"])
+		t.Fatalf("expected relationships on blocked issue, got %v", blockedIssue["relationships"])
 	}
 
-	// Search should find the migration-related tickets.
+	// Search should find the migration-related issues.
 	searchStdout, stderr, code := runNP(t, dir, "search", "migration", "--json")
 	if code != 0 {
 		t.Fatalf("search failed (exit %d): %s", code, stderr)
@@ -452,7 +452,7 @@ func TestE2E_CreateClaimWithFlag(t *testing.T) {
 		t.Fatalf("create --claim failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — the response includes a claim_id and the ticket is claimed.
+	// Then — the response includes a claim_id and the issue is claimed.
 	result := parseJSON(t, stdout)
 	taskID, ok := result["id"].(string)
 	if !ok || taskID == "" {
@@ -463,12 +463,12 @@ func TestE2E_CreateClaimWithFlag(t *testing.T) {
 		t.Fatal("expected claim_id in create --claim response")
 	}
 
-	ticket := showTicket(t, dir, taskID)
-	if ticket["state"] != "claimed" {
-		t.Errorf("expected state 'claimed', got %v", ticket["state"])
+	issue := showIssue(t, dir, taskID)
+	if issue["state"] != "claimed" {
+		t.Errorf("expected state 'claimed', got %v", issue["state"])
 	}
 
-	// Clean up — close the ticket so the claim is released.
+	// Clean up — close the issue so the claim is released.
 	_, stderr, code = runNP(t, dir, "state", "close", taskID,
 		"--claim", claimID,
 		"--json",
@@ -485,7 +485,7 @@ func TestE2E_HistoryAuditTrail(t *testing.T) {
 	taskID := createTask(t, dir, "Audit trail test", author)
 
 	// When — claim, update, release, re-claim, close.
-	claim1 := claimTicket(t, dir, taskID, author)
+	claim1 := claimIssue(t, dir, taskID, author)
 
 	_, _, _ = runNP(t, dir, "update", taskID,
 		"--claim", claim1,
@@ -497,7 +497,7 @@ func TestE2E_HistoryAuditTrail(t *testing.T) {
 		"--json",
 	)
 
-	claim2 := claimTicket(t, dir, taskID, author)
+	claim2 := claimIssue(t, dir, taskID, author)
 	_, _, _ = runNP(t, dir, "state", "close", taskID,
 		"--claim", claim2,
 		"--json",
@@ -539,7 +539,7 @@ func TestE2E_NextClaimsHighestPriorityReady(t *testing.T) {
 	highID := createTaskWithPriority(t, dir, "High priority", author, "P0")
 	createTaskWithPriority(t, dir, "Medium priority", author, "P2")
 
-	// When — "claim ready" claims the highest-priority ready ticket.
+	// When — "claim ready" claims the highest-priority ready issue.
 	stdout, stderr, code := runNP(t, dir, "claim", "ready",
 		"--author", author,
 		"--json",
@@ -548,10 +548,10 @@ func TestE2E_NextClaimsHighestPriorityReady(t *testing.T) {
 		t.Fatalf("claim ready failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — the claimed ticket should be the P0 one.
+	// Then — the claimed issue should be the P0 one.
 	result := parseJSON(t, stdout)
-	if result["ticket_id"] != highID {
-		t.Errorf("expected next to claim P0 ticket %s, got %v", highID, result["ticket_id"])
+	if result["issue_id"] != highID {
+		t.Errorf("expected next to claim P0 issue %s, got %v", highID, result["issue_id"])
 	}
 }
 
@@ -616,11 +616,11 @@ func TestE2E_FacetsAndFiltering(t *testing.T) {
 		t.Fatalf("list --facet failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — only the fix ticket should appear.
+	// Then — only the fix issue should appear.
 	result := parseJSON(t, stdout)
 	totalCount, ok := result["total_count"].(float64)
 	if !ok || totalCount != 1 {
-		t.Errorf("expected 1 ticket with facet kind:fix, got %v", result["total_count"])
+		t.Errorf("expected 1 issue with facet kind:fix, got %v", result["total_count"])
 	}
 
 	items, ok := result["items"].([]any)
@@ -634,7 +634,7 @@ func TestE2E_FacetsAndFiltering(t *testing.T) {
 }
 
 func TestE2E_DoctorDiagnostics(t *testing.T) {
-	// Given — a healthy database with a couple of tickets.
+	// Given — a healthy database with a couple of issues.
 	dir := initDB(t, "WF")
 	author := "doctor-agent"
 	createTask(t, dir, "Healthy task A", author)
@@ -654,7 +654,7 @@ func TestE2E_DeleteAndGC(t *testing.T) {
 	dir := initDB(t, "WF")
 	author := "gc-agent"
 	taskID := createTask(t, dir, "Ephemeral task", author)
-	claimID := claimTicket(t, dir, taskID, author)
+	claimID := claimIssue(t, dir, taskID, author)
 
 	// When — soft-delete the task, then garbage-collect.
 	_, stderr, code := runNP(t, dir, "delete", taskID,
@@ -666,7 +666,7 @@ func TestE2E_DeleteAndGC(t *testing.T) {
 		t.Fatalf("delete failed (exit %d): %s", code, stderr)
 	}
 
-	// The ticket should no longer appear in list.
+	// The issue should no longer appear in list.
 	listStdout, _, listCode := runNP(t, dir, "list", "--json")
 	if listCode != 0 {
 		t.Fatalf("list failed after delete (exit %d)", listCode)
@@ -674,7 +674,7 @@ func TestE2E_DeleteAndGC(t *testing.T) {
 	listResult := parseJSON(t, listStdout)
 	totalCount, _ := listResult["total_count"].(float64)
 	if totalCount != 0 {
-		t.Errorf("expected 0 tickets after delete, got %v", totalCount)
+		t.Errorf("expected 0 issues after delete, got %v", totalCount)
 	}
 
 	// GC should succeed.
@@ -701,9 +701,9 @@ func TestE2E_BlockedByRelationship_ReadinessGating(t *testing.T) {
 	}
 
 	// When — check readiness before and after closing the blocker.
-	blockedBefore := showTicket(t, dir, blockedID)
+	blockedBefore := showIssue(t, dir, blockedID)
 
-	blockerClaim := claimTicket(t, dir, blockerID, author)
+	blockerClaim := claimIssue(t, dir, blockerID, author)
 	_, stderr, code = runNP(t, dir, "state", "close", blockerID,
 		"--claim", blockerClaim,
 		"--json",
@@ -712,13 +712,13 @@ func TestE2E_BlockedByRelationship_ReadinessGating(t *testing.T) {
 		t.Fatalf("close blocker failed (exit %d): %s", code, stderr)
 	}
 
-	blockedAfter := showTicket(t, dir, blockedID)
+	blockedAfter := showIssue(t, dir, blockedID)
 
-	// Then — the blocked ticket becomes ready only after its blocker closes.
+	// Then — the blocked issue becomes ready only after its blocker closes.
 	if blockedBefore["is_ready"] == true {
-		t.Error("blocked ticket should not be ready while blocker is open")
+		t.Error("blocked issue should not be ready while blocker is open")
 	}
 	if blockedAfter["is_ready"] != true {
-		t.Error("blocked ticket should be ready after blocker is closed")
+		t.Error("blocked issue should be ready after blocker is closed")
 	}
 }

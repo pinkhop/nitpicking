@@ -7,15 +7,15 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/domain/claim"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
-func TestValidateClaim_UnclaimedOpenTicket_Succeeds(t *testing.T) {
+func TestValidateClaim_UnclaimedOpenIssue_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	status := claim.TicketClaimStatus{
-		State: ticket.StateOpen,
+	status := claim.IssueClaimStatus{
+		State: issue.StateOpen,
 	}
 
 	// When
@@ -26,12 +26,12 @@ func TestValidateClaim_UnclaimedOpenTicket_Succeeds(t *testing.T) {
 	}
 }
 
-func TestValidateClaim_DeletedTicket_Fails(t *testing.T) {
+func TestValidateClaim_DeletedIssue_Fails(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	status := claim.TicketClaimStatus{
-		State:     ticket.StateOpen,
+	status := claim.IssueClaimStatus{
+		State:     issue.StateOpen,
 		IsDeleted: true,
 	}
 
@@ -44,12 +44,12 @@ func TestValidateClaim_DeletedTicket_Fails(t *testing.T) {
 	}
 }
 
-func TestValidateClaim_ClosedTicket_Fails(t *testing.T) {
+func TestValidateClaim_ClosedIssue_Fails(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	status := claim.TicketClaimStatus{
-		State: ticket.StateClosed,
+	status := claim.IssueClaimStatus{
+		State: issue.StateClosed,
 	}
 
 	// When
@@ -67,12 +67,12 @@ func TestValidateClaim_AlreadyClaimed_NoSteal_Fails(t *testing.T) {
 	// Given
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	activeClaim, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "alice"),
-		Now:      now,
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "alice"),
+		Now:     now,
 	})
-	status := claim.TicketClaimStatus{
-		State:       ticket.StateClaimed,
+	status := claim.IssueClaimStatus{
+		State:       issue.StateClaimed,
 		ActiveClaim: activeClaim,
 	}
 
@@ -91,12 +91,12 @@ func TestValidateClaim_StaleAndStealAllowed_Succeeds(t *testing.T) {
 	// Given
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	activeClaim, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "alice"),
-		Now:      now,
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "alice"),
+		Now:     now,
 	})
-	status := claim.TicketClaimStatus{
-		State:       ticket.StateClaimed,
+	status := claim.IssueClaimStatus{
+		State:       issue.StateClaimed,
 		ActiveClaim: activeClaim,
 	}
 
@@ -114,12 +114,12 @@ func TestValidateClaim_NotStaleButStealRequested_Fails(t *testing.T) {
 	// Given
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	activeClaim, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "alice"),
-		Now:      now,
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "alice"),
+		Now:     now,
 	})
-	status := claim.TicketClaimStatus{
-		State:       ticket.StateClaimed,
+	status := claim.IssueClaimStatus{
+		State:       issue.StateClaimed,
 		ActiveClaim: activeClaim,
 	}
 

@@ -13,7 +13,7 @@ func TestE2E_EpicWithChildren_NotReady(t *testing.T) {
 	)
 
 	// When — check the epic's readiness via show.
-	epic := showTicket(t, dir, epicID)
+	epic := showIssue(t, dir, epicID)
 
 	// Then — the epic should NOT be ready because it has children.
 	if epic["is_ready"] == true {
@@ -28,7 +28,7 @@ func TestE2E_EpicWithChildren_ExcludedFromNextAndList(t *testing.T) {
 	epicID, _ := seedEpicWithTasks(t, dir, "Has children", author, "Child A")
 	createTask(t, dir, "Standalone task", author)
 
-	// When — list ready tickets.
+	// When — list ready issues.
 	stdout, stderr, code := runNP(t, dir, "list", "--ready", "--json")
 	if code != 0 {
 		t.Fatalf("list --ready failed (exit %d): %s", code, stderr)
@@ -54,7 +54,7 @@ func TestE2E_EpicWithChildren_ExcludedFromNextAndList(t *testing.T) {
 		t.Fatalf("claim ready failed (exit %d): %s", code, stderr)
 	}
 	nextResult := parseJSON(t, nextStdout)
-	if nextResult["ticket_id"] == epicID {
+	if nextResult["issue_id"] == epicID {
 		t.Errorf("next should not claim epic with children %s", epicID)
 	}
 }
@@ -66,7 +66,7 @@ func TestE2E_ChildlessEpic_IsReady(t *testing.T) {
 	epicID := createEpic(t, dir, "Needs decomposition", author)
 
 	// When — check the epic's readiness.
-	epic := showTicket(t, dir, epicID)
+	epic := showIssue(t, dir, epicID)
 
 	// Then — the childless epic should be ready.
 	if epic["is_ready"] != true {

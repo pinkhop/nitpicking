@@ -1,5 +1,5 @@
 // Package graphcmd implements the "graph" CLI command, which renders the
-// ticket hierarchy and relationships as a Graphviz DOT file.
+// issue hierarchy and relationships as a Graphviz DOT file.
 package graphcmd
 
 import (
@@ -11,7 +11,7 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain/graph"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 // graphOutput is the JSON representation of the graph command result.
@@ -20,7 +20,7 @@ type graphOutput struct {
 }
 
 // NewCmd constructs the "graph" command, which generates a Graphviz DOT
-// representation of all tickets and their relationships.
+// representation of all issues and their relationships.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
@@ -29,7 +29,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:  "graph",
-		Usage: "Generate a Graphviz DOT graph of tickets and relationships",
+		Usage: "Generate a Graphviz DOT graph of issues and relationships",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -70,7 +70,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			for _, rel := range data.Relationships {
 				// Only include blocked_by and cites (not their inverses) to
 				// avoid duplicate edges.
-				if rel.Type() == ticket.RelBlockedBy || rel.Type() == ticket.RelCites {
+				if rel.Type() == issue.RelBlockedBy || rel.Type() == issue.RelCites {
 					edges = append(edges, graph.Edge{
 						SourceID: rel.SourceID(),
 						TargetID: rel.TargetID(),

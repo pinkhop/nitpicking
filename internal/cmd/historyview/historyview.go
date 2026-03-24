@@ -31,13 +31,13 @@ type historyEntryOutput struct {
 
 // historyOutput is the JSON representation of the history command result.
 type historyOutput struct {
-	TicketID   string               `json:"ticket_id"`
+	IssueID    string               `json:"issue_id"`
 	Entries    []historyEntryOutput `json:"entries"`
 	TotalCount int                  `json:"total_count"`
 }
 
 // NewCmd constructs the "history" command, which displays the mutation history
-// of a ticket.
+// of an issue.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
@@ -46,8 +46,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "history",
-		Usage:     "Show the mutation history of a ticket",
-		ArgsUsage: "<TICKET-ID>",
+		Usage:     "Show the mutation history of an issue",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -64,7 +64,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
 			if rawID == "" {
-				return cmdutil.FlagErrorf("ticket ID argument is required")
+				return cmdutil.FlagErrorf("issue ID argument is required")
 			}
 
 			svc, err := cmdutil.NewTracker(f)
@@ -73,14 +73,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			ticketID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
 			input := service.ListHistoryInput{
-				TicketID: ticketID,
-				Page:     port.PageRequest{PageSize: pageSize},
+				IssueID: issueID,
+				Page:    port.PageRequest{PageSize: pageSize},
 			}
 			result, err := svc.ShowHistory(ctx, input)
 			if err != nil {
@@ -89,7 +89,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 			if jsonOutput {
 				out := historyOutput{
-					TicketID:   ticketID.String(),
+					IssueID:    issueID.String(),
 					TotalCount: result.TotalCount,
 					Entries:    make([]historyEntryOutput, 0, len(result.Entries)),
 				}

@@ -1,9 +1,9 @@
-package ticket_test
+package issue_test
 
 import (
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 func TestNewRelationship_ValidRelationship_Succeeds(t *testing.T) {
@@ -14,7 +14,7 @@ func TestNewRelationship_ValidRelationship_Succeeds(t *testing.T) {
 	tgt := mustID(t)
 
 	// When
-	rel, err := ticket.NewRelationship(src, tgt, ticket.RelBlockedBy)
+	rel, err := issue.NewRelationship(src, tgt, issue.RelBlockedBy)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -25,7 +25,7 @@ func TestNewRelationship_ValidRelationship_Succeeds(t *testing.T) {
 	if rel.TargetID() != tgt {
 		t.Errorf("expected target %s, got %s", tgt, rel.TargetID())
 	}
-	if rel.Type() != ticket.RelBlockedBy {
+	if rel.Type() != issue.RelBlockedBy {
 		t.Errorf("expected blocked_by, got %s", rel.Type())
 	}
 }
@@ -37,7 +37,7 @@ func TestNewRelationship_SelfRelationship_Fails(t *testing.T) {
 	id := mustID(t)
 
 	// When
-	_, err := ticket.NewRelationship(id, id, ticket.RelCites)
+	_, err := issue.NewRelationship(id, id, issue.RelCites)
 
 	// Then
 	if err == nil {
@@ -49,7 +49,7 @@ func TestNewRelationship_ZeroIDs_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := ticket.NewRelationship(ticket.ID{}, mustID(t), ticket.RelCites)
+	_, err := issue.NewRelationship(issue.ID{}, mustID(t), issue.RelCites)
 
 	// Then
 	if err == nil {
@@ -61,13 +61,13 @@ func TestRelationType_Inverse(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		input    ticket.RelationType
-		expected ticket.RelationType
+		input    issue.RelationType
+		expected issue.RelationType
 	}{
-		{ticket.RelBlockedBy, ticket.RelBlocks},
-		{ticket.RelBlocks, ticket.RelBlockedBy},
-		{ticket.RelCites, ticket.RelCitedBy},
-		{ticket.RelCitedBy, ticket.RelCites},
+		{issue.RelBlockedBy, issue.RelBlocks},
+		{issue.RelBlocks, issue.RelBlockedBy},
+		{issue.RelCites, issue.RelCitedBy},
+		{issue.RelCitedBy, issue.RelCites},
 	}
 
 	for _, tc := range cases {
@@ -90,12 +90,12 @@ func TestParseRelationType_ValidTypes(t *testing.T) {
 
 	cases := []struct {
 		input    string
-		expected ticket.RelationType
+		expected issue.RelationType
 	}{
-		{"blocked_by", ticket.RelBlockedBy},
-		{"blocks", ticket.RelBlocks},
-		{"cites", ticket.RelCites},
-		{"cited_by", ticket.RelCitedBy},
+		{"blocked_by", issue.RelBlockedBy},
+		{"blocks", issue.RelBlocks},
+		{"cites", issue.RelCites},
+		{"cited_by", issue.RelCitedBy},
 	}
 
 	for _, tc := range cases {
@@ -103,7 +103,7 @@ func TestParseRelationType_ValidTypes(t *testing.T) {
 			t.Parallel()
 
 			// When
-			rt, err := ticket.ParseRelationType(tc.input)
+			rt, err := issue.ParseRelationType(tc.input)
 			// Then
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -119,7 +119,7 @@ func TestParseRelationType_Invalid_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := ticket.ParseRelationType("depends_on")
+	_, err := issue.ParseRelationType("depends_on")
 
 	// Then
 	if err == nil {

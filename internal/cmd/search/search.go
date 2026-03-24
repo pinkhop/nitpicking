@@ -11,8 +11,8 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // searchItemOutput is the JSON representation of a single search result item.
@@ -33,7 +33,7 @@ type searchOutput struct {
 }
 
 // NewCmd constructs the "search" command, which performs full-text search
-// across tickets.
+// across issues.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput   bool
@@ -47,7 +47,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "search",
-		Usage:     "Search tickets by text query",
+		Usage:     "Search issues by text query",
 		ArgsUsage: "<QUERY>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
@@ -99,10 +99,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("search query argument is required")
 			}
 
-			var filter port.TicketFilter
+			var filter port.IssueFilter
 
 			if role != "" {
-				parsedRole, err := ticket.ParseRole(role)
+				parsedRole, err := issue.ParseRole(role)
 				if err != nil {
 					return cmdutil.FlagErrorf("%s", err)
 				}
@@ -110,11 +110,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			if state != "" {
-				parsedState, err := ticket.ParseState(state)
+				parsedState, err := issue.ParseState(state)
 				if err != nil {
 					return cmdutil.FlagErrorf("%s", err)
 				}
-				filter.States = []ticket.State{parsedState}
+				filter.States = []issue.State{parsedState}
 			}
 
 			// Parse facet filters.
@@ -136,7 +136,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
-			input := service.SearchTicketsInput{
+			input := service.SearchIssuesInput{
 				Query:        query,
 				Filter:       filter,
 				OrderBy:      orderBy,
@@ -148,9 +148,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			if err != nil {
 				return err
 			}
-			result, err := svc.SearchTickets(ctx, input)
+			result, err := svc.SearchIssues(ctx, input)
 			if err != nil {
-				return fmt.Errorf("searching tickets: %w", err)
+				return fmt.Errorf("searching issues: %w", err)
 			}
 
 			if jsonOutput {
@@ -177,7 +177,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			w := f.IOStreams.Out
 
 			if len(result.Items) == 0 {
-				_, _ = fmt.Fprintln(w, "No tickets found.")
+				_, _ = fmt.Fprintln(w, "No issues found.")
 				return nil
 			}
 
@@ -205,10 +205,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			shown := len(result.Items)
 			if shown < result.TotalCount {
 				_, _ = fmt.Fprintf(w, "\n%s\n",
-					cs.Dim(fmt.Sprintf("Showing %d of %d tickets", shown, result.TotalCount)))
+					cs.Dim(fmt.Sprintf("Showing %d of %d issues", shown, result.TotalCount)))
 			} else {
 				_, _ = fmt.Fprintf(w, "\n%s\n",
-					cs.Dim(fmt.Sprintf("%d tickets", result.TotalCount)))
+					cs.Dim(fmt.Sprintf("%d issues", result.TotalCount)))
 			}
 
 			return nil
@@ -217,8 +217,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 }
 
 // parseOrderBy converts a user-provided sort order string into a
-// port.TicketOrderBy constant.
-func parseOrderBy(s string) (port.TicketOrderBy, error) {
+// port.IssueOrderBy constant.
+func parseOrderBy(s string) (port.IssueOrderBy, error) {
 	switch strings.ToLower(s) {
 	case "", "priority":
 		return port.OrderByPriority, nil

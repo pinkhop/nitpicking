@@ -5,7 +5,7 @@ package e2e_test
 import "testing"
 
 func TestE2E_AuthorEnvVar_NoteAddUsesNPAUTHOR(t *testing.T) {
-	// Given — a ticket exists.
+	// Given — an issue exists.
 	dir := initDB(t, "AENV")
 	taskID := createTask(t, dir, "Author env test", "setup-agent")
 
@@ -13,7 +13,7 @@ func TestE2E_AuthorEnvVar_NoteAddUsesNPAUTHOR(t *testing.T) {
 	stdout, stderr, code := runNPWithEnv(t, dir,
 		[]string{"NP_AUTHOR=env-author"},
 		"note", "add",
-		"--ticket", taskID,
+		"--issue", taskID,
 		"--body", "Note from env author",
 		"--json",
 	)

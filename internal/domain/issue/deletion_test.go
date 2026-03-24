@@ -1,11 +1,11 @@
-package ticket_test
+package issue_test
 
 import (
 	"errors"
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/domain"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 func TestPlanEpicDeletion_NoDescendants_DeletesOnlyEpic(t *testing.T) {
@@ -15,7 +15,7 @@ func TestPlanEpicDeletion_NoDescendants_DeletesOnlyEpic(t *testing.T) {
 	epicID := mustID(t)
 
 	// When
-	result := ticket.PlanEpicDeletion(epicID, nil)
+	result := issue.PlanEpicDeletion(epicID, nil)
 
 	// Then
 	if len(result.Conflicts) != 0 {
@@ -36,13 +36,13 @@ func TestPlanEpicDeletion_UnclaimedDescendants_DeletesAll(t *testing.T) {
 	epicID := mustID(t)
 	child1 := mustID(t)
 	child2 := mustID(t)
-	descendants := []ticket.DescendantInfo{
+	descendants := []issue.DescendantInfo{
 		{ID: child1, IsClaimed: false},
 		{ID: child2, IsClaimed: false},
 	}
 
 	// When
-	result := ticket.PlanEpicDeletion(epicID, descendants)
+	result := issue.PlanEpicDeletion(epicID, descendants)
 
 	// Then
 	if len(result.Conflicts) != 0 {
@@ -59,13 +59,13 @@ func TestPlanEpicDeletion_ClaimedDescendant_ReportsConflict(t *testing.T) {
 	// Given
 	epicID := mustID(t)
 	claimedChild := mustID(t)
-	descendants := []ticket.DescendantInfo{
+	descendants := []issue.DescendantInfo{
 		{ID: claimedChild, IsClaimed: true, ClaimedBy: "agent-1"},
 		{ID: mustID(t), IsClaimed: false},
 	}
 
 	// When
-	result := ticket.PlanEpicDeletion(epicID, descendants)
+	result := issue.PlanEpicDeletion(epicID, descendants)
 
 	// Then
 	if len(result.Conflicts) != 1 {
@@ -83,11 +83,11 @@ func TestValidateDeletion_AlreadyDeleted_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	err := ticket.ValidateDeletion(true)
+	err := issue.ValidateDeletion(true)
 
 	// Then
-	if !errors.Is(err, domain.ErrDeletedTicket) {
-		t.Errorf("expected ErrDeletedTicket, got %v", err)
+	if !errors.Is(err, domain.ErrDeletedIssue) {
+		t.Errorf("expected ErrDeletedIssue, got %v", err)
 	}
 }
 
@@ -95,7 +95,7 @@ func TestValidateDeletion_NotDeleted_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// When
-	err := ticket.ValidateDeletion(false)
+	err := issue.ValidateDeletion(false)
 	// Then
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)

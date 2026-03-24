@@ -1,4 +1,4 @@
-package ticket
+package issue
 
 import (
 	"time"
@@ -7,11 +7,11 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain"
 )
 
-// Ticket represents the core domain entity — either an Epic or a Task.
-// Tickets are immutable after construction; all mutation methods return a new
-// Ticket value. Revision and author are derived from history at read time,
+// Issue represents the core domain entity — either an Epic or a Task.
+// Issues are immutable after construction; all mutation methods return a new
+// Issue value. Revision and author are derived from history at read time,
 // not stored on the struct.
-type Ticket struct {
+type Issue struct {
 	id                 ID
 	role               Role
 	title              string
@@ -52,15 +52,15 @@ type NewEpicParams struct {
 	IdempotencyKey     string
 }
 
-// NewTask creates a new task ticket. The title must contain at least one
+// NewTask creates a new task issue. The title must contain at least one
 // alphanumeric character. The ID must be valid. Priority defaults to P2 if
 // zero.
-func NewTask(p NewTaskParams) (Ticket, error) {
+func NewTask(p NewTaskParams) (Issue, error) {
 	if err := validateTitle(p.Title); err != nil {
-		return Ticket{}, err
+		return Issue{}, err
 	}
 	if p.ID.IsZero() {
-		return Ticket{}, domain.NewValidationError("id", "must not be empty")
+		return Issue{}, domain.NewValidationError("id", "must not be empty")
 	}
 
 	priority := p.Priority
@@ -73,7 +73,7 @@ func NewTask(p NewTaskParams) (Ticket, error) {
 		createdAt = time.Now()
 	}
 
-	return Ticket{
+	return Issue{
 		id:                 p.ID,
 		role:               RoleTask,
 		title:              p.Title,
@@ -88,15 +88,15 @@ func NewTask(p NewTaskParams) (Ticket, error) {
 	}, nil
 }
 
-// NewEpic creates a new epic ticket. The title must contain at least one
+// NewEpic creates a new epic issue. The title must contain at least one
 // alphanumeric character. The ID must be valid. Priority defaults to P2 if
 // zero.
-func NewEpic(p NewEpicParams) (Ticket, error) {
+func NewEpic(p NewEpicParams) (Issue, error) {
 	if err := validateTitle(p.Title); err != nil {
-		return Ticket{}, err
+		return Issue{}, err
 	}
 	if p.ID.IsZero() {
-		return Ticket{}, domain.NewValidationError("id", "must not be empty")
+		return Issue{}, domain.NewValidationError("id", "must not be empty")
 	}
 
 	priority := p.Priority
@@ -109,7 +109,7 @@ func NewEpic(p NewEpicParams) (Ticket, error) {
 		createdAt = time.Now()
 	}
 
-	return Ticket{
+	return Issue{
 		id:                 p.ID,
 		role:               RoleEpic,
 		title:              p.Title,
@@ -126,100 +126,100 @@ func NewEpic(p NewEpicParams) (Ticket, error) {
 
 // Accessors — all return copies of the stored values.
 
-// ID returns the ticket's identifier.
-func (t Ticket) ID() ID { return t.id }
+// ID returns the issue's identifier.
+func (t Issue) ID() ID { return t.id }
 
-// Role returns the ticket's role (task or epic).
-func (t Ticket) Role() Role { return t.role }
+// Role returns the issue's role (task or epic).
+func (t Issue) Role() Role { return t.role }
 
-// Title returns the ticket's title.
-func (t Ticket) Title() string { return t.title }
+// Title returns the issue's title.
+func (t Issue) Title() string { return t.title }
 
-// Description returns the ticket's description.
-func (t Ticket) Description() string { return t.description }
+// Description returns the issue's description.
+func (t Issue) Description() string { return t.description }
 
-// AcceptanceCriteria returns the ticket's acceptance criteria.
-func (t Ticket) AcceptanceCriteria() string { return t.acceptanceCriteria }
+// AcceptanceCriteria returns the issue's acceptance criteria.
+func (t Issue) AcceptanceCriteria() string { return t.acceptanceCriteria }
 
-// Priority returns the ticket's priority.
-func (t Ticket) Priority() Priority { return t.priority }
+// Priority returns the issue's priority.
+func (t Issue) Priority() Priority { return t.priority }
 
-// State returns the ticket's current lifecycle state.
-func (t Ticket) State() State { return t.state }
+// State returns the issue's current lifecycle state.
+func (t Issue) State() State { return t.state }
 
 // ParentID returns the ID of the parent epic, or zero ID if unparented.
-func (t Ticket) ParentID() ID { return t.parentID }
+func (t Issue) ParentID() ID { return t.parentID }
 
-// Facets returns the ticket's facet set.
-func (t Ticket) Facets() FacetSet { return t.facets }
+// Facets returns the issue's facet set.
+func (t Issue) Facets() FacetSet { return t.facets }
 
-// CreatedAt returns the ticket's creation timestamp.
-func (t Ticket) CreatedAt() time.Time { return t.createdAt }
+// CreatedAt returns the issue's creation timestamp.
+func (t Issue) CreatedAt() time.Time { return t.createdAt }
 
 // IdempotencyKey returns the optional idempotency key used at creation.
-func (t Ticket) IdempotencyKey() string { return t.idempotencyKey }
+func (t Issue) IdempotencyKey() string { return t.idempotencyKey }
 
-// IsDeleted reports whether the ticket has been soft-deleted.
-func (t Ticket) IsDeleted() bool { return t.deleted }
+// IsDeleted reports whether the issue has been soft-deleted.
+func (t Issue) IsDeleted() bool { return t.deleted }
 
-// IsTask reports whether the ticket is a task.
-func (t Ticket) IsTask() bool { return t.role == RoleTask }
+// IsTask reports whether the issue is a task.
+func (t Issue) IsTask() bool { return t.role == RoleTask }
 
-// IsEpic reports whether the ticket is an epic.
-func (t Ticket) IsEpic() bool { return t.role == RoleEpic }
+// IsEpic reports whether the issue is an epic.
+func (t Issue) IsEpic() bool { return t.role == RoleEpic }
 
-// Mutation methods — all return new Ticket values.
+// Mutation methods — all return new Issue values.
 
-// WithTitle returns a new ticket with the updated title.
-func (t Ticket) WithTitle(title string) (Ticket, error) {
+// WithTitle returns a new issue with the updated title.
+func (t Issue) WithTitle(title string) (Issue, error) {
 	if err := validateTitle(title); err != nil {
-		return Ticket{}, err
+		return Issue{}, err
 	}
 	t.title = title
 	return t, nil
 }
 
-// WithDescription returns a new ticket with the updated description.
-func (t Ticket) WithDescription(desc string) Ticket {
+// WithDescription returns a new issue with the updated description.
+func (t Issue) WithDescription(desc string) Issue {
 	t.description = desc
 	return t
 }
 
-// WithAcceptanceCriteria returns a new ticket with the updated acceptance criteria.
-func (t Ticket) WithAcceptanceCriteria(ac string) Ticket {
+// WithAcceptanceCriteria returns a new issue with the updated acceptance criteria.
+func (t Issue) WithAcceptanceCriteria(ac string) Issue {
 	t.acceptanceCriteria = ac
 	return t
 }
 
-// WithPriority returns a new ticket with the updated priority.
-func (t Ticket) WithPriority(p Priority) Ticket {
+// WithPriority returns a new issue with the updated priority.
+func (t Issue) WithPriority(p Priority) Issue {
 	t.priority = p
 	return t
 }
 
-// WithState returns a new ticket with the updated state. This does not
+// WithState returns a new issue with the updated state. This does not
 // validate the transition — callers must use TransitionTask or TransitionEpic
 // before calling this.
-func (t Ticket) WithState(s State) Ticket {
+func (t Issue) WithState(s State) Issue {
 	t.state = s
 	return t
 }
 
-// WithParentID returns a new ticket with the updated parent epic ID. Pass a
+// WithParentID returns a new issue with the updated parent epic ID. Pass a
 // zero ID to remove the parent.
-func (t Ticket) WithParentID(parentID ID) Ticket {
+func (t Issue) WithParentID(parentID ID) Issue {
 	t.parentID = parentID
 	return t
 }
 
-// WithFacets returns a new ticket with the updated facet set.
-func (t Ticket) WithFacets(fs FacetSet) Ticket {
+// WithFacets returns a new issue with the updated facet set.
+func (t Issue) WithFacets(fs FacetSet) Issue {
 	t.facets = fs
 	return t
 }
 
-// WithDeleted returns a new ticket marked as soft-deleted.
-func (t Ticket) WithDeleted() Ticket {
+// WithDeleted returns a new issue marked as soft-deleted.
+func (t Issue) WithDeleted() Issue {
 	t.deleted = true
 	return t
 }

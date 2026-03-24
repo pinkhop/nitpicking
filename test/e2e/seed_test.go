@@ -6,14 +6,14 @@ import "testing"
 
 // --- State-seeding helpers ---
 //
-// These helpers build on the low-level primitives (createTask, claimTicket,
+// These helpers build on the low-level primitives (createTask, claimIssue,
 // etc.) to seed the database into specific states in a single call. They
 // eliminate multi-step setup boilerplate so that tests can focus on the
 // behaviour under test.
 
 // seedClaimedTask creates a task and claims it in one step. Returns the
-// ticket ID and the claim ID. The test fails if any step does not succeed.
-func seedClaimedTask(t *testing.T, dir, title, author string) (ticketID, claimID string) {
+// issue ID and the claim ID. The test fails if any step does not succeed.
+func seedClaimedTask(t *testing.T, dir, title, author string) (issueID, claimID string) {
 	t.Helper()
 
 	stdout, stderr, code := runNP(t, dir, "create",
@@ -39,80 +39,80 @@ func seedClaimedTask(t *testing.T, dir, title, author string) (ticketID, claimID
 	return id, cid
 }
 
-// closeTicket claims and closes a ticket in one workflow. The test fails if
+// closeIssue claims and closes an issue in one workflow. The test fails if
 // any step does not succeed.
-func closeTicket(t *testing.T, dir, ticketID, author string) {
+func closeIssue(t *testing.T, dir, issueID, author string) {
 	t.Helper()
 
-	claimID := claimTicket(t, dir, ticketID, author)
-	_, stderr, code := runNP(t, dir, "state", "close", ticketID,
+	claimID := claimIssue(t, dir, issueID, author)
+	_, stderr, code := runNP(t, dir, "state", "close", issueID,
 		"--claim", claimID,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("close %s failed (exit %d): %s", ticketID, code, stderr)
+		t.Fatalf("close %s failed (exit %d): %s", issueID, code, stderr)
 	}
 }
 
 // seedClosedTask creates a task and immediately closes it. Returns the
-// ticket ID. The test fails if any step does not succeed.
+// issue ID. The test fails if any step does not succeed.
 func seedClosedTask(t *testing.T, dir, title, author string) string {
 	t.Helper()
 
 	taskID := createTask(t, dir, title, author)
-	closeTicket(t, dir, taskID, author)
+	closeIssue(t, dir, taskID, author)
 	return taskID
 }
 
-// deferTicket claims and defers a ticket. The test fails if any step does
+// deferIssue claims and defers an issue. The test fails if any step does
 // not succeed.
-func deferTicket(t *testing.T, dir, ticketID, author string) {
+func deferIssue(t *testing.T, dir, issueID, author string) {
 	t.Helper()
 
-	claimID := claimTicket(t, dir, ticketID, author)
-	_, stderr, code := runNP(t, dir, "state", "defer", ticketID,
+	claimID := claimIssue(t, dir, issueID, author)
+	_, stderr, code := runNP(t, dir, "state", "defer", issueID,
 		"--claim", claimID,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("defer %s failed (exit %d): %s", ticketID, code, stderr)
+		t.Fatalf("defer %s failed (exit %d): %s", issueID, code, stderr)
 	}
 }
 
-// seedDeferredTask creates a task and defers it. Returns the ticket ID.
+// seedDeferredTask creates a task and defers it. Returns the issue ID.
 func seedDeferredTask(t *testing.T, dir, title, author string) string {
 	t.Helper()
 
 	taskID := createTask(t, dir, title, author)
-	deferTicket(t, dir, taskID, author)
+	deferIssue(t, dir, taskID, author)
 	return taskID
 }
 
-// waitTicket claims and marks a ticket as waiting. The test fails if any
+// waitIssue claims and marks an issue as waiting. The test fails if any
 // step does not succeed.
-func waitTicket(t *testing.T, dir, ticketID, author string) {
+func waitIssue(t *testing.T, dir, issueID, author string) {
 	t.Helper()
 
-	claimID := claimTicket(t, dir, ticketID, author)
-	_, stderr, code := runNP(t, dir, "state", "wait", ticketID,
+	claimID := claimIssue(t, dir, issueID, author)
+	_, stderr, code := runNP(t, dir, "state", "wait", issueID,
 		"--claim", claimID,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("wait %s failed (exit %d): %s", ticketID, code, stderr)
+		t.Fatalf("wait %s failed (exit %d): %s", issueID, code, stderr)
 	}
 }
 
-// seedWaitingTask creates a task and marks it as waiting. Returns the ticket ID.
+// seedWaitingTask creates a task and marks it as waiting. Returns the issue ID.
 func seedWaitingTask(t *testing.T, dir, title, author string) string {
 	t.Helper()
 
 	taskID := createTask(t, dir, title, author)
-	waitTicket(t, dir, taskID, author)
+	waitIssue(t, dir, taskID, author)
 	return taskID
 }
 
-// addRelationship adds a relationship between two tickets. The test fails
+// addRelationship adds a relationship between two issues. The test fails
 // if the command does not succeed.
 func addRelationship(t *testing.T, dir, sourceID, relType, targetID, author string) {
 	t.Helper()
@@ -176,9 +176,9 @@ func seedEpicWithTasks(t *testing.T, dir, epicTitle, author string, taskTitles .
 }
 
 // seedClaimedTaskWithThreshold creates a task and claims it with a custom
-// stale threshold. Returns the ticket ID and claim ID. Useful for
+// stale threshold. Returns the issue ID and claim ID. Useful for
 // claim-stealing tests where a short threshold is needed.
-func seedClaimedTaskWithThreshold(t *testing.T, dir, title, author, threshold string) (ticketID, claimID string) {
+func seedClaimedTaskWithThreshold(t *testing.T, dir, title, author, threshold string) (issueID, claimID string) {
 	t.Helper()
 
 	taskID := createTask(t, dir, title, author)
@@ -200,19 +200,19 @@ func seedClaimedTaskWithThreshold(t *testing.T, dir, title, author, threshold st
 	return taskID, cid
 }
 
-// addNote adds a note to a ticket. The test fails if the command does not
+// addNote adds a note to an issue. The test fails if the command does not
 // succeed.
-func addNote(t *testing.T, dir, ticketID, body, author string) {
+func addNote(t *testing.T, dir, issueID, body, author string) {
 	t.Helper()
 
 	_, stderr, code := runNP(t, dir, "note", "add",
-		"--ticket", ticketID,
+		"--issue", issueID,
 		"--body", body,
 		"--author", author,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("note add on %s failed (exit %d): %s", ticketID, code, stderr)
+		t.Fatalf("note add on %s failed (exit %d): %s", issueID, code, stderr)
 	}
 }
 
@@ -227,15 +227,15 @@ func TestE2E_Seed_ClaimedTask(t *testing.T) {
 	author := "seed-agent"
 
 	// When — seed a claimed task.
-	ticketID, claimID := seedClaimedTask(t, dir, "Claimed task", author)
+	issueID, claimID := seedClaimedTask(t, dir, "Claimed task", author)
 
-	// Then — the ticket is in claimed state with the correct claim.
-	ticket := showTicket(t, dir, ticketID)
-	if ticket["state"] != "claimed" {
-		t.Errorf("expected state 'claimed', got %v", ticket["state"])
+	// Then — the issue is in claimed state with the correct claim.
+	issue := showIssue(t, dir, issueID)
+	if issue["state"] != "claimed" {
+		t.Errorf("expected state 'claimed', got %v", issue["state"])
 	}
-	if ticket["claim_id"] != claimID {
-		t.Errorf("expected claim_id %q, got %v", claimID, ticket["claim_id"])
+	if issue["claim_id"] != claimID {
+		t.Errorf("expected claim_id %q, got %v", claimID, issue["claim_id"])
 	}
 }
 
@@ -244,12 +244,12 @@ func TestE2E_Seed_ClosedTask(t *testing.T) {
 	dir := initDB(t, "SEED")
 
 	// When — seed a closed task.
-	ticketID := seedClosedTask(t, dir, "Closed task", "seed-agent")
+	issueID := seedClosedTask(t, dir, "Closed task", "seed-agent")
 
-	// Then — the ticket is in closed state.
-	ticket := showTicket(t, dir, ticketID)
-	if ticket["state"] != "closed" {
-		t.Errorf("expected state 'closed', got %v", ticket["state"])
+	// Then — the issue is in closed state.
+	issue := showIssue(t, dir, issueID)
+	if issue["state"] != "closed" {
+		t.Errorf("expected state 'closed', got %v", issue["state"])
 	}
 }
 
@@ -258,12 +258,12 @@ func TestE2E_Seed_DeferredTask(t *testing.T) {
 	dir := initDB(t, "SEED")
 
 	// When — seed a deferred task.
-	ticketID := seedDeferredTask(t, dir, "Deferred task", "seed-agent")
+	issueID := seedDeferredTask(t, dir, "Deferred task", "seed-agent")
 
-	// Then — the ticket is in deferred state.
-	ticket := showTicket(t, dir, ticketID)
-	if ticket["state"] != "deferred" {
-		t.Errorf("expected state 'deferred', got %v", ticket["state"])
+	// Then — the issue is in deferred state.
+	issue := showIssue(t, dir, issueID)
+	if issue["state"] != "deferred" {
+		t.Errorf("expected state 'deferred', got %v", issue["state"])
 	}
 }
 
@@ -272,12 +272,12 @@ func TestE2E_Seed_WaitingTask(t *testing.T) {
 	dir := initDB(t, "SEED")
 
 	// When — seed a waiting task.
-	ticketID := seedWaitingTask(t, dir, "Waiting task", "seed-agent")
+	issueID := seedWaitingTask(t, dir, "Waiting task", "seed-agent")
 
-	// Then — the ticket is in waiting state.
-	ticket := showTicket(t, dir, ticketID)
-	if ticket["state"] != "waiting" {
-		t.Errorf("expected state 'waiting', got %v", ticket["state"])
+	// Then — the issue is in waiting state.
+	issue := showIssue(t, dir, issueID)
+	if issue["state"] != "waiting" {
+		t.Errorf("expected state 'waiting', got %v", issue["state"])
 	}
 }
 
@@ -289,15 +289,15 @@ func TestE2E_Seed_BlockedPair(t *testing.T) {
 	// When — seed a blocked pair.
 	blockerID, blockedID := seedBlockedPair(t, dir, "Blocker", "Blocked", author)
 
-	// Then — the blocked ticket is not ready and has a blocked_by relationship.
-	blockedTicket := showTicket(t, dir, blockedID)
-	if blockedTicket["is_ready"] == true {
-		t.Error("blocked ticket should not be ready")
+	// Then — the blocked issue is not ready and has a blocked_by relationship.
+	blockedIssue := showIssue(t, dir, blockedID)
+	if blockedIssue["is_ready"] == true {
+		t.Error("blocked issue should not be ready")
 	}
 
-	rels, ok := blockedTicket["relationships"].([]any)
+	rels, ok := blockedIssue["relationships"].([]any)
 	if !ok || len(rels) == 0 {
-		t.Fatal("expected at least one relationship on blocked ticket")
+		t.Fatal("expected at least one relationship on blocked issue")
 	}
 
 	foundBlocker := false
@@ -326,7 +326,7 @@ func TestE2E_Seed_EpicWithTasks(t *testing.T) {
 	)
 
 	// Then — the epic exists and has the correct number of children.
-	epic := showTicket(t, dir, epicID)
+	epic := showIssue(t, dir, epicID)
 	if epic["role"] != "epic" {
 		t.Errorf("expected role 'epic', got %v", epic["role"])
 	}
@@ -337,7 +337,7 @@ func TestE2E_Seed_EpicWithTasks(t *testing.T) {
 
 	// Each child should reference the epic as its parent.
 	for _, childID := range taskIDs {
-		child := showTicket(t, dir, childID)
+		child := showIssue(t, dir, childID)
 		if child["parent_id"] != epicID {
 			t.Errorf("child %s: expected parent_id %s, got %v", childID, epicID, child["parent_id"])
 		}

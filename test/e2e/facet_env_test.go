@@ -12,7 +12,7 @@ func TestE2E_FacetEnvVar_CreateMergesNPFACETS(t *testing.T) {
 	dir := initDB(t, "FENV")
 	author := "facet-agent"
 
-	// When — create a ticket with NP_FACETS set and no explicit --facet flags.
+	// When — create an issue with NP_FACETS set and no explicit --facet flags.
 	stdout, stderr, code := runNPWithEnv(t, dir,
 		[]string{"NP_FACETS=repo:auth kind:feature"},
 		"create",
@@ -25,9 +25,9 @@ func TestE2E_FacetEnvVar_CreateMergesNPFACETS(t *testing.T) {
 		t.Fatalf("create with NP_FACETS failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
-	ticketID := result["id"].(string)
+	issueID := result["id"].(string)
 
-	// Then — the ticket appears when filtering by the env-provided facet.
+	// Then — the issue appears when filtering by the env-provided facet.
 	listStdout, stderr, code := runNP(t, dir, "list",
 		"--facet", "repo:auth",
 		"--json",
@@ -41,13 +41,13 @@ func TestE2E_FacetEnvVar_CreateMergesNPFACETS(t *testing.T) {
 	found := false
 	for _, item := range items {
 		m := item.(map[string]any)
-		if m["id"] == ticketID {
+		if m["id"] == issueID {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected ticket %s to appear in list filtered by repo:auth", ticketID)
+		t.Errorf("expected issue %s to appear in list filtered by repo:auth", issueID)
 	}
 }
 
@@ -70,9 +70,9 @@ func TestE2E_FacetEnvVar_ExplicitFlagOverridesEnv(t *testing.T) {
 		t.Fatalf("create with NP_FACETS + --facet failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
-	ticketID := result["id"].(string)
+	issueID := result["id"].(string)
 
-	// Then — the ticket appears with kind:fix (explicit) not kind:feature (env).
+	// Then — the issue appears with kind:fix (explicit) not kind:feature (env).
 	listFixStdout, _, code := runNP(t, dir, "list",
 		"--facet", "kind:fix",
 		"--json",
@@ -85,16 +85,16 @@ func TestE2E_FacetEnvVar_ExplicitFlagOverridesEnv(t *testing.T) {
 	foundFix := false
 	for _, item := range fixItems {
 		m := item.(map[string]any)
-		if m["id"] == ticketID {
+		if m["id"] == issueID {
 			foundFix = true
 			break
 		}
 	}
 	if !foundFix {
-		t.Errorf("expected ticket %s with kind:fix (explicit override)", ticketID)
+		t.Errorf("expected issue %s with kind:fix (explicit override)", issueID)
 	}
 
-	// The ticket should NOT appear when filtering by kind:feature (env value
+	// The issue should NOT appear when filtering by kind:feature (env value
 	// was overridden).
 	listFeatureStdout, _, code := runNP(t, dir, "list",
 		"--facet", "kind:feature",
@@ -106,8 +106,8 @@ func TestE2E_FacetEnvVar_ExplicitFlagOverridesEnv(t *testing.T) {
 			if featureItems, ok := featureResult["items"].([]any); ok {
 				for _, item := range featureItems {
 					m := item.(map[string]any)
-					if m["id"] == ticketID {
-						t.Errorf("ticket %s should not have kind:feature (overridden by --facet kind:fix)", ticketID)
+					if m["id"] == issueID {
+						t.Errorf("issue %s should not have kind:feature (overridden by --facet kind:fix)", issueID)
 					}
 				}
 			}

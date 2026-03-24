@@ -11,28 +11,28 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project.
 
 1. [Design Principles](#1-design-principles)
 2. [Motivation: Deficiencies of Beads](#2-motivation-deficiencies-of-beads)
-3. [Ticket Model](#3-ticket-model)
-   - 3.1 [Ticket Types](#31-ticket-types)
+3. [Issue Model](#3-issue-model)
+   - 3.1 [Issue Types](#31-issue-types)
    - 3.2 [Labels (Convention on Facets)](#32-labels-convention-on-facets)
    - 3.3 [Common Fields](#33-common-fields)
    - 3.4 [States](#34-states)
    - 3.5 [Relationships](#35-relationships)
    - 3.6 [Notes](#36-notes)
-   - 3.7 [Ticket ID Format](#37-ticket-id-format)
+   - 3.7 [Issue ID Format](#37-issue-id-format)
    - 3.8 [Facets](#38-facets)
-4. [Ticket Lifecycle](#4-ticket-lifecycle)
+4. [Issue Lifecycle](#4-issue-lifecycle)
    - 4.1 [Claiming & Updating](#41-claiming--updating)
    - 4.2 [Epic Completion Derivation](#42-epic-completion-derivation)
    - 4.3 [Readiness](#43-readiness)
    - 4.4 [Duplicate Handling](#44-duplicate-handling)
-   - 4.5 [Stale Tickets & Stealing](#45-stale-tickets--stealing)
+   - 4.5 [Stale Issues & Stealing](#45-stale-issues--stealing)
    - 4.6 [Soft Deletion](#46-soft-deletion)
 5. [History & Auditability](#5-history--auditability)
 6. [Architecture](#6-architecture)
 7. [Commands](#7-commands)
    - 7.0 [Cross-Cutting Concerns](#70-cross-cutting-concerns)
    - 7.1 [Global Operations](#71-global-operations)
-   - 7.2 [Ticket Operations](#72-ticket-operations)
+   - 7.2 [Issue Operations](#72-issue-operations)
    - 7.3 [Note Operations](#73-note-operations)
    - 7.4 [History Operations](#74-history-operations)
    - 7.5 [Diagnostics](#75-diagnostics)
@@ -49,7 +49,7 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project.
 - **Non-invasive** — no global hooks, no coupling to git lifecycle, no background daemons.
 - **No database server** — embedded storage only; no Dolt, no Postgres, no separate process.
 - **CLI-driven** — first-class CLI (`np`); designed to be called by AI agents and humans alike.
-- **Per-project databases** — each project gets its own ticket database. The developer decides the scope boundary by choosing the directory where the database lives — a single repo, a parent directory spanning multiple repos, etc.
+- **Per-project databases** — each project gets its own issue database. The developer decides the scope boundary by choosing the directory where the database lives — a single repo, a parent directory spanning multiple repos, etc.
 - **No agent orchestration** — the tool tracks issues; it does not coordinate which agent works on what. Developers manage agent coordination externally.
 
 ## 2. Motivation: Deficiencies of Beads
@@ -69,15 +69,15 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project.
 
 ---
 
-## 3. Ticket Model
+## 3. Issue Model
 
-### 3.1 Ticket Types
+### 3.1 Issue Types
 
-There are exactly two ticket types (referred to as "roles"):
+There are exactly two issue types (referred to as "roles"):
 
 #### Epic *(name is provisional — "container" and "task group" are under consideration)*
 
-A ticket that organizes other tickets. Its completion derives from its children.
+An issue that organizes other issues. Its completion derives from its children.
 
 - Optionally has an epic as its parent (nesting is allowed).
 - **Cannot** be directly completed — completion is derived from children
@@ -94,13 +94,13 @@ The actionable work. Describes a step or sequence of steps that progresses the
 project — or its parent epic — closer to completion.
 
 - Optionally has an epic as its parent.
-- **Cannot** have child tickets of its own (leaf node only).
+- **Cannot** have child issues of its own (leaf node only).
 
 ### 3.2 Labels (Convention on Facets)
 
 Labels are not a first-class field — they are a **convention** using facets. The
 recommended facet key is `kind` (e.g., `kind:feat`, `kind:fix`). This applies to
-any ticket, not just epics.
+any issue, not just epics.
 
 Users are free to define whatever label vocabulary fits their workflow — corporate Jira
 categories, team-specific conventions, or anything else. For users who don't have an
@@ -125,16 +125,16 @@ These are suggestions, not enforced values. The system does not validate facet v
 
 ### 3.3 Common Fields
 
-All tickets — regardless of type — carry these fields:
+All issues — regardless of type — carry these fields:
 
 | Field               | Required | Notes |
 |---------------------|----------|-------|
-| ID                  | Yes      | `<PREFIX>-<random>`, auto-assigned, **immutable**. See [3.7](#37-ticket-id-format). |
+| ID                  | Yes      | `<PREFIX>-<random>`, auto-assigned, **immutable**. See [3.7](#37-issue-id-format). |
 | Title               | Yes      | Must contain at least one alphanumeric character. |
 | Description         | No       | |
 | Acceptance Criteria | No       | |
 | Priority            | Yes      | `P0`–`P4`. Default: `P2`. Lower number = higher urgency. Changing priority requires claiming. |
-| Revision            | Yes      | Integer; derived from history entry count (`revision = history count − 1`). Starts at `0` for a newly created ticket. See [5](#5-history--auditability). |
+| Revision            | Yes      | Integer; derived from history entry count (`revision = history count − 1`). Starts at `0` for a newly created issue. See [5](#5-history--auditability). |
 | State               | Yes      | See [3.4](#34-states). Tasks start as `open`; epics start as `active`. |
 | Facets              | —        | Zero or more key-value pairs. See [3.8](#38-facets). |
 | Notes               | —        | Zero or more. See [3.6](#36-notes). |
@@ -152,13 +152,13 @@ how completion works.
 | `open`     | Tasks       | Available for work. Default state at creation. |
 | `active`   | Epics       | This epic is live. Children follow their own lifecycles; readiness flows normally. Default state at creation. |
 | `claimed`  | Both        | An agent or human has taken ownership. For tasks: working on it or updating fields. For epics: editing metadata or decomposing into children. |
-| `closed`   | Tasks       | Fully resolved. **Terminal** — cannot be claimed or reopened. Create a new ticket and cite the old one instead. |
+| `closed`   | Tasks       | Fully resolved. **Terminal** — cannot be claimed or reopened. Create a new issue and cite the old one instead. |
 | `deferred` | Both        | Should not be worked on now. For epics: unclaimed descendants are no longer ready (see [4.3](#43-readiness)); claimed descendants continue, but nothing new starts. |
-| `waiting`  | Both        | Cannot proceed until something **external to the ticket tracker** happens — e.g., a human decision, a permission grant. Same readiness propagation as `deferred` for epics. (Name is provisional; "blocked" is explicitly rejected.) |
+| `waiting`  | Both        | Cannot proceed until something **external to the issue tracker** happens — e.g., a human decision, a permission grant. Same readiness propagation as `deferred` for epics. (Name is provisional; "blocked" is explicitly rejected.) |
 
 #### State Transitions
 
-**Claiming is the universal gate for all state changes.** To move a ticket to any new
+**Claiming is the universal gate for all state changes.** To move an issue to any new
 state, you must be its current claimer. The only ungated transition is into `claimed`
 itself (from any non-terminal state).
 
@@ -184,17 +184,17 @@ currently under here is closed", not "this epic is finished forever."
 
 | Relationship    | Inverse        | Semantics |
 |-----------------|----------------|-----------|
-| `blocked_by`    | `blocks`       | This ticket cannot make progress until the referenced ticket is closed. |
-| `cites`         | `cited_by`     | This ticket references the target ticket as relevant context. |
+| `blocked_by`    | `blocks`       | This issue cannot make progress until the referenced issue is closed. |
+| `cites`         | `cited_by`     | This issue references the target issue as relevant context. |
 
 ### 3.6 Notes
 
-Notes are comments on a ticket. They can be added **at any time by anyone** without
-claiming the ticket.
+Notes are comments on an issue. They can be added **at any time by anyone** without
+claiming the issue.
 
 | Field      | Required | Notes |
 |------------|----------|-------|
-| ID         | Yes      | Auto-assigned sequential integer, displayed as `note-<integer>` (e.g., `note-368`). Global across the database, not scoped per ticket. |
+| ID         | Yes      | Auto-assigned sequential integer, displayed as `note-<integer>` (e.g., `note-368`). Global across the database, not scoped per issue. |
 | Author     | Yes      | Must contain at least one alphanumeric character. |
 | Created At | Yes      | Automatically applied timestamp. |
 | Body       | Yes      | Free-form text. |
@@ -218,32 +218,32 @@ changing the data model. The point is that flat notes with conventions scale sur
 far before structural threading is needed — and structural threading, once added, cannot
 be removed.
 
-### 3.7 Ticket ID Format
+### 3.7 Issue ID Format
 
-Ticket IDs have the form `<PREFIX>-<random>` (e.g., `NP-a3bxr`, `NP-k7m2e`).
+Issue IDs have the form `<PREFIX>-<random>` (e.g., `NP-a3bxr`, `NP-k7m2e`).
 
 - The **prefix** is uppercase, set once at database initialization, and immutable. It is
   expected to be short (e.g., `NP` for "nitpicking", `PLAT` for "platform") but can be
   longer if the user wants.
 - The **random portion** is 5 lowercase [Crockford Base32](https://www.crockford.com/base32.html)
-  characters, generated randomly on each ticket creation. This gives an ID space of
-  33,554,432 — sufficient for <0.000041% triple-collision probability at 250,000 tickets.
+  characters, generated randomly on each issue creation. This gives an ID space of
+  33,554,432 — sufficient for <0.000041% triple-collision probability at 250,000 issues.
   On collision, regenerate and retry.
 - The **case contrast** between uppercase prefix and lowercase random portion provides
   clear visual separation: `NP-a3bxr` is easy to glance-parse.
-- The prefix gives humans a way to identify which database a ticket belongs to without
+- The prefix gives humans a way to identify which database an issue belongs to without
   needing to know the directory path — "NP-a3bxr" is unambiguous in conversation even
   when multiple databases exist on the same machine.
 
 #### Why Random, Not Sequential
 
-Random IDs distribute tickets evenly across SQLite B-tree pages. Sequential integers
-cluster recent (and therefore most active) tickets on the same leaf pages, which is
+Random IDs distribute issues evenly across SQLite B-tree pages. Sequential integers
+cluster recent (and therefore most active) issues on the same leaf pages, which is
 exactly where write contention is worst when multiple agents operate concurrently. The
 trade-off is losing "higher = newer" ordering, which is acceptable — queries can sort
 by creation timestamp instead.
 
-**SQLite implementation note:** the ticket table must be created `WITHOUT ROWID` so the
+**SQLite implementation note:** the issue table must be created `WITHOUT ROWID` so the
 declared primary key (the random ID) is the actual B-tree key. Otherwise, SQLite's
 implicit `ROWID` reintroduces sequential clustering under the hood.
 
@@ -255,16 +255,16 @@ auto-generation. This keeps initialization explicit and avoids heuristic edge ca
 
 ### 3.8 Facets
 
-Facets are key-value pairs on any ticket. They are the primary mechanism for
+Facets are key-value pairs on any issue. They are the primary mechanism for
 **filtering** — particularly for coordinating agents that work in different scopes under
 a shared database. The name "facets" is deliberate: it implies a small number of
 meaningful dimensions for filtering and classification, not a dumping ground for
 arbitrary metadata.
 
 - Keys and values are short strings. No schema enforcement — any key is valid.
-- A ticket can have multiple facets. Keys are unique per ticket (setting a key that
+- An issue can have multiple facets. Keys are unique per issue (setting a key that
   already exists overwrites the previous value).
-- Facets require **claiming** to add, modify, or remove (same as other ticket fields).
+- Facets require **claiming** to add, modify, or remove (same as other issue fields).
 - Facets are queryable: `np claim --ready --filter=repo:auth-service`,
   `np list --filter=lang:go`, etc. Exact filter syntax is a CLI design decision (deferred).
 
@@ -282,38 +282,38 @@ self-selects relevant work via facet filters.
   usage; premature standardization risks encoding the wrong abstractions.
 - Facets are not a replacement for first-class fields (state, priority, labels). If
   something has defined semantics and affects the lifecycle or readiness model, it
-  belongs in the ticket model, not in facets.
+  belongs in the issue model, not in facets.
 
 ---
 
-## 4. Ticket Lifecycle
+## 4. Issue Lifecycle
 
 ### 4.1 Claiming & Updating
 
-- A ticket **must be claimed** before its fields can be updated. This includes all state
+- An issue **must be claimed** before its fields can be updated. This includes all state
   changes — claiming is the universal gate (see [3.4](#34-states)).
 - **Exceptions — no claim required:**
-  - **Notes** — append-only; anyone can comment on any ticket. An agent working on
-    ticket A should be able to leave a note on ticket B without owning B.
-  - **Relationships** — adding a relationship between two tickets should not require
-    claiming either ticket.
-- `closed` and `deleted` tickets **cannot be claimed**.
-- For quick updates to unclaimed tickets (setting facets, fixing a title, etc.), the CLI
-  should support a one-shot claim → update → release as a single command per ticket.
+  - **Notes** — append-only; anyone can comment on any issue. An agent working on
+    issue A should be able to leave a note on issue B without owning B.
+  - **Relationships** — adding a relationship between two issues should not require
+    claiming either issue.
+- `closed` and `deleted` issues **cannot be claimed**.
+- For quick updates to unclaimed issues (setting facets, fixing a title, etc.), the CLI
+  should support a one-shot claim → update → release as a single command per issue.
 
 #### Claim IDs
 
-When a ticket is claimed, the operation returns a **claim ID** — a random, unguessable
+When an issue is claimed, the operation returns a **claim ID** — a random, unguessable
 token that is valid for the duration of the claim. The claim ID serves as bearer
 authentication for the claim: every operation that requires an active claim must present
 the claim ID, and the operation fails if it does not match.
 
 - Claim IDs are generated randomly and are opaque to callers.
-- Every command response that involves a claimed ticket includes the claim ID, so the
+- Every command response that involves a claimed issue includes the claim ID, so the
   caller always has it available.
 - A claim ID is **invalidated** when the claim ends — whether by the claimer releasing
-  the ticket (closing, deferring, unclaiming, waiting) or by another agent stealing it.
-- When a ticket is stolen, a **new** claim ID is issued to the stealer.
+  the issue (closing, deferring, unclaiming, waiting) or by another agent stealing it.
+- When an issue is stolen, a **new** claim ID is issued to the stealer.
 - The one-shot claim → update → release pattern generates and immediately invalidates
   a claim ID internally; the caller never needs to see or manage it.
 
@@ -373,23 +373,23 @@ A task is **ready** when all of the following are true:
 
 ### 4.4 Duplicate Handling
 
-When a ticket is determined to be a duplicate:
+When an issue is determined to be a duplicate:
 
-- One ticket is closed with a `cites` relationship pointing to the surviving ticket.
-- **Preferred heuristic:** keep the ticket with the most complete and useful title,
+- One issue is closed with a `cites` relationship pointing to the surviving issue.
+- **Preferred heuristic:** keep the issue with the most complete and useful title,
   description, and acceptance criteria.
-- **Exception:** if the "weaker" ticket has the richer interaction history (notes,
-  relationships, etc.), closing the "stronger" ticket may be more appropriate.
+- **Exception:** if the "weaker" issue has the richer interaction history (notes,
+  relationships, etc.), closing the "stronger" issue may be more appropriate.
 - This is a judgement call.
 
-### 4.5 Stale Tickets & Stealing
+### 4.5 Stale Issues & Stealing
 
 #### Staleness
 
-- A `claimed` ticket becomes **stale** when it has had no updates and no new notes for
+- A `claimed` issue becomes **stale** when it has had no updates and no new notes for
   its **stale threshold**.
 - **Default threshold:** 2 hours.
-- **Custom threshold:** when claiming a ticket, the claimer can optionally set a custom
+- **Custom threshold:** when claiming an issue, the claimer can optionally set a custom
   threshold, up to a maximum of 24 hours.
 - **Extending:** the claimer can extend the threshold at any time, up to the 24-hour
   maximum. An agent that keeps extending is fine for the tracker's purposes — the goal
@@ -397,14 +397,14 @@ When a ticket is determined to be a duplicate:
 
 #### Stealing
 
-- Stale claimed tickets can be **stolen**:
+- Stale claimed issues can be **stolen**:
   - Directly by ID, or
-  - Automatically when there are no ready tickets available.
+  - Automatically when there are no ready issues available.
 - Stealing is **atomic**: the old claim is invalidated and the new claim is created in
-  a single transaction. If two agents race to steal the same stale ticket, exactly one
+  a single transaction. If two agents race to steal the same stale issue, exactly one
   succeeds; the other receives a claim-conflict error.
-- When a ticket is stolen, a note is **automatically generated** using the stealer's
-  claim-bound author (e.g., "Stolen from `<previous-claimer>`."). The stealer inherits the ticket
+- When an issue is stolen, a note is **automatically generated** using the stealer's
+  claim-bound author (e.g., "Stolen from `<previous-claimer>`."). The stealer inherits the issue
   content in whatever state it was left in — how they deal with potentially incomplete
   work is their concern, not the tracker's.
 
@@ -413,57 +413,57 @@ When a ticket is determined to be a duplicate:
 Deletion is implemented as a soft removal but **treated as a hard delete by everything
 unless specifically told otherwise.** The data is retained in the database for history
 reconstruction and potential garbage collection, but from the perspective of all normal
-operations, the ticket does not exist.
+operations, the issue does not exist.
 
-- A deleted ticket's **ID is permanently reserved** — it cannot be reused.
-- Requesting a deleted ticket by ID returns a "not found" error. No opt-in visibility
-  for deleted tickets in normal list/detail views.
-- A deleted ticket is **immutable** — no further changes of any kind.
-- A deleted ticket **cannot be referenced** in new relationships.
-- Existing relationships pointing to a deleted ticket are **ignored** — treated as
+- A deleted issue's **ID is permanently reserved** — it cannot be reused.
+- Requesting a deleted issue by ID returns a "not found" error. No opt-in visibility
+  for deleted issues in normal list/detail views.
+- A deleted issue is **immutable** — no further changes of any kind.
+- A deleted issue **cannot be referenced** in new relationships.
+- Existing relationships pointing to a deleted issue are **ignored** — treated as
   though the relationship does not exist. The relationship data is retained in storage
   but invisible to all normal operations.
 - Deleting an epic **deletes all its children recursively**.
-- Deleted tickets **cannot be undeleted.**
+- Deleted issues **cannot be undeleted.**
 
-The `gc` command (see [7.2](#72-gc)) can physically remove deleted ticket data. `gc`
-can be targeted — e.g., remove deleted tickets without discarding closed tickets.
+The `gc` command (see [7.2](#72-gc)) can physically remove deleted issue data. `gc`
+can be targeted — e.g., remove deleted issues without discarding closed issues.
 `doctor` may recommend a `gc` run if significant space can be reclaimed.
 
 ---
 
 ## 5. History & Auditability
 
-Every mutation transaction produces exactly one **history entry**. This includes ticket
+Every mutation transaction produces exactly one **history entry**. This includes issue
 creation, field updates, state transitions, claiming, releasing, deletion — every
-operation that changes the ticket's state in the database.
+operation that changes the issue's state in the database.
 
 ### History Entry Model
 
 | Field        | Notes |
 |--------------|-------|
-| Entry ID     | Auto-assigned. Unique within the ticket's history. |
-| Ticket ID    | The ticket this entry belongs to. |
-| Revision     | Zero-based index within the ticket's history (`0` = creation). The ticket's current revision equals its latest history entry's revision. |
+| Entry ID     | Auto-assigned. Unique within the issue's history. |
+| Issue ID    | The issue this entry belongs to. |
+| Revision     | Zero-based index within the issue's history (`0` = creation). The issue's current revision equals its latest history entry's revision. |
 | Author       | Inherited from the active claim for gated operations; explicit parameter for ungated operations. |
 | Timestamp    | Automatically applied. |
 | Event Type   | The kind of mutation — e.g., `created`, `claimed`, `released`, `updated`, `state_changed`, `deleted`. |
-| Changes      | Structured delta: which fields changed, with before and after values. The exact representation is an implementation decision, but it must be sufficient to reconstruct the ticket's state at any revision. |
+| Changes      | Structured delta: which fields changed, with before and after values. The exact representation is an implementation decision, but it must be sufficient to reconstruct the issue's state at any revision. |
 
 ### Design Intent
 
-History is per-ticket. Each ticket's history is an ordered, append-only sequence of
-entries that fully describes the ticket's evolution from creation to its current state.
+History is per-issue. Each issue's history is an ordered, append-only sequence of
+entries that fully describes the issue's evolution from creation to its current state.
 
-Because tickets are soft-deleted (not physically removed) and history is append-only,
+Because issues are soft-deleted (not physically removed) and history is append-only,
 it is possible to reconstruct a close approximation of global history by merging
-per-ticket histories ordered by timestamp. A first-class global history view is **out
+per-issue histories ordered by timestamp. A first-class global history view is **out
 of scope** for now, but the data model does not preclude it — this is, in effect, an
 event-sourcing system. If real-world usage demonstrates the need, global history
 reconstruction can be pulled into scope without schema changes.
 
 Garbage collection (`gc`) is the only operation that destroys history entries. Once
-`gc` removes a ticket's data, that ticket's history is gone.
+`gc` removes an issue's data, that issue's history is gone.
 
 ---
 
@@ -485,7 +485,7 @@ separates the system into three distinct layers:
 │  the interface exposed to main() / driving adapters │
 ├─────────────────────────────────────────────────────┤
 │                    Core Domain                      │
-│     ticket model, state machine, business rules,    │
+│     issue model, state machine, business rules,    │
 │     validation, history, readiness, deletion logic  │
 ├─────────────────────────────────────────────────────┤
 │                  Driven Port                        │
@@ -502,7 +502,7 @@ separates the system into three distinct layers:
 
 This architecture enables a deliberate sequencing of work:
 
-1. **First: Core domain** — implement the ticket model, state machine, lifecycle rules,
+1. **First: Core domain** — implement the issue model, state machine, lifecycle rules,
    validation, and business logic in isolation, with no dependency on CLI structure or
    storage technology.
 2. **Second: Port interfaces** — define the **driving port** (the application API that
@@ -554,7 +554,7 @@ requiring the user to specify a path or set an environment variable.
 
 #### Pagination
 
-All commands that return lists (tickets, notes, history entries) are **paginated** using
+All commands that return lists (issues, notes, history entries) are **paginated** using
 keyset pagination. The default page size is **20 items**.
 
 - The response includes the **total count** of matching items so the caller knows whether
@@ -579,7 +579,7 @@ through instructions to their agents.
 #### Initialize
 
 Initialize the database by creating a `.np/` directory in the current working directory.
-The user must specify a **prefix** for ticket IDs (see [3.7](#37-ticket-id-format));
+The user must specify a **prefix** for issue IDs (see [3.7](#37-issue-id-format));
 the prefix is required and cannot be changed after initialization.
 
 #### Agent Name
@@ -593,7 +593,7 @@ Generate a concise Markdown block describing how to use `np`, suitable for pasti
 
 - Core workflow: claim → work → transition state.
 - How claim IDs work and when to pass them.
-- Always move a ticket to an appropriate unclaimed state when done (close, defer, wait,
+- Always move an issue to an appropriate unclaimed state when done (close, defer, wait,
   or release).
 - How to discover more: `np --help` and `np <command> --help`.
 
@@ -606,48 +606,48 @@ The instructions must be **brief** — enough to get an agent started and know w
 find details. An agent's context window is precious; a wall of documentation defeats the
 purpose.
 
-### 7.2 Ticket Operations
+### 7.2 Issue Operations
 
 #### Create
 
-Create a ticket. All properties on the ticket may be set at creation: title, description,
+Create an issue. All properties on the issue may be set at creation: title, description,
 acceptance criteria, priority, type (task or epic), parent epic, facets, and relationships.
-The caller may optionally have the ticket start as **claimed** by them, which returns a
+The caller may optionally have the issue start as **claimed** by them, which returns a
 claim ID (see [4.1](#41-claiming--updating)).
 
-The caller may optionally provide an **idempotency key** — an opaque string. If a ticket
-with the same idempotency key already exists, the operation returns the existing ticket
+The caller may optionally provide an **idempotency key** — an opaque string. If an issue
+with the same idempotency key already exists, the operation returns the existing issue
 instead of creating a duplicate. This prevents double-creation when an agent crashes
 after the write succeeds but before it reads the response.
 
 #### Claim by ID
 
-Claim a specific ticket by its ID. Returns a claim ID.
+Claim a specific issue by its ID. Returns a claim ID.
 
-- If the ticket is already claimed and **stale**, the caller may optionally indicate that
+- If the issue is already claimed and **stale**, the caller may optionally indicate that
   stealing is allowed. If stealing succeeds, a new claim ID is issued and an auto-generated
-  note is added (see [4.5](#45-stale-tickets--stealing)).
-- If the ticket is claimed and **not stale**, the operation fails — the caller cannot
-  steal a non-stale ticket.
+  note is added (see [4.5](#45-stale-issues--stealing)).
+- If the issue is claimed and **not stale**, the operation fails — the caller cannot
+  steal a non-stale issue.
 
 #### Claim Next Ready
 
-Claim the highest-priority unclaimed ready ticket (lowest `P` number first; ties broken
-by earliest creation time). Filterable by facet. Returns the claimed ticket and a
+Claim the highest-priority unclaimed ready issue (lowest `P` number first; ties broken
+by earliest creation time). Filterable by facet. Returns the claimed issue and a
 claim ID.
 
-- Variant: if no ready tickets are available, optionally **steal** the highest-priority
-  stale claimed ticket instead. The caller must explicitly opt into this fallback.
+- Variant: if no ready issues are available, optionally **steal** the highest-priority
+  stale claimed issue instead. The caller must explicitly opt into this fallback.
 
 #### Update
 
 Update one or more properties, facets (full CRUD), relationships (create/delete), and/or
-parent assignment on a claimed ticket. Optionally add a note as part of the same
+parent assignment on a claimed issue. Optionally add a note as part of the same
 operation. Requires the claim ID. All changes are applied as a **single atomic mutation**.
 
 #### Transition State
 
-Change the state of a claimed ticket. Requires the claim ID. Valid transitions from
+Change the state of a claimed issue. Requires the claim ID. Valid transitions from
 `claimed`:
 
 - **Release** — return to `open` (tasks) or `active` (epics) without completing.
@@ -659,29 +659,29 @@ All of these transitions **end the claim** and invalidate the claim ID.
 
 #### Delete
 
-Soft-delete a ticket (see [4.6](#46-soft-deletion)). Requires claiming the ticket first.
+Soft-delete an issue (see [4.6](#46-soft-deletion)). Requires claiming the issue first.
 Deleting an epic **recursively deletes** all its children.
 
 #### Show
 
-Display the full current state of a ticket: all fields, facets, relationships, parent,
+Display the full current state of an issue: all fields, facets, relationships, parent,
 children (for epics), and derived properties (readiness, completion status). Notes are
 **excluded** — they have their own paginated listing.
 
 #### List
 
-List tickets. Displays high-level information by default: ID, type, state, priority, and
+List issues. Displays high-level information by default: ID, type, state, priority, and
 title. Optionally include creation and/or modification timestamps.
 
 - **Filterable** by state, or by the computed "ready" predicate (see [4.3](#43-readiness)).
-- **Filterable** by facet. `key:*` matches all tickets with that key regardless of value.
-  Negative facet matching (exclude tickets with a facet) may be supported.
+- **Filterable** by facet. `key:*` matches all issues with that key regardless of value.
+  Negative facet matching (exclude issues with a facet) may be supported.
 - **Orderable** by priority, creation time, modification time, or other criteria.
 - **Paginated** (see [7.0](#70-cross-cutting-concerns)).
 
 #### Search
 
-Search tickets using full-text search on title, description, and acceptance criteria.
+Search issues using full-text search on title, description, and acceptance criteria.
 Optionally include notes in the FTS scope. Also filterable by facet (including `key:*`
 and possibly negative matching).
 
@@ -693,7 +693,7 @@ and possibly negative matching).
 
 #### Add Note
 
-Add a note to a ticket. Does **not** require claiming. Requires an **explicit author**
+Add a note to an issue. Does **not** require claiming. Requires an **explicit author**
 and body (see [4.1 Author Attribution](#41-claiming--updating)).
 
 #### Show Note
@@ -702,29 +702,29 @@ Display a single note by its ID.
 
 #### List Notes
 
-List notes on a specific ticket.
+List notes on a specific issue.
 
 - **Filterable** by author, by created-after date-time, or by created-after a specific
   note ID.
 - **Orderable** and **paginated**.
 
-#### Search Notes (Per-Ticket)
+#### Search Notes (Per-Issue)
 
-Search notes on a specific ticket using full-text search.
+Search notes on a specific issue using full-text search.
 
 #### Search Notes (Global)
 
-Search all notes across all tickets using full-text search.
+Search all notes across all issues using full-text search.
 
 - **Filterable** by author, created-after date-time, created-after a specific note ID,
-  ticket facets, and ticket state.
+  issue facets, and issue state.
 - **Orderable** and **paginated**.
 
 ### 7.4 History Operations
 
 #### Show History
 
-Display the change history for a ticket.
+Display the change history for an issue.
 
 - **Filterable** by author and/or date range.
 - **Orderable** and **paginated**.
@@ -733,17 +733,17 @@ Display the change history for a ticket.
 
 #### Doctor
 
-A **diagnostic-only** command that identifies problems in the ticket database. It
+A **diagnostic-only** command that identifies problems in the issue database. It
 reports findings but does not modify any data. Examples:
 
 - **Circular `blocked_by` relationships** — dependency cycles.
-- **Deadlocked state** — all remaining tickets are blocked (e.g., on `claimed`,
-  `deferred`, or `waiting` tickets).
-- **Stale `claimed` tickets** — tickets that have been claimed but show no activity.
+- **Deadlocked state** — all remaining issues are blocked (e.g., on `claimed`,
+  `deferred`, or `waiting` issues).
+- **Stale `claimed` issues** — issues that have been claimed but show no activity.
 - **Epics with no task descendants** — epic subtrees that have no tasks at any leaf,
   indicating decomposition work is needed.
 - **Garbage collection opportunity** — if physically removing deleted (and optionally
-  closed) ticket data would reduce the database size by at least **40%** (heuristic
+  closed) issue data would reduce the database size by at least **40%** (heuristic
   estimate), `doctor` notes this and suggests running `gc`.
 
 A future enhancement may add recommended next steps or an auto-fix mode, but the
@@ -751,10 +751,10 @@ initial version is purely informational.
 
 #### GC
 
-Physically compact the database by removing deleted (and optionally closed) ticket data.
+Physically compact the database by removing deleted (and optionally closed) issue data.
 Analogous to `git gc` — not part of normal workflow, available if the database grows
 unwieldy toward the end of a long project. Can be targeted — e.g., remove only deleted
-tickets without discarding closed tickets. `doctor` may recommend a `gc` run if
+issues without discarding closed issues. `doctor` may recommend a `gc` run if
 significant space can be reclaimed.
 
 ### 7.6 Agent Ergonomics
@@ -784,8 +784,8 @@ At minimum:
 |------|---------|
 | 0    | Success. |
 | 1    | General / unexpected error. |
-| 2    | Not found (ticket, note, etc.). |
-| 3    | Claim conflict (ticket is claimed and not stale, or claim ID mismatch). |
+| 2    | Not found (issue, note, etc.). |
+| 3    | Claim conflict (issue is claimed and not stale, or claim ID mismatch). |
 | 4    | Validation error (bad input). |
 | 5    | Database error (corruption, locked, etc.). |
 
@@ -812,7 +812,7 @@ Operations that can be idempotent should be:
 
 - **Relationships** — "create if not exists", "delete if exists" (already defined in
   the concurrency model).
-- **Ticket creation** — optional idempotency key (see [7.2 Create](#72-ticket-operations)).
+- **Issue creation** — optional idempotency key (see [7.2 Create](#72-issue-operations)).
 
 Operations that are inherently non-idempotent (claiming, adding notes) remain so —
 idempotency is not forced where it would distort the semantics.
@@ -842,14 +842,14 @@ descendants continue. See [3.4](#34-states) and [4.2](#42-epic-completion-deriva
 
 Resolved: epics are claimable. Claiming an epic means "I am editing this epic's metadata
 or decomposing it into children." This is the mechanism that prevents two agents from
-racing to break down the same epic. See [3.1](#31-ticket-types).
+racing to break down the same epic. See [3.1](#31-issue-types).
 
-### ~~9.3 Per-Project Database vs. Cross-Project Tickets~~ — RESOLVED
+### ~~9.3 Per-Project Database vs. Cross-Project Issues~~ — RESOLVED
 
 Resolved: the developer decides the scope boundary by choosing where the database lives.
 A project is not necessarily a repo — it might be a parent directory containing multiple
 repos (e.g., all microservices and front-ends for a SaaS platform). Placing the database
-at that level gives all repos a shared ticket space. The tool does not manage cross-database
+at that level gives all repos a shared issue space. The tool does not manage cross-database
 references or multi-database federation; if work spans a boundary, the developer moves the
 boundary.
 
@@ -862,16 +862,16 @@ friction.
 ### ~~9.4 Project ID Semantics~~ — RESOLVED
 
 Resolved by 9.3: since the database scope is determined by directory placement rather
-than a project ID encoding scheme, Project ID as a ticket field is no longer needed.
-The database *is* the project boundary. Ticket IDs only need to be unique within their
+than a project ID encoding scheme, Project ID as an issue field is no longer needed.
+The database *is* the project boundary. Issue IDs only need to be unique within their
 database.
 
 ### ~~9.5 Soft Deletion: Relationship Cleanup~~ — RESOLVED
 
-Resolved: soft deletion keeps everything in place — the ticket, its relationships, its
+Resolved: soft deletion keeps everything in place — the issue, its relationships, its
 history. Nothing is physically removed. This is the simplest approach and preserves full
-reconstructability. `doctor` accounts for deleted tickets when analyzing the graph (e.g.,
-a `blocked_by` pointing to a deleted ticket is not a live blocker).
+reconstructability. `doctor` accounts for deleted issues when analyzing the graph (e.g.,
+a `blocked_by` pointing to a deleted issue is not a live blocker).
 
 If the database grows unwieldy toward the end of a long project, a `gc` command (analogous
 to `git gc`) can physically compact closed and deleted data. This is not expected to be
@@ -890,11 +890,11 @@ children are deferred, the epic is incomplete and likely should itself be marked
 
 ## 10. Open Questions for Next Session
 
-### Ticket Identity & Project Scoping
+### Issue Identity & Project Scoping
 
-1. ~~**ID format**~~ — RESOLVED. See [3.7](#37-ticket-id-format).
+1. ~~**ID format**~~ — RESOLVED. See [3.7](#37-issue-id-format).
 2. ~~**Project ID encoding**~~ — RESOLVED. See [9.4](#94-project-id-semantics).
-3. ~~**Single vs. multi-project databases**~~ — RESOLVED. See [9.3](#93-per-project-database-vs-cross-project-tickets).
+3. ~~**Single vs. multi-project databases**~~ — RESOLVED. See [9.3](#93-per-project-database-vs-cross-project-issues).
 
 ### State Machine
 
@@ -905,12 +905,12 @@ children are deferred, the epic is incomplete and likely should itself be marked
 ### Deletion
 
 7. ~~**Relationship cleanup on deletion**~~ — RESOLVED. See [9.5](#95-soft-deletion-relationship-cleanup).
-8. ~~**Undelete**~~ — RESOLVED. No. Deleted tickets cannot be undeleted. See [4.6](#46-soft-deletion).
+8. ~~**Undelete**~~ — RESOLVED. No. Deleted issues cannot be undeleted. See [4.6](#46-soft-deletion).
 
 ### Staleness & Stealing
 
-9. ~~**Stale threshold**~~ — RESOLVED. See [4.5](#45-stale-tickets--stealing).
-10. ~~**Steal semantics**~~ — RESOLVED. See [4.5](#45-stale-tickets--stealing).
+9. ~~**Stale threshold**~~ — RESOLVED. See [4.5](#45-stale-issues--stealing).
+10. ~~**Steal semantics**~~ — RESOLVED. See [4.5](#45-stale-issues--stealing).
 
 ### Metadata / Key-Value Pairs
 
@@ -920,7 +920,7 @@ children are deferred, the epic is incomplete and likely should itself be marked
 ### Labels
 
 13. ~~**Additional epic labels**~~ — RESOLVED. Labels are now a convention on facets (`kind:<value>`), not a first-class field. Users define their own vocabulary. See [3.2](#32-labels-convention-on-facets).
-14. ~~**Labels on tasks**~~ — RESOLVED. Facets apply to any ticket, so labels (via the `kind` facet) work on both epics and tasks.
+14. ~~**Labels on tasks**~~ — RESOLVED. Facets apply to any issue, so labels (via the `kind` facet) work on both epics and tasks.
 
 ### Architecture & Ports
 
@@ -930,24 +930,24 @@ children are deferred, the epic is incomplete and likely should itself be marked
     boundaries, query patterns, and operation granularity will become obvious as
     operations like recursive deletion and readiness queries are built.
 16. ~~**Concurrency model**~~ — RESOLVED. Claiming is the concurrency control mechanism.
-    All mutable ticket fields are gated by exclusive claiming, so there is no concurrent
+    All mutable issue fields are gated by exclusive claiming, so there is no concurrent
     modification to handle. The remaining ungated operations have simple solutions:
     notes are append-only (no contention); relationships use idempotent semantics
     ("create if not exists", "delete if exists" — both succeed from the caller's
     perspective). Claiming and stealing are atomic compare-and-swap operations (claim
-    succeeds only if ticket is unclaimed or stale; loser gets an error and picks another
-    ticket). SQLite's transaction isolation handles the CAS naturally.
+    succeeds only if issue is unclaimed or stale; loser gets an error and picks another
+    issue). SQLite's transaction isolation handles the CAS naturally.
 17. ~~**Atomicity guarantees**~~ — RESOLVED. Three levels:
     - **Writes:** a CLI execution that changes the database is atomic. The entire
       mutation succeeds or fails as a unit (e.g., recursive epic deletion is one
       transaction, not many).
-    - **Single-ticket reads:** atomic — the ticket is always in an internally coherent
+    - **Single-issue reads:** atomic — the issue is always in an internally coherent
       state.
-    - **Multi-ticket reads** (list, search): atomic **per ticket**, not across the
-      result set. Each ticket is coherent, but cross-ticket relationships may reflect
-      different points in time. E.g., ticket A may list B as a child, but B's state
+    - **Multi-issue reads** (list, search): atomic **per issue**, not across the
+      result set. Each issue is coherent, but cross-issue relationships may reflect
+      different points in time. E.g., issue A may list B as a child, but B's state
       may have changed between when A and B were each loaded. This avoids locking the
-      entire database for read operations. If a cross-ticket consistent read proves
+      entire database for read operations. If a cross-issue consistent read proves
       necessary, it can be enabled per-query (e.g., a flag) — but not until there is a
       demonstrated need.
 

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestParseTicketJSON_ValidFullInput(t *testing.T) {
+func TestParseIssueJSON_ValidFullInput(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -22,7 +22,7 @@ func TestParseTicketJSON_ValidFullInput(t *testing.T) {
 	}`)
 
 	// When
-	tj, err := parseTicketJSON(data)
+	tj, err := parseIssueJSON(data)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -50,7 +50,7 @@ func TestParseTicketJSON_ValidFullInput(t *testing.T) {
 	}
 }
 
-func TestParseTicketJSON_IgnoresExtraFieldsFromShow(t *testing.T) {
+func TestParseIssueJSON_IgnoresExtraFieldsFromShow(t *testing.T) {
 	t.Parallel()
 
 	// Given: JSON that includes show-only fields (id, state, revision, etc.).
@@ -66,7 +66,7 @@ func TestParseTicketJSON_IgnoresExtraFieldsFromShow(t *testing.T) {
 	}`)
 
 	// When
-	tj, err := parseTicketJSON(data)
+	tj, err := parseIssueJSON(data)
 	// Then: no error; relevant fields extracted, extras silently dropped.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -79,14 +79,14 @@ func TestParseTicketJSON_IgnoresExtraFieldsFromShow(t *testing.T) {
 	}
 }
 
-func TestParseTicketJSON_InvalidJSON_ReturnsError(t *testing.T) {
+func TestParseIssueJSON_InvalidJSON_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	data := []byte(`{not valid json}`)
 
 	// When
-	_, err := parseTicketJSON(data)
+	_, err := parseIssueJSON(data)
 
 	// Then
 	if err == nil {
@@ -97,14 +97,14 @@ func TestParseTicketJSON_InvalidJSON_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestParseTicketJSON_MinimalInput(t *testing.T) {
+func TestParseIssueJSON_MinimalInput(t *testing.T) {
 	t.Parallel()
 
 	// Given: only required fields.
 	data := []byte(`{"role": "epic", "title": "Auth overhaul"}`)
 
 	// When
-	tj, err := parseTicketJSON(data)
+	tj, err := parseIssueJSON(data)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

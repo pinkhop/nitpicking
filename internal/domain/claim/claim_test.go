@@ -6,7 +6,7 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/domain/claim"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 func mustAuthor(t *testing.T, name string) identity.Author {
@@ -18,11 +18,11 @@ func mustAuthor(t *testing.T, name string) identity.Author {
 	return a
 }
 
-func mustTicketID(t *testing.T) ticket.ID {
+func mustIssueID(t *testing.T) issue.ID {
 	t.Helper()
-	id, err := ticket.GenerateID("NP", nil)
+	id, err := issue.GenerateID("NP", nil)
 	if err != nil {
-		t.Fatalf("failed to generate ticket ID: %v", err)
+		t.Fatalf("failed to generate issue ID: %v", err)
 	}
 	return id
 }
@@ -31,15 +31,15 @@ func TestNewClaim_ValidParams_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	tid := mustTicketID(t)
+	tid := mustIssueID(t)
 	author := mustAuthor(t, "alice")
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 
 	// When
 	c, err := claim.NewClaim(claim.NewClaimParams{
-		TicketID: tid,
-		Author:   author,
-		Now:      now,
+		IssueID: tid,
+		Author:  author,
+		Now:     now,
 	})
 	// Then
 	if err != nil {
@@ -51,8 +51,8 @@ func TestNewClaim_ValidParams_Succeeds(t *testing.T) {
 	if len(c.ID()) != 32 {
 		t.Errorf("expected 32-char hex ID, got %d chars", len(c.ID()))
 	}
-	if c.TicketID() != tid {
-		t.Errorf("expected ticket ID %s, got %s", tid, c.TicketID())
+	if c.IssueID() != tid {
+		t.Errorf("expected issue ID %s, got %s", tid, c.IssueID())
 	}
 	if !c.Author().Equal(author) {
 		t.Errorf("expected author alice, got %s", c.Author())
@@ -67,7 +67,7 @@ func TestNewClaim_CustomThreshold_Succeeds(t *testing.T) {
 
 	// When
 	c, err := claim.NewClaim(claim.NewClaimParams{
-		TicketID:       mustTicketID(t),
+		IssueID:        mustIssueID(t),
 		Author:         mustAuthor(t, "bob"),
 		StaleThreshold: 6 * time.Hour,
 		Now:            time.Now(),
@@ -86,7 +86,7 @@ func TestNewClaim_ThresholdExceedsMax_Fails(t *testing.T) {
 
 	// When
 	_, err := claim.NewClaim(claim.NewClaimParams{
-		TicketID:       mustTicketID(t),
+		IssueID:        mustIssueID(t),
 		Author:         mustAuthor(t, "bob"),
 		StaleThreshold: 25 * time.Hour,
 		Now:            time.Now(),
@@ -98,7 +98,7 @@ func TestNewClaim_ThresholdExceedsMax_Fails(t *testing.T) {
 	}
 }
 
-func TestNewClaim_ZeroTicketID_Fails(t *testing.T) {
+func TestNewClaim_ZeroIssueID_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
@@ -109,7 +109,7 @@ func TestNewClaim_ZeroTicketID_Fails(t *testing.T) {
 
 	// Then
 	if err == nil {
-		t.Fatal("expected error for zero ticket ID")
+		t.Fatal("expected error for zero issue ID")
 	}
 }
 
@@ -118,8 +118,8 @@ func TestNewClaim_ZeroAuthor_Fails(t *testing.T) {
 
 	// When
 	_, err := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Now:      time.Now(),
+		IssueID: mustIssueID(t),
+		Now:     time.Now(),
 	})
 
 	// Then
@@ -134,9 +134,9 @@ func TestClaim_IsStale_BeforeThreshold_NotStale(t *testing.T) {
 	// Given
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	c, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "alice"),
-		Now:      now,
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "alice"),
+		Now:     now,
 	})
 
 	// When
@@ -154,9 +154,9 @@ func TestClaim_IsStale_AfterThreshold_Stale(t *testing.T) {
 	// Given
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	c, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "alice"),
-		Now:      now,
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "alice"),
+		Now:     now,
 	})
 
 	// When
@@ -174,9 +174,9 @@ func TestClaim_StaleAt_ReturnsCorrectTimestamp(t *testing.T) {
 	// Given
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	c, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "alice"),
-		Now:      now,
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "alice"),
+		Now:     now,
 	})
 
 	// When
@@ -195,9 +195,9 @@ func TestClaim_WithLastActivity_ReturnsNewClaim(t *testing.T) {
 	// Given
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	original, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "alice"),
-		Now:      now,
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "alice"),
+		Now:     now,
 	})
 
 	// When
@@ -218,9 +218,9 @@ func TestClaim_WithStaleThreshold_ReturnsNewClaim(t *testing.T) {
 
 	// Given
 	original, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "alice"),
-		Now:      time.Now(),
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "alice"),
+		Now:     time.Now(),
 	})
 
 	// When
@@ -239,9 +239,9 @@ func TestClaim_WithStaleThreshold_ExceedsMax_Fails(t *testing.T) {
 
 	// Given
 	c, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "alice"),
-		Now:      time.Now(),
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "alice"),
+		Now:     time.Now(),
 	})
 
 	// When
@@ -258,14 +258,14 @@ func TestNewClaim_GeneratesUniqueIDs(t *testing.T) {
 
 	// When
 	c1, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "alice"),
-		Now:      time.Now(),
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "alice"),
+		Now:     time.Now(),
 	})
 	c2, _ := claim.NewClaim(claim.NewClaimParams{
-		TicketID: mustTicketID(t),
-		Author:   mustAuthor(t, "bob"),
-		Now:      time.Now(),
+		IssueID: mustIssueID(t),
+		Author:  mustAuthor(t, "bob"),
+		Now:     time.Now(),
 	})
 
 	// Then

@@ -49,15 +49,15 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 			// Setup checklist.
 			_, _ = fmt.Fprintf(w, "%s\n\n", cs.Bold("Setup"))
-			_, _ = fmt.Fprintf(w, "  - %s Set up ticket tracking for this project   np init <PREFIX>\n", checkbox(cs, dbInit))
+			_, _ = fmt.Fprintf(w, "  - %s Set up issue tracking for this project   np init <PREFIX>\n", checkbox(cs, dbInit))
 			_, _ = fmt.Fprintf(w, "  - %s Exclude .np/ from version control              add .np/ to .gitignore\n", checkbox(cs, gitIgnored))
 			_, _ = fmt.Fprintf(w, "  - %s Tell your AI agent how to use np               paste np agent prime output\n", checkbox(cs, hasInstructions))
 			// Author step is always unchecked — it's informational only.
 			_, _ = fmt.Fprintln(w, "  - [ ] Choose an author name for yourself              np agent name or pick your own")
 
 			// Step details.
-			_, _ = fmt.Fprintf(w, "\n%s\n\n", cs.Bold("Set up ticket tracking for this project"))
-			_, _ = fmt.Fprintln(w, "  Ticket IDs use a project prefix (e.g., prefix \"NP\" produces NP-a3bxr).")
+			_, _ = fmt.Fprintf(w, "\n%s\n\n", cs.Bold("Set up issue tracking for this project"))
+			_, _ = fmt.Fprintln(w, "  Issue IDs use a project prefix (e.g., prefix \"NP\" produces NP-a3bxr).")
 			_, _ = fmt.Fprintln(w, "  Choose something short and project-specific — convention is 2–4 uppercase letters.")
 			_, _ = fmt.Fprintf(w, "\n    %s\n", cs.Cyan("np init <PREFIX>"))
 			if dbInit && prefix != "" {
@@ -90,9 +90,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			_, _ = fmt.Fprintln(w, "  they like — consistency across a session is what matters.")
 
 			_, _ = fmt.Fprintf(w, "\n%s\n\n", cs.Bold("Quick reference"))
-			_, _ = fmt.Fprintf(w, "    %s  Create a ticket\n", cs.Cyan(`np create --role task --title "..." --author <name>`))
+			_, _ = fmt.Fprintf(w, "    %s  Create an issue\n", cs.Cyan(`np create --role task --title "..." --author <name>`))
 			_, _ = fmt.Fprintf(w, "    %s                                      Find available work\n", cs.Cyan("np list --ready"))
-			_, _ = fmt.Fprintf(w, "    %s                       Claim next ready ticket\n", cs.Cyan("np claim ready --author <name>"))
+			_, _ = fmt.Fprintf(w, "    %s                       Claim next ready issue\n", cs.Cyan("np claim ready --author <name>"))
 			_, _ = fmt.Fprintf(w, "    %s               Complete a task\n", cs.Cyan("np state close <ID> --claim <CLAIM-ID>"))
 			_, _ = fmt.Fprintf(w, "    %s                                            Run diagnostics\n", cs.Cyan("np doctor"))
 			_, _ = fmt.Fprintf(w, "    %s                                              Full command reference\n", cs.Cyan("np help"))

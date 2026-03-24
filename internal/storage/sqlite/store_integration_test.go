@@ -10,8 +10,8 @@ import (
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 	"github.com/pinkhop/nitpicking/internal/storage/sqlite"
 )
 
@@ -42,89 +42,89 @@ func mustAuthor(t *testing.T, name string) identity.Author {
 	return a
 }
 
-func TestIntegration_FullTicketLifecycle(t *testing.T) {
+func TestIntegration_FullIssueLifecycle(t *testing.T) {
 	// Given
 	svc := setupIntegrationService(t)
 	ctx := context.Background()
 	author := mustAuthor(t, "integration-test")
 
 	// When — create a task
-	createOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
-		Role:   ticket.RoleTask,
+	createOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
 		Title:  "Integration test task",
 		Author: author,
 		Claim:  true,
 	})
 	// Then
 	if err != nil {
-		t.Fatalf("creating ticket: %v", err)
+		t.Fatalf("creating issue: %v", err)
 	}
 	if createOut.ClaimID == "" {
 		t.Error("expected claim ID")
 	}
 
-	ticketID := createOut.Ticket.ID()
+	issueID := createOut.Issue.ID()
 
 	// When — update the title
 	newTitle := "Updated integration task"
-	err = svc.UpdateTicket(ctx, service.UpdateTicketInput{
-		TicketID: ticketID,
-		ClaimID:  createOut.ClaimID,
-		Title:    &newTitle,
+	err = svc.UpdateIssue(ctx, service.UpdateIssueInput{
+		IssueID: issueID,
+		ClaimID: createOut.ClaimID,
+		Title:   &newTitle,
 	})
 	// Then
 	if err != nil {
-		t.Fatalf("updating ticket: %v", err)
+		t.Fatalf("updating issue: %v", err)
 	}
 
-	// When — show the ticket
-	showOut, err := svc.ShowTicket(ctx, ticketID)
+	// When — show the issue
+	showOut, err := svc.ShowIssue(ctx, issueID)
 	// Then
 	if err != nil {
-		t.Fatalf("showing ticket: %v", err)
+		t.Fatalf("showing issue: %v", err)
 	}
-	if showOut.Ticket.Title() != "Updated integration task" {
-		t.Errorf("expected updated title, got %q", showOut.Ticket.Title())
+	if showOut.Issue.Title() != "Updated integration task" {
+		t.Errorf("expected updated title, got %q", showOut.Issue.Title())
 	}
 
-	// When — close the ticket
+	// When — close the issue
 	err = svc.TransitionState(ctx, service.TransitionInput{
-		TicketID: ticketID,
-		ClaimID:  createOut.ClaimID,
-		Action:   service.ActionClose,
+		IssueID: issueID,
+		ClaimID: createOut.ClaimID,
+		Action:  service.ActionClose,
 	})
 	// Then
 	if err != nil {
-		t.Fatalf("closing ticket: %v", err)
+		t.Fatalf("closing issue: %v", err)
 	}
 
 	// Verify closed.
-	showOut, _ = svc.ShowTicket(ctx, ticketID)
-	if showOut.Ticket.State() != ticket.StateClosed {
-		t.Errorf("expected closed, got %s", showOut.Ticket.State())
+	showOut, _ = svc.ShowIssue(ctx, issueID)
+	if showOut.Issue.State() != issue.StateClosed {
+		t.Errorf("expected closed, got %s", showOut.Issue.State())
 	}
 }
 
-func TestIntegration_NoteOnClosedTicket(t *testing.T) {
+func TestIntegration_NoteOnClosedIssue(t *testing.T) {
 	// Given
 	svc := setupIntegrationService(t)
 	ctx := context.Background()
 	author := mustAuthor(t, "alice")
 
-	createOut, _ := svc.CreateTicket(ctx, service.CreateTicketInput{
-		Role: ticket.RoleTask, Title: "Task", Author: author, Claim: true,
+	createOut, _ := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task", Author: author, Claim: true,
 	})
 	_ = svc.TransitionState(ctx, service.TransitionInput{
-		TicketID: createOut.Ticket.ID(), ClaimID: createOut.ClaimID, Action: service.ActionClose,
+		IssueID: createOut.Issue.ID(), ClaimID: createOut.ClaimID, Action: service.ActionClose,
 	})
 
-	// When — add note to closed ticket
+	// When — add note to closed issue
 	noteOut, err := svc.AddNote(ctx, service.AddNoteInput{
-		TicketID: createOut.Ticket.ID(), Author: author, Body: "Post-close note",
+		IssueID: createOut.Issue.ID(), Author: author, Body: "Post-close note",
 	})
 	// Then — should succeed per spec
 	if err != nil {
-		t.Fatalf("expected success adding note to closed ticket: %v", err)
+		t.Fatalf("expected success adding note to closed issue: %v", err)
 	}
 	if noteOut.Note.Body() != "Post-close note" {
 		t.Errorf("expected note body, got %q", noteOut.Note.Body())
@@ -138,21 +138,21 @@ func TestIntegration_ListAndPagination(t *testing.T) {
 	author := mustAuthor(t, "alice")
 
 	for i := range 5 {
-		_, err := svc.CreateTicket(ctx, service.CreateTicketInput{
-			Role: ticket.RoleTask, Title: "Task " + string(rune('A'+i)), Author: author,
+		_, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+			Role: issue.RoleTask, Title: "Task " + string(rune('A'+i)), Author: author,
 		})
 		if err != nil {
-			t.Fatalf("creating ticket %d: %v", i, err)
+			t.Fatalf("creating issue %d: %v", i, err)
 		}
 	}
 
 	// When — list with page size 3
-	out, err := svc.ListTickets(ctx, service.ListTicketsInput{
+	out, err := svc.ListIssues(ctx, service.ListIssuesInput{
 		Page: port.PageRequest{PageSize: 3},
 	})
 	// Then
 	if err != nil {
-		t.Fatalf("listing tickets: %v", err)
+		t.Fatalf("listing issues: %v", err)
 	}
 	if out.TotalCount != 5 {
 		t.Errorf("expected 5 total, got %d", out.TotalCount)
@@ -168,21 +168,21 @@ func TestIntegration_DeleteAndNotFound(t *testing.T) {
 	ctx := context.Background()
 	author := mustAuthor(t, "alice")
 
-	createOut, _ := svc.CreateTicket(ctx, service.CreateTicketInput{
-		Role: ticket.RoleTask, Title: "To delete", Author: author, Claim: true,
+	createOut, _ := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "To delete", Author: author, Claim: true,
 	})
 
 	// When — delete
-	err := svc.DeleteTicket(ctx, service.DeleteInput{
-		TicketID: createOut.Ticket.ID(), ClaimID: createOut.ClaimID,
+	err := svc.DeleteIssue(ctx, service.DeleteInput{
+		IssueID: createOut.Issue.ID(), ClaimID: createOut.ClaimID,
 	})
 	// Then
 	if err != nil {
-		t.Fatalf("deleting ticket: %v", err)
+		t.Fatalf("deleting issue: %v", err)
 	}
 
 	// Verify not found.
-	_, err = svc.ShowTicket(ctx, createOut.Ticket.ID())
+	_, err = svc.ShowIssue(ctx, createOut.Issue.ID())
 	if err != domain.ErrNotFound {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
@@ -194,12 +194,12 @@ func TestIntegration_ExtendStaleThreshold(t *testing.T) {
 	ctx := context.Background()
 	author := mustAuthor(t, "alice")
 
-	createOut, _ := svc.CreateTicket(ctx, service.CreateTicketInput{
-		Role: ticket.RoleTask, Title: "Task", Author: author, Claim: true,
+	createOut, _ := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task", Author: author, Claim: true,
 	})
 
 	// When
-	err := svc.ExtendStaleThreshold(ctx, createOut.Ticket.ID(), createOut.ClaimID, 8*time.Hour)
+	err := svc.ExtendStaleThreshold(ctx, createOut.Issue.ID(), createOut.ClaimID, 8*time.Hour)
 	// Then
 	if err != nil {
 		t.Fatalf("extending threshold: %v", err)

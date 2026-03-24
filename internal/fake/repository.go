@@ -12,9 +12,9 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/domain/claim"
 	"github.com/pinkhop/nitpicking/internal/domain/history"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/note"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // Repository is an in-memory implementation of all persistence port interfaces.
@@ -22,89 +22,89 @@ import (
 type Repository struct {
 	mu sync.RWMutex
 
-	prefix  string
-	tickets map[string]ticket.Ticket // keyed by ticket ID string
-	notes   map[int64]note.Note      // keyed by note ID
-	claims  map[string]claim.Claim   // keyed by claim ID
-	// claimsByTicket maps ticket ID string → claim ID for active claims.
-	claimsByTicket map[string]string
-	relationships  []ticket.Relationship
-	histories      map[string][]history.Entry // keyed by ticket ID string
-	nextNoteID     int64
-	nextHistoryID  int64
+	prefix string
+	issues map[string]issue.Issue // keyed by issue ID string
+	notes  map[int64]note.Note    // keyed by note ID
+	claims map[string]claim.Claim // keyed by claim ID
+	// claimsByIssue maps issue ID string → claim ID for active claims.
+	claimsByIssue map[string]string
+	relationships []issue.Relationship
+	histories     map[string][]history.Entry // keyed by issue ID string
+	nextNoteID    int64
+	nextHistoryID int64
 }
 
 // NewRepository creates an empty in-memory repository.
 func NewRepository() *Repository {
 	return &Repository{
-		tickets:        make(map[string]ticket.Ticket),
-		notes:          make(map[int64]note.Note),
-		claims:         make(map[string]claim.Claim),
-		claimsByTicket: make(map[string]string),
-		histories:      make(map[string][]history.Entry),
-		nextNoteID:     1,
-		nextHistoryID:  1,
+		issues:        make(map[string]issue.Issue),
+		notes:         make(map[int64]note.Note),
+		claims:        make(map[string]claim.Claim),
+		claimsByIssue: make(map[string]string),
+		histories:     make(map[string][]history.Entry),
+		nextNoteID:    1,
+		nextHistoryID: 1,
 	}
 }
 
-// --- TicketRepository ---
+// --- IssueRepository ---
 
-func (r *Repository) CreateTicket(_ context.Context, t ticket.Ticket) error {
+func (r *Repository) CreateIssue(_ context.Context, t issue.Issue) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	key := t.ID().String()
-	if _, exists := r.tickets[key]; exists {
-		return fmt.Errorf("ticket %s already exists", key)
+	if _, exists := r.issues[key]; exists {
+		return fmt.Errorf("issue %s already exists", key)
 	}
-	r.tickets[key] = t
+	r.issues[key] = t
 	return nil
 }
 
-func (r *Repository) GetTicket(_ context.Context, id ticket.ID, includeDeleted bool) (ticket.Ticket, error) {
+func (r *Repository) GetIssue(_ context.Context, id issue.ID, includeDeleted bool) (issue.Issue, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	t, ok := r.tickets[id.String()]
+	t, ok := r.issues[id.String()]
 	if !ok {
-		return ticket.Ticket{}, domain.ErrNotFound
+		return issue.Issue{}, domain.ErrNotFound
 	}
 	if t.IsDeleted() && !includeDeleted {
-		return ticket.Ticket{}, domain.ErrNotFound
+		return issue.Issue{}, domain.ErrNotFound
 	}
 	return t, nil
 }
 
-func (r *Repository) UpdateTicket(_ context.Context, t ticket.Ticket) error {
+func (r *Repository) UpdateIssue(_ context.Context, t issue.Issue) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	key := t.ID().String()
-	if _, exists := r.tickets[key]; !exists {
+	if _, exists := r.issues[key]; !exists {
 		return domain.ErrNotFound
 	}
-	r.tickets[key] = t
+	r.issues[key] = t
 	return nil
 }
 
-func (r *Repository) ListTickets(_ context.Context, filter port.TicketFilter, orderBy port.TicketOrderBy, page port.PageRequest) ([]port.TicketListItem, port.PageResult, error) {
+func (r *Repository) ListIssues(_ context.Context, filter port.IssueFilter, orderBy port.IssueOrderBy, page port.PageRequest) ([]port.IssueListItem, port.PageResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	page = page.Normalize()
 
-	var items []port.TicketListItem
-	for _, t := range r.tickets {
+	var items []port.IssueListItem
+	for _, t := range r.issues {
 		if !filter.IncludeDeleted && t.IsDeleted() {
 			continue
 		}
 		if !r.matchesFilter(t, filter) {
 			continue
 		}
-		items = append(items, r.ticketToListItem(t))
+		items = append(items, r.issueToListItem(t))
 	}
 
-	r.sortTicketItems(items, orderBy)
+	r.sortIssueItems(items, orderBy)
 	total := len(items)
 
 	// Apply keyset pagination.
@@ -113,15 +113,15 @@ func (r *Repository) ListTickets(_ context.Context, filter port.TicketFilter, or
 	return items, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *Repository) SearchTickets(_ context.Context, query string, filter port.TicketFilter, orderBy port.TicketOrderBy, page port.PageRequest) ([]port.TicketListItem, port.PageResult, error) {
+func (r *Repository) SearchIssues(_ context.Context, query string, filter port.IssueFilter, orderBy port.IssueOrderBy, page port.PageRequest) ([]port.IssueListItem, port.PageResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	page = page.Normalize()
 	queryLower := strings.ToLower(query)
 
-	var items []port.TicketListItem
-	for _, t := range r.tickets {
+	var items []port.IssueListItem
+	for _, t := range r.issues {
 		if !filter.IncludeDeleted && t.IsDeleted() {
 			continue
 		}
@@ -131,22 +131,22 @@ func (r *Repository) SearchTickets(_ context.Context, query string, filter port.
 		if !r.matchesSearch(t, queryLower) {
 			continue
 		}
-		items = append(items, r.ticketToListItem(t))
+		items = append(items, r.issueToListItem(t))
 	}
 
-	r.sortTicketItems(items, orderBy)
+	r.sortIssueItems(items, orderBy)
 	total := len(items)
 	items = r.applyPagination(items, page)
 
 	return items, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *Repository) GetChildStatuses(_ context.Context, epicID ticket.ID) ([]ticket.ChildStatus, error) {
+func (r *Repository) GetChildStatuses(_ context.Context, epicID issue.ID) ([]issue.ChildStatus, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var children []ticket.ChildStatus
-	for _, t := range r.tickets {
+	var children []issue.ChildStatus
+	for _, t := range r.issues {
 		if t.IsDeleted() {
 			continue
 		}
@@ -155,7 +155,7 @@ func (r *Repository) GetChildStatuses(_ context.Context, epicID ticket.ID) ([]ti
 			if t.IsEpic() {
 				isComplete = r.isEpicCompleteInternal(t.ID())
 			}
-			children = append(children, ticket.ChildStatus{
+			children = append(children, issue.ChildStatus{
 				Role:       t.Role(),
 				State:      t.State(),
 				IsComplete: isComplete,
@@ -165,18 +165,18 @@ func (r *Repository) GetChildStatuses(_ context.Context, epicID ticket.ID) ([]ti
 	return children, nil
 }
 
-func (r *Repository) GetDescendants(_ context.Context, epicID ticket.ID) ([]ticket.DescendantInfo, error) {
+func (r *Repository) GetDescendants(_ context.Context, epicID issue.ID) ([]issue.DescendantInfo, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	return r.getDescendantsInternal(epicID), nil
 }
 
-func (r *Repository) HasChildren(_ context.Context, epicID ticket.ID) (bool, error) {
+func (r *Repository) HasChildren(_ context.Context, epicID issue.ID) (bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	for _, t := range r.tickets {
+	for _, t := range r.issues {
 		if !t.IsDeleted() && t.ParentID() == epicID {
 			return true, nil
 		}
@@ -184,16 +184,16 @@ func (r *Repository) HasChildren(_ context.Context, epicID ticket.ID) (bool, err
 	return false, nil
 }
 
-func (r *Repository) GetAncestorStatuses(_ context.Context, id ticket.ID) ([]ticket.AncestorStatus, error) {
+func (r *Repository) GetAncestorStatuses(_ context.Context, id issue.ID) ([]issue.AncestorStatus, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var ancestors []ticket.AncestorStatus
+	var ancestors []issue.AncestorStatus
 	current := id
 	visited := make(map[string]bool)
 
 	for {
-		t, ok := r.tickets[current.String()]
+		t, ok := r.issues[current.String()]
 		if !ok {
 			break
 		}
@@ -206,46 +206,46 @@ func (r *Repository) GetAncestorStatuses(_ context.Context, id ticket.ID) ([]tic
 		}
 		visited[parentID.String()] = true
 
-		parent, ok := r.tickets[parentID.String()]
+		parent, ok := r.issues[parentID.String()]
 		if !ok || parent.IsDeleted() {
 			break
 		}
-		ancestors = append(ancestors, ticket.AncestorStatus{State: parent.State()})
+		ancestors = append(ancestors, issue.AncestorStatus{State: parent.State()})
 		current = parentID
 	}
 
 	return ancestors, nil
 }
 
-func (r *Repository) GetParentID(_ context.Context, id ticket.ID) (ticket.ID, error) {
+func (r *Repository) GetParentID(_ context.Context, id issue.ID) (issue.ID, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	t, ok := r.tickets[id.String()]
+	t, ok := r.issues[id.String()]
 	if !ok {
-		return ticket.ID{}, domain.ErrNotFound
+		return issue.ID{}, domain.ErrNotFound
 	}
 	return t.ParentID(), nil
 }
 
-func (r *Repository) TicketIDExists(_ context.Context, id ticket.ID) (bool, error) {
+func (r *Repository) IssueIDExists(_ context.Context, id issue.ID) (bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	_, exists := r.tickets[id.String()]
+	_, exists := r.issues[id.String()]
 	return exists, nil
 }
 
-func (r *Repository) GetTicketByIdempotencyKey(_ context.Context, key string) (ticket.Ticket, error) {
+func (r *Repository) GetIssueByIdempotencyKey(_ context.Context, key string) (issue.Issue, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	for _, t := range r.tickets {
+	for _, t := range r.issues {
 		if t.IdempotencyKey() == key && key != "" {
 			return t, nil
 		}
 	}
-	return ticket.Ticket{}, domain.ErrNotFound
+	return issue.Issue{}, domain.ErrNotFound
 }
 
 // --- NoteRepository ---
@@ -260,7 +260,7 @@ func (r *Repository) CreateNote(_ context.Context, n note.Note) (int64, error) {
 	// Reconstruct note with the assigned ID.
 	created, err := note.NewNote(note.NewNoteParams{
 		ID:        id,
-		TicketID:  n.TicketID(),
+		IssueID:   n.IssueID(),
 		Author:    n.Author(),
 		CreatedAt: n.CreatedAt(),
 		Body:      n.Body(),
@@ -284,7 +284,7 @@ func (r *Repository) GetNote(_ context.Context, id int64) (note.Note, error) {
 	return n, nil
 }
 
-func (r *Repository) ListNotes(_ context.Context, ticketID ticket.ID, filter port.NoteFilter, page port.PageRequest) ([]note.Note, port.PageResult, error) {
+func (r *Repository) ListNotes(_ context.Context, issueID issue.ID, filter port.NoteFilter, page port.PageRequest) ([]note.Note, port.PageResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -292,7 +292,7 @@ func (r *Repository) ListNotes(_ context.Context, ticketID ticket.ID, filter por
 
 	var notes []note.Note
 	for _, n := range r.notes {
-		if n.TicketID() != ticketID {
+		if n.IssueID() != issueID {
 			continue
 		}
 		if !r.matchesNoteFilter(n, filter) {
@@ -322,7 +322,7 @@ func (r *Repository) SearchNotes(_ context.Context, query string, filter port.No
 
 	var notes []note.Note
 	for _, n := range r.notes {
-		if !filter.TicketID.IsZero() && n.TicketID() != filter.TicketID {
+		if !filter.IssueID.IsZero() && n.IssueID() != filter.IssueID {
 			continue
 		}
 		if !r.matchesNoteFilter(n, filter) {
@@ -353,15 +353,15 @@ func (r *Repository) CreateClaim(_ context.Context, c claim.Claim) error {
 	defer r.mu.Unlock()
 
 	r.claims[c.ID()] = c
-	r.claimsByTicket[c.TicketID().String()] = c.ID()
+	r.claimsByIssue[c.IssueID().String()] = c.ID()
 	return nil
 }
 
-func (r *Repository) GetClaimByTicket(_ context.Context, ticketID ticket.ID) (claim.Claim, error) {
+func (r *Repository) GetClaimByIssue(_ context.Context, issueID issue.ID) (claim.Claim, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	claimID, ok := r.claimsByTicket[ticketID.String()]
+	claimID, ok := r.claimsByIssue[issueID.String()]
 	if !ok {
 		return claim.Claim{}, domain.ErrNotFound
 	}
@@ -391,7 +391,7 @@ func (r *Repository) InvalidateClaim(_ context.Context, claimID string) error {
 	if !ok {
 		return domain.ErrNotFound
 	}
-	delete(r.claimsByTicket, c.TicketID().String())
+	delete(r.claimsByIssue, c.IssueID().String())
 	delete(r.claims, claimID)
 	return nil
 }
@@ -439,7 +439,7 @@ func (r *Repository) ListStaleClaims(_ context.Context, now time.Time) ([]claim.
 
 // --- RelationshipRepository ---
 
-func (r *Repository) CreateRelationship(_ context.Context, rel ticket.Relationship) (bool, error) {
+func (r *Repository) CreateRelationship(_ context.Context, rel issue.Relationship) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -454,7 +454,7 @@ func (r *Repository) CreateRelationship(_ context.Context, rel ticket.Relationsh
 	return true, nil
 }
 
-func (r *Repository) DeleteRelationship(_ context.Context, sourceID, targetID ticket.ID, relType ticket.RelationType) (bool, error) {
+func (r *Repository) DeleteRelationship(_ context.Context, sourceID, targetID issue.ID, relType issue.RelationType) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -469,24 +469,24 @@ func (r *Repository) DeleteRelationship(_ context.Context, sourceID, targetID ti
 	return false, nil // Did not exist — idempotent.
 }
 
-func (r *Repository) ListRelationships(_ context.Context, ticketID ticket.ID) ([]ticket.Relationship, error) {
+func (r *Repository) ListRelationships(_ context.Context, issueID issue.ID) ([]issue.Relationship, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var rels []ticket.Relationship
+	var rels []issue.Relationship
 	for _, rel := range r.relationships {
-		if rel.SourceID() == ticketID || rel.TargetID() == ticketID {
+		if rel.SourceID() == issueID || rel.TargetID() == issueID {
 			rels = append(rels, rel)
 		}
 	}
 	return rels, nil
 }
 
-func (r *Repository) GetBlockerStatuses(_ context.Context, ticketID ticket.ID) ([]ticket.BlockerStatus, error) {
+func (r *Repository) GetBlockerStatuses(_ context.Context, issueID issue.ID) ([]issue.BlockerStatus, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return r.getBlockerStatusesInternal(ticketID), nil
+	return r.getBlockerStatusesInternal(issueID), nil
 }
 
 // --- HistoryRepository ---
@@ -498,10 +498,10 @@ func (r *Repository) AppendHistory(_ context.Context, entry history.Entry) (int6
 	id := r.nextHistoryID
 	r.nextHistoryID++
 
-	key := entry.TicketID().String()
+	key := entry.IssueID().String()
 	recorded := history.NewEntry(history.NewEntryParams{
 		ID:        id,
-		TicketID:  entry.TicketID(),
+		IssueID:   entry.IssueID(),
 		Revision:  entry.Revision(),
 		Author:    entry.Author(),
 		Timestamp: entry.Timestamp(),
@@ -512,12 +512,12 @@ func (r *Repository) AppendHistory(_ context.Context, entry history.Entry) (int6
 	return id, nil
 }
 
-func (r *Repository) ListHistory(_ context.Context, ticketID ticket.ID, filter port.HistoryFilter, page port.PageRequest) ([]history.Entry, port.PageResult, error) {
+func (r *Repository) ListHistory(_ context.Context, issueID issue.ID, filter port.HistoryFilter, page port.PageRequest) ([]history.Entry, port.PageResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	page = page.Normalize()
-	entries := r.histories[ticketID.String()]
+	entries := r.histories[issueID.String()]
 
 	var filtered []history.Entry
 	for _, e := range entries {
@@ -541,18 +541,18 @@ func (r *Repository) ListHistory(_ context.Context, ticketID ticket.ID, filter p
 	return filtered, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *Repository) CountHistory(_ context.Context, ticketID ticket.ID) (int, error) {
+func (r *Repository) CountHistory(_ context.Context, issueID issue.ID) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return len(r.histories[ticketID.String()]), nil
+	return len(r.histories[issueID.String()]), nil
 }
 
-func (r *Repository) GetLatestHistory(_ context.Context, ticketID ticket.ID) (history.Entry, error) {
+func (r *Repository) GetLatestHistory(_ context.Context, issueID issue.ID) (history.Entry, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	entries := r.histories[ticketID.String()]
+	entries := r.histories[issueID.String()]
 	if len(entries) == 0 {
 		return history.Entry{}, domain.ErrNotFound
 	}
@@ -587,20 +587,20 @@ func (r *Repository) GC(_ context.Context, includeClosed bool) error {
 	defer r.mu.Unlock()
 
 	var toDelete []string
-	for key, t := range r.tickets {
+	for key, t := range r.issues {
 		if t.IsDeleted() {
 			toDelete = append(toDelete, key)
-		} else if includeClosed && t.State() == ticket.StateClosed {
+		} else if includeClosed && t.State() == issue.StateClosed {
 			toDelete = append(toDelete, key)
 		}
 	}
 
 	for _, key := range toDelete {
-		delete(r.tickets, key)
+		delete(r.issues, key)
 		delete(r.histories, key)
 		// Remove related notes.
 		for id, n := range r.notes {
-			if n.TicketID().String() == key {
+			if n.IssueID().String() == key {
 				delete(r.notes, id)
 			}
 		}
@@ -611,14 +611,14 @@ func (r *Repository) GC(_ context.Context, includeClosed bool) error {
 
 // --- Internal helpers ---
 
-func (r *Repository) matchesFilter(t ticket.Ticket, f port.TicketFilter) bool {
+func (r *Repository) matchesFilter(t issue.Issue, f port.IssueFilter) bool {
 	if f.Role != 0 && t.Role() != f.Role {
 		return false
 	}
 	if len(f.States) > 0 && !slices.Contains(f.States, t.State()) {
 		return false
 	}
-	if f.ExcludeClosed && len(f.States) == 0 && t.State() == ticket.StateClosed {
+	if f.ExcludeClosed && len(f.States) == 0 && t.State() == issue.StateClosed {
 		return false
 	}
 	if !f.ParentID.IsZero() && t.ParentID() != f.ParentID {
@@ -635,7 +635,7 @@ func (r *Repository) matchesFilter(t ticket.Ticket, f port.TicketFilter) bool {
 		}
 	}
 	if f.Ready {
-		if !r.isTicketReady(t) {
+		if !r.isIssueReady(t) {
 			return false
 		}
 	}
@@ -660,28 +660,28 @@ func (r *Repository) matchesFilter(t ticket.Ticket, f port.TicketFilter) bool {
 	return true
 }
 
-func (r *Repository) isTicketReady(t ticket.Ticket) bool {
+func (r *Repository) isIssueReady(t issue.Issue) bool {
 	blockers := r.getBlockerStatusesInternal(t.ID())
 	ancestors := r.getAncestorStatusesInternal(t.ID())
 
 	if t.IsTask() {
-		return ticket.IsTaskReady(t.State(), blockers, ancestors)
+		return issue.IsTaskReady(t.State(), blockers, ancestors)
 	}
 	hasChildren := r.hasChildrenInternal(t.ID())
-	return ticket.IsEpicReady(t.State(), hasChildren, blockers, ancestors)
+	return issue.IsEpicReady(t.State(), hasChildren, blockers, ancestors)
 }
 
-func (r *Repository) getBlockerStatusesInternal(ticketID ticket.ID) []ticket.BlockerStatus {
-	var statuses []ticket.BlockerStatus
+func (r *Repository) getBlockerStatusesInternal(issueID issue.ID) []issue.BlockerStatus {
+	var statuses []issue.BlockerStatus
 	for _, rel := range r.relationships {
-		if rel.SourceID() == ticketID && rel.Type() == ticket.RelBlockedBy {
-			target, ok := r.tickets[rel.TargetID().String()]
+		if rel.SourceID() == issueID && rel.Type() == issue.RelBlockedBy {
+			target, ok := r.issues[rel.TargetID().String()]
 			if !ok {
-				statuses = append(statuses, ticket.BlockerStatus{IsDeleted: true})
+				statuses = append(statuses, issue.BlockerStatus{IsDeleted: true})
 				continue
 			}
-			statuses = append(statuses, ticket.BlockerStatus{
-				IsClosed:   target.State() == ticket.StateClosed,
+			statuses = append(statuses, issue.BlockerStatus{
+				IsClosed:   target.State() == issue.StateClosed,
 				IsDeleted:  target.IsDeleted(),
 				IsComplete: target.IsEpic() && r.isEpicCompleteInternal(target.ID()),
 			})
@@ -690,13 +690,13 @@ func (r *Repository) getBlockerStatusesInternal(ticketID ticket.ID) []ticket.Blo
 	return statuses
 }
 
-func (r *Repository) getAncestorStatusesInternal(id ticket.ID) []ticket.AncestorStatus {
-	var ancestors []ticket.AncestorStatus
+func (r *Repository) getAncestorStatusesInternal(id issue.ID) []issue.AncestorStatus {
+	var ancestors []issue.AncestorStatus
 	current := id
 	visited := make(map[string]bool)
 
 	for {
-		t, ok := r.tickets[current.String()]
+		t, ok := r.issues[current.String()]
 		if !ok {
 			break
 		}
@@ -705,21 +705,21 @@ func (r *Repository) getAncestorStatusesInternal(id ticket.ID) []ticket.Ancestor
 			break
 		}
 		visited[parentID.String()] = true
-		parent, ok := r.tickets[parentID.String()]
+		parent, ok := r.issues[parentID.String()]
 		if !ok || parent.IsDeleted() {
 			break
 		}
-		ancestors = append(ancestors, ticket.AncestorStatus{State: parent.State()})
+		ancestors = append(ancestors, issue.AncestorStatus{State: parent.State()})
 		current = parentID
 	}
 	return ancestors
 }
 
-func (r *Repository) isDescendantOf(id ticket.ID, ancestorID ticket.ID) bool {
+func (r *Repository) isDescendantOf(id issue.ID, ancestorID issue.ID) bool {
 	current := id
 	visited := make(map[string]bool)
 	for {
-		t, ok := r.tickets[current.String()]
+		t, ok := r.issues[current.String()]
 		if !ok {
 			return false
 		}
@@ -735,12 +735,12 @@ func (r *Repository) isDescendantOf(id ticket.ID, ancestorID ticket.ID) bool {
 	}
 }
 
-func (r *Repository) isAncestorOf(candidateID ticket.ID, childID ticket.ID) bool {
+func (r *Repository) isAncestorOf(candidateID issue.ID, childID issue.ID) bool {
 	// Walk up from childID; if we hit candidateID, it's an ancestor.
 	current := childID
 	visited := make(map[string]bool)
 	for {
-		t, ok := r.tickets[current.String()]
+		t, ok := r.issues[current.String()]
 		if !ok {
 			return false
 		}
@@ -756,8 +756,8 @@ func (r *Repository) isAncestorOf(candidateID ticket.ID, childID ticket.ID) bool
 	}
 }
 
-func (r *Repository) hasChildrenInternal(epicID ticket.ID) bool {
-	for _, t := range r.tickets {
+func (r *Repository) hasChildrenInternal(epicID issue.ID) bool {
+	for _, t := range r.issues {
 		if !t.IsDeleted() && t.ParentID() == epicID {
 			return true
 		}
@@ -765,9 +765,9 @@ func (r *Repository) hasChildrenInternal(epicID ticket.ID) bool {
 	return false
 }
 
-func (r *Repository) isEpicCompleteInternal(epicID ticket.ID) bool {
-	var children []ticket.ChildStatus
-	for _, t := range r.tickets {
+func (r *Repository) isEpicCompleteInternal(epicID issue.ID) bool {
+	var children []issue.ChildStatus
+	for _, t := range r.issues {
 		if t.IsDeleted() || t.ParentID() != epicID {
 			continue
 		}
@@ -775,30 +775,30 @@ func (r *Repository) isEpicCompleteInternal(epicID ticket.ID) bool {
 		if t.IsEpic() {
 			isComplete = r.isEpicCompleteInternal(t.ID())
 		}
-		children = append(children, ticket.ChildStatus{
+		children = append(children, issue.ChildStatus{
 			Role:       t.Role(),
 			State:      t.State(),
 			IsComplete: isComplete,
 		})
 	}
-	return ticket.IsEpicComplete(children)
+	return issue.IsEpicComplete(children)
 }
 
-func (r *Repository) getDescendantsInternal(epicID ticket.ID) []ticket.DescendantInfo {
-	var descendants []ticket.DescendantInfo
-	for _, t := range r.tickets {
+func (r *Repository) getDescendantsInternal(epicID issue.ID) []issue.DescendantInfo {
+	var descendants []issue.DescendantInfo
+	for _, t := range r.issues {
 		if t.IsDeleted() || t.ParentID() != epicID {
 			continue
 		}
 		isClaimed := false
 		claimedBy := ""
-		if claimID, ok := r.claimsByTicket[t.ID().String()]; ok {
+		if claimID, ok := r.claimsByIssue[t.ID().String()]; ok {
 			if c, ok := r.claims[claimID]; ok {
 				isClaimed = true
 				claimedBy = c.Author().String()
 			}
 		}
-		descendants = append(descendants, ticket.DescendantInfo{
+		descendants = append(descendants, issue.DescendantInfo{
 			ID:        t.ID(),
 			IsClaimed: isClaimed,
 			ClaimedBy: claimedBy,
@@ -810,7 +810,7 @@ func (r *Repository) getDescendantsInternal(epicID ticket.ID) []ticket.Descendan
 	return descendants
 }
 
-func (r *Repository) matchesSearch(t ticket.Ticket, queryLower string) bool {
+func (r *Repository) matchesSearch(t issue.Issue, queryLower string) bool {
 	return strings.Contains(strings.ToLower(t.Title()), queryLower) ||
 		strings.Contains(strings.ToLower(t.Description()), queryLower) ||
 		strings.Contains(strings.ToLower(t.AcceptanceCriteria()), queryLower)
@@ -829,12 +829,12 @@ func (r *Repository) matchesNoteFilter(n note.Note, f port.NoteFilter) bool {
 	return true
 }
 
-func (r *Repository) ticketToListItem(t ticket.Ticket) port.TicketListItem {
+func (r *Repository) issueToListItem(t issue.Issue) port.IssueListItem {
 	updatedAt := t.CreatedAt()
 	if entries, ok := r.histories[t.ID().String()]; ok && len(entries) > 0 {
 		updatedAt = entries[len(entries)-1].Timestamp()
 	}
-	return port.TicketListItem{
+	return port.IssueListItem{
 		ID:        t.ID(),
 		Role:      t.Role(),
 		State:     t.State(),
@@ -847,8 +847,8 @@ func (r *Repository) ticketToListItem(t ticket.Ticket) port.TicketListItem {
 	}
 }
 
-func (r *Repository) sortTicketItems(items []port.TicketListItem, orderBy port.TicketOrderBy) {
-	slices.SortFunc(items, func(a, b port.TicketListItem) int {
+func (r *Repository) sortIssueItems(items []port.IssueListItem, orderBy port.IssueOrderBy) {
+	slices.SortFunc(items, func(a, b port.IssueListItem) int {
 		switch orderBy {
 		case port.OrderByPriority:
 			if c := cmp.Compare(int(a.Priority), int(b.Priority)); c != 0 {
@@ -865,9 +865,9 @@ func (r *Repository) sortTicketItems(items []port.TicketListItem, orderBy port.T
 	})
 }
 
-func (r *Repository) applyPagination(items []port.TicketListItem, page port.PageRequest) []port.TicketListItem {
+func (r *Repository) applyPagination(items []port.IssueListItem, page port.PageRequest) []port.IssueListItem {
 	if page.AfterID != "" {
-		idx := slices.IndexFunc(items, func(item port.TicketListItem) bool {
+		idx := slices.IndexFunc(items, func(item port.IssueListItem) bool {
 			return item.ID.String() == page.AfterID
 		})
 		if idx >= 0 && idx+1 < len(items) {

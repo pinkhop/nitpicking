@@ -1,9 +1,9 @@
-package ticket_test
+package issue_test
 
 import (
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 func TestParseRole_ValidRoles(t *testing.T) {
@@ -11,10 +11,10 @@ func TestParseRole_ValidRoles(t *testing.T) {
 
 	cases := []struct {
 		input    string
-		expected ticket.Role
+		expected issue.Role
 	}{
-		{"task", ticket.RoleTask},
-		{"epic", ticket.RoleEpic},
+		{"task", issue.RoleTask},
+		{"epic", issue.RoleEpic},
 	}
 
 	for _, tc := range cases {
@@ -22,7 +22,7 @@ func TestParseRole_ValidRoles(t *testing.T) {
 			t.Parallel()
 
 			// When
-			r, err := ticket.ParseRole(tc.input)
+			r, err := issue.ParseRole(tc.input)
 			// Then
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -44,7 +44,7 @@ func TestParseRole_InvalidRoles(t *testing.T) {
 			t.Parallel()
 
 			// When
-			_, err := ticket.ParseRole(input)
+			_, err := issue.ParseRole(input)
 
 			// Then
 			if err == nil {
@@ -57,14 +57,14 @@ func TestParseRole_InvalidRoles(t *testing.T) {
 func TestRole_String_RoundTrips(t *testing.T) {
 	t.Parallel()
 
-	cases := []ticket.Role{ticket.RoleTask, ticket.RoleEpic}
+	cases := []issue.Role{issue.RoleTask, issue.RoleEpic}
 
 	for _, r := range cases {
 		t.Run(r.String(), func(t *testing.T) {
 			t.Parallel()
 
 			// When
-			parsed, err := ticket.ParseRole(r.String())
+			parsed, err := issue.ParseRole(r.String())
 			// Then
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)

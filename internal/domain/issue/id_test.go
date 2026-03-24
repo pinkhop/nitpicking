@@ -1,11 +1,11 @@
-package ticket_test
+package issue_test
 
 import (
 	"errors"
 	"strings"
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 func TestParseID_ValidID_Succeeds(t *testing.T) {
@@ -15,7 +15,7 @@ func TestParseID_ValidID_Succeeds(t *testing.T) {
 	raw := "NP-a3bxr"
 
 	// When
-	id, err := ticket.ParseID(raw)
+	id, err := issue.ParseID(raw)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -35,7 +35,7 @@ func TestParseID_MissingSeparator_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := ticket.ParseID("NPa3bxr")
+	_, err := issue.ParseID("NPa3bxr")
 
 	// Then
 	if err == nil {
@@ -61,7 +61,7 @@ func TestParseID_InvalidPrefix_Fails(t *testing.T) {
 			t.Parallel()
 
 			// When
-			_, err := ticket.ParseID(tc.input)
+			_, err := issue.ParseID(tc.input)
 
 			// Then
 			if err == nil {
@@ -92,7 +92,7 @@ func TestParseID_InvalidRandom_Fails(t *testing.T) {
 			t.Parallel()
 
 			// When
-			_, err := ticket.ParseID(tc.input)
+			_, err := issue.ParseID(tc.input)
 
 			// Then
 			if err == nil {
@@ -106,7 +106,7 @@ func TestGenerateID_ProducesValidID(t *testing.T) {
 	t.Parallel()
 
 	// When
-	id, err := ticket.GenerateID("NP", nil)
+	id, err := issue.GenerateID("NP", nil)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -119,7 +119,7 @@ func TestGenerateID_ProducesValidID(t *testing.T) {
 	}
 
 	// Verify round-trip
-	parsed, err := ticket.ParseID(id.String())
+	parsed, err := issue.ParseID(id.String())
 	if err != nil {
 		t.Fatalf("generated ID failed to parse: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestGenerateID_InvalidPrefix_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := ticket.GenerateID("np", nil)
+	_, err := issue.GenerateID("np", nil)
 
 	// Then
 	if err == nil {
@@ -145,13 +145,13 @@ func TestGenerateID_CollisionRetry_Succeeds(t *testing.T) {
 
 	// Given — first two calls report collision, third succeeds
 	callCount := 0
-	collisionCheck := func(_ ticket.ID) (bool, error) {
+	collisionCheck := func(_ issue.ID) (bool, error) {
 		callCount++
 		return callCount <= 2, nil
 	}
 
 	// When
-	id, err := ticket.GenerateID("NP", collisionCheck)
+	id, err := issue.GenerateID("NP", collisionCheck)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -169,12 +169,12 @@ func TestGenerateID_CollisionCheckError_PropagatesError(t *testing.T) {
 
 	// Given
 	checkErr := errors.New("db unavailable")
-	collisionCheck := func(_ ticket.ID) (bool, error) {
+	collisionCheck := func(_ issue.ID) (bool, error) {
 		return false, checkErr
 	}
 
 	// When
-	_, err := ticket.GenerateID("NP", collisionCheck)
+	_, err := issue.GenerateID("NP", collisionCheck)
 
 	// Then
 	if err == nil {
@@ -189,12 +189,12 @@ func TestGenerateID_AllCollisions_Fails(t *testing.T) {
 	t.Parallel()
 
 	// Given — every check reports collision
-	collisionCheck := func(_ ticket.ID) (bool, error) {
+	collisionCheck := func(_ issue.ID) (bool, error) {
 		return true, nil
 	}
 
 	// When
-	_, err := ticket.GenerateID("NP", collisionCheck)
+	_, err := issue.GenerateID("NP", collisionCheck)
 
 	// Then
 	if err == nil {
@@ -206,7 +206,7 @@ func TestID_IsZero_DetectsZeroValue(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	var zero ticket.ID
+	var zero issue.ID
 
 	// Then
 	if !zero.IsZero() {
@@ -218,7 +218,7 @@ func TestResolveID_FullID_ReturnsParsedID(t *testing.T) {
 	t.Parallel()
 
 	// When
-	id, err := ticket.ResolveID("NP-a3bxr", "NP")
+	id, err := issue.ResolveID("NP-a3bxr", "NP")
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -232,7 +232,7 @@ func TestResolveID_BareRandom_PrependsPrefix(t *testing.T) {
 	t.Parallel()
 
 	// When
-	id, err := ticket.ResolveID("a3bxr", "NP")
+	id, err := issue.ResolveID("a3bxr", "NP")
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -246,7 +246,7 @@ func TestResolveID_InvalidBareRandom_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// When: a string that isn't a valid full ID or a valid random part.
-	_, err := ticket.ResolveID("not-valid", "NP")
+	_, err := issue.ResolveID("not-valid", "NP")
 
 	// Then
 	if err == nil {
@@ -258,7 +258,7 @@ func TestResolveID_BareRandomWithExcludedChars_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// When: bare random with excluded Crockford chars (i, l, o, u).
-	_, err := ticket.ResolveID("il0ou", "NP")
+	_, err := issue.ResolveID("il0ou", "NP")
 
 	// Then
 	if err == nil {
@@ -275,7 +275,7 @@ func TestValidatePrefix_ValidPrefixes(t *testing.T) {
 			t.Parallel()
 
 			// When
-			err := ticket.ValidatePrefix(prefix)
+			err := issue.ValidatePrefix(prefix)
 			// Then
 			if err != nil {
 				t.Errorf("expected valid prefix %q, got error: %v", prefix, err)

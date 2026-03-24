@@ -6,16 +6,16 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
-// Note represents a comment attached to a ticket. Notes are immutable after
+// Note represents a comment attached to an issue. Notes are immutable after
 // creation. IDs are auto-assigned sequential integers, displayed as
 // "note-<integer>" (e.g., "note-368"). IDs are global across the database,
-// not scoped per ticket.
+// not scoped per issue.
 type Note struct {
 	id        int64
-	ticketID  ticket.ID
+	issueID   issue.ID
 	author    identity.Author
 	createdAt time.Time
 	body      string
@@ -24,7 +24,7 @@ type Note struct {
 // NewNoteParams holds the parameters for creating a new note.
 type NewNoteParams struct {
 	ID        int64
-	TicketID  ticket.ID
+	IssueID   issue.ID
 	Author    identity.Author
 	CreatedAt time.Time
 	Body      string
@@ -32,8 +32,8 @@ type NewNoteParams struct {
 
 // NewNote creates a validated Note. The body must be non-empty.
 func NewNote(p NewNoteParams) (Note, error) {
-	if p.TicketID.IsZero() {
-		return Note{}, domain.NewValidationError("ticket_id", "must not be empty")
+	if p.IssueID.IsZero() {
+		return Note{}, domain.NewValidationError("issue_id", "must not be empty")
 	}
 	if p.Author.IsZero() {
 		return Note{}, domain.NewValidationError("author", "must not be empty")
@@ -49,7 +49,7 @@ func NewNote(p NewNoteParams) (Note, error) {
 
 	return Note{
 		id:        p.ID,
-		ticketID:  p.TicketID,
+		issueID:   p.IssueID,
 		author:    p.Author,
 		createdAt: createdAt,
 		body:      p.Body,
@@ -62,8 +62,8 @@ func (n Note) ID() int64 { return n.id }
 // DisplayID returns the human-readable note ID (e.g., "note-368").
 func (n Note) DisplayID() string { return fmt.Sprintf("note-%d", n.id) }
 
-// TicketID returns the ID of the ticket this note belongs to.
-func (n Note) TicketID() ticket.ID { return n.ticketID }
+// IssueID returns the ID of the issue this note belongs to.
+func (n Note) IssueID() issue.ID { return n.issueID }
 
 // Author returns the note's author.
 func (n Note) Author() identity.Author { return n.author }

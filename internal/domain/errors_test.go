@@ -87,7 +87,7 @@ func TestClaimConflictError_IncludesStructuredContext(t *testing.T) {
 	// Given
 	staleAt := time.Date(2026, 3, 23, 14, 0, 0, 0, time.UTC)
 	err := &domain.ClaimConflictError{
-		TicketID:      "NP-abc12",
+		IssueID:       "NP-abc12",
 		CurrentHolder: "alice",
 		StaleAt:       staleAt,
 	}
@@ -97,7 +97,7 @@ func TestClaimConflictError_IncludesStructuredContext(t *testing.T) {
 
 	// Then
 	if !strings.Contains(msg, "NP-abc12") {
-		t.Errorf("expected ticket ID in message, got %q", msg)
+		t.Errorf("expected issue ID in message, got %q", msg)
 	}
 	if !strings.Contains(msg, "alice") {
 		t.Errorf("expected current holder in message, got %q", msg)
@@ -112,7 +112,7 @@ func TestClaimConflictError_Is_MatchesClaimConflictError(t *testing.T) {
 
 	// Given
 	err := &domain.ClaimConflictError{
-		TicketID:      "NP-abc12",
+		IssueID:       "NP-abc12",
 		CurrentHolder: "bob",
 		StaleAt:       time.Now(),
 	}
@@ -133,7 +133,7 @@ func TestClaimConflictError_AsType_ExtractsContext(t *testing.T) {
 	// Given
 	staleAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	err := &domain.ClaimConflictError{
-		TicketID:      "NP-xyz99",
+		IssueID:       "NP-xyz99",
 		CurrentHolder: "agent-7",
 		StaleAt:       staleAt,
 	}
@@ -146,8 +146,8 @@ func TestClaimConflictError_AsType_ExtractsContext(t *testing.T) {
 	if !ok {
 		t.Fatal("expected errors.AsType to succeed")
 	}
-	if ce.TicketID != "NP-xyz99" {
-		t.Errorf("expected TicketID NP-xyz99, got %s", ce.TicketID)
+	if ce.IssueID != "NP-xyz99" {
+		t.Errorf("expected IssueID NP-xyz99, got %s", ce.IssueID)
 	}
 	if ce.CurrentHolder != "agent-7" {
 		t.Errorf("expected CurrentHolder agent-7, got %s", ce.CurrentHolder)
@@ -162,14 +162,14 @@ func TestDatabaseError_WrapsUnderlyingError(t *testing.T) {
 
 	// Given
 	underlying := errors.New("disk full")
-	err := &domain.DatabaseError{Op: "create ticket", Err: underlying}
+	err := &domain.DatabaseError{Op: "create issue", Err: underlying}
 
 	// When
 	msg := err.Error()
 	unwrapped := errors.Unwrap(err)
 
 	// Then
-	if !strings.Contains(msg, "create ticket") {
+	if !strings.Contains(msg, "create issue") {
 		t.Errorf("expected op in message, got %q", msg)
 	}
 	if !strings.Contains(msg, "disk full") {
@@ -204,7 +204,7 @@ func TestSentinelErrors_AreDistinct(t *testing.T) {
 		domain.ErrNotFound,
 		domain.ErrIllegalTransition,
 		domain.ErrCycleDetected,
-		domain.ErrDeletedTicket,
+		domain.ErrDeletedIssue,
 		domain.ErrTerminalState,
 	}
 
@@ -228,7 +228,7 @@ func TestSentinelErrors_MatchWhenWrapped(t *testing.T) {
 		{"ErrNotFound", domain.ErrNotFound},
 		{"ErrIllegalTransition", domain.ErrIllegalTransition},
 		{"ErrCycleDetected", domain.ErrCycleDetected},
-		{"ErrDeletedTicket", domain.ErrDeletedTicket},
+		{"ErrDeletedIssue", domain.ErrDeletedIssue},
 		{"ErrTerminalState", domain.ErrTerminalState},
 	}
 

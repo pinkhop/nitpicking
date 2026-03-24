@@ -10,7 +10,7 @@ import (
 )
 
 func TestE2E_Graph_OutputContainsDOTStructure(t *testing.T) {
-	// Given: a database with some tickets.
+	// Given: a database with some issues.
 	dir := initDB(t, "TEST")
 	createTask(t, dir, "Task Alpha", "e2e-agent")
 	createTask(t, dir, "Task Beta", "e2e-agent")
@@ -22,7 +22,7 @@ func TestE2E_Graph_OutputContainsDOTStructure(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("graph failed (exit %d): %s", code, stderr)
 	}
-	if !strings.Contains(stdout, "digraph tickets") {
+	if !strings.Contains(stdout, "digraph issues") {
 		t.Error("expected digraph header")
 	}
 	if !strings.Contains(stdout, "Task Alpha") {
@@ -50,7 +50,7 @@ func TestE2E_Graph_JSON_WrapsInJSONField(t *testing.T) {
 	if !ok || dot == "" {
 		t.Fatal("expected non-empty 'dot' field in JSON output")
 	}
-	if !strings.Contains(dot, "digraph tickets") {
+	if !strings.Contains(dot, "digraph issues") {
 		t.Error("expected digraph header in dot field")
 	}
 }
@@ -59,7 +59,7 @@ func TestE2E_Graph_OutputFile_WritesToFile(t *testing.T) {
 	// Given
 	dir := initDB(t, "TEST")
 	createTask(t, dir, "File test", "e2e-agent")
-	outFile := filepath.Join(dir, "tickets.dot")
+	outFile := filepath.Join(dir, "issues.dot")
 
 	// When
 	_, stderr, code := runNP(t, dir, "graph", "--output", outFile)
@@ -73,11 +73,11 @@ func TestE2E_Graph_OutputFile_WritesToFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading output file: %v", err)
 	}
-	if !strings.Contains(string(data), "digraph tickets") {
+	if !strings.Contains(string(data), "digraph issues") {
 		t.Error("expected digraph header in file")
 	}
 	if !strings.Contains(string(data), "File test") {
-		t.Error("expected ticket title in file")
+		t.Error("expected issue title in file")
 	}
 }
 

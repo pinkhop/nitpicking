@@ -6,7 +6,7 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/domain/history"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 func mustAuthor(t *testing.T, name string) identity.Author {
@@ -18,11 +18,11 @@ func mustAuthor(t *testing.T, name string) identity.Author {
 	return a
 }
 
-func mustTicketID(t *testing.T) ticket.ID {
+func mustIssueID(t *testing.T) issue.ID {
 	t.Helper()
-	id, err := ticket.GenerateID("NP", nil)
+	id, err := issue.GenerateID("NP", nil)
 	if err != nil {
-		t.Fatalf("failed to generate ticket ID: %v", err)
+		t.Fatalf("failed to generate issue ID: %v", err)
 	}
 	return id
 }
@@ -31,7 +31,7 @@ func TestNewEntry_CreatesImmutableEntry(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	tid := mustTicketID(t)
+	tid := mustIssueID(t)
 	author := mustAuthor(t, "alice")
 	now := time.Now()
 	changes := []history.FieldChange{
@@ -41,7 +41,7 @@ func TestNewEntry_CreatesImmutableEntry(t *testing.T) {
 	// When
 	entry := history.NewEntry(history.NewEntryParams{
 		ID:        1,
-		TicketID:  tid,
+		IssueID:   tid,
 		Revision:  0,
 		Author:    author,
 		Timestamp: now,
@@ -53,8 +53,8 @@ func TestNewEntry_CreatesImmutableEntry(t *testing.T) {
 	if entry.ID() != 1 {
 		t.Errorf("expected ID 1, got %d", entry.ID())
 	}
-	if entry.TicketID() != tid {
-		t.Errorf("expected ticket ID %s, got %s", tid, entry.TicketID())
+	if entry.IssueID() != tid {
+		t.Errorf("expected issue ID %s, got %s", tid, entry.IssueID())
 	}
 	if entry.Revision() != 0 {
 		t.Errorf("expected revision 0, got %d", entry.Revision())
@@ -81,7 +81,7 @@ func TestNewEntry_DefensiveCopyOfChanges(t *testing.T) {
 		{Field: "title", Before: "", After: "Fix bug"},
 	}
 	entry := history.NewEntry(history.NewEntryParams{
-		TicketID:  mustTicketID(t),
+		IssueID:   mustIssueID(t),
 		Author:    mustAuthor(t, "bob"),
 		EventType: history.EventCreated,
 		Changes:   changes,
@@ -101,7 +101,7 @@ func TestNewEntry_ChangesReturnsDefensiveCopy(t *testing.T) {
 
 	// Given
 	entry := history.NewEntry(history.NewEntryParams{
-		TicketID:  mustTicketID(t),
+		IssueID:   mustIssueID(t),
 		Author:    mustAuthor(t, "bob"),
 		EventType: history.EventUpdated,
 		Changes: []history.FieldChange{

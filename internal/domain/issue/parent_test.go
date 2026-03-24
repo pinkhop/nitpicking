@@ -1,11 +1,11 @@
-package ticket_test
+package issue_test
 
 import (
 	"errors"
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/domain"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 func TestValidateParent_ValidEpicParent_Succeeds(t *testing.T) {
@@ -16,7 +16,7 @@ func TestValidateParent_ValidEpicParent_Succeeds(t *testing.T) {
 	parentID := mustID(t)
 
 	// When
-	err := ticket.ValidateParent(childID, parentID, ticket.RoleEpic, false)
+	err := issue.ValidateParent(childID, parentID, issue.RoleEpic, false)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -27,7 +27,7 @@ func TestValidateParent_TaskParent_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	err := ticket.ValidateParent(mustID(t), mustID(t), ticket.RoleTask, false)
+	err := issue.ValidateParent(mustID(t), mustID(t), issue.RoleTask, false)
 
 	// Then
 	if err == nil {
@@ -42,7 +42,7 @@ func TestValidateParent_SelfParent_Fails(t *testing.T) {
 	id := mustID(t)
 
 	// When
-	err := ticket.ValidateParent(id, id, ticket.RoleEpic, false)
+	err := issue.ValidateParent(id, id, issue.RoleEpic, false)
 
 	// Then
 	if !errors.Is(err, domain.ErrCycleDetected) {
@@ -54,11 +54,11 @@ func TestValidateParent_DeletedParent_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	err := ticket.ValidateParent(mustID(t), mustID(t), ticket.RoleEpic, true)
+	err := issue.ValidateParent(mustID(t), mustID(t), issue.RoleEpic, true)
 
 	// Then
-	if !errors.Is(err, domain.ErrDeletedTicket) {
-		t.Errorf("expected ErrDeletedTicket, got %v", err)
+	if !errors.Is(err, domain.ErrDeletedIssue) {
+		t.Errorf("expected ErrDeletedIssue, got %v", err)
 	}
 }
 
@@ -71,17 +71,17 @@ func TestValidateNoCycle_NoCycle_Succeeds(t *testing.T) {
 	idC := mustID(t)
 	idD := mustID(t)
 
-	parents := map[ticket.ID]ticket.ID{
+	parents := map[issue.ID]issue.ID{
 		idA: idB,
 		idB: idC,
 	}
 
-	lookup := func(id ticket.ID) (ticket.ID, error) {
+	lookup := func(id issue.ID) (issue.ID, error) {
 		return parents[id], nil
 	}
 
 	// When
-	err := ticket.ValidateNoCycle(idA, idD, lookup)
+	err := issue.ValidateNoCycle(idA, idD, lookup)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -96,12 +96,12 @@ func TestValidateNoCycle_CycleDetected_Fails(t *testing.T) {
 	idB := mustID(t)
 	idC := mustID(t)
 
-	parents := map[ticket.ID]ticket.ID{
+	parents := map[issue.ID]issue.ID{
 		idA: idB,
 		idB: idC,
 	}
 
-	lookup := func(id ticket.ID) (ticket.ID, error) {
+	lookup := func(id issue.ID) (issue.ID, error) {
 		return parents[id], nil
 	}
 
@@ -110,7 +110,7 @@ func TestValidateNoCycle_CycleDetected_Fails(t *testing.T) {
 	// Actually: we check if childID appears in ancestor chain of proposedParent.
 	// So: ValidateNoCycle(childID=C, proposedParent=A, ...) — does C appear
 	// in the ancestor chain of A? A -> B -> C — yes, cycle!
-	err := ticket.ValidateNoCycle(idC, idA, lookup)
+	err := issue.ValidateNoCycle(idC, idA, lookup)
 
 	// Then
 	if !errors.Is(err, domain.ErrCycleDetected) {
@@ -123,12 +123,12 @@ func TestValidateNoCycle_LookupError_Propagates(t *testing.T) {
 
 	// Given
 	lookupErr := errors.New("db error")
-	lookup := func(_ ticket.ID) (ticket.ID, error) {
-		return ticket.ID{}, lookupErr
+	lookup := func(_ issue.ID) (issue.ID, error) {
+		return issue.ID{}, lookupErr
 	}
 
 	// When
-	err := ticket.ValidateNoCycle(mustID(t), mustID(t), lookup)
+	err := issue.ValidateNoCycle(mustID(t), mustID(t), lookup)
 
 	// Then
 	if !errors.Is(err, lookupErr) {

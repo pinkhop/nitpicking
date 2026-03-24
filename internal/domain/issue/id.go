@@ -1,4 +1,4 @@
-package ticket
+package issue
 
 import (
 	"fmt"
@@ -11,19 +11,19 @@ import (
 const crockfordAlphabet = "0123456789abcdefghjkmnpqrstvwxyz"
 
 // randomPartLength is the number of random Crockford Base32 characters in a
-// ticket ID.
+// issue ID.
 const randomPartLength = 5
 
 // idSpace is the total number of possible random portions (32^5 = 33,554,432).
 const idSpace = 32 * 32 * 32 * 32 * 32
 
-// prng is a PCG-backed random number generator for ticket ID generation.
+// prng is a PCG-backed random number generator for issue ID generation.
 // Seeded from the default crypto source at init time for unpredictable
-// sequences, but uses PCG for speed — ticket IDs need collision resistance,
+// sequences, but uses PCG for speed — issue IDs need collision resistance,
 // not cryptographic security.
 var prng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
 
-// ID represents a ticket identifier in the form PREFIX-random (e.g., "NP-a3bxr").
+// ID represents an issue identifier in the form PREFIX-random (e.g., "NP-a3bxr").
 // The prefix is uppercase ASCII letters; the random portion is lowercase
 // Crockford Base32 characters. IDs are immutable after construction.
 type ID struct {
@@ -37,24 +37,24 @@ type ID struct {
 func ParseID(s string) (ID, error) {
 	idx := strings.IndexByte(s, '-')
 	if idx < 0 {
-		return ID{}, fmt.Errorf("invalid ticket ID %q: missing separator", s)
+		return ID{}, fmt.Errorf("invalid issue ID %q: missing separator", s)
 	}
 
 	prefix := s[:idx]
 	random := s[idx+1:]
 
 	if err := ValidatePrefix(prefix); err != nil {
-		return ID{}, fmt.Errorf("invalid ticket ID %q: %w", s, err)
+		return ID{}, fmt.Errorf("invalid issue ID %q: %w", s, err)
 	}
 
 	if err := validateRandom(random); err != nil {
-		return ID{}, fmt.Errorf("invalid ticket ID %q: %w", s, err)
+		return ID{}, fmt.Errorf("invalid issue ID %q: %w", s, err)
 	}
 
 	return ID{prefix: prefix, random: random}, nil
 }
 
-// ResolveID parses a ticket ID string that may be either a full ID
+// ResolveID parses an issue ID string that may be either a full ID
 // (PREFIX-random) or a bare random part (just the 5-char Crockford string).
 // If the input contains a separator, it is parsed as a full ID. Otherwise,
 // the given prefix is prepended and the result is parsed as a full ID.
@@ -64,13 +64,13 @@ func ResolveID(raw, prefix string) (ID, error) {
 	}
 
 	if err := validateRandom(raw); err != nil {
-		return ID{}, fmt.Errorf("invalid ticket ID %q: %w", raw, err)
+		return ID{}, fmt.Errorf("invalid issue ID %q: %w", raw, err)
 	}
 
 	return ParseID(prefix + "-" + raw)
 }
 
-// GenerateID creates a new random ticket ID with the given prefix. The
+// GenerateID creates a new random issue ID with the given prefix. The
 // collisionCheck callback returns true if the generated ID already exists;
 // on collision, the function regenerates and retries up to maxRetries times.
 func GenerateID(prefix string, collisionCheck func(ID) (bool, error)) (ID, error) {
@@ -96,7 +96,7 @@ func GenerateID(prefix string, collisionCheck func(ID) (bool, error)) (ID, error
 		return id, nil
 	}
 
-	return ID{}, fmt.Errorf("failed to generate unique ticket ID after %d attempts", maxRetries)
+	return ID{}, fmt.Errorf("failed to generate unique issue ID after %d attempts", maxRetries)
 }
 
 // String returns the canonical string representation: PREFIX-random.

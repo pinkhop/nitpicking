@@ -12,7 +12,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 // createOutput is the JSON representation of the create command result.
@@ -26,7 +26,7 @@ type createOutput struct {
 	CreatedAt string `json:"created_at"`
 }
 
-// NewCmd constructs the "create" command, which creates a new ticket (task or
+// NewCmd constructs the "create" command, which creates a new issue (task or
 // epic) with the specified attributes.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
@@ -45,7 +45,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:  "create",
-		Usage: "Create a new ticket",
+		Usage: "Create a new issue",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -54,30 +54,30 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:        "from-json",
-				Usage:       `JSON string with ticket fields (use "-" to read from stdin)`,
+				Usage:       `JSON string with issue fields (use "-" to read from stdin)`,
 				Destination: &fromJSON,
 			},
 			&cli.StringFlag{
 				Name:        "role",
 				Aliases:     []string{"r"},
-				Usage:       "Ticket role: task or epic",
+				Usage:       "Issue role: task or epic",
 				Destination: &role,
 			},
 			&cli.StringFlag{
 				Name:        "title",
 				Aliases:     []string{"t"},
-				Usage:       "Ticket title",
+				Usage:       "Issue title",
 				Destination: &title,
 			},
 			&cli.StringFlag{
 				Name:        "description",
 				Aliases:     []string{"d"},
-				Usage:       "Ticket description",
+				Usage:       "Issue description",
 				Destination: &description,
 			},
 			&cli.StringFlag{
 				Name:        "acceptance-criteria",
-				Usage:       "Acceptance criteria for the ticket",
+				Usage:       "Acceptance criteria for the issue",
 				Destination: &acceptanceCriteria,
 			},
 			&cli.StringFlag{
@@ -88,7 +88,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:        "parent",
-				Usage:       "Parent epic ticket ID",
+				Usage:       "Parent epic issue ID",
 				Destination: &parent,
 			},
 			&cli.StringSliceFlag{
@@ -97,7 +97,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:        "claim",
-				Usage:       "Immediately claim the ticket after creation",
+				Usage:       "Immediately claim the issue after creation",
 				Destination: &claim,
 			},
 			&cli.StringFlag{
@@ -117,13 +117,13 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			// If --from-json is provided, parse it and apply JSON values as
 			// defaults for any fields not explicitly set via flags. Precedence
 			// (highest to lowest): flags > JSON > env vars.
-			var tj ticketJSON
+			var tj issueJSON
 			if fromJSON != "" {
 				data, err := readJSONSource(fromJSON, f.IOStreams.In)
 				if err != nil {
 					return err
 				}
-				parsed, err := parseTicketJSON(data)
+				parsed, err := parseIssueJSON(data)
 				if err != nil {
 					return cmdutil.FlagErrorf("%s", err)
 				}
@@ -159,15 +159,15 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			// Parse role.
-			parsedRole, err := ticket.ParseRole(role)
+			parsedRole, err := issue.ParseRole(role)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
 			// Parse optional priority.
-			var parsedPriority ticket.Priority
+			var parsedPriority issue.Priority
 			if priority != "" {
-				parsedPriority, err = ticket.ParsePriority(priority)
+				parsedPriority, err = issue.ParsePriority(priority)
 				if err != nil {
 					return cmdutil.FlagErrorf("%s", err)
 				}
@@ -201,7 +201,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			resolver := cmdutil.NewIDResolver(svc)
 
 			// Parse optional parent ID.
-			var parentID ticket.ID
+			var parentID issue.ID
 			if parent != "" {
 				parentID, err = resolver.Resolve(ctx, parent)
 				if err != nil {
@@ -209,7 +209,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			input := service.CreateTicketInput{
+			input := service.CreateIssueInput{
 				Role:               parsedRole,
 				Title:              title,
 				Description:        description,
@@ -221,12 +221,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Claim:              claim,
 				IdempotencyKey:     idempotencyKey,
 			}
-			result, err := svc.CreateTicket(ctx, input)
+			result, err := svc.CreateIssue(ctx, input)
 			if err != nil {
-				return fmt.Errorf("creating ticket: %w", err)
+				return fmt.Errorf("creating issue: %w", err)
 			}
 
-			t := result.Ticket
+			t := result.Issue
 			if jsonOutput {
 				return cmdutil.WriteJSON(f.IOStreams.Out, createOutput{
 					ID:        t.ID().String(),
@@ -271,18 +271,18 @@ func envFacetStrings(envValue string) []string {
 	return strings.Fields(envValue)
 }
 
-func parseFacets(raw []string) ([]ticket.Facet, error) {
+func parseFacets(raw []string) ([]issue.Facet, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
 
-	facets := make([]ticket.Facet, 0, len(raw))
+	facets := make([]issue.Facet, 0, len(raw))
 	for _, s := range raw {
 		key, value, ok := strings.Cut(s, ":")
 		if !ok {
 			return nil, fmt.Errorf("invalid facet %q: must be in key:value format", s)
 		}
-		f, err := ticket.NewFacet(key, value)
+		f, err := issue.NewFacet(key, value)
 		if err != nil {
 			return nil, fmt.Errorf("invalid facet %q: %w", s, err)
 		}

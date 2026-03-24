@@ -72,7 +72,7 @@ func TestE2E_InitAndCreate(t *testing.T) {
 		t.Fatalf("expected .np directory: %v", err)
 	}
 
-	// When — create a ticket
+	// When — create an issue
 	stdout, _, code := runNP(t, dir, "create", "--role", "task", "--title", "E2E task", "--author", "e2e-agent", "--json")
 
 	// Then
@@ -120,7 +120,7 @@ func TestE2E_ExitCodes(t *testing.T) {
 	dir := t.TempDir()
 	runNP(t, dir, "init", "TEST")
 
-	// When — show non-existent ticket
+	// When — show non-existent issue
 	_, _, code := runNP(t, dir, "show", "TEST-zzzzz", "--json")
 
 	// Then — exit code 2 (not found)
@@ -130,7 +130,7 @@ func TestE2E_ExitCodes(t *testing.T) {
 }
 
 func TestE2E_ShowAuthor_PresentAfterCreate(t *testing.T) {
-	// Given — a ticket created with --author but without --claim.
+	// Given — an issue created with --author but without --claim.
 	dir := t.TempDir()
 	runNP(t, dir, "init", "TEST")
 	createOut, _, code := runNP(t, dir, "create", "--role", "task", "--title", "Author round-trip", "--author", "sweet-anchor-jump", "--json")
@@ -141,13 +141,13 @@ func TestE2E_ShowAuthor_PresentAfterCreate(t *testing.T) {
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 		t.Fatalf("precondition: invalid create JSON: %v", err)
 	}
-	ticketID, ok := created["id"].(string)
-	if !ok || ticketID == "" {
+	issueID, ok := created["id"].(string)
+	if !ok || issueID == "" {
 		t.Fatalf("precondition: missing id in create output")
 	}
 
-	// When — show the ticket as JSON.
-	showOut, _, code := runNP(t, dir, "show", ticketID, "--json")
+	// When — show the issue as JSON.
+	showOut, _, code := runNP(t, dir, "show", issueID, "--json")
 
 	// Then — author field is present and correct.
 	if code != 0 {

@@ -13,11 +13,11 @@ const (
 	// ExitError indicates a general or unexpected error.
 	ExitError ExitCode = 1
 
-	// ExitNotFound indicates the requested entity (ticket, note, etc.)
+	// ExitNotFound indicates the requested entity (issue, note, etc.)
 	// does not exist.
 	ExitNotFound ExitCode = 2
 
-	// ExitClaimConflict indicates the ticket is already claimed and the
+	// ExitClaimConflict indicates the issue is already claimed and the
 	// claim is not stale, or the claim ID does not match.
 	ExitClaimConflict ExitCode = 3
 

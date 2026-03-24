@@ -1,16 +1,16 @@
-package ticket_test
+package issue_test
 
 import (
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 func TestIsEpicComplete_NoChildren_Incomplete(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := ticket.IsEpicComplete(nil)
+	result := issue.IsEpicComplete(nil)
 
 	// Then
 	if result {
@@ -22,13 +22,13 @@ func TestIsEpicComplete_AllTasksClosed_Complete(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	children := []ticket.ChildStatus{
-		{Role: ticket.RoleTask, State: ticket.StateClosed},
-		{Role: ticket.RoleTask, State: ticket.StateClosed},
+	children := []issue.ChildStatus{
+		{Role: issue.RoleTask, State: issue.StateClosed},
+		{Role: issue.RoleTask, State: issue.StateClosed},
 	}
 
 	// When
-	result := ticket.IsEpicComplete(children)
+	result := issue.IsEpicComplete(children)
 
 	// Then
 	if !result {
@@ -40,13 +40,13 @@ func TestIsEpicComplete_OpenTask_Incomplete(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	children := []ticket.ChildStatus{
-		{Role: ticket.RoleTask, State: ticket.StateClosed},
-		{Role: ticket.RoleTask, State: ticket.StateOpen},
+	children := []issue.ChildStatus{
+		{Role: issue.RoleTask, State: issue.StateClosed},
+		{Role: issue.RoleTask, State: issue.StateOpen},
 	}
 
 	// When
-	result := ticket.IsEpicComplete(children)
+	result := issue.IsEpicComplete(children)
 
 	// Then
 	if result {
@@ -58,13 +58,13 @@ func TestIsEpicComplete_CompleteSubEpics_Complete(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	children := []ticket.ChildStatus{
-		{Role: ticket.RoleEpic, IsComplete: true},
-		{Role: ticket.RoleTask, State: ticket.StateClosed},
+	children := []issue.ChildStatus{
+		{Role: issue.RoleEpic, IsComplete: true},
+		{Role: issue.RoleTask, State: issue.StateClosed},
 	}
 
 	// When
-	result := ticket.IsEpicComplete(children)
+	result := issue.IsEpicComplete(children)
 
 	// Then
 	if !result {
@@ -76,13 +76,13 @@ func TestIsEpicComplete_IncompleteSubEpic_Incomplete(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	children := []ticket.ChildStatus{
-		{Role: ticket.RoleEpic, IsComplete: false},
-		{Role: ticket.RoleTask, State: ticket.StateClosed},
+	children := []issue.ChildStatus{
+		{Role: issue.RoleEpic, IsComplete: false},
+		{Role: issue.RoleTask, State: issue.StateClosed},
 	}
 
 	// When
-	result := ticket.IsEpicComplete(children)
+	result := issue.IsEpicComplete(children)
 
 	// Then
 	if result {

@@ -12,11 +12,11 @@ import (
 
 // deleteOutput is the JSON representation of the delete command result.
 type deleteOutput struct {
-	TicketID string `json:"ticket_id"`
-	Deleted  bool   `json:"deleted"`
+	IssueID string `json:"issue_id"`
+	Deleted bool   `json:"deleted"`
 }
 
-// NewCmd constructs the "delete" command, which deletes a claimed ticket.
+// NewCmd constructs the "delete" command, which deletes a claimed issue.
 // The --confirm flag is required to prevent accidental deletions.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
@@ -27,8 +27,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "delete",
-		Usage:     "Delete a claimed ticket",
-		ArgsUsage: "<TICKET-ID>",
+		Usage:     "Delete a claimed issue",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -38,7 +38,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the ticket",
+				Usage:       "Active claim ID for the issue",
 				Required:    true,
 				Destination: &claimID,
 			},
@@ -50,12 +50,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if !confirm {
-				return cmdutil.FlagErrorf("--confirm is required to delete a ticket")
+				return cmdutil.FlagErrorf("--confirm is required to delete an issue")
 			}
 
 			rawID := cmd.Args().Get(0)
 			if rawID == "" {
-				return cmdutil.FlagErrorf("ticket ID argument is required")
+				return cmdutil.FlagErrorf("issue ID argument is required")
 			}
 
 			svc, err := cmdutil.NewTracker(f)
@@ -64,29 +64,29 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			ticketID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
 			input := service.DeleteInput{
-				TicketID: ticketID,
-				ClaimID:  claimID,
+				IssueID: issueID,
+				ClaimID: claimID,
 			}
-			if err := svc.DeleteTicket(ctx, input); err != nil {
-				return fmt.Errorf("deleting ticket: %w", err)
+			if err := svc.DeleteIssue(ctx, input); err != nil {
+				return fmt.Errorf("deleting issue: %w", err)
 			}
 
 			if jsonOutput {
 				return cmdutil.WriteJSON(f.IOStreams.Out, deleteOutput{
-					TicketID: ticketID.String(),
-					Deleted:  true,
+					IssueID: issueID.String(),
+					Deleted: true,
 				})
 			}
 
 			cs := f.IOStreams.ColorScheme()
 			_, err = fmt.Fprintf(f.IOStreams.Out, "%s Deleted %s\n",
-				cs.SuccessIcon(), cs.Bold(ticketID.String()))
+				cs.SuccessIcon(), cs.Bold(issueID.String()))
 			return err
 		},
 	}

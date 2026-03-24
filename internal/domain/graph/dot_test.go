@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/domain/graph"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
-func mustID(t *testing.T, s string) ticket.ID {
+func mustID(t *testing.T, s string) issue.ID {
 	t.Helper()
-	id, err := ticket.ParseID(s)
+	id, err := issue.ParseID(s)
 	if err != nil {
 		t.Fatalf("invalid test ID %q: %v", s, err)
 	}
@@ -24,7 +24,7 @@ func TestRenderDOT_EmptyGraph_ProducesValidDOT(t *testing.T) {
 	result := graph.RenderDOT(nil, nil)
 
 	// Then
-	if !strings.Contains(result, "digraph tickets") {
+	if !strings.Contains(result, "digraph issues") {
 		t.Error("expected digraph header")
 	}
 	if !strings.HasSuffix(result, "}\n") {
@@ -37,7 +37,7 @@ func TestRenderDOT_SingleNode_RendersWithColorAndLabel(t *testing.T) {
 
 	// Given
 	nodes := []graph.Node{
-		{ID: mustID(t, "NP-a3bxr"), Role: ticket.RoleTask, State: ticket.StateOpen, Title: "Fix login bug"},
+		{ID: mustID(t, "NP-a3bxr"), Role: issue.RoleTask, State: issue.StateOpen, Title: "Fix login bug"},
 	}
 
 	// When
@@ -60,15 +60,15 @@ func TestRenderDOT_StateColors_MatchExpected(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		state ticket.State
+		state issue.State
 		color string
 	}{
-		{"open", ticket.StateOpen, "white"},
-		{"active", ticket.StateActive, "lightblue"},
-		{"claimed", ticket.StateClaimed, "yellow"},
-		{"closed", ticket.StateClosed, "gray"},
-		{"deferred", ticket.StateDeferred, "lightyellow"},
-		{"waiting", ticket.StateWaiting, "orange"},
+		{"open", issue.StateOpen, "white"},
+		{"active", issue.StateActive, "lightblue"},
+		{"claimed", issue.StateClaimed, "yellow"},
+		{"closed", issue.StateClosed, "gray"},
+		{"deferred", issue.StateDeferred, "lightyellow"},
+		{"waiting", issue.StateWaiting, "orange"},
 	}
 
 	for _, tc := range cases {
@@ -76,7 +76,7 @@ func TestRenderDOT_StateColors_MatchExpected(t *testing.T) {
 			t.Parallel()
 
 			nodes := []graph.Node{
-				{ID: mustID(t, "NP-a3bxr"), Role: ticket.RoleTask, State: tc.state, Title: "Test"},
+				{ID: mustID(t, "NP-a3bxr"), Role: issue.RoleTask, State: tc.state, Title: "Test"},
 			}
 
 			// When
@@ -98,8 +98,8 @@ func TestRenderDOT_ParentChild_CreatesClusterAndEdge(t *testing.T) {
 	taskID := mustID(t, "NP-ta5k0")
 
 	nodes := []graph.Node{
-		{ID: epicID, Role: ticket.RoleEpic, State: ticket.StateActive, Title: "Auth epic"},
-		{ID: taskID, Role: ticket.RoleTask, State: ticket.StateOpen, Title: "Login fix", ParentID: epicID},
+		{ID: epicID, Role: issue.RoleEpic, State: issue.StateActive, Title: "Auth epic"},
+		{ID: taskID, Role: issue.RoleTask, State: issue.StateOpen, Title: "Login fix", ParentID: epicID},
 	}
 
 	// When
@@ -126,11 +126,11 @@ func TestRenderDOT_BlockedByEdge_DashedRed(t *testing.T) {
 	id2 := mustID(t, "NP-b4cys")
 
 	nodes := []graph.Node{
-		{ID: id1, Role: ticket.RoleTask, State: ticket.StateOpen, Title: "Task A"},
-		{ID: id2, Role: ticket.RoleTask, State: ticket.StateOpen, Title: "Task B"},
+		{ID: id1, Role: issue.RoleTask, State: issue.StateOpen, Title: "Task A"},
+		{ID: id2, Role: issue.RoleTask, State: issue.StateOpen, Title: "Task B"},
 	}
 	edges := []graph.Edge{
-		{SourceID: id1, TargetID: id2, Type: ticket.RelBlockedBy},
+		{SourceID: id1, TargetID: id2, Type: issue.RelBlockedBy},
 	}
 
 	// When
@@ -156,11 +156,11 @@ func TestRenderDOT_CitesEdge_DottedGray(t *testing.T) {
 	id2 := mustID(t, "NP-b4cys")
 
 	nodes := []graph.Node{
-		{ID: id1, Role: ticket.RoleTask, State: ticket.StateOpen, Title: "Task A"},
-		{ID: id2, Role: ticket.RoleTask, State: ticket.StateOpen, Title: "Task B"},
+		{ID: id1, Role: issue.RoleTask, State: issue.StateOpen, Title: "Task A"},
+		{ID: id2, Role: issue.RoleTask, State: issue.StateOpen, Title: "Task B"},
 	}
 	edges := []graph.Edge{
-		{SourceID: id1, TargetID: id2, Type: ticket.RelCites},
+		{SourceID: id1, TargetID: id2, Type: issue.RelCites},
 	}
 
 	// When
@@ -184,7 +184,7 @@ func TestRenderDOT_LongTitle_Truncated(t *testing.T) {
 	// Given
 	longTitle := "This is a very long title that should be truncated for readability in the graph"
 	nodes := []graph.Node{
-		{ID: mustID(t, "NP-a3bxr"), Role: ticket.RoleTask, State: ticket.StateOpen, Title: longTitle},
+		{ID: mustID(t, "NP-a3bxr"), Role: issue.RoleTask, State: issue.StateOpen, Title: longTitle},
 	}
 
 	// When

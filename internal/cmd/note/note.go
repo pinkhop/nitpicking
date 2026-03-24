@@ -18,15 +18,15 @@ import (
 
 // addNoteOutput is the JSON representation of the note add result.
 type addNoteOutput struct {
-	NoteID   string `json:"note_id"`
-	TicketID string `json:"ticket_id"`
-	Author   string `json:"author"`
+	NoteID  string `json:"note_id"`
+	IssueID string `json:"issue_id"`
+	Author  string `json:"author"`
 }
 
 // noteOutput is the JSON representation of a single note.
 type noteOutput struct {
 	NoteID    string `json:"note_id"`
-	TicketID  string `json:"ticket_id"`
+	IssueID   string `json:"issue_id"`
 	Author    string `json:"author"`
 	Body      string `json:"body"`
 	CreatedAt string `json:"created_at"`
@@ -39,11 +39,11 @@ type noteListOutput struct {
 }
 
 // NewCmd constructs the "note" command with add, show, list, and search
-// subcommands for managing ticket notes.
+// subcommands for managing issue notes.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:  "note",
-		Usage: "Manage ticket notes",
+		Usage: "Manage issue notes",
 		Commands: []*cli.Command{
 			newAddCmd(f),
 			newShowCmd(f),
@@ -54,18 +54,18 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 }
 
 // newAddCmd constructs the "note add" subcommand, which adds a new note to
-// a ticket.
+// an issue.
 func newAddCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
-		ticketArg  string
+		issueArg   string
 		author     string
 		body       string
 	)
 
 	return &cli.Command{
 		Name:  "add",
-		Usage: "Add a note to a ticket",
+		Usage: "Add a note to an issue",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -73,11 +73,11 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &jsonOutput,
 			},
 			&cli.StringFlag{
-				Name:        "ticket",
+				Name:        "issue",
 				Aliases:     []string{"t"},
-				Usage:       "Ticket ID",
+				Usage:       "Issue ID",
 				Required:    true,
-				Destination: &ticketArg,
+				Destination: &issueArg,
 			},
 			&cli.StringFlag{
 				Name:        "author",
@@ -107,15 +107,15 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			ticketID, err := resolver.Resolve(ctx, ticketArg)
+			issueID, err := resolver.Resolve(ctx, issueArg)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
 			input := service.AddNoteInput{
-				TicketID: ticketID,
-				Author:   parsedAuthor,
-				Body:     body,
+				IssueID: issueID,
+				Author:  parsedAuthor,
+				Body:    body,
 			}
 			result, err := svc.AddNote(ctx, input)
 			if err != nil {
@@ -124,9 +124,9 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 
 			if jsonOutput {
 				return cmdutil.WriteJSON(f.IOStreams.Out, addNoteOutput{
-					NoteID:   result.Note.DisplayID(),
-					TicketID: ticketID.String(),
-					Author:   author,
+					NoteID:  result.Note.DisplayID(),
+					IssueID: issueID.String(),
+					Author:  author,
 				})
 			}
 
@@ -134,7 +134,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 			_, err = fmt.Fprintf(f.IOStreams.Out, "%s Added %s to %s\n",
 				cs.SuccessIcon(),
 				cs.Bold(result.Note.DisplayID()),
-				cs.Bold(ticketID.String()))
+				cs.Bold(issueID.String()))
 			return err
 		},
 	}
@@ -179,7 +179,7 @@ func newShowCmd(f *cmdutil.Factory) *cli.Command {
 			if jsonOutput {
 				return cmdutil.WriteJSON(f.IOStreams.Out, noteOutput{
 					NoteID:    n.DisplayID(),
-					TicketID:  n.TicketID().String(),
+					IssueID:   n.IssueID().String(),
 					Author:    n.Author().String(),
 					Body:      n.Body(),
 					CreatedAt: n.CreatedAt().Format(time.RFC3339),
@@ -190,7 +190,7 @@ func newShowCmd(f *cmdutil.Factory) *cli.Command {
 			w := f.IOStreams.Out
 			_, _ = fmt.Fprintf(w, "%s  on %s  by %s  at %s\n",
 				cs.Bold(n.DisplayID()),
-				cs.Bold(n.TicketID().String()),
+				cs.Bold(n.IssueID().String()),
 				n.Author().String(),
 				n.CreatedAt().Format(time.RFC3339))
 			_, _ = fmt.Fprintf(w, "\n%s\n", n.Body())
@@ -201,18 +201,18 @@ func newShowCmd(f *cmdutil.Factory) *cli.Command {
 }
 
 // newListCmd constructs the "note list" subcommand, which lists notes for a
-// specific ticket.
+// specific issue.
 func newListCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
-		ticketArg  string
+		issueArg   string
 		pageSize   int
 	)
 
 	return &cli.Command{
 		Name:    "list",
 		Aliases: []string{"ls"},
-		Usage:   "List notes for a ticket",
+		Usage:   "List notes for an issue",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -220,11 +220,11 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &jsonOutput,
 			},
 			&cli.StringFlag{
-				Name:        "ticket",
+				Name:        "issue",
 				Aliases:     []string{"t"},
-				Usage:       "Ticket ID",
+				Usage:       "Issue ID",
 				Required:    true,
-				Destination: &ticketArg,
+				Destination: &issueArg,
 			},
 			&cli.IntFlag{
 				Name:        "page-size",
@@ -240,14 +240,14 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			ticketID, err := resolver.Resolve(ctx, ticketArg)
+			issueID, err := resolver.Resolve(ctx, issueArg)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
 			input := service.ListNotesInput{
-				TicketID: ticketID,
-				Page:     port.PageRequest{PageSize: pageSize},
+				IssueID: issueID,
+				Page:    port.PageRequest{PageSize: pageSize},
 			}
 			result, err := svc.ListNotes(ctx, input)
 			if err != nil {
@@ -262,7 +262,7 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 				for _, n := range result.Notes {
 					out.Notes = append(out.Notes, noteOutput{
 						NoteID:    n.DisplayID(),
-						TicketID:  n.TicketID().String(),
+						IssueID:   n.IssueID().String(),
 						Author:    n.Author().String(),
 						Body:      n.Body(),
 						CreatedAt: n.CreatedAt().Format(time.RFC3339),
@@ -299,7 +299,7 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
-		ticketArg  string
+		issueArg   string
 		pageSize   int
 	)
 
@@ -314,10 +314,10 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &jsonOutput,
 			},
 			&cli.StringFlag{
-				Name:        "ticket",
+				Name:        "issue",
 				Aliases:     []string{"t"},
-				Usage:       "Scope search to a specific ticket ID",
-				Destination: &ticketArg,
+				Usage:       "Scope search to a specific issue ID",
+				Destination: &issueArg,
 			},
 			&cli.IntFlag{
 				Name:        "page-size",
@@ -343,12 +343,12 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 				Page:  port.PageRequest{PageSize: pageSize},
 			}
 
-			if ticketArg != "" {
-				tid, err := resolver.Resolve(ctx, ticketArg)
+			if issueArg != "" {
+				tid, err := resolver.Resolve(ctx, issueArg)
 				if err != nil {
-					return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+					return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 				}
-				input.TicketID = tid
+				input.IssueID = tid
 			}
 			result, err := svc.SearchNotes(ctx, input)
 			if err != nil {
@@ -363,7 +363,7 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 				for _, n := range result.Notes {
 					out.Notes = append(out.Notes, noteOutput{
 						NoteID:    n.DisplayID(),
-						TicketID:  n.TicketID().String(),
+						IssueID:   n.IssueID().String(),
 						Author:    n.Author().String(),
 						Body:      n.Body(),
 						CreatedAt: n.CreatedAt().Format(time.RFC3339),
@@ -383,7 +383,7 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 			for _, n := range result.Notes {
 				_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  %s\n",
 					cs.Bold(n.DisplayID()),
-					cs.Cyan(n.TicketID().String()),
+					cs.Cyan(n.IssueID().String()),
 					n.Author().String(),
 					cs.Dim(n.CreatedAt().Format(time.RFC3339)),
 					truncate(n.Body(), 60))

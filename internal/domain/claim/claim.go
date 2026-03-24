@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 // DefaultStaleThreshold is the default duration after which a claim becomes
@@ -22,11 +22,11 @@ const MaxStaleThreshold = 24 * time.Hour
 // 16 bytes = 128 bits of entropy, matching UUID-level uniqueness.
 const claimIDBytes = 16
 
-// Claim represents active ownership of a ticket. Claims are immutable value
+// Claim represents active ownership of an issue. Claims are immutable value
 // objects — "extending" or "updating last activity" produces a new Claim.
 type Claim struct {
 	id             string
-	ticketID       ticket.ID
+	issueID        issue.ID
 	author         identity.Author
 	staleThreshold time.Duration
 	lastActivity   time.Time
@@ -34,7 +34,7 @@ type Claim struct {
 
 // NewClaimParams holds the parameters for creating a new claim.
 type NewClaimParams struct {
-	TicketID       ticket.ID
+	IssueID        issue.ID
 	Author         identity.Author
 	StaleThreshold time.Duration
 	Now            time.Time
@@ -42,8 +42,8 @@ type NewClaimParams struct {
 
 // NewClaim creates a new claim with a randomly generated claim ID.
 func NewClaim(p NewClaimParams) (Claim, error) {
-	if p.TicketID.IsZero() {
-		return Claim{}, fmt.Errorf("claim requires a ticket ID")
+	if p.IssueID.IsZero() {
+		return Claim{}, fmt.Errorf("claim requires an issue ID")
 	}
 	if p.Author.IsZero() {
 		return Claim{}, fmt.Errorf("claim requires an author")
@@ -66,7 +66,7 @@ func NewClaim(p NewClaimParams) (Claim, error) {
 
 	return Claim{
 		id:             claimID,
-		ticketID:       p.TicketID,
+		issueID:        p.IssueID,
 		author:         p.Author,
 		staleThreshold: threshold,
 		lastActivity:   now,
@@ -75,10 +75,10 @@ func NewClaim(p NewClaimParams) (Claim, error) {
 
 // ReconstructClaim rebuilds a Claim from persisted data without generating
 // a new ID. Used by the storage layer when loading claims from the database.
-func ReconstructClaim(id string, ticketID ticket.ID, author identity.Author, staleThreshold time.Duration, lastActivity time.Time) Claim {
+func ReconstructClaim(id string, issueID issue.ID, author identity.Author, staleThreshold time.Duration, lastActivity time.Time) Claim {
 	return Claim{
 		id:             id,
-		ticketID:       ticketID,
+		issueID:        issueID,
 		author:         author,
 		staleThreshold: staleThreshold,
 		lastActivity:   lastActivity,
@@ -88,8 +88,8 @@ func ReconstructClaim(id string, ticketID ticket.ID, author identity.Author, sta
 // ID returns the random, unguessable claim identifier.
 func (c Claim) ID() string { return c.id }
 
-// TicketID returns the ID of the claimed ticket.
-func (c Claim) TicketID() ticket.ID { return c.ticketID }
+// IssueID returns the ID of the claimed issue.
+func (c Claim) IssueID() issue.ID { return c.issueID }
 
 // Author returns the author who holds the claim.
 func (c Claim) Author() identity.Author { return c.author }

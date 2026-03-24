@@ -27,19 +27,19 @@ Pure domain types, value objects, and validation. No ports, no persistence. Ever
 
 ### 1.1 Domain Error Types
 
-Define typed errors for the domain: `ErrTicketNotFound`, `ErrClaimConflict`, `ErrIllegalTransition`, `ErrValidation`, `ErrCycleDetected`, `ErrDeletedTicket`, `ErrTerminalState`. These map to exit codes at the adapter layer, not here.
+Define typed errors for the domain: `ErrIssueNotFound`, `ErrClaimConflict`, `ErrIllegalTransition`, `ErrValidation`, `ErrCycleDetected`, `ErrDeletedIssue`, `ErrTerminalState`. These map to exit codes at the adapter layer, not here.
 
 `ErrClaimConflict` must carry structured context: the current holder's author and the timestamp at which the claim becomes stale. This enables self-describing error responses per §9.
 
 - **Depends on:** nothing
 - **Package:** `internal/domain`
 
-### 1.2 Ticket ID Value Object
+### 1.2 Issue ID Value Object
 
-Define the `TicketID` type: uppercase prefix (1–10 chars, A–Z), separator `-`, 5 lowercase Crockford Base32 random characters. Implement parsing, validation, generation (with collision retry callback), and `String()`. No database interaction — collision detection is injected.
+Define the `IssueID` type: uppercase prefix (1–10 chars, A–Z), separator `-`, 5 lowercase Crockford Base32 random characters. Implement parsing, validation, generation (with collision retry callback), and `String()`. No database interaction — collision detection is injected.
 
 - **Depends on:** nothing
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
 ### 1.3 Author Value Object
 
@@ -53,21 +53,21 @@ Define the `Author` type with validation: at least one alphanumeric char, max 64
 Define `Priority` as an enumeration: `P0`–`P4`. Include ordering (lower number = higher urgency), parsing from string, default (`P2`), and `String()`.
 
 - **Depends on:** nothing
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
-### 1.5 Ticket Role Enumeration
+### 1.5 Issue Role Enumeration
 
 Define `Role` as `Epic` or `Task`. Immutable after creation. Include parsing and `String()`.
 
 - **Depends on:** nothing
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
 ### 1.6 Facet Value Object
 
 Define `Facet` (key–value pair). Key: 1–64 bytes, ASCII printable (0x21–0x7E), no whitespace, at least one alphanumeric. Value: 1–256 bytes, UTF-8, no whitespace, at least one alphanumeric. Key uniqueness is enforced at the collection level. Include a `FacetSet` collection type.
 
 - **Depends on:** nothing
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
 ### 1.7 Task State Machine
 
@@ -76,7 +76,7 @@ Define `TaskState` enum (`open`, `claimed`, `closed`, `deferred`, `waiting`) and
 Note: `deleted` is also terminal (§5.3) but is not a state in the state machine — it is a separate flag checked independently by claiming rules (1.15) and soft deletion rules (1.19). The state machine must not accept transitions from or to `deleted`.
 
 - **Depends on:** 1.1
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
 ### 1.8 Epic State Machine
 
@@ -85,57 +85,57 @@ Define `EpicState` enum (`active`, `claimed`, `deferred`, `waiting`) and a trans
 Note: as with tasks, `deleted` is terminal but separate from the state machine. See note on 1.7.
 
 - **Depends on:** 1.1
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
-### 1.9 Ticket Entity — Core Fields
+### 1.9 Issue Entity — Core Fields
 
-Define the `Ticket` struct carrying all common fields from §4.1: ID, role, title, description, acceptance criteria, priority, state, parent reference, facets, created-at, idempotency key. All fields are immutable after construction; "mutations" return new `Ticket` values. Include factory functions `NewTask` and `NewEpic` with required-field validation (title must contain at least one alphanumeric character).
+Define the `Issue` struct carrying all common fields from §4.1: ID, role, title, description, acceptance criteria, priority, state, parent reference, facets, created-at, idempotency key. All fields are immutable after construction; "mutations" return new `Issue` values. Include factory functions `NewTask` and `NewEpic` with required-field validation (title must contain at least one alphanumeric character).
 
-**Revision** is a derived property — computed as `history entry count − 1` per §4.1. It is not stored on the Ticket struct. It is computed at read time from the history.
+**Revision** is a derived property — computed as `history entry count − 1` per §4.1. It is not stored on the Issue struct. It is computed at read time from the history.
 
-**Author** (the last person to update the ticket) is derived from the most recent history entry. Creation generates a history entry, so every ticket has an author from inception.
+**Author** (the last person to update the issue) is derived from the most recent history entry. Creation generates a history entry, so every issue has an author from inception.
 
 - **Depends on:** 1.2, 1.4, 1.5, 1.6, 1.7, 1.8
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
 ### 1.10 Parent Constraints
 
-Implement parent validation rules from §4.1.1: only epics can be parents; a ticket cannot be its own parent; deleted tickets cannot be parents. Cycle detection (A cannot parent B if B is an ancestor of A) is defined as a pure function taking an ancestry-lookup callback — no persistence dependency.
+Implement parent validation rules from §4.1.1: only epics can be parents; an issue cannot be its own parent; deleted issues cannot be parents. Cycle detection (A cannot parent B if B is an ancestor of A) is defined as a pure function taking an ancestry-lookup callback — no persistence dependency.
 
 - **Depends on:** 1.9
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
 ### 1.11 Note Entity
 
-Define `Note` with fields from §4.2: auto-assigned sequential ID (displayed as `note-<int>`), ticket ID reference, author, created-at, body (non-empty). Notes are immutable after creation.
+Define `Note` with fields from §4.2: auto-assigned sequential ID (displayed as `note-<int>`), issue ID reference, author, created-at, body (non-empty). Notes are immutable after creation.
 
 - **Depends on:** 1.2, 1.3
 - **Package:** `internal/domain/note`
 
 ### 1.12 Relationship Value Object
 
-Define `Relationship` with types from §4.3: `blocked_by`/`blocks`, `cites`/`cited_by`. Include the inverse mapping. Enforce: no self-relationships. Idempotent semantics are a storage concern, but the domain type validates structural rules. A relationship cannot reference a deleted ticket (validated via callback).
+Define `Relationship` with types from §4.3: `blocked_by`/`blocks`, `cites`/`cited_by`. Include the inverse mapping. Enforce: no self-relationships. Idempotent semantics are a storage concern, but the domain type validates structural rules. A relationship cannot reference a deleted issue (validated via callback).
 
 - **Depends on:** 1.2
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
 ### 1.13 History Entry Entity
 
-Define `HistoryEntry` per §4.4 and §7: entry ID, ticket ID, zero-based revision, author, timestamp, event type enum (`created`, `claimed`, `released`, `updated`, `state_changed`, `deleted`, `relationship_added`, `relationship_removed`), structured changes (field name → before/after). Immutable. Notes do not produce history entries.
+Define `HistoryEntry` per §4.4 and §7: entry ID, issue ID, zero-based revision, author, timestamp, event type enum (`created`, `claimed`, `released`, `updated`, `state_changed`, `deleted`, `relationship_added`, `relationship_removed`), structured changes (field name → before/after). Immutable. Notes do not produce history entries.
 
 - **Depends on:** 1.2, 1.3
 - **Package:** `internal/domain/history`
 
 ### 1.14 Claim Entity
 
-Define `Claim` per §4.5: random unguessable claim ID, ticket ID, author, stale threshold (default 2h, max 24h), last-activity timestamp. Include `IsStale(now)` method. Claims are immutable value objects — "extending" produces a new claim.
+Define `Claim` per §4.5: random unguessable claim ID, issue ID, author, stale threshold (default 2h, max 24h), last-activity timestamp. Include `IsStale(now)` method. Claims are immutable value objects — "extending" produces a new claim.
 
 - **Depends on:** 1.2, 1.3
 - **Package:** `internal/domain/claim`
 
 ### 1.15 Claiming Rules
 
-Implement claiming business logic from §6.1: only non-terminal tickets can be claimed; `closed` and `deleted` tickets cannot be claimed (`deleted` is checked as a separate flag, not via the state machine). One-shot claim-update-release as a domain operation. Author attribution rules: gated operations inherit claim author; ungated operations require explicit author.
+Implement claiming business logic from §6.1: only non-terminal issues can be claimed; `closed` and `deleted` issues cannot be claimed (`deleted` is checked as a separate flag, not via the state machine). One-shot claim-update-release as a domain operation. Author attribution rules: gated operations inherit claim author; ungated operations require explicit author.
 
 - **Depends on:** 1.9, 1.14
 - **Package:** `internal/domain/claim`
@@ -145,7 +145,7 @@ Implement claiming business logic from §6.1: only non-terminal tickets can be c
 Implement §6.2: an epic is complete when it has children AND all children are closed (tasks) or complete (sub-epics). Incomplete otherwise, including when childless. Pure function taking a list of child statuses.
 
 - **Depends on:** 1.7, 1.8
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
 ### 1.17 Readiness Rules
 
@@ -158,7 +158,7 @@ Epic readiness requires: state `active`; no children (needs decomposition); no u
 Readiness propagation: deferred/waiting epics suppress readiness for unclaimed descendants.
 
 - **Depends on:** 1.7, 1.8, 1.12
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
 ### 1.18 Staleness and Stealing Rules
 
@@ -169,10 +169,10 @@ Implement §6.4: a claim is stale when `now - last_activity > stale_threshold`. 
 
 ### 1.19 Soft Deletion Rules
 
-Implement §6.5: deleted ticket's ID is reserved; deleted tickets are immutable; cannot be parents or relationship targets; existing relationships retained but invisible. Recursive epic deletion: all unclaimed descendants are deleted; if any descendant is claimed, operation fails with conflict error identifying the claimed ticket(s). Pure function returning the set of tickets to delete or the conflict error.
+Implement §6.5: deleted issue's ID is reserved; deleted issues are immutable; cannot be parents or relationship targets; existing relationships retained but invisible. Recursive epic deletion: all unclaimed descendants are deleted; if any descendant is claimed, operation fails with conflict error identifying the claimed issue(s). Pure function returning the set of issues to delete or the conflict error.
 
 - **Depends on:** 1.9, 1.14
-- **Package:** `internal/domain/ticket`
+- **Package:** `internal/domain/issue`
 
 ### 1.20 Agent Name Generator
 
@@ -198,15 +198,15 @@ Define the contracts between the core domain and its adapters. No implementation
 
 Define the `Repository` interface (or set of interfaces) that the application layer requires from storage. Methods should cover:
 
-- Ticket CRUD (create, get by ID, update, soft delete, list, search)
-- Note CRUD (create, get by ID, list by ticket, search per-ticket, search global)
-- Claim lifecycle (create, get by ticket, invalidate, update last-activity)
-- Relationship CRUD (create-if-not-exists, delete-if-exists, list by ticket)
-- History (append entry, list by ticket)
+- Issue CRUD (create, get by ID, update, soft delete, list, search)
+- Note CRUD (create, get by ID, list by issue, search per-issue, search global)
+- Claim lifecycle (create, get by issue, invalidate, update last-activity)
+- Relationship CRUD (create-if-not-exists, delete-if-exists, list by issue)
+- History (append entry, list by issue)
 - Ancestry lookup (for cycle detection and readiness propagation)
 - GC (physical removal of deleted/closed data)
 - Database initialization (prefix storage)
-- Ticket ID collision check
+- Issue ID collision check
 
 Pagination parameters: keyset-based, page size default 20, total count.
 
@@ -220,7 +220,7 @@ Define the use-case boundary — the set of operations the CLI (or any driving a
 - Init, AgentName, AgentInstructions
 - Create, ClaimByID, ClaimNextReady, OneShotUpdate, Update, ExtendStaleThreshold, TransitionState, Delete, Show, List, Search
 - AddRelationship, RemoveRelationship
-- AddNote, ShowNote, ListNotes, SearchNotes (per-ticket), SearchNotes (global)
+- AddNote, ShowNote, ListNotes, SearchNotes (per-issue), SearchNotes (global)
 - ShowHistory
 - Doctor, GC
 
@@ -237,7 +237,7 @@ Implement the driving port. This layer orchestrates domain logic and persistence
 
 ### 3.1 In-Memory Fake Repository
 
-Implement the persistence port interface (§2.1) as an in-memory fake. This is the test double for all application-layer unit tests. Stores tickets, notes, claims, relationships, and history in maps/slices. Supports pagination, filtering, and keyset semantics.
+Implement the persistence port interface (§2.1) as an in-memory fake. This is the test double for all application-layer unit tests. Stores issues, notes, claims, relationships, and history in maps/slices. Supports pagination, filtering, and keyset semantics.
 
 - **Depends on:** 2.1
 - **Package:** `internal/fake`
@@ -249,21 +249,21 @@ Implement database initialization: validate and store the prefix. In the applica
 - **Depends on:** 2.2, 3.1
 - **Package:** `internal/app/service`
 
-### 3.3 Create Ticket Service
+### 3.3 Create Issue Service
 
-Implement ticket creation: validate all fields, generate ticket ID (with collision retry via persistence port), set defaults (priority P2, state open/active), optionally start as claimed, optionally attach relationships at creation time (per §8.3 Create), handle idempotency key. Produce a `created` history entry.
+Implement issue creation: validate all fields, generate issue ID (with collision retry via persistence port), set defaults (priority P2, state open/active), optionally start as claimed, optionally attach relationships at creation time (per §8.3 Create), handle idempotency key. Produce a `created` history entry.
 
 - **Depends on:** 3.1, 3.2
 - **Package:** `internal/app/service`
 
 ### 3.4 Claim Services (ClaimByID, ClaimNextReady)
 
-Implement claiming: validate ticket is claimable (not terminal, not already claimed unless stale + steal opt-in), generate claim ID, bind author, set stale threshold. `ClaimNextReady` uses readiness rules and priority ordering. Produce `claimed` history entry. Handle steal fallback with auto-note.
+Implement claiming: validate issue is claimable (not terminal, not already claimed unless stale + steal opt-in), generate claim ID, bind author, set stale threshold. `ClaimNextReady` uses readiness rules and priority ordering. Produce `claimed` history entry. Handle steal fallback with auto-note.
 
 - **Depends on:** 3.1, 3.3
 - **Package:** `internal/app/service`
 
-### 3.5 Update Ticket Service
+### 3.5 Update Issue Service
 
 Implement claimed update: verify claim ID matches, apply field changes (title, description, acceptance criteria, priority, parent, facets), validate parent constraints including cycle detection, produce `updated` history entry. Update claim's last-activity.
 
@@ -276,7 +276,7 @@ Optionally add a note in the same atomic operation (per §8.3 Update). The note 
 
 ### 3.6 One-Shot Update Service
 
-Implement atomic claim → update → release for unclaimed tickets. Transient claim; caller provides author. Wraps 3.4 + 3.5 + state transition to release.
+Implement atomic claim → update → release for unclaimed issues. Transient claim; caller provides author. Wraps 3.4 + 3.5 + state transition to release.
 
 - **Depends on:** 3.5
 - **Package:** `internal/app/service`
@@ -295,7 +295,7 @@ Implement threshold extension: verify claim, validate new threshold (≤24h), up
 - **Depends on:** 3.4
 - **Package:** `internal/app/service`
 
-### 3.9 Delete Ticket Service
+### 3.9 Delete Issue Service
 
 Implement soft deletion: verify claim, recursive epic deletion (collect unclaimed descendants, fail if any are claimed), mark as deleted, produce `deleted` history entries.
 
@@ -304,46 +304,46 @@ Implement soft deletion: verify claim, recursive epic deletion (collect unclaime
 
 ### 3.10 Note Services (Add, Show, List, Search)
 
-Implement note operations: add note (no claim required, validate author and body, update claim last-activity if ticket is claimed), show by ID, list by ticket with filters (author, created-after, after-note-ID), search per-ticket, search global with filters.
+Implement note operations: add note (no claim required, validate author and body, update claim last-activity if issue is claimed), show by ID, list by issue with filters (author, created-after, after-note-ID), search per-issue, search global with filters.
 
-Enforcement rules: notes **cannot** be added to deleted tickets (deleted tickets are immutable per §4.2). Notes **can** be added to closed tickets — closure is terminal for state changes, not for commentary.
+Enforcement rules: notes **cannot** be added to deleted issues (deleted issues are immutable per §4.2). Notes **can** be added to closed issues — closure is terminal for state changes, not for commentary.
 
 - **Depends on:** 3.1, 3.3
 - **Package:** `internal/app/service`
 
 ### 3.11 Relationship Services
 
-Implement relationship add/remove per §8.4: no claim required, requires explicit author, validate no self-reference, validate target is not deleted, idempotent semantics (create-if-not-exists, delete-if-exists), produce history entry on source ticket.
+Implement relationship add/remove per §8.4: no claim required, requires explicit author, validate no self-reference, validate target is not deleted, idempotent semantics (create-if-not-exists, delete-if-exists), produce history entry on source issue.
 
 - **Depends on:** 3.1, 3.3
 - **Package:** `internal/app/service`
 
-### 3.12 Show / List / Search Ticket Services
+### 3.12 Show / List / Search Issue Services
 
-Implement read operations: show (full ticket state including derived readiness, epic completion, revision, and author — the latter two derived from history), list (with filters: role, state, ready predicate, parent, facet; ordering: priority, created, modified; keyset pagination), search (FTS on title/description/acceptance criteria, optionally notes).
+Implement read operations: show (full issue state including derived readiness, epic completion, revision, and author — the latter two derived from history), list (with filters: role, state, ready predicate, parent, facet; ordering: priority, created, modified; keyset pagination), search (FTS on title/description/acceptance criteria, optionally notes).
 
-Facet filtering supports exact key–value match (`key:value`), wildcard (`key:*`), and negative matching (e.g., exclude tickets with a given facet value).
+Facet filtering supports exact key–value match (`key:value`), wildcard (`key:*`), and negative matching (e.g., exclude issues with a given facet value).
 
 - **Depends on:** 3.1, 3.3
 - **Package:** `internal/app/service`
 
 ### 3.13 History Service
 
-Implement `ShowHistory`: list history entries for a ticket with filters (author, date range), ordering, and pagination.
+Implement `ShowHistory`: list history entries for an issue with filters (author, date range), ordering, and pagination.
 
 - **Depends on:** 3.1, 3.3
 - **Package:** `internal/app/service`
 
 ### 3.14 Doctor Service
 
-Implement diagnostics from §8.7: detect circular `blocked_by` chains, deadlocked state (all tickets blocked), stale claims, epics with no task descendants, GC opportunity (40% space savings threshold). Read-only; returns findings.
+Implement diagnostics from §8.7: detect circular `blocked_by` chains, deadlocked state (all issues blocked), stale claims, epics with no task descendants, GC opportunity (40% space savings threshold). Read-only; returns findings.
 
 - **Depends on:** 3.1, 3.3
 - **Package:** `internal/app/service`
 
 ### 3.15 GC Service
 
-Implement garbage collection: physically remove deleted (and optionally closed) ticket data via persistence port.
+Implement garbage collection: physically remove deleted (and optionally closed) issue data via persistence port.
 
 - **Depends on:** 3.1
 - **Package:** `internal/app/service`
@@ -363,12 +363,12 @@ Implement `.np/` directory walk from §3.3: start at cwd, walk up to filesystem 
 
 ### 4.2 SQLite Schema and Migrations
 
-Design and implement the SQLite schema: tickets (`WITHOUT ROWID`), notes, claims, relationships, history, facets, FTS virtual tables for search, prefix storage. Include initialization (create `.np/` dir + database + schema).
+Design and implement the SQLite schema: issues (`WITHOUT ROWID`), notes, claims, relationships, history, facets, FTS virtual tables for search, prefix storage. Include initialization (create `.np/` dir + database + schema).
 
 - **Depends on:** 2.1, 4.1
 - **Package:** `internal/storage/sqlite`
 
-### 4.3 SQLite Repository — Ticket CRUD
+### 4.3 SQLite Repository — Issue CRUD
 
 Implement create, get-by-ID, update, soft-delete, list (with all filters including facet negative matching and keyset pagination), search (FTS).
 
@@ -377,21 +377,21 @@ Implement create, get-by-ID, update, soft-delete, list (with all filters includi
 
 ### 4.4 SQLite Repository — Note CRUD
 
-Implement note create, get-by-ID, list-by-ticket, search per-ticket (FTS), search global (FTS).
+Implement note create, get-by-ID, list-by-issue, search per-issue (FTS), search global (FTS).
 
 - **Depends on:** 4.2
 - **Package:** `internal/storage/sqlite`
 
 ### 4.5 SQLite Repository — Claim Lifecycle
 
-Implement claim create, get-by-ticket, invalidate, update-last-activity. Atomic compare-and-swap for claiming and stealing.
+Implement claim create, get-by-issue, invalidate, update-last-activity. Atomic compare-and-swap for claiming and stealing.
 
 - **Depends on:** 4.2
 - **Package:** `internal/storage/sqlite`
 
 ### 4.6 SQLite Repository — Relationships, History, Ancestry
 
-Implement relationship create-if-not-exists, delete-if-exists, list-by-ticket. History append and list. Ancestry lookup for cycle detection and readiness propagation.
+Implement relationship create-if-not-exists, delete-if-exists, list-by-issue. History append and list. Ancestry lookup for cycle detection and readiness propagation.
 
 - **Depends on:** 4.2
 - **Package:** `internal/storage/sqlite`
@@ -453,7 +453,7 @@ CLI adapter for agent instructions output.
 
 ### 5.6 `np create` Command
 
-CLI adapter for ticket creation. Flags: `--title`, `--description`, `--acceptance-criteria`, `--priority`, `--role`, `--parent`, `--facet` (repeatable key=value), `--relationship` (repeatable type:id), `--claim`, `--author`, `--idempotency-key`.
+CLI adapter for issue creation. Flags: `--title`, `--description`, `--acceptance-criteria`, `--priority`, `--role`, `--parent`, `--facet` (repeatable key=value), `--relationship` (repeatable type:id), `--claim`, `--author`, `--idempotency-key`.
 
 - **Depends on:** 3.3, 5.1, 5.2
 - **Package:** `internal/cmd/create`
@@ -509,21 +509,21 @@ CLI adapter for soft deletion. Requires `--claim` and `--confirm` flag.
 
 ### 5.14 `np relate` Command
 
-CLI adapter for ungated relationship management per §8.4. Subcommands or flags for add/remove. Requires `--author`, source ticket ID, relationship type (`blocks` or `cites`), and target ticket ID. Does not require `--claim`.
+CLI adapter for ungated relationship management per §8.4. Subcommands or flags for add/remove. Requires `--author`, source issue ID, relationship type (`blocks` or `cites`), and target issue ID. Does not require `--claim`.
 
 - **Depends on:** 3.11, 5.1, 5.2
 - **Package:** `internal/cmd/relate`
 
 ### 5.15 `np show` Command
 
-CLI adapter for ticket detail view. Positional arg: ticket ID. Displays all fields, facets, relationships, children, derived properties (readiness, completion, revision, author).
+CLI adapter for issue detail view. Positional arg: issue ID. Displays all fields, facets, relationships, children, derived properties (readiness, completion, revision, author).
 
 - **Depends on:** 3.12, 5.1, 5.2
 - **Package:** `internal/cmd/show`
 
 ### 5.16 `np list` Command
 
-CLI adapter for ticket listing. Flags for all filters (role, state, ready, parent, facet including negative matching) and ordering. Keyset pagination flags (`--after`, `--page-size`). Optional `--timestamps` flag to include created/modified timestamps in output.
+CLI adapter for issue listing. Flags for all filters (role, state, ready, parent, facet including negative matching) and ordering. Keyset pagination flags (`--after`, `--page-size`). Optional `--timestamps` flag to include created/modified timestamps in output.
 
 - **Depends on:** 3.12, 5.1, 5.2
 - **Package:** `internal/cmd/list`
@@ -537,14 +537,14 @@ CLI adapter for full-text search. Positional arg: query. Flags for filters, orde
 
 ### 5.18 `np note add`, `np note show`, `np note list`, `np note search` Commands
 
-CLI adapters for note operations. `np note add` requires `--author` and `--body`. Search has both per-ticket and global modes.
+CLI adapters for note operations. `np note add` requires `--author` and `--body`. Search has both per-issue and global modes.
 
 - **Depends on:** 3.10, 5.1, 5.2
 - **Package:** `internal/cmd/note`
 
 ### 5.19 `np history` Command
 
-CLI adapter for history listing. Positional arg: ticket ID. Filter/pagination flags.
+CLI adapter for history listing. Positional arg: issue ID. Filter/pagination flags.
 
 - **Depends on:** 3.13, 5.1, 5.2
 - **Package:** `internal/cmd/history`
@@ -588,7 +588,7 @@ E2E tests (build tag: `e2e`) that invoke the `np` binary and verify output. Cove
 
 ### 6.3 Human-Readable Output Formatting
 
-Polish the human-readable (non-JSON) output for all commands: table formatting for lists, colored status indicators, relative timestamps when stdout is a TTY, structured ticket detail view.
+Polish the human-readable (non-JSON) output for all commands: table formatting for lists, colored status indicators, relative timestamps when stdout is a TTY, structured issue detail view.
 
 - **Depends on:** Phase 5
 
@@ -626,7 +626,7 @@ Within Phase 5, commands are independent of each other; the listed order follows
 
 The following items from the product vision are explicitly not planned:
 
-- **Duplicate handling** — not an automated operation. Users resolve duplicates manually using existing commands (close one ticket, add a `cites` relationship to the surviving ticket). See §11 of the specification.
+- **Duplicate handling** — not an automated operation. Users resolve duplicates manually using existing commands (close one issue, add a `cites` relationship to the surviving issue). See §11 of the specification.
 
 ---
 

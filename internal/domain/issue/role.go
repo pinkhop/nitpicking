@@ -1,17 +1,17 @@
-package ticket
+package issue
 
 import "fmt"
 
-// Role identifies whether a ticket is an Epic (organizer) or a Task (leaf
+// Role identifies whether an issue is an Epic (organizer) or a Task (leaf
 // work unit). Role is immutable after creation.
 type Role int
 
 const (
 	// RoleTask represents an actionable work unit — the leaf node in the
-	// ticket hierarchy.
+	// issue hierarchy.
 	RoleTask Role = iota + 1
 
-	// RoleEpic represents an organizing ticket whose completion is derived
+	// RoleEpic represents an organizing issue whose completion is derived
 	// from its children.
 	RoleEpic
 )

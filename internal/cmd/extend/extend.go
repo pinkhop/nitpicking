@@ -12,7 +12,7 @@ import (
 
 // extendOutput is the JSON representation of the extend command result.
 type extendOutput struct {
-	TicketID  string `json:"ticket_id"`
+	IssueID   string `json:"issue_id"`
 	ClaimID   string `json:"claim_id"`
 	Threshold string `json:"threshold"`
 }
@@ -29,7 +29,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:      "extend",
 		Usage:     "Extend the stale threshold on an active claim",
-		ArgsUsage: "<TICKET-ID>",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -53,7 +53,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
 			if rawID == "" {
-				return cmdutil.FlagErrorf("ticket ID argument is required")
+				return cmdutil.FlagErrorf("issue ID argument is required")
 			}
 
 			duration, err := time.ParseDuration(threshold)
@@ -67,17 +67,17 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			ticketID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
-			if err := svc.ExtendStaleThreshold(ctx, ticketID, claimID, duration); err != nil {
+			if err := svc.ExtendStaleThreshold(ctx, issueID, claimID, duration); err != nil {
 				return fmt.Errorf("extending stale threshold: %w", err)
 			}
 
 			if jsonOutput {
 				return cmdutil.WriteJSON(f.IOStreams.Out, extendOutput{
-					TicketID:  ticketID.String(),
+					IssueID:   issueID.String(),
 					ClaimID:   claimID,
 					Threshold: duration.String(),
 				})
@@ -86,7 +86,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			cs := f.IOStreams.ColorScheme()
 			_, err = fmt.Fprintf(f.IOStreams.Out, "%s Extended stale threshold on %s to %s\n",
 				cs.SuccessIcon(),
-				cs.Bold(ticketID.String()),
+				cs.Bold(issueID.String()),
 				duration.String())
 			return err
 		},

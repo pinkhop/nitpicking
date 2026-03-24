@@ -9,7 +9,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 // relateOutput is the JSON representation of the relate command result.
@@ -21,11 +21,11 @@ type relateOutput struct {
 }
 
 // NewCmd constructs the "relate" command with "add" and "remove" subcommands
-// for managing ticket relationships.
+// for managing issue relationships.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:  "relate",
-		Usage: "Manage relationships between tickets",
+		Usage: "Manage relationships between issues",
 		Commands: []*cli.Command{
 			newAddCmd(f),
 			newRemoveCmd(f),
@@ -34,7 +34,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 }
 
 // newAddCmd constructs the "relate add" subcommand, which creates a
-// directional relationship between two tickets.
+// directional relationship between two issues.
 func newAddCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
@@ -43,7 +43,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "add",
-		Usage:     "Add a relationship between two tickets",
+		Usage:     "Add a relationship between two issues",
 		ArgsUsage: "<SOURCE> <TYPE> <TARGET>\n\n   TYPE must be one of: blocked_by, blocks, cites, cited_by",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
@@ -69,7 +69,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("usage: np relate add <SOURCE> <TYPE> <TARGET>")
 			}
 
-			relType, err := ticket.ParseRelationType(relTypeRaw)
+			relType, err := issue.ParseRelationType(relTypeRaw)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
@@ -87,12 +87,12 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 
 			sourceID, err := resolver.Resolve(ctx, sourceRaw)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid source ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid source issue ID: %s", err)
 			}
 
 			targetID, err := resolver.Resolve(ctx, targetRaw)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid target ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid target issue ID: %s", err)
 			}
 
 			rel := service.RelationshipInput{
@@ -124,7 +124,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 }
 
 // newRemoveCmd constructs the "relate remove" subcommand, which removes a
-// directional relationship between two tickets.
+// directional relationship between two issues.
 func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
@@ -133,7 +133,7 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "remove",
-		Usage:     "Remove a relationship between two tickets",
+		Usage:     "Remove a relationship between two issues",
 		ArgsUsage: "<SOURCE> <TYPE> <TARGET>\n\n   TYPE must be one of: blocked_by, blocks, cites, cited_by",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
@@ -159,7 +159,7 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("usage: np relate remove <SOURCE> <TYPE> <TARGET>")
 			}
 
-			relType, err := ticket.ParseRelationType(relTypeRaw)
+			relType, err := issue.ParseRelationType(relTypeRaw)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
@@ -177,12 +177,12 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 
 			sourceID, err := resolver.Resolve(ctx, sourceRaw)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid source ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid source issue ID: %s", err)
 			}
 
 			targetID, err := resolver.Resolve(ctx, targetRaw)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid target ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid target issue ID: %s", err)
 			}
 
 			rel := service.RelationshipInput{

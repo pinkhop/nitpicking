@@ -24,9 +24,9 @@ func TestE2E_Create_DescriptionFlag_RoundTrips(t *testing.T) {
 	result := parseJSON(t, stdout)
 	taskID := result["id"].(string)
 
-	ticket := showTicket(t, dir, taskID)
-	if ticket["description"] != "Detailed explanation of the task" {
-		t.Errorf("expected description to round-trip, got %v", ticket["description"])
+	issue := showIssue(t, dir, taskID)
+	if issue["description"] != "Detailed explanation of the task" {
+		t.Errorf("expected description to round-trip, got %v", issue["description"])
 	}
 }
 
@@ -50,9 +50,9 @@ func TestE2E_Create_AcceptanceCriteriaFlag_RoundTrips(t *testing.T) {
 	result := parseJSON(t, stdout)
 	taskID := result["id"].(string)
 
-	ticket := showTicket(t, dir, taskID)
-	if ticket["acceptance_criteria"] != "1. Unit tests pass\n2. E2E tests pass" {
-		t.Errorf("expected acceptance_criteria to round-trip, got %v", ticket["acceptance_criteria"])
+	issue := showIssue(t, dir, taskID)
+	if issue["acceptance_criteria"] != "1. Unit tests pass\n2. E2E tests pass" {
+		t.Errorf("expected acceptance_criteria to round-trip, got %v", issue["acceptance_criteria"])
 	}
 }
 
@@ -82,7 +82,7 @@ func TestE2E_Create_IdempotencyKey_PreventsDuplicates(t *testing.T) {
 		"--json",
 	)
 
-	// Then — the second create returns the same ticket ID (idempotent).
+	// Then — the second create returns the same issue ID (idempotent).
 	if code2 != 0 {
 		// Some implementations may return an error for duplicates; either way
 		// is fine as long as the duplicate is detected.

@@ -1,4 +1,4 @@
-package ticket
+package issue
 
 import (
 	"fmt"
@@ -6,9 +6,9 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain"
 )
 
-// DescendantInfo describes a descendant ticket for recursive deletion checks.
+// DescendantInfo describes a descendant issue for recursive deletion checks.
 type DescendantInfo struct {
-	// ID is the descendant's ticket ID.
+	// ID is the descendant's issue ID.
 	ID ID
 	// IsClaimed is true if the descendant is currently claimed.
 	IsClaimed bool
@@ -17,10 +17,10 @@ type DescendantInfo struct {
 }
 
 // DeletionResult holds the outcome of a deletion check: either a set of
-// ticket IDs to delete or a conflict error identifying claimed descendants.
+// issue IDs to delete or a conflict error identifying claimed descendants.
 type DeletionResult struct {
-	// ToDelete contains the IDs of all tickets that should be soft-deleted,
-	// including the target ticket itself.
+	// ToDelete contains the IDs of all issues that should be soft-deleted,
+	// including the target issue itself.
 	ToDelete []ID
 
 	// Conflicts contains descendants that are currently claimed and prevent
@@ -30,8 +30,8 @@ type DeletionResult struct {
 
 // PlanEpicDeletion checks whether an epic can be deleted by examining all its
 // descendants. If any descendant is currently claimed, the deletion fails with
-// a conflict listing the claimed ticket(s). Otherwise, it returns the set of
-// ticket IDs to soft-delete (the epic itself plus all unclaimed descendants).
+// a conflict listing the claimed issue(s). Otherwise, it returns the set of
+// issue IDs to soft-delete (the epic itself plus all unclaimed descendants).
 //
 // For tasks, the result contains only the task's own ID (tasks have no
 // descendants).
@@ -54,11 +54,11 @@ func PlanEpicDeletion(epicID ID, descendants []DescendantInfo) DeletionResult {
 	return DeletionResult{ToDelete: toDelete}
 }
 
-// ValidateDeletion checks whether a ticket can be deleted. A ticket must be
+// ValidateDeletion checks whether an issue can be deleted. An issue must be
 // claimed (and the caller must hold the claim) and must not already be deleted.
 func ValidateDeletion(isDeleted bool) error {
 	if isDeleted {
-		return fmt.Errorf("ticket is already deleted: %w", domain.ErrDeletedTicket)
+		return fmt.Errorf("issue is already deleted: %w", domain.ErrDeletedIssue)
 	}
 	return nil
 }

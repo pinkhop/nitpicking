@@ -8,17 +8,17 @@ import (
 )
 
 func TestE2E_ClaimStealing_StealStaleClaimByID(t *testing.T) {
-	// Given — agent A claims a ticket with a very short stale threshold,
+	// Given — agent A claims an issue with a very short stale threshold,
 	// and the threshold has elapsed.
 	dir := initDB(t, "STEAL")
 	agentA := "agent-alpha"
 	agentB := "agent-beta"
 
-	ticketID, claimA := seedClaimedTaskWithThreshold(t, dir, "Stealable task", agentA, "1s")
+	issueID, claimA := seedClaimedTaskWithThreshold(t, dir, "Stealable task", agentA, "1s")
 	time.Sleep(2 * time.Second)
 
 	// When — agent B steals the claim.
-	stdout, stderr, code := runNP(t, dir, "claim", "id", ticketID,
+	stdout, stderr, code := runNP(t, dir, "claim", "id", issueID,
 		"--author", agentB,
 		"--steal",
 		"--json",
@@ -41,13 +41,13 @@ func TestE2E_ClaimStealing_StealStaleClaimByID(t *testing.T) {
 		t.Error("new claim ID should differ from the original")
 	}
 
-	// The ticket should now be claimed by agent B.
-	ticket := showTicket(t, dir, ticketID)
-	if ticket["state"] != "claimed" {
-		t.Errorf("expected state 'claimed', got %v", ticket["state"])
+	// The issue should now be claimed by agent B.
+	issue := showIssue(t, dir, issueID)
+	if issue["state"] != "claimed" {
+		t.Errorf("expected state 'claimed', got %v", issue["state"])
 	}
-	if ticket["claim_author"] != agentB {
-		t.Errorf("expected claim_author %q, got %v", agentB, ticket["claim_author"])
+	if issue["claim_author"] != agentB {
+		t.Errorf("expected claim_author %q, got %v", agentB, issue["claim_author"])
 	}
 }
 
@@ -57,10 +57,10 @@ func TestE2E_ClaimStealing_OriginalClaimInvalidatedAfterSteal(t *testing.T) {
 	agentA := "agent-alpha"
 	agentB := "agent-beta"
 
-	ticketID, claimA := seedClaimedTaskWithThreshold(t, dir, "Will be stolen", agentA, "1s")
+	issueID, claimA := seedClaimedTaskWithThreshold(t, dir, "Will be stolen", agentA, "1s")
 	time.Sleep(2 * time.Second)
 
-	_, stderr, code := runNP(t, dir, "claim", "id", ticketID,
+	_, stderr, code := runNP(t, dir, "claim", "id", issueID,
 		"--author", agentB,
 		"--steal",
 		"--json",
@@ -69,8 +69,8 @@ func TestE2E_ClaimStealing_OriginalClaimInvalidatedAfterSteal(t *testing.T) {
 		t.Fatalf("steal precondition failed (exit %d): %s", code, stderr)
 	}
 
-	// When — agent A attempts to use the original claim to update the ticket.
-	_, _, code = runNP(t, dir, "update", ticketID,
+	// When — agent A attempts to use the original claim to update the issue.
+	_, _, code = runNP(t, dir, "update", issueID,
 		"--claim", claimA,
 		"--title", "Agent A's update",
 		"--json",
@@ -89,10 +89,10 @@ func TestE2E_ClaimStealing_CannotStealActiveClaim(t *testing.T) {
 	agentA := "agent-alpha"
 	agentB := "agent-beta"
 
-	ticketID, _ := seedClaimedTask(t, dir, "Actively claimed", agentA)
+	issueID, _ := seedClaimedTask(t, dir, "Actively claimed", agentA)
 
 	// When — agent B attempts to steal the active claim.
-	_, _, code := runNP(t, dir, "claim", "id", ticketID,
+	_, _, code := runNP(t, dir, "claim", "id", issueID,
 		"--author", agentB,
 		"--steal",
 		"--json",
@@ -105,13 +105,13 @@ func TestE2E_ClaimStealing_CannotStealActiveClaim(t *testing.T) {
 }
 
 func TestE2E_ClaimStealing_ClaimReadyStealIfNeeded(t *testing.T) {
-	// Given — the only ticket in the database is stale-claimed by agent A,
-	// so there are no unclaimed ready tickets.
+	// Given — the only issue in the database is stale-claimed by agent A,
+	// so there are no unclaimed ready issues.
 	dir := initDB(t, "STEAL")
 	agentA := "agent-alpha"
 	agentB := "agent-beta"
 
-	ticketID, _ := seedClaimedTaskWithThreshold(t, dir, "Only ticket", agentA, "1s")
+	issueID, _ := seedClaimedTaskWithThreshold(t, dir, "Only issue", agentA, "1s")
 	time.Sleep(2 * time.Second)
 
 	// When — agent B uses "claim ready" with --steal-if-needed.
@@ -126,8 +126,8 @@ func TestE2E_ClaimStealing_ClaimReadyStealIfNeeded(t *testing.T) {
 		t.Fatalf("claim ready --steal-if-needed failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
-	if result["ticket_id"] != ticketID {
-		t.Errorf("expected ticket_id %s, got %v", ticketID, result["ticket_id"])
+	if result["issue_id"] != issueID {
+		t.Errorf("expected issue_id %s, got %v", issueID, result["issue_id"])
 	}
 	if result["stolen"] != true {
 		t.Error("expected stolen=true in claim ready --steal-if-needed response")
@@ -140,10 +140,10 @@ func TestE2E_ClaimStealing_StolenClaimAllowsFullLifecycle(t *testing.T) {
 	agentA := "agent-alpha"
 	agentB := "agent-beta"
 
-	ticketID, _ := seedClaimedTaskWithThreshold(t, dir, "Lifecycle after steal", agentA, "1s")
+	issueID, _ := seedClaimedTaskWithThreshold(t, dir, "Lifecycle after steal", agentA, "1s")
 	time.Sleep(2 * time.Second)
 
-	stdout, stderr, code := runNP(t, dir, "claim", "id", ticketID,
+	stdout, stderr, code := runNP(t, dir, "claim", "id", issueID,
 		"--author", agentB,
 		"--steal",
 		"--json",
@@ -153,8 +153,8 @@ func TestE2E_ClaimStealing_StolenClaimAllowsFullLifecycle(t *testing.T) {
 	}
 	claimB := parseJSON(t, stdout)["claim_id"].(string)
 
-	// When — agent B updates the ticket and closes it using the stolen claim.
-	_, stderr, code = runNP(t, dir, "update", ticketID,
+	// When — agent B updates the issue and closes it using the stolen claim.
+	_, stderr, code = runNP(t, dir, "update", issueID,
 		"--claim", claimB,
 		"--title", "Fixed by agent B",
 		"--json",
@@ -163,7 +163,7 @@ func TestE2E_ClaimStealing_StolenClaimAllowsFullLifecycle(t *testing.T) {
 		t.Fatalf("update after steal failed (exit %d): %s", code, stderr)
 	}
 
-	_, stderr, code = runNP(t, dir, "state", "close", ticketID,
+	_, stderr, code = runNP(t, dir, "state", "close", issueID,
 		"--claim", claimB,
 		"--json",
 	)
@@ -171,12 +171,12 @@ func TestE2E_ClaimStealing_StolenClaimAllowsFullLifecycle(t *testing.T) {
 		t.Fatalf("close after steal failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — the ticket is closed with agent B's changes.
-	ticket := showTicket(t, dir, ticketID)
-	if ticket["state"] != "closed" {
-		t.Errorf("expected state 'closed', got %v", ticket["state"])
+	// Then — the issue is closed with agent B's changes.
+	issue := showIssue(t, dir, issueID)
+	if issue["state"] != "closed" {
+		t.Errorf("expected state 'closed', got %v", issue["state"])
 	}
-	if ticket["title"] != "Fixed by agent B" {
-		t.Errorf("expected title 'Fixed by agent B', got %v", ticket["title"])
+	if issue["title"] != "Fixed by agent B" {
+		t.Errorf("expected title 'Fixed by agent B', got %v", issue["title"])
 	}
 }

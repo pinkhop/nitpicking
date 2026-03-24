@@ -6,11 +6,11 @@ import (
 	"io"
 )
 
-// ticketJSON is the JSON structure accepted by --from-json. Field names match
+// issueJSON is the JSON structure accepted by --from-json. Field names match
 // the show --json output so that piping show output into create works directly.
 // Fields that are not relevant to creation (id, state, revision, etc.) are
 // silently ignored via the json decoder.
-type ticketJSON struct {
+type issueJSON struct {
 	Role               string            `json:"role"`
 	Title              string            `json:"title"`
 	Description        string            `json:"description"`
@@ -20,11 +20,11 @@ type ticketJSON struct {
 	Facets             map[string]string `json:"facets"`
 }
 
-// parseTicketJSON unmarshals a JSON byte slice into a ticketJSON struct.
-func parseTicketJSON(data []byte) (ticketJSON, error) {
-	var tj ticketJSON
+// parseIssueJSON unmarshals a JSON byte slice into an issueJSON struct.
+func parseIssueJSON(data []byte) (issueJSON, error) {
+	var tj issueJSON
 	if err := json.Unmarshal(data, &tj); err != nil {
-		return ticketJSON{}, fmt.Errorf("parsing --from-json: %w", err)
+		return issueJSON{}, fmt.Errorf("parsing --from-json: %w", err)
 	}
 	return tj, nil
 }

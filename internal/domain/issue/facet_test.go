@@ -1,10 +1,10 @@
-package ticket_test
+package issue_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 func TestNewFacet_ValidKeyValue_Succeeds(t *testing.T) {
@@ -25,7 +25,7 @@ func TestNewFacet_ValidKeyValue_Succeeds(t *testing.T) {
 			t.Parallel()
 
 			// When
-			f, err := ticket.NewFacet(tc.key, tc.value)
+			f, err := issue.NewFacet(tc.key, tc.value)
 			// Then
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -60,7 +60,7 @@ func TestNewFacet_InvalidKey_Fails(t *testing.T) {
 			t.Parallel()
 
 			// When
-			_, err := ticket.NewFacet(tc.key, "valid")
+			_, err := issue.NewFacet(tc.key, "valid")
 
 			// Then
 			if err == nil {
@@ -88,7 +88,7 @@ func TestNewFacet_InvalidValue_Fails(t *testing.T) {
 			t.Parallel()
 
 			// When
-			_, err := ticket.NewFacet("kind", tc.value)
+			_, err := issue.NewFacet("kind", tc.value)
 
 			// Then
 			if err == nil {
@@ -102,8 +102,8 @@ func TestFacetSet_SetAndGet(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f, _ := ticket.NewFacet("kind", "feat")
-	fs := ticket.NewFacetSet()
+	f, _ := issue.NewFacet("kind", "feat")
+	fs := issue.NewFacetSet()
 
 	// When
 	fs = fs.Set(f)
@@ -122,9 +122,9 @@ func TestFacetSet_SetOverwrites(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := ticket.NewFacet("kind", "feat")
-	f2, _ := ticket.NewFacet("kind", "fix")
-	fs := ticket.NewFacetSet().Set(f1)
+	f1, _ := issue.NewFacet("kind", "feat")
+	f2, _ := issue.NewFacet("kind", "fix")
+	fs := issue.NewFacetSet().Set(f1)
 
 	// When
 	fs = fs.Set(f2)
@@ -143,8 +143,8 @@ func TestFacetSet_Remove(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f, _ := ticket.NewFacet("kind", "feat")
-	fs := ticket.NewFacetSet().Set(f)
+	f, _ := issue.NewFacet("kind", "feat")
+	fs := issue.NewFacetSet().Set(f)
 
 	// When
 	fs = fs.Remove("kind")
@@ -163,7 +163,7 @@ func TestFacetSet_RemoveNonexistent_NoOp(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	fs := ticket.NewFacetSet()
+	fs := issue.NewFacetSet()
 
 	// When
 	fs2 := fs.Remove("nonexistent")
@@ -178,11 +178,11 @@ func TestFacetSet_Immutability(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := ticket.NewFacet("kind", "feat")
-	original := ticket.NewFacetSet().Set(f1)
+	f1, _ := issue.NewFacet("kind", "feat")
+	original := issue.NewFacetSet().Set(f1)
 
 	// When — modify the "copy"
-	f2, _ := ticket.NewFacet("priority", "high")
+	f2, _ := issue.NewFacet("priority", "high")
 	_ = original.Set(f2)
 
 	// Then — original is unchanged
@@ -195,11 +195,11 @@ func TestFacetSetFrom_BuildsFromSlice(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := ticket.NewFacet("kind", "feat")
-	f2, _ := ticket.NewFacet("area", "backend")
+	f1, _ := issue.NewFacet("kind", "feat")
+	f2, _ := issue.NewFacet("area", "backend")
 
 	// When
-	fs := ticket.FacetSetFrom([]ticket.Facet{f1, f2})
+	fs := issue.FacetSetFrom([]issue.Facet{f1, f2})
 
 	// Then
 	if fs.Len() != 2 {
@@ -211,9 +211,9 @@ func TestFacetSet_All_IteratesAllFacets(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := ticket.NewFacet("kind", "feat")
-	f2, _ := ticket.NewFacet("area", "backend")
-	fs := ticket.NewFacetSet().Set(f1).Set(f2)
+	f1, _ := issue.NewFacet("kind", "feat")
+	f2, _ := issue.NewFacet("area", "backend")
+	fs := issue.NewFacetSet().Set(f1).Set(f2)
 
 	// When
 	count := 0

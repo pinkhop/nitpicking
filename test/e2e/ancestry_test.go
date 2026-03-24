@@ -70,7 +70,7 @@ func TestE2E_List_DescendantsOf_ComposesWithReady(t *testing.T) {
 	epicID := createEpic(t, dir, "Filter epic", author)
 	createTaskWithParent(t, dir, "Open child", author, epicID)
 	closedID := createTaskWithParent(t, dir, "Will be closed", author, epicID)
-	closeTicket(t, dir, closedID, author)
+	closeIssue(t, dir, closedID, author)
 
 	// When — list ready descendants of the epic.
 	stdout, stderr, code := runNP(t, dir, "list",

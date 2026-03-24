@@ -11,16 +11,16 @@ import (
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // claimOutput is the JSON representation shared by both the "id" and "ready"
-// subcommands, since both return a ticket ID, claim ID, and stolen flag.
+// subcommands, since both return an issue ID, claim ID, and stolen flag.
 type claimOutput struct {
-	TicketID string `json:"ticket_id"`
-	ClaimID  string `json:"claim_id"`
-	Stolen   bool   `json:"stolen"`
+	IssueID string `json:"issue_id"`
+	ClaimID string `json:"claim_id"`
+	Stolen  bool   `json:"stolen"`
 }
 
 // NewCmd constructs the "claim" parent command with "id" and "ready"
@@ -28,7 +28,7 @@ type claimOutput struct {
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:  "claim",
-		Usage: "Claim tickets (by ID or next ready)",
+		Usage: "Claim issues (by ID or next ready)",
 		Commands: []*cli.Command{
 			newIDCmd(f),
 			newReadyCmd(f),
@@ -36,7 +36,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newIDCmd constructs the "id" subcommand, which claims a specific ticket
+// newIDCmd constructs the "id" subcommand, which claims a specific issue
 // by its ID.
 func newIDCmd(f *cmdutil.Factory) *cli.Command {
 	var (
@@ -48,8 +48,8 @@ func newIDCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "id",
-		Usage:     "Claim a specific ticket by ID",
-		ArgsUsage: "<TICKET-ID>",
+		Usage:     "Claim a specific issue by ID",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -78,7 +78,7 @@ func newIDCmd(f *cmdutil.Factory) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
 			if rawID == "" {
-				return cmdutil.FlagErrorf("ticket ID argument is required")
+				return cmdutil.FlagErrorf("issue ID argument is required")
 			}
 
 			svc, err := cmdutil.NewTracker(f)
@@ -87,9 +87,9 @@ func newIDCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			ticketID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
 			parsedAuthor, err := identity.NewAuthor(author)
@@ -106,14 +106,14 @@ func newIDCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			input := service.ClaimInput{
-				TicketID:       ticketID,
+				IssueID:        issueID,
 				Author:         parsedAuthor,
 				AllowSteal:     steal,
 				StaleThreshold: threshold,
 			}
 			result, err := svc.ClaimByID(ctx, input)
 			if err != nil {
-				return fmt.Errorf("claiming ticket: %w", err)
+				return fmt.Errorf("claiming issue: %w", err)
 			}
 
 			return writeClaimResult(f, jsonOutput, result)
@@ -122,7 +122,7 @@ func newIDCmd(f *cmdutil.Factory) *cli.Command {
 }
 
 // newReadyCmd constructs the "ready" subcommand, which claims the
-// highest-priority ready ticket matching optional filters.
+// highest-priority ready issue matching optional filters.
 func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput     bool
@@ -134,7 +134,7 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:  "ready",
-		Usage: "Claim the next ready ticket",
+		Usage: "Claim the next ready issue",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -162,7 +162,7 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.BoolFlag{
 				Name:        "steal-if-needed",
 				Aliases:     []string{"steal"},
-				Usage:       "Fall back to stealing a stale claim if no unclaimed tickets are ready",
+				Usage:       "Fall back to stealing a stale claim if no unclaimed issues are ready",
 				Destination: &stealIfNeeded,
 			},
 			&cli.StringFlag{
@@ -177,9 +177,9 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("invalid author: %s", err)
 			}
 
-			var parsedRole ticket.Role
+			var parsedRole issue.Role
 			if role != "" {
-				parsedRole, err = ticket.ParseRole(role)
+				parsedRole, err = issue.ParseRole(role)
 				if err != nil {
 					return cmdutil.FlagErrorf("%s", err)
 				}
@@ -214,7 +214,7 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			result, err := svc.ClaimNextReady(ctx, input)
 			if err != nil {
-				return fmt.Errorf("claiming next ready ticket: %w", err)
+				return fmt.Errorf("claiming next ready issue: %w", err)
 			}
 
 			return writeClaimResult(f, jsonOutput, result)
@@ -227,9 +227,9 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 func writeClaimResult(f *cmdutil.Factory, jsonOutput bool, result service.ClaimOutput) error {
 	if jsonOutput {
 		return cmdutil.WriteJSON(f.IOStreams.Out, claimOutput{
-			TicketID: result.TicketID.String(),
-			ClaimID:  result.ClaimID,
-			Stolen:   result.Stolen,
+			IssueID: result.IssueID.String(),
+			ClaimID: result.ClaimID,
+			Stolen:  result.Stolen,
 		})
 	}
 
@@ -244,7 +244,7 @@ func writeClaimResult(f *cmdutil.Factory, jsonOutput bool, result service.ClaimO
 	_, err := fmt.Fprintf(out, "%s %s %s\n  Claim ID: %s\n",
 		cs.SuccessIcon(),
 		verb,
-		cs.Bold(result.TicketID.String()),
+		cs.Bold(result.IssueID.String()),
 		cs.Cyan(result.ClaimID))
 	return err
 }

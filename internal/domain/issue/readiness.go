@@ -1,4 +1,4 @@
-package ticket
+package issue
 
 // BlockerStatus summarizes a blocked_by target's state for readiness checks.
 type BlockerStatus struct {

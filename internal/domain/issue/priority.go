@@ -1,11 +1,11 @@
-package ticket
+package issue
 
 import (
 	"fmt"
 	"strings"
 )
 
-// Priority represents the urgency of a ticket. Lower numbers indicate higher
+// Priority represents the urgency of an issue. Lower numbers indicate higher
 // urgency. The default priority is P2.
 type Priority int
 
@@ -18,7 +18,7 @@ const (
 	// P1 is high urgency — should be addressed soon.
 	P1
 
-	// P2 is normal urgency — the default for new tickets.
+	// P2 is normal urgency — the default for new issues.
 	P2
 
 	// P3 is low urgency — address when convenient.
@@ -28,7 +28,7 @@ const (
 	P4
 )
 
-// DefaultPriority is the priority assigned to tickets that do not specify one.
+// DefaultPriority is the priority assigned to issues that do not specify one.
 const DefaultPriority = P2
 
 // priorityStrings maps each Priority to its canonical string representation.

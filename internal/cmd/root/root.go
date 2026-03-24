@@ -36,7 +36,7 @@ import (
 // root help template to render them in this sequence instead.
 var categoryOrder = []string{
 	"Setup",
-	"Ticket Lifecycle",
+	"Issue Lifecycle",
 	"Query",
 	"Annotations",
 	"Maintenance",
@@ -95,7 +95,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				agent.NewCmd(f),
 				version.NewCmd(f),
 			}},
-			{"Ticket Lifecycle", []*cli.Command{
+			{"Issue Lifecycle", []*cli.Command{
 				create.NewCmd(f),
 				claim.NewCmd(f),
 				update.NewCmd(f),

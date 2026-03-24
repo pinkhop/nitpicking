@@ -21,13 +21,13 @@ func TestE2E_Update_AcceptanceCriteriaFlag_RoundTrips(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("update failed (exit %d): %s", code, stderr)
 	}
-	ticket := showTicket(t, dir, taskID)
-	if ticket["acceptance_criteria"] != "All unit tests pass" {
-		t.Errorf("expected acceptance_criteria to round-trip, got %v", ticket["acceptance_criteria"])
+	issue := showIssue(t, dir, taskID)
+	if issue["acceptance_criteria"] != "All unit tests pass" {
+		t.Errorf("expected acceptance_criteria to round-trip, got %v", issue["acceptance_criteria"])
 	}
 }
 
-func TestE2E_Update_ParentFlag_ReparentsTicket(t *testing.T) {
+func TestE2E_Update_ParentFlag_ReparentsIssue(t *testing.T) {
 	// Given — an epic and a standalone task.
 	dir := initDB(t, "UFLAG")
 	author := "flag-agent"
@@ -45,9 +45,9 @@ func TestE2E_Update_ParentFlag_ReparentsTicket(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("update --parent failed (exit %d): %s", code, stderr)
 	}
-	ticket := showTicket(t, dir, taskID)
-	if ticket["parent_id"] != epicID {
-		t.Errorf("expected parent_id %s, got %v", epicID, ticket["parent_id"])
+	issue := showIssue(t, dir, taskID)
+	if issue["parent_id"] != epicID {
+		t.Errorf("expected parent_id %s, got %v", epicID, issue["parent_id"])
 	}
 }
 
@@ -68,7 +68,7 @@ func TestE2E_Update_FacetSetAndRemove(t *testing.T) {
 		t.Fatalf("facet-set failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — list with facet filter finds the ticket.
+	// Then — list with facet filter finds the issue.
 	listStdout, _, listCode := runNP(t, dir, "list", "--facet", "kind:fix", "--json")
 	if listCode != 0 {
 		t.Fatal("list --facet kind:fix failed")
@@ -76,7 +76,7 @@ func TestE2E_Update_FacetSetAndRemove(t *testing.T) {
 	listResult := parseJSON(t, listStdout)
 	listCount, _ := listResult["total_count"].(float64)
 	if listCount != 1 {
-		t.Errorf("expected 1 ticket with facet kind:fix, got %v", listCount)
+		t.Errorf("expected 1 issue with facet kind:fix, got %v", listCount)
 	}
 
 	listStdout, _, listCode = runNP(t, dir, "list", "--facet", "area:auth", "--json")
@@ -86,7 +86,7 @@ func TestE2E_Update_FacetSetAndRemove(t *testing.T) {
 	listResult = parseJSON(t, listStdout)
 	listCount, _ = listResult["total_count"].(float64)
 	if listCount != 1 {
-		t.Errorf("expected 1 ticket with facet area:auth, got %v", listCount)
+		t.Errorf("expected 1 issue with facet area:auth, got %v", listCount)
 	}
 
 	// When — remove one facet.
@@ -107,7 +107,7 @@ func TestE2E_Update_FacetSetAndRemove(t *testing.T) {
 	listResult = parseJSON(t, listStdout)
 	listCount, _ = listResult["total_count"].(float64)
 	if listCount != 0 {
-		t.Errorf("expected 0 tickets with facet area:auth after removal, got %v", listCount)
+		t.Errorf("expected 0 issues with facet area:auth after removal, got %v", listCount)
 	}
 
 	// The remaining facet is still present.
@@ -118,7 +118,7 @@ func TestE2E_Update_FacetSetAndRemove(t *testing.T) {
 	listResult = parseJSON(t, listStdout)
 	listCount, _ = listResult["total_count"].(float64)
 	if listCount != 1 {
-		t.Errorf("expected 1 ticket still matching kind:fix, got %v", listCount)
+		t.Errorf("expected 1 issue still matching kind:fix, got %v", listCount)
 	}
 }
 
@@ -135,11 +135,11 @@ func TestE2E_Update_NoteFlag_AddsNote(t *testing.T) {
 		"--json",
 	)
 
-	// Then — the note exists on the ticket.
+	// Then — the note exists on the issue.
 	if code != 0 {
 		t.Fatalf("update --note failed (exit %d): %s", code, stderr)
 	}
-	noteStdout, stderr, code := runNP(t, dir, "note", "list", "--ticket", taskID, "--json")
+	noteStdout, stderr, code := runNP(t, dir, "note", "list", "--issue", taskID, "--json")
 	if code != 0 {
 		t.Fatalf("note list failed (exit %d): %s", code, stderr)
 	}

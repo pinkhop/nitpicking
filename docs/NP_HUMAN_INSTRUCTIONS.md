@@ -36,7 +36,7 @@ and `[accent]` below.
 
 [bold]Initialize database[/bold]
 
-  Ticket IDs use a project prefix (e.g., prefix "NP" produces NP-a3bxr).
+  Issue IDs use a project prefix (e.g., prefix "NP" produces NP-a3bxr).
   Choose something short and project-specific — convention is 2–4 uppercase letters.
 
     [accent]np init <PREFIX>[/accent]
@@ -81,9 +81,9 @@ and `[accent]` below.
 
 [bold]Quick reference[/bold]
 
-    [accent]np create --role task --title "..." --author <name>[/accent]  Create a ticket
+    [accent]np create --role task --title "..." --author <name>[/accent]  Create an issue
     [accent]np list --ready[/accent]                                      Find available work
-    [accent]np claim ready --author <name>[/accent]                       Claim next ready ticket
+    [accent]np claim ready --author <name>[/accent]                       Claim next ready issue
     [accent]np state close <ID> --claim <CLAIM-ID>[/accent]               Complete a task
     [accent]np doctor[/accent]                                            Run diagnostics
     [accent]np help[/accent]                                              Full command reference
@@ -164,7 +164,7 @@ single-purpose tool with no coupling to any specific AI agent platform.
 
 ### Why share concepts with agent instructions?
 
-The core concepts (claiming, readiness, ticket types, state transitions) are the
+The core concepts (claiming, readiness, issue types, state transitions) are the
 same whether a human or an agent is using np. Rather than maintaining two parallel
 explanations, `welcome` teaches the setup steps and points to `np agent prime` for
 the full workflow reference. This keeps `welcome` short and avoids documentation

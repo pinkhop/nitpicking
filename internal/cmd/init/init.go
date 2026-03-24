@@ -16,7 +16,7 @@ type initOutput struct {
 }
 
 // NewCmd constructs the "init" command, which creates a new database with the
-// given ticket ID prefix.
+// given issue ID prefix.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var jsonOutput bool
 

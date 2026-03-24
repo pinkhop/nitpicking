@@ -1,4 +1,4 @@
-package ticket
+package issue
 
 import (
 	"fmt"
@@ -8,26 +8,26 @@ import (
 
 // ValidateParent checks parent assignment constraints from §4.1.1:
 //   - Only an epic can be a parent.
-//   - A ticket cannot be its own parent.
-//   - A deleted ticket cannot be assigned as a parent.
+//   - An issue cannot be its own parent.
+//   - A deleted issue cannot be assigned as a parent.
 //
 // The parentRole and parentDeleted parameters describe the proposed parent
-// ticket. Cycle detection is handled separately by ValidateNoCycle.
+// issue. Cycle detection is handled separately by ValidateNoCycle.
 func ValidateParent(childID, parentID ID, parentRole Role, parentDeleted bool) error {
 	if childID == parentID {
-		return fmt.Errorf("ticket cannot be its own parent: %w", domain.ErrCycleDetected)
+		return fmt.Errorf("issue cannot be its own parent: %w", domain.ErrCycleDetected)
 	}
 	if parentRole != RoleEpic {
 		return fmt.Errorf("only epics can be parents, got %s: %w", parentRole, domain.ErrIllegalTransition)
 	}
 	if parentDeleted {
-		return fmt.Errorf("cannot assign deleted ticket as parent: %w", domain.ErrDeletedTicket)
+		return fmt.Errorf("cannot assign deleted issue as parent: %w", domain.ErrDeletedIssue)
 	}
 	return nil
 }
 
-// AncestorLookup is a callback that returns the parent ID of a given ticket.
-// It returns a zero ID if the ticket has no parent. An error indicates a
+// AncestorLookup is a callback that returns the parent ID of a given issue.
+// It returns a zero ID if the issue has no parent. An error indicates a
 // lookup failure.
 type AncestorLookup func(id ID) (parentID ID, err error)
 

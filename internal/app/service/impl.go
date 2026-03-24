@@ -10,9 +10,9 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/claim"
 	"github.com/pinkhop/nitpicking/internal/domain/history"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/note"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // serviceImpl implements the Service interface.
@@ -28,7 +28,7 @@ func New(tx port.Transactor) Service {
 // --- Global Operations ---
 
 func (s *serviceImpl) Init(ctx context.Context, prefix string) error {
-	if err := ticket.ValidatePrefix(prefix); err != nil {
+	if err := issue.ValidatePrefix(prefix); err != nil {
 		return err
 	}
 	return s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
@@ -57,17 +57,17 @@ func (s *serviceImpl) GetPrefix(ctx context.Context) (string, error) {
 	return prefix, err
 }
 
-// --- Ticket Operations ---
+// --- Issue Operations ---
 
-func (s *serviceImpl) CreateTicket(ctx context.Context, input CreateTicketInput) (CreateTicketOutput, error) {
-	var output CreateTicketOutput
+func (s *serviceImpl) CreateIssue(ctx context.Context, input CreateIssueInput) (CreateIssueOutput, error) {
+	var output CreateIssueOutput
 
 	err := s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		// Check idempotency key.
 		if input.IdempotencyKey != "" {
-			existing, err := uow.Tickets().GetTicketByIdempotencyKey(ctx, input.IdempotencyKey)
+			existing, err := uow.Issues().GetIssueByIdempotencyKey(ctx, input.IdempotencyKey)
 			if err == nil {
-				output.Ticket = existing
+				output.Issue = existing
 				return nil
 			}
 			if !errors.Is(err, domain.ErrNotFound) {
@@ -81,8 +81,8 @@ func (s *serviceImpl) CreateTicket(ctx context.Context, input CreateTicketInput)
 			return fmt.Errorf("getting prefix: %w", err)
 		}
 
-		id, err := ticket.GenerateID(prefix, func(id ticket.ID) (bool, error) {
-			return uow.Tickets().TicketIDExists(ctx, id)
+		id, err := issue.GenerateID(prefix, func(id issue.ID) (bool, error) {
+			return uow.Issues().IssueIDExists(ctx, id)
 		})
 		if err != nil {
 			return err
@@ -90,30 +90,30 @@ func (s *serviceImpl) CreateTicket(ctx context.Context, input CreateTicketInput)
 
 		now := time.Now()
 
-		// Create ticket.
-		var t ticket.Ticket
+		// Create issue.
+		var t issue.Issue
 		switch input.Role {
-		case ticket.RoleTask:
-			t, err = ticket.NewTask(ticket.NewTaskParams{
+		case issue.RoleTask:
+			t, err = issue.NewTask(issue.NewTaskParams{
 				ID:                 id,
 				Title:              input.Title,
 				Description:        input.Description,
 				AcceptanceCriteria: input.AcceptanceCriteria,
 				Priority:           input.Priority,
 				ParentID:           input.ParentID,
-				Facets:             ticket.FacetSetFrom(input.Facets),
+				Facets:             issue.FacetSetFrom(input.Facets),
 				CreatedAt:          now,
 				IdempotencyKey:     input.IdempotencyKey,
 			})
-		case ticket.RoleEpic:
-			t, err = ticket.NewEpic(ticket.NewEpicParams{
+		case issue.RoleEpic:
+			t, err = issue.NewEpic(issue.NewEpicParams{
 				ID:                 id,
 				Title:              input.Title,
 				Description:        input.Description,
 				AcceptanceCriteria: input.AcceptanceCriteria,
 				Priority:           input.Priority,
 				ParentID:           input.ParentID,
-				Facets:             ticket.FacetSetFrom(input.Facets),
+				Facets:             issue.FacetSetFrom(input.Facets),
 				CreatedAt:          now,
 				IdempotencyKey:     input.IdempotencyKey,
 			})
@@ -131,13 +131,13 @@ func (s *serviceImpl) CreateTicket(ctx context.Context, input CreateTicketInput)
 			}
 		}
 
-		if err := uow.Tickets().CreateTicket(ctx, t); err != nil {
+		if err := uow.Issues().CreateIssue(ctx, t); err != nil {
 			return err
 		}
 
 		// Record creation history.
 		_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-			TicketID:  id,
+			IssueID:   id,
 			Revision:  0,
 			Author:    input.Author,
 			Timestamp: now,
@@ -155,12 +155,12 @@ func (s *serviceImpl) CreateTicket(ctx context.Context, input CreateTicketInput)
 
 		// Add relationships.
 		for _, ri := range input.Relationships {
-			rel, err := ticket.NewRelationship(id, ri.TargetID, ri.Type)
+			rel, err := issue.NewRelationship(id, ri.TargetID, ri.Type)
 			if err != nil {
 				return err
 			}
 			// Validate target exists and is not deleted.
-			target, err := uow.Tickets().GetTicket(ctx, ri.TargetID, false)
+			target, err := uow.Issues().GetIssue(ctx, ri.TargetID, false)
 			if err != nil {
 				return fmt.Errorf("relationship target %s: %w", ri.TargetID, err)
 			}
@@ -174,16 +174,16 @@ func (s *serviceImpl) CreateTicket(ctx context.Context, input CreateTicketInput)
 		// Optionally claim.
 		if input.Claim {
 			c, err := claim.NewClaim(claim.NewClaimParams{
-				TicketID: id,
-				Author:   input.Author,
-				Now:      now,
+				IssueID: id,
+				Author:  input.Author,
+				Now:     now,
 			})
 			if err != nil {
 				return err
 			}
 
-			t = t.WithState(ticket.StateClaimed)
-			if err := uow.Tickets().UpdateTicket(ctx, t); err != nil {
+			t = t.WithState(issue.StateClaimed)
+			if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
 				return err
 			}
 			if err := uow.Claims().CreateClaim(ctx, c); err != nil {
@@ -192,7 +192,7 @@ func (s *serviceImpl) CreateTicket(ctx context.Context, input CreateTicketInput)
 
 			revision, _ := uow.History().CountHistory(ctx, id)
 			_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-				TicketID:  id,
+				IssueID:   id,
 				Revision:  revision,
 				Author:    input.Author,
 				Timestamp: now,
@@ -205,7 +205,7 @@ func (s *serviceImpl) CreateTicket(ctx context.Context, input CreateTicketInput)
 			output.ClaimID = c.ID()
 		}
 
-		output.Ticket = t
+		output.Issue = t
 		return nil
 	})
 
@@ -229,23 +229,23 @@ func (s *serviceImpl) ClaimByID(ctx context.Context, input ClaimInput) (ClaimOut
 
 // claimWithinTx performs the claim logic using an already-open UnitOfWork.
 // Both ClaimByID and ClaimNextReady delegate here so that ClaimNextReady
-// can list tickets and claim within a single transaction rather than nesting.
+// can list issues and claim within a single transaction rather than nesting.
 func (s *serviceImpl) claimWithinTx(ctx context.Context, uow port.UnitOfWork, input ClaimInput) (ClaimOutput, error) {
 	var output ClaimOutput
 	now := time.Now()
 
-	t, err := uow.Tickets().GetTicket(ctx, input.TicketID, true)
+	t, err := uow.Issues().GetIssue(ctx, input.IssueID, true)
 	if err != nil {
 		return output, err
 	}
 
 	// Build claim status.
-	activeClaim, err := uow.Claims().GetClaimByTicket(ctx, input.TicketID)
+	activeClaim, err := uow.Claims().GetClaimByIssue(ctx, input.IssueID)
 	if err != nil && err != domain.ErrNotFound {
 		return output, err
 	}
 
-	status := claim.TicketClaimStatus{
+	status := claim.IssueClaimStatus{
 		State:       t.State(),
 		IsDeleted:   t.IsDeleted(),
 		ActiveClaim: activeClaim,
@@ -267,7 +267,7 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow port.UnitOfWork, in
 
 		// Add steal note.
 		stealNote, err := note.NewNote(note.NewNoteParams{
-			TicketID:  input.TicketID,
+			IssueID:   input.IssueID,
 			Author:    input.Author,
 			CreatedAt: now,
 			Body:      claim.StealNote(previousHolder),
@@ -282,7 +282,7 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow port.UnitOfWork, in
 
 	// Create new claim.
 	c, err := claim.NewClaim(claim.NewClaimParams{
-		TicketID:       input.TicketID,
+		IssueID:        input.IssueID,
 		Author:         input.Author,
 		StaleThreshold: input.StaleThreshold,
 		Now:            now,
@@ -291,9 +291,9 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow port.UnitOfWork, in
 		return output, err
 	}
 
-	// Update ticket state to claimed.
-	t = t.WithState(ticket.StateClaimed)
-	if err := uow.Tickets().UpdateTicket(ctx, t); err != nil {
+	// Update issue state to claimed.
+	t = t.WithState(issue.StateClaimed)
+	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
 		return output, err
 	}
 	if err := uow.Claims().CreateClaim(ctx, c); err != nil {
@@ -301,9 +301,9 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow port.UnitOfWork, in
 	}
 
 	// Record claim history.
-	revision, _ := uow.History().CountHistory(ctx, input.TicketID)
+	revision, _ := uow.History().CountHistory(ctx, input.IssueID)
 	_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-		TicketID:  input.TicketID,
+		IssueID:   input.IssueID,
 		Revision:  revision,
 		Author:    input.Author,
 		Timestamp: now,
@@ -314,7 +314,7 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow port.UnitOfWork, in
 	}
 
 	output.ClaimID = c.ID()
-	output.TicketID = input.TicketID
+	output.IssueID = input.IssueID
 	return output, nil
 }
 
@@ -322,20 +322,20 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input ClaimNextReadyIn
 	var output ClaimOutput
 
 	err := s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
-		filter := port.TicketFilter{
+		filter := port.IssueFilter{
 			Ready:        true,
 			Role:         input.Role,
 			FacetFilters: input.FacetFilters,
 		}
 
-		items, _, err := uow.Tickets().ListTickets(ctx, filter, port.OrderByPriority, port.PageRequest{PageSize: 1})
+		items, _, err := uow.Issues().ListIssues(ctx, filter, port.OrderByPriority, port.PageRequest{PageSize: 1})
 		if err != nil {
 			return err
 		}
 
 		if len(items) > 0 {
 			result, err := s.claimWithinTx(ctx, uow, ClaimInput{
-				TicketID:       items[0].ID,
+				IssueID:        items[0].ID,
 				Author:         input.Author,
 				StaleThreshold: input.StaleThreshold,
 			})
@@ -346,7 +346,7 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input ClaimNextReadyIn
 			return nil
 		}
 
-		// No ready tickets — try stealing a stale claim if requested.
+		// No ready issues — try stealing a stale claim if requested.
 		if !input.StealIfNeeded {
 			return domain.ErrNotFound
 		}
@@ -360,9 +360,9 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input ClaimNextReadyIn
 			return domain.ErrNotFound
 		}
 
-		// Steal the highest-priority stale ticket.
+		// Steal the highest-priority stale issue.
 		result, err := s.claimWithinTx(ctx, uow, ClaimInput{
-			TicketID:       staleClaims[0].TicketID(),
+			IssueID:        staleClaims[0].IssueID(),
 			Author:         input.Author,
 			AllowSteal:     true,
 			StaleThreshold: input.StaleThreshold,
@@ -383,24 +383,24 @@ func (s *serviceImpl) OneShotUpdate(ctx context.Context, input OneShotUpdateInpu
 
 		// Claim within the existing transaction.
 		claimResult, err := s.claimWithinTx(ctx, uow, ClaimInput{
-			TicketID: input.TicketID,
-			Author:   input.Author,
+			IssueID: input.IssueID,
+			Author:  input.Author,
 		})
 		if err != nil {
 			return err
 		}
 
 		// Update.
-		if err := s.applyTicketUpdates(ctx, uow, input.TicketID, claimResult.ClaimID, input.Author, now, oneShotToUpdateFields(input)); err != nil {
+		if err := s.applyIssueUpdates(ctx, uow, input.IssueID, claimResult.ClaimID, input.Author, now, oneShotToUpdateFields(input)); err != nil {
 			return err
 		}
 
 		// Release.
-		return s.releaseTicket(ctx, uow, input.TicketID, claimResult.ClaimID, input.Author, now)
+		return s.releaseIssue(ctx, uow, input.IssueID, claimResult.ClaimID, input.Author, now)
 	})
 }
 
-func (s *serviceImpl) UpdateTicket(ctx context.Context, input UpdateTicketInput) error {
+func (s *serviceImpl) UpdateIssue(ctx context.Context, input UpdateIssueInput) error {
 	return s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		now := time.Now()
 
@@ -409,18 +409,18 @@ func (s *serviceImpl) UpdateTicket(ctx context.Context, input UpdateTicketInput)
 		if err != nil {
 			return fmt.Errorf("invalid claim ID: %w", err)
 		}
-		if c.TicketID() != input.TicketID {
-			return fmt.Errorf("claim %s does not match ticket %s", input.ClaimID, input.TicketID)
+		if c.IssueID() != input.IssueID {
+			return fmt.Errorf("claim %s does not match issue %s", input.ClaimID, input.IssueID)
 		}
 
-		if err := s.applyTicketUpdates(ctx, uow, input.TicketID, input.ClaimID, c.Author(), now, updateFieldsFromInput(input)); err != nil {
+		if err := s.applyIssueUpdates(ctx, uow, input.IssueID, input.ClaimID, c.Author(), now, updateFieldsFromInput(input)); err != nil {
 			return err
 		}
 
 		// Add note if provided.
 		if input.NoteBody != "" {
 			n, err := note.NewNote(note.NewNoteParams{
-				TicketID:  input.TicketID,
+				IssueID:   input.IssueID,
 				Author:    c.Author(),
 				CreatedAt: now,
 				Body:      input.NoteBody,
@@ -438,14 +438,14 @@ func (s *serviceImpl) UpdateTicket(ctx context.Context, input UpdateTicketInput)
 	})
 }
 
-func (s *serviceImpl) ExtendStaleThreshold(ctx context.Context, ticketID ticket.ID, claimID string, threshold time.Duration) error {
+func (s *serviceImpl) ExtendStaleThreshold(ctx context.Context, issueID issue.ID, claimID string, threshold time.Duration) error {
 	return s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		c, err := uow.Claims().GetClaimByID(ctx, claimID)
 		if err != nil {
 			return fmt.Errorf("invalid claim ID: %w", err)
 		}
-		if c.TicketID() != ticketID {
-			return fmt.Errorf("claim %s does not match ticket %s", claimID, ticketID)
+		if c.IssueID() != issueID {
+			return fmt.Errorf("claim %s does not match issue %s", claimID, issueID)
 		}
 		return uow.Claims().UpdateClaimThreshold(ctx, claimID, threshold)
 	})
@@ -459,31 +459,31 @@ func (s *serviceImpl) TransitionState(ctx context.Context, input TransitionInput
 		if err != nil {
 			return fmt.Errorf("invalid claim ID: %w", err)
 		}
-		if c.TicketID() != input.TicketID {
-			return fmt.Errorf("claim %s does not match ticket %s", input.ClaimID, input.TicketID)
+		if c.IssueID() != input.IssueID {
+			return fmt.Errorf("claim %s does not match issue %s", input.ClaimID, input.IssueID)
 		}
 
-		t, err := uow.Tickets().GetTicket(ctx, input.TicketID, false)
+		t, err := uow.Issues().GetIssue(ctx, input.IssueID, false)
 		if err != nil {
 			return err
 		}
 
 		switch input.Action {
 		case ActionRelease:
-			return s.releaseTicket(ctx, uow, input.TicketID, input.ClaimID, c.Author(), now)
+			return s.releaseIssue(ctx, uow, input.IssueID, input.ClaimID, c.Author(), now)
 		case ActionClose:
-			return s.closeTicket(ctx, uow, t, input.ClaimID, c.Author(), now)
+			return s.closeIssue(ctx, uow, t, input.ClaimID, c.Author(), now)
 		case ActionDefer:
-			return s.transitionTicket(ctx, uow, t, input.ClaimID, c.Author(), now, ticket.StateDeferred)
+			return s.transitionIssue(ctx, uow, t, input.ClaimID, c.Author(), now, issue.StateDeferred)
 		case ActionWait:
-			return s.transitionTicket(ctx, uow, t, input.ClaimID, c.Author(), now, ticket.StateWaiting)
+			return s.transitionIssue(ctx, uow, t, input.ClaimID, c.Author(), now, issue.StateWaiting)
 		default:
 			return fmt.Errorf("invalid transition action")
 		}
 	})
 }
 
-func (s *serviceImpl) DeleteTicket(ctx context.Context, input DeleteInput) error {
+func (s *serviceImpl) DeleteIssue(ctx context.Context, input DeleteInput) error {
 	return s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		now := time.Now()
 
@@ -491,30 +491,30 @@ func (s *serviceImpl) DeleteTicket(ctx context.Context, input DeleteInput) error
 		if err != nil {
 			return fmt.Errorf("invalid claim ID: %w", err)
 		}
-		if c.TicketID() != input.TicketID {
-			return fmt.Errorf("claim %s does not match ticket %s", input.ClaimID, input.TicketID)
+		if c.IssueID() != input.IssueID {
+			return fmt.Errorf("claim %s does not match issue %s", input.ClaimID, input.IssueID)
 		}
 
-		t, err := uow.Tickets().GetTicket(ctx, input.TicketID, false)
+		t, err := uow.Issues().GetIssue(ctx, input.IssueID, false)
 		if err != nil {
 			return err
 		}
 
-		if err := ticket.ValidateDeletion(t.IsDeleted()); err != nil {
+		if err := issue.ValidateDeletion(t.IsDeleted()); err != nil {
 			return err
 		}
 
 		// For epics, check descendants.
 		if t.IsEpic() {
-			descendants, err := uow.Tickets().GetDescendants(ctx, input.TicketID)
+			descendants, err := uow.Issues().GetDescendants(ctx, input.IssueID)
 			if err != nil {
 				return err
 			}
 
-			result := ticket.PlanEpicDeletion(input.TicketID, descendants)
+			result := issue.PlanEpicDeletion(input.IssueID, descendants)
 			if len(result.Conflicts) > 0 {
 				return &domain.ClaimConflictError{
-					TicketID:      input.TicketID.String(),
+					IssueID:       input.IssueID.String(),
 					CurrentHolder: result.Conflicts[0].ClaimedBy,
 					StaleAt:       time.Now(),
 				}
@@ -522,21 +522,21 @@ func (s *serviceImpl) DeleteTicket(ctx context.Context, input DeleteInput) error
 
 			// Delete all descendants.
 			for _, id := range result.ToDelete {
-				if id == input.TicketID {
+				if id == input.IssueID {
 					continue
 				}
-				descendant, err := uow.Tickets().GetTicket(ctx, id, false)
+				descendant, err := uow.Issues().GetIssue(ctx, id, false)
 				if err != nil {
 					continue
 				}
 				deleted := descendant.WithDeleted()
-				if err := uow.Tickets().UpdateTicket(ctx, deleted); err != nil {
+				if err := uow.Issues().UpdateIssue(ctx, deleted); err != nil {
 					return err
 				}
 
 				revision, _ := uow.History().CountHistory(ctx, id)
 				_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-					TicketID:  id,
+					IssueID:   id,
 					Revision:  revision,
 					Author:    c.Author(),
 					Timestamp: now,
@@ -548,18 +548,18 @@ func (s *serviceImpl) DeleteTicket(ctx context.Context, input DeleteInput) error
 			}
 		}
 
-		// Delete the ticket itself.
+		// Delete the issue itself.
 		deleted := t.WithDeleted()
-		if err := uow.Tickets().UpdateTicket(ctx, deleted); err != nil {
+		if err := uow.Issues().UpdateIssue(ctx, deleted); err != nil {
 			return err
 		}
 		if err := uow.Claims().InvalidateClaim(ctx, input.ClaimID); err != nil {
 			return err
 		}
 
-		revision, _ := uow.History().CountHistory(ctx, input.TicketID)
+		revision, _ := uow.History().CountHistory(ctx, input.IssueID)
 		_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-			TicketID:  input.TicketID,
+			IssueID:   input.IssueID,
 			Revision:  revision,
 			Author:    c.Author(),
 			Timestamp: now,
@@ -569,16 +569,16 @@ func (s *serviceImpl) DeleteTicket(ctx context.Context, input DeleteInput) error
 	})
 }
 
-func (s *serviceImpl) ShowTicket(ctx context.Context, id ticket.ID) (ShowTicketOutput, error) {
-	var output ShowTicketOutput
+func (s *serviceImpl) ShowIssue(ctx context.Context, id issue.ID) (ShowIssueOutput, error) {
+	var output ShowIssueOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		t, err := uow.Tickets().GetTicket(ctx, id, false)
+		t, err := uow.Issues().GetIssue(ctx, id, false)
 		if err != nil {
 			return err
 		}
 
-		output.Ticket = t
+		output.Issue = t
 
 		// Revision and author from history.
 		histCount, _ := uow.History().CountHistory(ctx, id)
@@ -597,17 +597,17 @@ func (s *serviceImpl) ShowTicket(ctx context.Context, id ticket.ID) (ShowTicketO
 
 		// Readiness.
 		blockers, _ := uow.Relationships().GetBlockerStatuses(ctx, id)
-		ancestors, _ := uow.Tickets().GetAncestorStatuses(ctx, id)
+		ancestors, _ := uow.Issues().GetAncestorStatuses(ctx, id)
 
 		if t.IsTask() {
-			output.IsReady = ticket.IsTaskReady(t.State(), blockers, ancestors)
+			output.IsReady = issue.IsTaskReady(t.State(), blockers, ancestors)
 		} else {
-			hasChildren, _ := uow.Tickets().HasChildren(ctx, id)
-			output.IsReady = ticket.IsEpicReady(t.State(), hasChildren, blockers, ancestors)
+			hasChildren, _ := uow.Issues().HasChildren(ctx, id)
+			output.IsReady = issue.IsEpicReady(t.State(), hasChildren, blockers, ancestors)
 
 			// Completion.
-			children, _ := uow.Tickets().GetChildStatuses(ctx, id)
-			output.IsComplete = ticket.IsEpicComplete(children)
+			children, _ := uow.Issues().GetChildStatuses(ctx, id)
+			output.IsComplete = issue.IsEpicComplete(children)
 		}
 
 		// Note count.
@@ -617,7 +617,7 @@ func (s *serviceImpl) ShowTicket(ctx context.Context, id ticket.ID) (ShowTicketO
 		}
 
 		// Claim info.
-		activeClaim, err := uow.Claims().GetClaimByTicket(ctx, id)
+		activeClaim, err := uow.Claims().GetClaimByIssue(ctx, id)
 		if err == nil {
 			output.ClaimID = activeClaim.ID()
 			output.ClaimAuthor = activeClaim.Author().String()
@@ -630,11 +630,11 @@ func (s *serviceImpl) ShowTicket(ctx context.Context, id ticket.ID) (ShowTicketO
 	return output, err
 }
 
-func (s *serviceImpl) ListTickets(ctx context.Context, input ListTicketsInput) (ListTicketsOutput, error) {
-	var output ListTicketsOutput
+func (s *serviceImpl) ListIssues(ctx context.Context, input ListIssuesInput) (ListIssuesOutput, error) {
+	var output ListIssuesOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		items, result, err := uow.Tickets().ListTickets(ctx, input.Filter, input.OrderBy, input.Page)
+		items, result, err := uow.Issues().ListIssues(ctx, input.Filter, input.OrderBy, input.Page)
 		if err != nil {
 			return err
 		}
@@ -646,11 +646,11 @@ func (s *serviceImpl) ListTickets(ctx context.Context, input ListTicketsInput) (
 	return output, err
 }
 
-func (s *serviceImpl) SearchTickets(ctx context.Context, input SearchTicketsInput) (ListTicketsOutput, error) {
-	var output ListTicketsOutput
+func (s *serviceImpl) SearchIssues(ctx context.Context, input SearchIssuesInput) (ListIssuesOutput, error) {
+	var output ListIssuesOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		items, result, err := uow.Tickets().SearchTickets(ctx, input.Query, input.Filter, input.OrderBy, input.Page)
+		items, result, err := uow.Issues().SearchIssues(ctx, input.Query, input.Filter, input.OrderBy, input.Page)
 		if err != nil {
 			return err
 		}
@@ -664,16 +664,16 @@ func (s *serviceImpl) SearchTickets(ctx context.Context, input SearchTicketsInpu
 
 // --- Relationship Operations ---
 
-func (s *serviceImpl) AddRelationship(ctx context.Context, sourceID ticket.ID, ri RelationshipInput, author identity.Author) error {
+func (s *serviceImpl) AddRelationship(ctx context.Context, sourceID issue.ID, ri RelationshipInput, author identity.Author) error {
 	return s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		now := time.Now()
 
 		// Validate target exists and is not deleted.
-		if _, err := uow.Tickets().GetTicket(ctx, ri.TargetID, false); err != nil {
+		if _, err := uow.Issues().GetIssue(ctx, ri.TargetID, false); err != nil {
 			return fmt.Errorf("relationship target %s: %w", ri.TargetID, err)
 		}
 
-		rel, err := ticket.NewRelationship(sourceID, ri.TargetID, ri.Type)
+		rel, err := issue.NewRelationship(sourceID, ri.TargetID, ri.Type)
 		if err != nil {
 			return err
 		}
@@ -686,7 +686,7 @@ func (s *serviceImpl) AddRelationship(ctx context.Context, sourceID ticket.ID, r
 		if created {
 			revision, _ := uow.History().CountHistory(ctx, sourceID)
 			_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-				TicketID:  sourceID,
+				IssueID:   sourceID,
 				Revision:  revision,
 				Author:    author,
 				Timestamp: now,
@@ -702,7 +702,7 @@ func (s *serviceImpl) AddRelationship(ctx context.Context, sourceID ticket.ID, r
 	})
 }
 
-func (s *serviceImpl) RemoveRelationship(ctx context.Context, sourceID ticket.ID, ri RelationshipInput, author identity.Author) error {
+func (s *serviceImpl) RemoveRelationship(ctx context.Context, sourceID issue.ID, ri RelationshipInput, author identity.Author) error {
 	return s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		now := time.Now()
 
@@ -714,7 +714,7 @@ func (s *serviceImpl) RemoveRelationship(ctx context.Context, sourceID ticket.ID
 		if deleted {
 			revision, _ := uow.History().CountHistory(ctx, sourceID)
 			_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-				TicketID:  sourceID,
+				IssueID:   sourceID,
 				Revision:  revision,
 				Author:    author,
 				Timestamp: now,
@@ -738,17 +738,17 @@ func (s *serviceImpl) AddNote(ctx context.Context, input AddNoteInput) (AddNoteO
 	err := s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		now := time.Now()
 
-		// Verify ticket exists and is not deleted.
-		t, err := uow.Tickets().GetTicket(ctx, input.TicketID, true)
+		// Verify issue exists and is not deleted.
+		t, err := uow.Issues().GetIssue(ctx, input.IssueID, true)
 		if err != nil {
 			return err
 		}
 		if t.IsDeleted() {
-			return fmt.Errorf("cannot add note to deleted ticket: %w", domain.ErrDeletedTicket)
+			return fmt.Errorf("cannot add note to deleted issue: %w", domain.ErrDeletedIssue)
 		}
 
 		n, err := note.NewNote(note.NewNoteParams{
-			TicketID:  input.TicketID,
+			IssueID:   input.IssueID,
 			Author:    input.Author,
 			CreatedAt: now,
 			Body:      input.Body,
@@ -763,7 +763,7 @@ func (s *serviceImpl) AddNote(ctx context.Context, input AddNoteInput) (AddNoteO
 		}
 
 		// Update claim last activity if claimed.
-		activeClaim, err := uow.Claims().GetClaimByTicket(ctx, input.TicketID)
+		activeClaim, err := uow.Claims().GetClaimByIssue(ctx, input.IssueID)
 		if err == nil {
 			_ = uow.Claims().UpdateClaimLastActivity(ctx, activeClaim.ID(), now)
 		}
@@ -794,7 +794,7 @@ func (s *serviceImpl) ListNotes(ctx context.Context, input ListNotesInput) (List
 	var output ListNotesOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		notes, result, err := uow.Notes().ListNotes(ctx, input.TicketID, input.Filter, input.Page)
+		notes, result, err := uow.Notes().ListNotes(ctx, input.IssueID, input.Filter, input.Page)
 		if err != nil {
 			return err
 		}
@@ -811,7 +811,7 @@ func (s *serviceImpl) SearchNotes(ctx context.Context, input SearchNotesInput) (
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
 		filter := input.Filter
-		filter.TicketID = input.TicketID
+		filter.IssueID = input.IssueID
 
 		notes, result, err := uow.Notes().SearchNotes(ctx, input.Query, filter, input.Page)
 		if err != nil {
@@ -831,7 +831,7 @@ func (s *serviceImpl) ShowHistory(ctx context.Context, input ListHistoryInput) (
 	var output ListHistoryOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		entries, result, err := uow.History().ListHistory(ctx, input.TicketID, input.Filter, input.Page)
+		entries, result, err := uow.History().ListHistory(ctx, input.IssueID, input.Filter, input.Page)
 		if err != nil {
 			return err
 		}
@@ -848,14 +848,14 @@ func (s *serviceImpl) ShowHistory(ctx context.Context, input ListHistoryInput) (
 func (s *serviceImpl) GetGraphData(ctx context.Context) (GraphDataOutput, error) {
 	var output GraphDataOutput
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		// Fetch all non-deleted tickets with a high page size.
-		items, _, err := uow.Tickets().ListTickets(ctx, port.TicketFilter{}, port.OrderByPriority, port.PageRequest{PageSize: 10000})
+		// Fetch all non-deleted issues with a high page size.
+		items, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{}, port.OrderByPriority, port.PageRequest{PageSize: 10000})
 		if err != nil {
 			return err
 		}
 		output.Nodes = items
 
-		// Collect relationships for all tickets. Use a set to deduplicate
+		// Collect relationships for all issues. Use a set to deduplicate
 		// since ListRelationships returns both directions.
 		seen := make(map[string]bool)
 		for _, item := range items {
@@ -892,10 +892,10 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 		}
 		for _, c := range staleClaims {
 			output.Findings = append(output.Findings, DoctorFinding{
-				Category:  "stale_claim",
-				Severity:  "warning",
-				Message:   fmt.Sprintf("Ticket %s has been claimed by %q since %s (stale)", c.TicketID(), c.Author(), c.LastActivity().Format(time.RFC3339)),
-				TicketIDs: []string{c.TicketID().String()},
+				Category: "stale_claim",
+				Severity: "warning",
+				Message:  fmt.Sprintf("Issue %s has been claimed by %q since %s (stale)", c.IssueID(), c.Author(), c.LastActivity().Format(time.RFC3339)),
+				IssueIDs: []string{c.IssueID().String()},
 			})
 		}
 
@@ -917,60 +917,60 @@ func (s *serviceImpl) GC(ctx context.Context, input GCInput) (GCOutput, error) {
 
 // --- Internal helpers ---
 
-func (s *serviceImpl) validateParent(ctx context.Context, uow port.UnitOfWork, childID, parentID ticket.ID) error {
-	parent, err := uow.Tickets().GetTicket(ctx, parentID, true)
+func (s *serviceImpl) validateParent(ctx context.Context, uow port.UnitOfWork, childID, parentID issue.ID) error {
+	parent, err := uow.Issues().GetIssue(ctx, parentID, true)
 	if err != nil {
 		return fmt.Errorf("parent %s: %w", parentID, err)
 	}
-	if err := ticket.ValidateParent(childID, parentID, parent.Role(), parent.IsDeleted()); err != nil {
+	if err := issue.ValidateParent(childID, parentID, parent.Role(), parent.IsDeleted()); err != nil {
 		return err
 	}
-	return ticket.ValidateNoCycle(childID, parentID, func(id ticket.ID) (ticket.ID, error) {
-		return uow.Tickets().GetParentID(ctx, id)
+	return issue.ValidateNoCycle(childID, parentID, func(id issue.ID) (issue.ID, error) {
+		return uow.Issues().GetParentID(ctx, id)
 	})
 }
 
-func (s *serviceImpl) releaseTicket(ctx context.Context, uow port.UnitOfWork, ticketID ticket.ID, claimID string, author identity.Author, now time.Time) error {
-	t, err := uow.Tickets().GetTicket(ctx, ticketID, false)
+func (s *serviceImpl) releaseIssue(ctx context.Context, uow port.UnitOfWork, issueID issue.ID, claimID string, author identity.Author, now time.Time) error {
+	t, err := uow.Issues().GetIssue(ctx, issueID, false)
 	if err != nil {
 		return err
 	}
 
-	releaseState := ticket.ReleaseStateForRole(t.Role())
+	releaseState := issue.ReleaseStateForRole(t.Role())
 
 	t = t.WithState(releaseState)
-	if err := uow.Tickets().UpdateTicket(ctx, t); err != nil {
+	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
 		return err
 	}
 	if err := uow.Claims().InvalidateClaim(ctx, claimID); err != nil {
 		return err
 	}
 
-	revision, _ := uow.History().CountHistory(ctx, ticketID)
+	revision, _ := uow.History().CountHistory(ctx, issueID)
 	_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-		TicketID:  ticketID,
+		IssueID:   issueID,
 		Revision:  revision,
 		Author:    author,
 		Timestamp: now,
 		EventType: history.EventReleased,
 		Changes: []history.FieldChange{
-			{Field: "state", Before: ticket.StateClaimed.String(), After: releaseState.String()},
+			{Field: "state", Before: issue.StateClaimed.String(), After: releaseState.String()},
 		},
 	}))
 	return err
 }
 
-func (s *serviceImpl) closeTicket(ctx context.Context, uow port.UnitOfWork, t ticket.Ticket, claimID string, author identity.Author, now time.Time) error {
+func (s *serviceImpl) closeIssue(ctx context.Context, uow port.UnitOfWork, t issue.Issue, claimID string, author identity.Author, now time.Time) error {
 	if !t.IsTask() {
 		return fmt.Errorf("only tasks can be closed: %w", domain.ErrIllegalTransition)
 	}
 
-	if err := ticket.TransitionTask(t.State(), ticket.StateClosed); err != nil {
+	if err := issue.TransitionTask(t.State(), issue.StateClosed); err != nil {
 		return err
 	}
 
-	t = t.WithState(ticket.StateClosed)
-	if err := uow.Tickets().UpdateTicket(ctx, t); err != nil {
+	t = t.WithState(issue.StateClosed)
+	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
 		return err
 	}
 	if err := uow.Claims().InvalidateClaim(ctx, claimID); err != nil {
@@ -979,31 +979,31 @@ func (s *serviceImpl) closeTicket(ctx context.Context, uow port.UnitOfWork, t ti
 
 	revision, _ := uow.History().CountHistory(ctx, t.ID())
 	_, err := uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-		TicketID:  t.ID(),
+		IssueID:   t.ID(),
 		Revision:  revision,
 		Author:    author,
 		Timestamp: now,
 		EventType: history.EventStateChanged,
 		Changes: []history.FieldChange{
-			{Field: "state", Before: ticket.StateClaimed.String(), After: ticket.StateClosed.String()},
+			{Field: "state", Before: issue.StateClaimed.String(), After: issue.StateClosed.String()},
 		},
 	}))
 	return err
 }
 
-func (s *serviceImpl) transitionTicket(ctx context.Context, uow port.UnitOfWork, t ticket.Ticket, claimID string, author identity.Author, now time.Time, targetState ticket.State) error {
+func (s *serviceImpl) transitionIssue(ctx context.Context, uow port.UnitOfWork, t issue.Issue, claimID string, author identity.Author, now time.Time, targetState issue.State) error {
 	var transErr error
 	if t.IsTask() {
-		transErr = ticket.TransitionTask(t.State(), targetState)
+		transErr = issue.TransitionTask(t.State(), targetState)
 	} else {
-		transErr = ticket.TransitionEpic(t.State(), targetState)
+		transErr = issue.TransitionEpic(t.State(), targetState)
 	}
 	if transErr != nil {
 		return transErr
 	}
 
 	t = t.WithState(targetState)
-	if err := uow.Tickets().UpdateTicket(ctx, t); err != nil {
+	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
 		return err
 	}
 	if err := uow.Claims().InvalidateClaim(ctx, claimID); err != nil {
@@ -1012,26 +1012,26 @@ func (s *serviceImpl) transitionTicket(ctx context.Context, uow port.UnitOfWork,
 
 	revision, _ := uow.History().CountHistory(ctx, t.ID())
 	_, err := uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-		TicketID:  t.ID(),
+		IssueID:   t.ID(),
 		Revision:  revision,
 		Author:    author,
 		Timestamp: now,
 		EventType: history.EventStateChanged,
 		Changes: []history.FieldChange{
-			{Field: "state", Before: ticket.StateClaimed.String(), After: targetState.String()},
+			{Field: "state", Before: issue.StateClaimed.String(), After: targetState.String()},
 		},
 	}))
 	return err
 }
 
-// updateFields groups optional field updates for a ticket.
+// updateFields groups optional field updates for an issue.
 type updateFields struct {
 	Title              *string
 	Description        *string
 	AcceptanceCriteria *string
-	Priority           *ticket.Priority
-	ParentID           *ticket.ID
-	FacetSet           []ticket.Facet
+	Priority           *issue.Priority
+	ParentID           *issue.ID
+	FacetSet           []issue.Facet
 	FacetRemove        []string
 }
 
@@ -1047,7 +1047,7 @@ func oneShotToUpdateFields(input OneShotUpdateInput) updateFields {
 	}
 }
 
-func updateFieldsFromInput(input UpdateTicketInput) updateFields {
+func updateFieldsFromInput(input UpdateIssueInput) updateFields {
 	return updateFields{
 		Title:              input.Title,
 		Description:        input.Description,
@@ -1059,8 +1059,8 @@ func updateFieldsFromInput(input UpdateTicketInput) updateFields {
 	}
 }
 
-func (s *serviceImpl) applyTicketUpdates(ctx context.Context, uow port.UnitOfWork, ticketID ticket.ID, claimID string, author identity.Author, now time.Time, fields updateFields) error {
-	t, err := uow.Tickets().GetTicket(ctx, ticketID, false)
+func (s *serviceImpl) applyIssueUpdates(ctx context.Context, uow port.UnitOfWork, issueID issue.ID, claimID string, author identity.Author, now time.Time, fields updateFields) error {
+	t, err := uow.Issues().GetIssue(ctx, issueID, false)
 	if err != nil {
 		return err
 	}
@@ -1099,7 +1099,7 @@ func (s *serviceImpl) applyTicketUpdates(ctx context.Context, uow port.UnitOfWor
 		newParentID := *fields.ParentID
 
 		if !newParentID.IsZero() {
-			if err := s.validateParent(ctx, uow, ticketID, newParentID); err != nil {
+			if err := s.validateParent(ctx, uow, issueID, newParentID); err != nil {
 				return err
 			}
 		}
@@ -1122,14 +1122,14 @@ func (s *serviceImpl) applyTicketUpdates(ctx context.Context, uow port.UnitOfWor
 	}
 	t = t.WithFacets(facets)
 
-	if err := uow.Tickets().UpdateTicket(ctx, t); err != nil {
+	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
 		return err
 	}
 
 	if len(changes) > 0 {
-		revision, _ := uow.History().CountHistory(ctx, ticketID)
+		revision, _ := uow.History().CountHistory(ctx, issueID)
 		_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-			TicketID:  ticketID,
+			IssueID:   issueID,
 			Revision:  revision,
 			Author:    author,
 			Timestamp: now,

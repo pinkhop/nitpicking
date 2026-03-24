@@ -12,12 +12,12 @@ import (
 
 // gcOutput is the JSON representation of the gc command result.
 type gcOutput struct {
-	DeletedTicketsRemoved int `json:"deleted_tickets_removed"`
-	ClosedTicketsRemoved  int `json:"closed_tickets_removed"`
+	DeletedIssuesRemoved int `json:"deleted_issues_removed"`
+	ClosedIssuesRemoved  int `json:"closed_issues_removed"`
 }
 
 // NewCmd constructs the "gc" command, which physically removes soft-deleted
-// ticket data and optionally closed ticket data from the database.
+// issue data and optionally closed issue data from the database.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput    bool
@@ -27,7 +27,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:  "gc",
-		Usage: "Garbage-collect deleted (and optionally closed) tickets",
+		Usage: "Garbage-collect deleted (and optionally closed) issues",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -41,7 +41,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:        "include-closed",
-				Usage:       "Also remove closed tickets",
+				Usage:       "Also remove closed issues",
 				Destination: &includeClosed,
 			},
 		},
@@ -71,8 +71,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 			if jsonOutput {
 				return cmdutil.WriteJSON(f.IOStreams.Out, gcOutput{
-					DeletedTicketsRemoved: result.DeletedTicketsRemoved,
-					ClosedTicketsRemoved:  result.ClosedTicketsRemoved,
+					DeletedIssuesRemoved: result.DeletedIssuesRemoved,
+					ClosedIssuesRemoved:  result.ClosedIssuesRemoved,
 				})
 			}
 
@@ -80,9 +80,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			w := f.IOStreams.Out
 
 			_, _ = fmt.Fprintf(w, "%s Garbage collection complete.\n", cs.SuccessIcon())
-			_, _ = fmt.Fprintf(w, "  Deleted tickets removed: %d\n", result.DeletedTicketsRemoved)
+			_, _ = fmt.Fprintf(w, "  Deleted issues removed: %d\n", result.DeletedIssuesRemoved)
 			if includeClosed {
-				_, _ = fmt.Fprintf(w, "  Closed tickets removed:  %d\n", result.ClosedTicketsRemoved)
+				_, _ = fmt.Fprintf(w, "  Closed issues removed:  %d\n", result.ClosedIssuesRemoved)
 			}
 
 			return nil

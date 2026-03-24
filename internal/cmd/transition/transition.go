@@ -12,8 +12,8 @@ import (
 
 // transitionOutput is the JSON representation of a transition command result.
 type transitionOutput struct {
-	TicketID string `json:"ticket_id"`
-	Action   string `json:"action"`
+	IssueID string `json:"issue_id"`
+	Action  string `json:"action"`
 }
 
 // newTransitionCmd builds a single transition subcommand (release, close,
@@ -28,7 +28,7 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 	return &cli.Command{
 		Name:      name,
 		Usage:     usage,
-		ArgsUsage: "<TICKET-ID>",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -38,7 +38,7 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the ticket",
+				Usage:       "Active claim ID for the issue",
 				Required:    true,
 				Destination: &claimID,
 			},
@@ -46,7 +46,7 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
 			if rawID == "" {
-				return cmdutil.FlagErrorf("ticket ID argument is required")
+				return cmdutil.FlagErrorf("issue ID argument is required")
 			}
 
 			svc, err := cmdutil.NewTracker(f)
@@ -55,24 +55,24 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			ticketID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
 			input := service.TransitionInput{
-				TicketID: ticketID,
-				ClaimID:  claimID,
-				Action:   action,
+				IssueID: issueID,
+				ClaimID: claimID,
+				Action:  action,
 			}
 			if err := svc.TransitionState(ctx, input); err != nil {
-				return fmt.Errorf("transitioning ticket: %w", err)
+				return fmt.Errorf("transitioning issue: %w", err)
 			}
 
 			if jsonOutput {
 				return cmdutil.WriteJSON(f.IOStreams.Out, transitionOutput{
-					TicketID: ticketID.String(),
-					Action:   name,
+					IssueID: issueID.String(),
+					Action:  name,
 				})
 			}
 
@@ -80,7 +80,7 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 			_, err = fmt.Fprintf(f.IOStreams.Out, "%s %s %s\n",
 				cs.SuccessIcon(),
 				pastTense(name),
-				cs.Bold(ticketID.String()))
+				cs.Bold(issueID.String()))
 			return err
 		},
 	}
@@ -91,20 +91,20 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 func NewStateCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:  "state",
-		Usage: "Transition ticket state (close, defer, wait)",
+		Usage: "Transition issue state (close, defer, wait)",
 		Commands: []*cli.Command{
 			newTransitionCmd(f, "close", "Close a claimed task", service.ActionClose),
-			newTransitionCmd(f, "defer", "Defer a claimed ticket", service.ActionDefer),
-			newTransitionCmd(f, "wait", "Mark a claimed ticket as waiting", service.ActionWait),
+			newTransitionCmd(f, "defer", "Defer a claimed issue", service.ActionDefer),
+			newTransitionCmd(f, "wait", "Mark a claimed issue as waiting", service.ActionWait),
 		},
 	}
 }
 
 // NewReleaseCmd constructs the "release" command, which returns a claimed
-// ticket to its default unclaimed state. Release stays at the root level
+// issue to its default unclaimed state. Release stays at the root level
 // because it is the most common transition — returning to a working state.
 func NewReleaseCmd(f *cmdutil.Factory) *cli.Command {
-	return newTransitionCmd(f, "release", "Release a claimed ticket", service.ActionRelease)
+	return newTransitionCmd(f, "release", "Release a claimed issue", service.ActionRelease)
 }
 
 // pastTense returns a human-readable past-tense label for each transition

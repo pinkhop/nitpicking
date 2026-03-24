@@ -1,6 +1,6 @@
-package ticket
+package issue
 
-// ChildStatus summarizes a child ticket's completion state for the purpose
+// ChildStatus summarizes a child issue's completion state for the purpose
 // of deriving epic completion.
 type ChildStatus struct {
 	// Role is the child's role (task or epic).

@@ -35,12 +35,12 @@ func runNPAsync(t *testing.T, dir string, args ...string) (stdout, stderr string
 	return outBuf.String(), errBuf.String(), exitCode
 }
 
-func TestE2E_Concurrency_TwoAgentsClaimSameTicket(t *testing.T) {
+func TestE2E_Concurrency_TwoAgentsClaimSameIssue(t *testing.T) {
 	// Given — a single open task that two agents will race to claim.
 	dir := initDB(t, "CONC")
-	taskID := createTask(t, dir, "Contested ticket", "setup-agent")
+	taskID := createTask(t, dir, "Contested issue", "setup-agent")
 
-	// When — both agents attempt to claim the ticket simultaneously.
+	// When — both agents attempt to claim the issue simultaneously.
 	type claimResult struct {
 		stdout   string
 		stderr   string
@@ -90,13 +90,13 @@ func TestE2E_Concurrency_TwoAgentsClaimSameTicket(t *testing.T) {
 	}
 }
 
-func TestE2E_Concurrency_TwoAgentsClaimDifferentTickets(t *testing.T) {
+func TestE2E_Concurrency_TwoAgentsClaimDifferentIssues(t *testing.T) {
 	// Given — two separate tasks, one for each agent.
 	dir := initDB(t, "CONC")
 	taskA := createTask(t, dir, "Task for alpha", "setup-agent")
 	taskB := createTask(t, dir, "Task for beta", "setup-agent")
 
-	// When — both agents claim their respective tickets simultaneously.
+	// When — both agents claim their respective issues simultaneously.
 	type claimResult struct {
 		stdout   string
 		stderr   string
@@ -132,25 +132,25 @@ func TestE2E_Concurrency_TwoAgentsClaimDifferentTickets(t *testing.T) {
 		t.Errorf("agent-beta failed (exit %d): %s", resultB.exitCode, resultB.stderr)
 	}
 
-	// Verify each ticket is claimed by the correct agent.
-	ticketA := showTicket(t, dir, taskA)
-	if ticketA["claim_author"] != "agent-alpha" {
-		t.Errorf("expected task A claimed by agent-alpha, got %v", ticketA["claim_author"])
+	// Verify each issue is claimed by the correct agent.
+	issueA := showIssue(t, dir, taskA)
+	if issueA["claim_author"] != "agent-alpha" {
+		t.Errorf("expected task A claimed by agent-alpha, got %v", issueA["claim_author"])
 	}
-	ticketB := showTicket(t, dir, taskB)
-	if ticketB["claim_author"] != "agent-beta" {
-		t.Errorf("expected task B claimed by agent-beta, got %v", ticketB["claim_author"])
+	issueB := showIssue(t, dir, taskB)
+	if issueB["claim_author"] != "agent-beta" {
+		t.Errorf("expected task B claimed by agent-beta, got %v", issueB["claim_author"])
 	}
 }
 
-func TestE2E_Concurrency_ClaimReadyClaimsDifferentTickets(t *testing.T) {
+func TestE2E_Concurrency_ClaimReadyClaimsDifferentIssues(t *testing.T) {
 	// Given — multiple open tasks with different priorities.
 	dir := initDB(t, "CONC")
 	createTaskWithPriority(t, dir, "High priority", "setup-agent", "P0")
 	createTaskWithPriority(t, dir, "Medium priority", "setup-agent", "P1")
 	createTaskWithPriority(t, dir, "Low priority", "setup-agent", "P2")
 
-	// When — two agents simultaneously request the next ready ticket via "claim ready".
+	// When — two agents simultaneously request the next ready issue via "claim ready".
 	type nextResult struct {
 		stdout   string
 		stderr   string
@@ -178,7 +178,7 @@ func TestE2E_Concurrency_ClaimReadyClaimsDifferentTickets(t *testing.T) {
 	}()
 	wg.Wait()
 
-	// Then — both agents should succeed (there are enough tickets for both).
+	// Then — both agents should succeed (there are enough issues for both).
 	if resultA.exitCode != 0 {
 		t.Errorf("agent-alpha claim ready failed (exit %d): %s", resultA.exitCode, resultA.stderr)
 	}
@@ -186,21 +186,21 @@ func TestE2E_Concurrency_ClaimReadyClaimsDifferentTickets(t *testing.T) {
 		t.Errorf("agent-beta claim ready failed (exit %d): %s", resultB.exitCode, resultB.stderr)
 	}
 
-	// They should claim different tickets.
+	// They should claim different issues.
 	if resultA.exitCode == 0 && resultB.exitCode == 0 {
 		rA := parseJSON(t, resultA.stdout)
 		rB := parseJSON(t, resultB.stdout)
-		if rA["ticket_id"] == rB["ticket_id"] {
-			t.Errorf("both agents claimed the same ticket: %v", rA["ticket_id"])
+		if rA["issue_id"] == rB["issue_id"] {
+			t.Errorf("both agents claimed the same issue: %v", rA["issue_id"])
 		}
 	}
 }
 
-func TestE2E_Concurrency_ConcurrentNotesOnSameTicket(t *testing.T) {
-	// Given — a ticket that two agents will add notes to simultaneously.
+func TestE2E_Concurrency_ConcurrentNotesOnSameIssue(t *testing.T) {
+	// Given — an issue that two agents will add notes to simultaneously.
 	// Notes do not require claiming, so both should succeed.
 	dir := initDB(t, "CONC")
-	taskID := createTask(t, dir, "Shared ticket", "setup-agent")
+	taskID := createTask(t, dir, "Shared issue", "setup-agent")
 
 	// When — both agents add notes simultaneously.
 	var (
@@ -213,7 +213,7 @@ func TestE2E_Concurrency_ConcurrentNotesOnSameTicket(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		_, _, codeA = runNPAsync(t, dir, "note", "add",
-			"--ticket", taskID,
+			"--issue", taskID,
 			"--body", "Note from alpha",
 			"--author", "agent-alpha",
 			"--json",
@@ -222,7 +222,7 @@ func TestE2E_Concurrency_ConcurrentNotesOnSameTicket(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		_, _, codeB = runNPAsync(t, dir, "note", "add",
-			"--ticket", taskID,
+			"--issue", taskID,
 			"--body", "Note from beta",
 			"--author", "agent-beta",
 			"--json",
@@ -239,7 +239,7 @@ func TestE2E_Concurrency_ConcurrentNotesOnSameTicket(t *testing.T) {
 	}
 
 	// Verify both notes exist.
-	noteStdout, stderr, code := runNP(t, dir, "note", "list", "--ticket", taskID, "--json")
+	noteStdout, stderr, code := runNP(t, dir, "note", "list", "--issue", taskID, "--json")
 	if code != 0 {
 		t.Fatalf("note list failed (exit %d): %s", code, stderr)
 	}

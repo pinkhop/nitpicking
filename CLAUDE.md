@@ -45,7 +45,7 @@ make ci                 # Full pipeline: build → lint → sec → test-units
 
 The project follows **Hexagonal (Ports & Adapters) Architecture** with three layers:
 
-1. **Core Domain** — ticket model, state machine, business rules, validation, history, readiness, deletion logic. No dependencies on CLI or storage.
+1. **Core Domain** — issue model, state machine, business rules, validation, history, readiness, deletion logic. No dependencies on CLI or storage.
 2. **Ports** — driving port (application API / use-case boundary exposed to adapters) and driven port (persistence interface the core requires).
 3. **Adapters** — driving adapter (CLI `np` command) and driven adapter (SQLite storage).
 
@@ -59,9 +59,9 @@ The core domain is unit-tested with in-memory fakes for the persistence port —
 
 ## Domain Model (key concepts)
 
-- **Two ticket types:** Epic (organizes children; completion derived) and Task (leaf node; directly stateful). See state machines, claiming, readiness, and all other domain details in `SPECIFICATION.md`.
+- **Two issue types:** Epic (organizes children; completion derived) and Task (leaf node; directly stateful). See state machines, claiming, readiness, and all other domain details in `SPECIFICATION.md`.
 - **Claiming gates all mutations.** Bearer-authenticated via random claim IDs. Notes and relationships can be added without claiming.
-- **Ticket IDs:** `<PREFIX>-<random>` (e.g., `NP-a3bxr`). Prefix set at db init; random part is 5 lowercase Crockford Base32 characters.
+- **Issue IDs:** `<PREFIX>-<random>` (e.g., `NP-a3bxr`). Prefix set at db init; random part is 5 lowercase Crockford Base32 characters.
 - **Database discovery:** `np` walks up from `cwd` looking for a `.np/` directory.
 
 See `SPECIFICATION.md` for the full specification and `PRODUCT_VISION.md` for product context and resolved design decisions.
@@ -76,7 +76,7 @@ See `SPECIFICATION.md` for the full specification and `PRODUCT_VISION.md` for pr
 
 np is the **exclusive** tool for task management in this project. Do not use your platform's built-in task tracking (TodoWrite, TaskCreate, markdown checklists, etc.).
 
-np is local-only — no network, no remote sync, no background daemons. It stores tickets in an embedded SQLite database under the `.np/` directory.
+np is local-only — no network, no remote sync, no background daemons. It stores issues in an embedded SQLite database under the `.np/` directory.
 
 ## Choosing an Author Name
 
@@ -87,42 +87,42 @@ Every mutation requires an `--author` flag identifying who is acting. Pick a sta
 ### 1. Find work
 
 ```bash
-np claim ready --author <your-name>   # claim the highest-priority ready ticket
-np list --ready                       # browse all ready tickets without claiming
-np list --ready --facet kind:fix      # filter ready tickets by facet
-np list --include-closed              # include closed tickets (hidden by default)
-np list --state closed                # show only closed tickets
+np claim ready --author <your-name>   # claim the highest-priority ready issue
+np list --ready                       # browse all ready issues without claiming
+np list --ready --facet kind:fix      # filter ready issues by facet
+np list --include-closed              # include closed issues (hidden by default)
+np list --state closed                # show only closed issues
 np search "login timeout"             # full-text search across titles and descriptions
 ```
 
-`np list` hides closed tickets by default since they are terminal and no longer actionable. Use `--include-closed` to show them, or `--state closed` to list only closed tickets.
+`np list` hides closed issues by default since they are terminal and no longer actionable. Use `--include-closed` to show them, or `--state closed` to list only closed issues.
 
-A ticket is **ready** when it is `open` (task) or `active` with no children (epic needing decomposition), has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred` or `waiting`.
+An issue is **ready** when it is `open` (task) or `active` with no children (epic needing decomposition), has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred` or `waiting`.
 
 ### 2. Claim before mutating
 
-Claiming is mandatory before updating fields or transitioning state. Claiming returns a **claim ID** — a token you must pass to all subsequent operations on that ticket.
+Claiming is mandatory before updating fields or transitioning state. Claiming returns a **claim ID** — a token you must pass to all subsequent operations on that issue.
 
 ```bash
-np claim id <TICKET-ID> --author <your-name>
+np claim id <ISSUE-ID> --author <your-name>
 # → returns claim ID, e.g. a1b2c3d4e5f6...
 ```
 
-Persist the claim ID for the duration of your work on that ticket. If you lose it, you cannot continue — another agent (or you) must wait for the claim to go stale and then steal it.
+Persist the claim ID for the duration of your work on that issue. If you lose it, you cannot continue — another agent (or you) must wait for the claim to go stale and then steal it.
 
 ### 3. Update fields
 
 ```bash
-np update <TICKET-ID> --claim <CLAIM-ID> --title "Revised title"
-np update <TICKET-ID> --claim <CLAIM-ID> --description "More detail"
-np update <TICKET-ID> --claim <CLAIM-ID> --priority 1
-np update <TICKET-ID> --claim <CLAIM-ID> --facet kind:fix
+np update <ISSUE-ID> --claim <CLAIM-ID> --title "Revised title"
+np update <ISSUE-ID> --claim <CLAIM-ID> --description "More detail"
+np update <ISSUE-ID> --claim <CLAIM-ID> --priority 1
+np update <ISSUE-ID> --claim <CLAIM-ID> --facet kind:fix
 ```
 
 For a quick one-shot edit that does not require holding a claim, use `np edit`:
 
 ```bash
-np edit <TICKET-ID> --author <your-name> --title "Quick fix"
+np edit <ISSUE-ID> --author <your-name> --title "Quick fix"
 ```
 
 ### 4. Document your work with notes
@@ -130,7 +130,7 @@ np edit <TICKET-ID> --author <your-name> --title "Quick fix"
 Before transitioning state, add a note capturing your reasoning, trade-offs, findings, or anything a future reader would find useful.
 
 ```bash
-np note add --ticket <TICKET-ID> --body "Approach taken: ..." --author <your-name>
+np note add --issue <ISSUE-ID> --body "Approach taken: ..." --author <your-name>
 ```
 
 ### 5. Transition state when done
@@ -138,22 +138,22 @@ np note add --ticket <TICKET-ID> --body "Approach taken: ..." --author <your-nam
 Every transition requires the claim ID and ends the claim.
 
 ```bash
-np state close <TICKET-ID> --claim <CLAIM-ID>   # complete the task (terminal — cannot reopen)
-np release <TICKET-ID> --claim <CLAIM-ID>   # return to open/active without completing
-np state defer <TICKET-ID> --claim <CLAIM-ID>   # shelve for later
-np state wait  <TICKET-ID> --claim <CLAIM-ID>   # blocked on an external dependency
+np state close <ISSUE-ID> --claim <CLAIM-ID>   # complete the task (terminal — cannot reopen)
+np release <ISSUE-ID> --claim <CLAIM-ID>   # return to open/active without completing
+np state defer <ISSUE-ID> --claim <CLAIM-ID>   # shelve for later
+np state wait  <ISSUE-ID> --claim <CLAIM-ID>   # blocked on an external dependency
 ```
 
 **Always transition state when you are done.** Abandoned claims block other agents until the stale threshold expires.
 
-## Ticket Types
+## Issue Types
 
 | Role | Purpose | Closed directly? |
 |------|---------|-----------------|
 | **Task** | Leaf-node work item | Yes — `np close` is terminal |
 | **Epic** | Organizes children; completion is derived | No — an epic is complete when all its children are closed or complete |
 
-Create tickets with:
+Create issues with:
 
 ```bash
 np create --role task --title "Implement retry logic" --author <your-name>
@@ -163,11 +163,11 @@ np create --role task --title "Write tests" --author <your-name> --parent <EPIC-
 
 Use `--claim` on create to atomically create and claim in one step.
 
-Use `--from-json` to provide ticket fields as JSON (compatible with `show --json` output):
+Use `--from-json` to provide issue fields as JSON (compatible with `show --json` output):
 
 ```bash
 np create --from-json '{"role":"task","title":"Fix bug","priority":"P0"}' --author <your-name>
-np show <TICKET-ID> --json | np create --from-json - --author <your-name>   # clone a ticket
+np show <ISSUE-ID> --json | np create --from-json - --author <your-name>   # clone an issue
 ```
 
 Precedence: explicit flags > JSON values > env vars. Facets with different keys from all sources are merged; for the same key, the higher-precedence source wins.
@@ -187,47 +187,47 @@ Precedence: explicit flags > JSON values > env vars. Facets with different keys 
 Relationships do **not** require claiming.
 
 ```bash
-np relate add <TICKET-ID> blocked_by <BLOCKER-ID> --author <your-name>
-np relate add <TICKET-ID> cites <REFERENCE-ID> --author <your-name>
-np relate remove <TICKET-ID> blocked_by <BLOCKER-ID> --author <your-name>
+np relate add <ISSUE-ID> blocked_by <BLOCKER-ID> --author <your-name>
+np relate add <ISSUE-ID> cites <REFERENCE-ID> --author <your-name>
+np relate remove <ISSUE-ID> blocked_by <BLOCKER-ID> --author <your-name>
 ```
 
-- `blocked_by` / `blocks` — the ticket cannot progress until the blocker is closed.
+- `blocked_by` / `blocks` — the issue cannot progress until the blocker is closed.
 - `cites` / `cited_by` — informational reference; does not block.
 
 ## Notes
 
-Notes do **not** require claiming and can be added to closed tickets.
+Notes do **not** require claiming and can be added to closed issues.
 
 ```bash
-np note add <TICKET-ID> --body "Found the root cause in auth.go:142" --author <your-name>
-np note list <TICKET-ID>
+np note add <ISSUE-ID> --body "Found the root cause in auth.go:142" --author <your-name>
+np note list <ISSUE-ID>
 np note search "root cause"
 ```
 
 ## Stale Claims and Stealing
 
-Claims expire after their stale threshold (default 2 hours). If no ready tickets exist, steal a stale one:
+Claims expire after their stale threshold (default 2 hours). If no ready issues exist, steal a stale one:
 
 ```bash
 np claim ready --steal-if-needed --author <your-name>
-np claim id <TICKET-ID> --author <your-name> --steal
+np claim id <ISSUE-ID> --author <your-name> --steal
 ```
 
 Extend your own claim's threshold if you need more time:
 
 ```bash
-np extend <TICKET-ID> --claim <CLAIM-ID> --threshold 4h
+np extend <ISSUE-ID> --claim <CLAIM-ID> --threshold 4h
 ```
 
 ## Diagnostics
 
 ```bash
 np doctor       # detect cycles, deadlocks, stale claims, epics needing decomposition
-np show <ID>    # full ticket detail including readiness, relationships, completion
+np show <ID>    # full issue detail including readiness, relationships, completion
 np history <ID> # audit trail of all changes
-np graph        # generate Graphviz DOT of all tickets and relationships
-np graph -o tickets.dot   # write to file instead of stdout
+np graph        # generate Graphviz DOT of all issues and relationships
+np graph -o issues.dot   # write to file instead of stdout
 ```
 
 ## Exit Codes

@@ -39,14 +39,14 @@ type relationshipOutput struct {
 }
 
 // NewCmd constructs the "show" command, which displays the full detail view
-// of a single ticket.
+// of a single issue.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var jsonOutput bool
 
 	return &cli.Command{
 		Name:      "show",
-		Usage:     "Show ticket details, relationships, and metadata",
-		ArgsUsage: "<TICKET-ID>",
+		Usage:     "Show issue details, relationships, and metadata",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -57,7 +57,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
 			if rawID == "" {
-				return cmdutil.FlagErrorf("ticket ID argument is required")
+				return cmdutil.FlagErrorf("issue ID argument is required")
 			}
 
 			svc, err := cmdutil.NewTracker(f)
@@ -66,16 +66,16 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			ticketID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
-			result, err := svc.ShowTicket(ctx, ticketID)
+			result, err := svc.ShowIssue(ctx, issueID)
 			if err != nil {
-				return fmt.Errorf("showing ticket: %w", err)
+				return fmt.Errorf("showing issue: %w", err)
 			}
 
-			t := result.Ticket
+			t := result.Issue
 
 			if jsonOutput {
 				out := showOutput{

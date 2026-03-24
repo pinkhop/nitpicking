@@ -8,7 +8,7 @@ import (
 )
 
 func TestE2E_List_TimestampsFlag_ShowsCreatedAt(t *testing.T) {
-	// Given — a database with a ticket.
+	// Given — a database with an issue.
 	dir := initDB(t, "TS")
 	createTask(t, dir, "Timestamped task", "ts-agent")
 
@@ -26,7 +26,7 @@ func TestE2E_List_TimestampsFlag_ShowsCreatedAt(t *testing.T) {
 }
 
 func TestE2E_Search_TimestampsFlag_ShowsCreatedAt(t *testing.T) {
-	// Given — a database with a ticket.
+	// Given — a database with an issue.
 	dir := initDB(t, "TS")
 	createTask(t, dir, "Searchable timestamped task", "ts-agent")
 
@@ -43,7 +43,7 @@ func TestE2E_Search_TimestampsFlag_ShowsCreatedAt(t *testing.T) {
 }
 
 func TestE2E_List_WithoutTimestamps_NoDateInOutput(t *testing.T) {
-	// Given — a database with a ticket.
+	// Given — a database with an issue.
 	dir := initDB(t, "TS")
 	createTask(t, dir, "No timestamp task", "ts-agent")
 

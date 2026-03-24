@@ -5,75 +5,75 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/domain/history"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/note"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
-// --- Ticket DTOs ---
+// --- Issue DTOs ---
 
-// CreateTicketInput holds the parameters for creating a ticket.
-type CreateTicketInput struct {
-	Role               ticket.Role
+// CreateIssueInput holds the parameters for creating an issue.
+type CreateIssueInput struct {
+	Role               issue.Role
 	Title              string
 	Description        string
 	AcceptanceCriteria string
-	Priority           ticket.Priority
-	ParentID           ticket.ID
-	Facets             []ticket.Facet
+	Priority           issue.Priority
+	ParentID           issue.ID
+	Facets             []issue.Facet
 	Relationships      []RelationshipInput
 	Author             identity.Author
 	Claim              bool
 	IdempotencyKey     string
 }
 
-// RelationshipInput describes a relationship to add during ticket creation
+// RelationshipInput describes a relationship to add during issue creation
 // or update.
 type RelationshipInput struct {
-	Type     ticket.RelationType
-	TargetID ticket.ID
+	Type     issue.RelationType
+	TargetID issue.ID
 }
 
-// CreateTicketOutput holds the result of creating a ticket.
-type CreateTicketOutput struct {
-	Ticket  ticket.Ticket
-	ClaimID string // Non-empty if the ticket was created as claimed.
+// CreateIssueOutput holds the result of creating an issue.
+type CreateIssueOutput struct {
+	Issue   issue.Issue
+	ClaimID string // Non-empty if the issue was created as claimed.
 }
 
-// ClaimInput holds the parameters for claiming a ticket.
+// ClaimInput holds the parameters for claiming an issue.
 type ClaimInput struct {
-	TicketID       ticket.ID
+	IssueID        issue.ID
 	Author         identity.Author
 	AllowSteal     bool
 	StaleThreshold time.Duration
 }
 
-// ClaimOutput holds the result of claiming a ticket.
+// ClaimOutput holds the result of claiming an issue.
 type ClaimOutput struct {
-	ClaimID  string
-	TicketID ticket.ID
-	Stolen   bool
+	ClaimID string
+	IssueID issue.ID
+	Stolen  bool
 }
 
-// ClaimNextReadyInput holds the parameters for claiming the next ready ticket.
+// ClaimNextReadyInput holds the parameters for claiming the next ready issue.
 type ClaimNextReadyInput struct {
 	Author         identity.Author
-	Role           ticket.Role
+	Role           issue.Role
 	FacetFilters   []port.FacetFilter
 	StealIfNeeded  bool
 	StaleThreshold time.Duration
 }
 
-// UpdateTicketInput holds the parameters for updating a claimed ticket.
-type UpdateTicketInput struct {
-	TicketID           ticket.ID
+// UpdateIssueInput holds the parameters for updating a claimed issue.
+type UpdateIssueInput struct {
+	IssueID            issue.ID
 	ClaimID            string
 	Title              *string
 	Description        *string
 	AcceptanceCriteria *string
-	Priority           *ticket.Priority
-	ParentID           *ticket.ID
-	FacetSet           []ticket.Facet
+	Priority           *issue.Priority
+	ParentID           *issue.ID
+	FacetSet           []issue.Facet
 	FacetRemove        []string
 	RelationshipAdd    []RelationshipInput
 	RelationshipRemove []RelationshipInput
@@ -82,53 +82,53 @@ type UpdateTicketInput struct {
 
 // OneShotUpdateInput holds the parameters for an atomic claim→update→release.
 type OneShotUpdateInput struct {
-	TicketID           ticket.ID
+	IssueID            issue.ID
 	Author             identity.Author
 	Title              *string
 	Description        *string
 	AcceptanceCriteria *string
-	Priority           *ticket.Priority
-	ParentID           *ticket.ID
-	FacetSet           []ticket.Facet
+	Priority           *issue.Priority
+	ParentID           *issue.ID
+	FacetSet           []issue.Facet
 	FacetRemove        []string
 }
 
 // TransitionInput holds the parameters for a state transition.
 type TransitionInput struct {
-	TicketID ticket.ID
-	ClaimID  string
-	Action   TransitionAction
+	IssueID issue.ID
+	ClaimID string
+	Action  TransitionAction
 }
 
 // TransitionAction identifies the kind of state transition.
 type TransitionAction int
 
 const (
-	// ActionRelease returns the ticket to its default unclaimed state.
+	// ActionRelease returns the issue to its default unclaimed state.
 	ActionRelease TransitionAction = iota + 1
 
 	// ActionClose marks a task as complete. Terminal.
 	ActionClose
 
-	// ActionDefer shelves the ticket.
+	// ActionDefer shelves the issue.
 	ActionDefer
 
-	// ActionWait marks the ticket as externally blocked.
+	// ActionWait marks the issue as externally blocked.
 	ActionWait
 )
 
-// DeleteInput holds the parameters for soft-deleting a ticket.
+// DeleteInput holds the parameters for soft-deleting an issue.
 type DeleteInput struct {
-	TicketID ticket.ID
-	ClaimID  string
+	IssueID issue.ID
+	ClaimID string
 }
 
-// ShowTicketOutput holds the full detail view of a ticket.
-type ShowTicketOutput struct {
-	Ticket        ticket.Ticket
+// ShowIssueOutput holds the full detail view of an issue.
+type ShowIssueOutput struct {
+	Issue         issue.Issue
 	Revision      int
 	Author        identity.Author
-	Relationships []ticket.Relationship
+	Relationships []issue.Relationship
 	IsReady       bool
 	IsComplete    bool // Only meaningful for epics.
 	NoteCount     int
@@ -137,24 +137,24 @@ type ShowTicketOutput struct {
 	ClaimStaleAt  time.Time
 }
 
-// ListTicketsInput holds the parameters for listing tickets.
-type ListTicketsInput struct {
-	Filter  port.TicketFilter
-	OrderBy port.TicketOrderBy
+// ListIssuesInput holds the parameters for listing issues.
+type ListIssuesInput struct {
+	Filter  port.IssueFilter
+	OrderBy port.IssueOrderBy
 	Page    port.PageRequest
 }
 
-// ListTicketsOutput holds the result of listing tickets.
-type ListTicketsOutput struct {
-	Items      []port.TicketListItem
+// ListIssuesOutput holds the result of listing issues.
+type ListIssuesOutput struct {
+	Items      []port.IssueListItem
 	TotalCount int
 }
 
-// SearchTicketsInput holds the parameters for searching tickets.
-type SearchTicketsInput struct {
+// SearchIssuesInput holds the parameters for searching issues.
+type SearchIssuesInput struct {
 	Query        string
-	Filter       port.TicketFilter
-	OrderBy      port.TicketOrderBy
+	Filter       port.IssueFilter
+	OrderBy      port.IssueOrderBy
 	Page         port.PageRequest
 	IncludeNotes bool
 }
@@ -163,9 +163,9 @@ type SearchTicketsInput struct {
 
 // AddNoteInput holds the parameters for adding a note.
 type AddNoteInput struct {
-	TicketID ticket.ID
-	Author   identity.Author
-	Body     string
+	IssueID issue.ID
+	Author  identity.Author
+	Body    string
 }
 
 // AddNoteOutput holds the result of adding a note.
@@ -175,9 +175,9 @@ type AddNoteOutput struct {
 
 // ListNotesInput holds the parameters for listing notes.
 type ListNotesInput struct {
-	TicketID ticket.ID
-	Filter   port.NoteFilter
-	Page     port.PageRequest
+	IssueID issue.ID
+	Filter  port.NoteFilter
+	Page    port.PageRequest
 }
 
 // ListNotesOutput holds the result of listing notes.
@@ -188,19 +188,19 @@ type ListNotesOutput struct {
 
 // SearchNotesInput holds the parameters for searching notes.
 type SearchNotesInput struct {
-	Query    string
-	TicketID ticket.ID // Zero for global search.
-	Filter   port.NoteFilter
-	Page     port.PageRequest
+	Query   string
+	IssueID issue.ID // Zero for global search.
+	Filter  port.NoteFilter
+	Page    port.PageRequest
 }
 
 // --- History DTOs ---
 
 // ListHistoryInput holds the parameters for listing history.
 type ListHistoryInput struct {
-	TicketID ticket.ID
-	Filter   port.HistoryFilter
-	Page     port.PageRequest
+	IssueID issue.ID
+	Filter  port.HistoryFilter
+	Page    port.PageRequest
 }
 
 // ListHistoryOutput holds the result of listing history.
@@ -219,8 +219,8 @@ type DoctorFinding struct {
 	Severity string
 	// Message describes the finding.
 	Message string
-	// TicketIDs lists affected tickets.
-	TicketIDs []string
+	// IssueIDs lists affected issues.
+	IssueIDs []string
 }
 
 // DoctorOutput holds the results of the doctor diagnostic.
@@ -228,12 +228,12 @@ type DoctorOutput struct {
 	Findings []DoctorFinding
 }
 
-// GraphDataOutput holds the data needed to render a ticket graph.
+// GraphDataOutput holds the data needed to render an issue graph.
 type GraphDataOutput struct {
-	// Nodes contains all non-deleted tickets as lightweight projections.
-	Nodes []port.TicketListItem
-	// Relationships contains all relationships for the included tickets.
-	Relationships []ticket.Relationship
+	// Nodes contains all non-deleted issues as lightweight projections.
+	Nodes []port.IssueListItem
+	// Relationships contains all relationships for the included issues.
+	Relationships []issue.Relationship
 }
 
 // GCInput holds the parameters for garbage collection.
@@ -243,6 +243,6 @@ type GCInput struct {
 
 // GCOutput holds the result of garbage collection.
 type GCOutput struct {
-	DeletedTicketsRemoved int
-	ClosedTicketsRemoved  int
+	DeletedIssuesRemoved int
+	ClosedIssuesRemoved  int
 }

@@ -9,13 +9,13 @@ func AgentInstructions() string {
 
 np is the **exclusive** tool for task management in this project. Do not use your platform's built-in task tracking (TodoWrite, TaskCreate, markdown checklists, etc.).
 
-np is local-only — no network, no remote sync, no background daemons. It stores tickets in an embedded SQLite database under the ` + "`.np/`" + ` directory.
+np is local-only — no network, no remote sync, no background daemons. It stores issues in an embedded SQLite database under the ` + "`.np/`" + ` directory.
 
 ## Choosing an Author Name
 
 Every mutation requires an ` + "`--author`" + ` flag identifying who is acting. Pick a stable name and reuse it for your entire session. Generate one with ` + "`np agent name`" + ` if you need a fresh identifier.
 
-## Ticket Types
+## Issue Types
 
 | Role | Purpose | How to work on it |
 |------|---------|-------------------|
@@ -29,16 +29,16 @@ An epic is complete when all its children are closed or complete. You never clos
 ### 1. Find work
 
 ` + "```" + `
-np claim ready --author <your-name>   # claim the highest-priority ready ticket
-np list --ready                       # browse all ready tickets without claiming
+np claim ready --author <your-name>   # claim the highest-priority ready issue
+np list --ready                       # browse all ready issues without claiming
 ` + "```" + `
 
-### 2. Work on the ticket
+### 2. Work on the issue
 
 **If you claimed a task:** implement it. Use the claim ID for all updates.
 
 ` + "```" + `
-np update <TICKET-ID> --claim <CLAIM-ID> --title "Revised title"
+np update <ISSUE-ID> --claim <CLAIM-ID> --title "Revised title"
 ` + "```" + `
 
 **If you claimed an epic:** plan and decompose it into child tasks.
@@ -52,13 +52,13 @@ Use ` + "`--parent`" + ` to attach children to the epic. For large epics, decomp
 
 ### 3. Document your work with notes
 
-**Before transitioning state, add a note to the ticket.** Notes record context that the code and commit history cannot capture — your reasoning, trade-offs considered, dead ends explored, or anything a future reader would find useful.
+**Before transitioning state, add a note to the issue.** Notes record context that the code and commit history cannot capture — your reasoning, trade-offs considered, dead ends explored, or anything a future reader would find useful.
 
 ` + "```" + `
-np note add --ticket <TICKET-ID> --body "Approach taken: ..." --author <your-name>
+np note add --issue <ISSUE-ID> --body "Approach taken: ..." --author <your-name>
 ` + "```" + `
 
-Notes do not require claiming and can be added to any ticket, including closed ones.
+Notes do not require claiming and can be added to any issue, including closed ones.
 
 ### 4. Transition state when done
 
@@ -72,16 +72,16 @@ Notes do not require claiming and can be added to any ticket, including closed o
 
 ## Handling Incidentals
 
-If you discover something unrelated to your current ticket (e.g., a failing test, a bug, a missing feature):
+If you discover something unrelated to your current issue (e.g., a failing test, a bug, a missing feature):
 
-1. Search for an existing ticket: ` + "`np search \"description\"`" + `
-2. If none found, create a new ticket: ` + "`np create --role task --title \"...\" --author <your-name>`" + `
+1. Search for an existing issue: ` + "`np search \"description\"`" + `
+2. If none found, create a new issue: ` + "`np create --role task --title \"...\" --author <your-name>`" + `
 3. If the incidental blocks your current work, add a relationship:
-   ` + "`np relate add <YOUR-TICKET> blocked_by <BLOCKER-ID> --author <your-name>`" + `
+   ` + "`np relate add <YOUR-ISSUE> blocked_by <BLOCKER-ID> --author <your-name>`" + `
 
 ## Stale Claims and Stealing
 
-If no ready tickets exist, steal a stale one:
+If no ready issues exist, steal a stale one:
 
 ` + "```" + `
 np claim ready --steal-if-needed --author <your-name>
@@ -91,13 +91,13 @@ np claim ready --steal-if-needed --author <your-name>
 
 ` + "```" + `
 np doctor       # detect cycles, stale claims, epics needing decomposition
-np show <ID>    # full ticket detail including readiness and relationships
+np show <ID>    # full issue detail including readiness and relationships
 np history <ID> # audit trail of all changes
 ` + "```" + `
 
 ## Key Rules
 
-- **Use ` + "`np claim ready`" + ` to find work.** Do not browse and cherry-pick tickets.
+- **Use ` + "`np claim ready`" + ` to find work.** Do not browse and cherry-pick issues.
 - **Document your work.** Add a note before transitioning state — capture reasoning, trade-offs, and findings.
 - **Always transition state when done.** Close, release, or wait — never abandon a claim.
 - **Close is terminal.** Closed tasks cannot be reopened or modified (notes can still be added).

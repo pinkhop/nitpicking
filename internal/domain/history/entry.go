@@ -5,36 +5,36 @@ import (
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
 // EventType identifies the kind of mutation recorded by a history entry.
 type EventType int
 
 const (
-	// EventCreated records ticket creation.
+	// EventCreated records issue creation.
 	EventCreated EventType = iota + 1
 
-	// EventClaimed records a claim being taken on a ticket.
+	// EventClaimed records a claim being taken on an issue.
 	EventClaimed
 
-	// EventReleased records a claim being released (ticket returned to
+	// EventReleased records a claim being released (issue returned to
 	// its default unclaimed state).
 	EventReleased
 
-	// EventUpdated records one or more field changes to a ticket.
+	// EventUpdated records one or more field changes to an issue.
 	EventUpdated
 
 	// EventStateChanged records a state transition (close, defer, wait).
 	EventStateChanged
 
-	// EventDeleted records soft deletion of a ticket.
+	// EventDeleted records soft deletion of an issue.
 	EventDeleted
 
-	// EventRelationshipAdded records a new relationship from this ticket.
+	// EventRelationshipAdded records a new relationship from this issue.
 	EventRelationshipAdded
 
-	// EventRelationshipRemoved records removal of a relationship from this ticket.
+	// EventRelationshipRemoved records removal of a relationship from this issue.
 	EventRelationshipRemoved
 )
 
@@ -76,11 +76,11 @@ type FieldChange struct {
 }
 
 // Entry represents an immutable record of a single mutation transaction on
-// a ticket. Every mutation produces exactly one entry. The revision is the
-// zero-based index within the ticket's history (0 = creation).
+// an issue. Every mutation produces exactly one entry. The revision is the
+// zero-based index within the issue's history (0 = creation).
 type Entry struct {
 	id        int64
-	ticketID  ticket.ID
+	issueID   issue.ID
 	revision  int
 	author    identity.Author
 	timestamp time.Time
@@ -91,7 +91,7 @@ type Entry struct {
 // NewEntryParams holds the parameters for creating a history entry.
 type NewEntryParams struct {
 	ID        int64
-	TicketID  ticket.ID
+	IssueID   issue.ID
 	Revision  int
 	Author    identity.Author
 	Timestamp time.Time
@@ -112,7 +112,7 @@ func NewEntry(p NewEntryParams) Entry {
 
 	return Entry{
 		id:        p.ID,
-		ticketID:  p.TicketID,
+		issueID:   p.IssueID,
 		revision:  p.Revision,
 		author:    p.Author,
 		timestamp: ts,
@@ -124,10 +124,10 @@ func NewEntry(p NewEntryParams) Entry {
 // ID returns the entry's unique identifier.
 func (e Entry) ID() int64 { return e.id }
 
-// TicketID returns the ID of the ticket this entry belongs to.
-func (e Entry) TicketID() ticket.ID { return e.ticketID }
+// IssueID returns the ID of the issue this entry belongs to.
+func (e Entry) IssueID() issue.ID { return e.issueID }
 
-// Revision returns the zero-based revision index within the ticket's history.
+// Revision returns the zero-based revision index within the issue's history.
 func (e Entry) Revision() int { return e.revision }
 
 // Author returns the author of the mutation.

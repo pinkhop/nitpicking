@@ -1,19 +1,19 @@
-package ticket
+package issue
 
 import "fmt"
 
-// RelationType represents the kind of relationship between two tickets.
+// RelationType represents the kind of relationship between two issues.
 type RelationType int
 
 const (
-	// RelBlockedBy indicates the source ticket cannot make progress until
-	// the target ticket is closed.
+	// RelBlockedBy indicates the source issue cannot make progress until
+	// the target issue is closed.
 	RelBlockedBy RelationType = iota + 1
 
 	// RelBlocks is the inverse of RelBlockedBy — the source blocks the target.
 	RelBlocks
 
-	// RelCites indicates the source ticket references the target as relevant
+	// RelCites indicates the source issue references the target as relevant
 	// context.
 	RelCites
 
@@ -63,7 +63,7 @@ func (rt RelationType) Inverse() RelationType {
 	}
 }
 
-// Relationship represents a directional link between two tickets.
+// Relationship represents a directional link between two issues.
 type Relationship struct {
 	sourceID ID
 	targetID ID
@@ -76,7 +76,7 @@ func NewRelationship(sourceID, targetID ID, relType RelationType) (Relationship,
 		return Relationship{}, fmt.Errorf("relationship requires non-zero source and target IDs")
 	}
 	if sourceID == targetID {
-		return Relationship{}, fmt.Errorf("a ticket cannot have a relationship with itself")
+		return Relationship{}, fmt.Errorf("an issue cannot have a relationship with itself")
 	}
 	if relType < RelBlockedBy || relType > RelCitedBy {
 		return Relationship{}, fmt.Errorf("invalid relationship type")
@@ -84,10 +84,10 @@ func NewRelationship(sourceID, targetID ID, relType RelationType) (Relationship,
 	return Relationship{sourceID: sourceID, targetID: targetID, relType: relType}, nil
 }
 
-// SourceID returns the ID of the ticket initiating the relationship.
+// SourceID returns the ID of the issue initiating the relationship.
 func (r Relationship) SourceID() ID { return r.sourceID }
 
-// TargetID returns the ID of the ticket referenced by the relationship.
+// TargetID returns the ID of the issue referenced by the relationship.
 func (r Relationship) TargetID() ID { return r.targetID }
 
 // Type returns the relationship type.

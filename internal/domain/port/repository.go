@@ -7,8 +7,8 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/claim"
 	"github.com/pinkhop/nitpicking/internal/domain/history"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
+	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/note"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // PageRequest specifies keyset pagination parameters for list operations.
@@ -42,40 +42,40 @@ type PageResult struct {
 	TotalCount int
 }
 
-// TicketListItem is a lightweight projection of a ticket for list views.
-type TicketListItem struct {
-	ID        ticket.ID
-	Role      ticket.Role
-	State     ticket.State
-	Priority  ticket.Priority
+// IssueListItem is a lightweight projection of an issue for list views.
+type IssueListItem struct {
+	ID        issue.ID
+	Role      issue.Role
+	State     issue.State
+	Priority  issue.Priority
 	Title     string
-	ParentID  ticket.ID
+	ParentID  issue.ID
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	IsDeleted bool
 }
 
-// TicketFilter defines filtering criteria for ticket list and search.
-type TicketFilter struct {
-	// Role filters by ticket role (zero value means no filter).
-	Role ticket.Role
+// IssueFilter defines filtering criteria for issue list and search.
+type IssueFilter struct {
+	// Role filters by issue role (zero value means no filter).
+	Role issue.Role
 	// States filters by one or more states (empty means no filter).
-	States []ticket.State
-	// Ready filters to only ready tickets when true.
+	States []issue.State
+	// Ready filters to only ready issues when true.
 	Ready bool
 	// ParentID filters to children of a specific epic.
-	ParentID ticket.ID
-	// DescendantsOf recursively filters to all descendants of a ticket.
-	DescendantsOf ticket.ID
-	// AncestorsOf filters to the parent chain of a ticket (up to the root).
-	AncestorsOf ticket.ID
+	ParentID issue.ID
+	// DescendantsOf recursively filters to all descendants of an issue.
+	DescendantsOf issue.ID
+	// AncestorsOf filters to the parent chain of an issue (up to the root).
+	AncestorsOf issue.ID
 	// FacetFilters specifies facet-based filters.
 	FacetFilters []FacetFilter
-	// ExcludeClosed hides closed tickets from results when true. Ignored when
+	// ExcludeClosed hides closed issues from results when true. Ignored when
 	// States explicitly includes StateClosed — an explicit state filter
 	// represents intentional user selection and takes precedence.
 	ExcludeClosed bool
-	// IncludeDeleted includes soft-deleted tickets when true.
+	// IncludeDeleted includes soft-deleted issues when true.
 	IncludeDeleted bool
 }
 
@@ -85,17 +85,17 @@ type FacetFilter struct {
 	Key string
 	// Value is the facet value to match. Empty for wildcard ("key:*").
 	Value string
-	// Negate inverts the filter — exclude tickets matching this facet.
+	// Negate inverts the filter — exclude issues matching this facet.
 	Negate bool
 }
 
-// TicketOrderBy specifies the sort order for ticket listings.
-type TicketOrderBy int
+// IssueOrderBy specifies the sort order for issue listings.
+type IssueOrderBy int
 
 const (
 	// OrderByPriority sorts by priority (highest urgency first), then
 	// creation time as tiebreaker.
-	OrderByPriority TicketOrderBy = iota
+	OrderByPriority IssueOrderBy = iota
 
 	// OrderByCreatedAt sorts by creation time (oldest first).
 	OrderByCreatedAt
@@ -112,8 +112,8 @@ type NoteFilter struct {
 	CreatedAfter time.Time
 	// AfterNoteID filters to notes with ID greater than this.
 	AfterNoteID int64
-	// TicketID scopes the search to a specific ticket (zero = global).
-	TicketID ticket.ID
+	// IssueID scopes the search to a specific issue (zero = global).
+	IssueID issue.ID
 }
 
 // HistoryFilter defines filtering criteria for history listings.
@@ -126,50 +126,50 @@ type HistoryFilter struct {
 	Before time.Time
 }
 
-// TicketRepository defines the persistence interface for tickets.
-type TicketRepository interface {
-	// CreateTicket persists a new ticket. Returns the created ticket.
-	CreateTicket(ctx context.Context, t ticket.Ticket) error
+// IssueRepository defines the persistence interface for issues.
+type IssueRepository interface {
+	// CreateIssue persists a new issue. Returns the created issue.
+	CreateIssue(ctx context.Context, t issue.Issue) error
 
-	// GetTicket retrieves a ticket by ID. Returns domain.ErrNotFound if
+	// GetIssue retrieves an issue by ID. Returns domain.ErrNotFound if
 	// not found or if soft-deleted (unless includeDeleted is true).
-	GetTicket(ctx context.Context, id ticket.ID, includeDeleted bool) (ticket.Ticket, error)
+	GetIssue(ctx context.Context, id issue.ID, includeDeleted bool) (issue.Issue, error)
 
-	// UpdateTicket persists changes to an existing ticket.
-	UpdateTicket(ctx context.Context, t ticket.Ticket) error
+	// UpdateIssue persists changes to an existing issue.
+	UpdateIssue(ctx context.Context, t issue.Issue) error
 
-	// ListTickets returns a filtered, ordered, paginated list of tickets.
-	ListTickets(ctx context.Context, filter TicketFilter, orderBy TicketOrderBy, page PageRequest) ([]TicketListItem, PageResult, error)
+	// ListIssues returns a filtered, ordered, paginated list of issues.
+	ListIssues(ctx context.Context, filter IssueFilter, orderBy IssueOrderBy, page PageRequest) ([]IssueListItem, PageResult, error)
 
-	// SearchTickets performs full-text search on title, description, and
+	// SearchIssues performs full-text search on title, description, and
 	// acceptance criteria.
-	SearchTickets(ctx context.Context, query string, filter TicketFilter, orderBy TicketOrderBy, page PageRequest) ([]TicketListItem, PageResult, error)
+	SearchIssues(ctx context.Context, query string, filter IssueFilter, orderBy IssueOrderBy, page PageRequest) ([]IssueListItem, PageResult, error)
 
 	// GetChildStatuses returns the completion-relevant status of all direct
 	// children of an epic, for deriving epic completion.
-	GetChildStatuses(ctx context.Context, epicID ticket.ID) ([]ticket.ChildStatus, error)
+	GetChildStatuses(ctx context.Context, epicID issue.ID) ([]issue.ChildStatus, error)
 
 	// GetDescendants returns all descendants of an epic (recursively),
 	// with claim status, for recursive deletion checks.
-	GetDescendants(ctx context.Context, epicID ticket.ID) ([]ticket.DescendantInfo, error)
+	GetDescendants(ctx context.Context, epicID issue.ID) ([]issue.DescendantInfo, error)
 
 	// HasChildren reports whether an epic has any children.
-	HasChildren(ctx context.Context, epicID ticket.ID) (bool, error)
+	HasChildren(ctx context.Context, epicID issue.ID) (bool, error)
 
 	// GetAncestorStatuses returns the states of all ancestor epics of a
-	// ticket, walking up the parent chain, for readiness propagation.
-	GetAncestorStatuses(ctx context.Context, id ticket.ID) ([]ticket.AncestorStatus, error)
+	// issue, walking up the parent chain, for readiness propagation.
+	GetAncestorStatuses(ctx context.Context, id issue.ID) ([]issue.AncestorStatus, error)
 
-	// GetParentID returns the parent ID of a ticket (for cycle detection).
-	GetParentID(ctx context.Context, id ticket.ID) (ticket.ID, error)
+	// GetParentID returns the parent ID of an issue (for cycle detection).
+	GetParentID(ctx context.Context, id issue.ID) (issue.ID, error)
 
-	// TicketIDExists reports whether a ticket ID already exists (for
+	// IssueIDExists reports whether an issue ID already exists (for
 	// collision detection during ID generation).
-	TicketIDExists(ctx context.Context, id ticket.ID) (bool, error)
+	IssueIDExists(ctx context.Context, id issue.ID) (bool, error)
 
-	// GetTicketByIdempotencyKey retrieves a ticket by its idempotency key.
-	// Returns domain.ErrNotFound if no ticket exists with that key.
-	GetTicketByIdempotencyKey(ctx context.Context, key string) (ticket.Ticket, error)
+	// GetIssueByIdempotencyKey retrieves an issue by its idempotency key.
+	// Returns domain.ErrNotFound if no issue exists with that key.
+	GetIssueByIdempotencyKey(ctx context.Context, key string) (issue.Issue, error)
 }
 
 // NoteRepository defines the persistence interface for notes.
@@ -180,8 +180,8 @@ type NoteRepository interface {
 	// GetNote retrieves a note by ID. Returns domain.ErrNotFound if not found.
 	GetNote(ctx context.Context, id int64) (note.Note, error)
 
-	// ListNotes returns notes for a ticket with optional filters.
-	ListNotes(ctx context.Context, ticketID ticket.ID, filter NoteFilter, page PageRequest) ([]note.Note, PageResult, error)
+	// ListNotes returns notes for an issue with optional filters.
+	ListNotes(ctx context.Context, issueID issue.ID, filter NoteFilter, page PageRequest) ([]note.Note, PageResult, error)
 
 	// SearchNotes performs full-text search on note bodies.
 	SearchNotes(ctx context.Context, query string, filter NoteFilter, page PageRequest) ([]note.Note, PageResult, error)
@@ -192,15 +192,15 @@ type ClaimRepository interface {
 	// CreateClaim persists a new claim.
 	CreateClaim(ctx context.Context, c claim.Claim) error
 
-	// GetClaimByTicket retrieves the active claim for a ticket.
+	// GetClaimByIssue retrieves the active claim for an issue.
 	// Returns domain.ErrNotFound if no active claim exists.
-	GetClaimByTicket(ctx context.Context, ticketID ticket.ID) (claim.Claim, error)
+	GetClaimByIssue(ctx context.Context, issueID issue.ID) (claim.Claim, error)
 
 	// GetClaimByID retrieves a claim by its claim ID.
 	// Returns domain.ErrNotFound if not found.
 	GetClaimByID(ctx context.Context, claimID string) (claim.Claim, error)
 
-	// InvalidateClaim removes the active claim from a ticket.
+	// InvalidateClaim removes the active claim from an issue.
 	InvalidateClaim(ctx context.Context, claimID string) error
 
 	// UpdateClaimLastActivity updates the last activity timestamp on a claim.
@@ -217,36 +217,36 @@ type ClaimRepository interface {
 type RelationshipRepository interface {
 	// CreateRelationship creates a relationship if it does not already exist.
 	// Returns true if created, false if it already existed (idempotent).
-	CreateRelationship(ctx context.Context, rel ticket.Relationship) (bool, error)
+	CreateRelationship(ctx context.Context, rel issue.Relationship) (bool, error)
 
 	// DeleteRelationship removes a relationship if it exists.
 	// Returns true if deleted, false if it did not exist (idempotent).
-	DeleteRelationship(ctx context.Context, sourceID, targetID ticket.ID, relType ticket.RelationType) (bool, error)
+	DeleteRelationship(ctx context.Context, sourceID, targetID issue.ID, relType issue.RelationType) (bool, error)
 
-	// ListRelationships returns all relationships for a ticket (both
+	// ListRelationships returns all relationships for an issue (both
 	// directions).
-	ListRelationships(ctx context.Context, ticketID ticket.ID) ([]ticket.Relationship, error)
+	ListRelationships(ctx context.Context, issueID issue.ID) ([]issue.Relationship, error)
 
 	// GetBlockerStatuses returns the blocker statuses for readiness checks.
-	GetBlockerStatuses(ctx context.Context, ticketID ticket.ID) ([]ticket.BlockerStatus, error)
+	GetBlockerStatuses(ctx context.Context, issueID issue.ID) ([]issue.BlockerStatus, error)
 }
 
 // HistoryRepository defines the persistence interface for history entries.
 type HistoryRepository interface {
-	// AppendHistory adds a history entry for a ticket and returns the
+	// AppendHistory adds a history entry for an issue and returns the
 	// assigned entry ID.
 	AppendHistory(ctx context.Context, entry history.Entry) (int64, error)
 
-	// ListHistory returns history entries for a ticket with optional filters.
-	ListHistory(ctx context.Context, ticketID ticket.ID, filter HistoryFilter, page PageRequest) ([]history.Entry, PageResult, error)
+	// ListHistory returns history entries for an issue with optional filters.
+	ListHistory(ctx context.Context, issueID issue.ID, filter HistoryFilter, page PageRequest) ([]history.Entry, PageResult, error)
 
-	// CountHistory returns the number of history entries for a ticket
+	// CountHistory returns the number of history entries for an issue
 	// (used to compute revision).
-	CountHistory(ctx context.Context, ticketID ticket.ID) (int, error)
+	CountHistory(ctx context.Context, issueID issue.ID) (int, error)
 
-	// GetLatestHistory returns the most recent history entry for a ticket
-	// (used to derive the ticket's current author).
-	GetLatestHistory(ctx context.Context, ticketID ticket.ID) (history.Entry, error)
+	// GetLatestHistory returns the most recent history entry for an issue
+	// (used to derive the issue's current author).
+	GetLatestHistory(ctx context.Context, issueID issue.ID) (history.Entry, error)
 }
 
 // DatabaseRepository defines database-level operations.
@@ -257,15 +257,15 @@ type DatabaseRepository interface {
 	// GetPrefix retrieves the stored prefix.
 	GetPrefix(ctx context.Context) (string, error)
 
-	// GC physically removes deleted (and optionally closed) ticket data.
-	GC(ctx context.Context, includeClosedTickets bool) error
+	// GC physically removes deleted (and optionally closed) issue data.
+	GC(ctx context.Context, includeClosedIssues bool) error
 }
 
 // UnitOfWork represents a transactional scope. All repository operations
 // within a unit of work are atomic — they either all succeed or all fail.
 type UnitOfWork interface {
-	// Tickets returns the ticket repository within this transaction.
-	Tickets() TicketRepository
+	// Issues returns the issue repository within this transaction.
+	Issues() IssueRepository
 
 	// Notes returns the note repository within this transaction.
 	Notes() NoteRepository

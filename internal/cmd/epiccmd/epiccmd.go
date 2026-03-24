@@ -64,6 +64,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Usage: "Epic management commands",
 		Commands: []*cli.Command{
 			newStatusCmd(f),
+			newCloseEligibleCmd(f),
 		},
 	}
 }

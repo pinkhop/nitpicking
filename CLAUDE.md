@@ -205,17 +205,23 @@ np relate remove <ISSUE-ID> blocked_by <BLOCKER-ID> --author <your-name>
 The `rel` command (alias: `r`) provides a structured namespace for relationships:
 
 ```bash
-np rel blocks add --source <ID> --target <BLOCKER-ID> --author <name>    # add blocker
-np rel blocks remove --source <ID> --target <BLOCKER-ID> --author <name> # remove blocker
+np rel add <A> <rel> <B> --author <name>                                  # add any relationship
+np rel add <A> blocked_by <B> --author <name>                             # A is blocked by B
+np rel add <A> blocks <B> --author <name>                                 # A blocks B
+np rel add <A> cites <B> --author <name>                                  # A cites B
+np rel add <A> parent_of <B> --claim <CLAIM-ID> --author <name>          # set B's parent to A (claim on B)
+np rel add <A> child_of <B> --claim <CLAIM-ID> --author <name>           # set A's parent to B (claim on A)
+np rel blocks remove --source <ID> --target <BLOCKER-ID> --author <name>  # remove blocker
 np rel blocks list --issue <ID>                                           # list blocking rels
-np rel cites add --source <ID> --target <REF-ID> --author <name>         # add citation
 np rel cites list --issue <ID>                                            # list citations
-np rel parent detach --issue <ID> --claim <CLAIM-ID>                     # remove parent
+np rel parent detach --issue <ID> --claim <CLAIM-ID>                      # remove parent
 np rel parent children --issue <ID>                                       # list children
 np rel parent tree --issue <ID>                                           # show descendant tree
 np rel list --issue <ID>                                                  # all relationships
 np rel cycles                                                             # detect cycles
 ```
+
+Valid `<rel>` values: `blocked_by`, `blocks`, `cites`, `cited_by`, `parent_of`, `child_of`. The `--claim` flag is only required for `parent_of` and `child_of` (which mutate the child issue's parent field).
 
 ## Comments
 

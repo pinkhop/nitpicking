@@ -18,6 +18,17 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
+// hideSubcommand marks a named subcommand within a parent command as hidden.
+// The command remains functional but is excluded from help output.
+func hideSubcommand(parent *cli.Command, name string) {
+	for _, sub := range parent.Commands {
+		if sub.Name == name {
+			sub.Hidden = true
+			return
+		}
+	}
+}
+
 // FilterRelationships returns only the relationships whose type matches any of
 // the given types. This is the shared filtering logic used by blocks list and
 // cites list.
@@ -34,13 +45,22 @@ func FilterRelationships(rels []issue.Relationship, types ...issue.RelationType)
 // NewCmd constructs the "rel" parent command with subcommands for managing
 // issue relationships by type.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
+	blocksCmd := newBlocksCmd(f)
+	citesCmd := newCitesCmd(f)
+
+	// Hide the old type-specific add/remove subcommands — they still work
+	// but "rel add <A> <rel> <B>" is the preferred interface.
+	hideSubcommand(blocksCmd, "add")
+	hideSubcommand(citesCmd, "add")
+
 	return &cli.Command{
 		Name:    "rel",
 		Aliases: []string{"r"},
 		Usage:   "Manage relationships between issues",
 		Commands: []*cli.Command{
-			newBlocksCmd(f),
-			newCitesCmd(f),
+			newAddCmd(f),
+			blocksCmd,
+			citesCmd,
 			newParentCmd(f),
 			newListCmd(f),
 			newTreeCmd(f),

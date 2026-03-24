@@ -470,10 +470,17 @@ func (r *Repository) CreateRelationship(_ context.Context, rel issue.Relationshi
 	defer r.mu.Unlock()
 
 	for _, existing := range r.relationships {
-		if existing.SourceID() == rel.SourceID() &&
-			existing.TargetID() == rel.TargetID() &&
-			existing.Type() == rel.Type() {
-			return false, nil // Already exists — idempotent.
+		if existing.Type() != rel.Type() {
+			continue
+		}
+		// Exact match.
+		if existing.SourceID() == rel.SourceID() && existing.TargetID() == rel.TargetID() {
+			return false, nil
+		}
+		// For symmetric types, the reverse direction also counts as a match.
+		if rel.Type().IsSymmetric() &&
+			existing.SourceID() == rel.TargetID() && existing.TargetID() == rel.SourceID() {
+			return false, nil
 		}
 	}
 	r.relationships = append(r.relationships, rel)
@@ -485,9 +492,17 @@ func (r *Repository) DeleteRelationship(_ context.Context, sourceID, targetID is
 	defer r.mu.Unlock()
 
 	for i, existing := range r.relationships {
-		if existing.SourceID() == sourceID &&
-			existing.TargetID() == targetID &&
-			existing.Type() == relType {
+		if existing.Type() != relType {
+			continue
+		}
+		// Exact match.
+		if existing.SourceID() == sourceID && existing.TargetID() == targetID {
+			r.relationships = slices.Delete(r.relationships, i, i+1)
+			return true, nil
+		}
+		// For symmetric types, the reverse direction also matches.
+		if relType.IsSymmetric() &&
+			existing.SourceID() == targetID && existing.TargetID() == sourceID {
 			r.relationships = slices.Delete(r.relationships, i, i+1)
 			return true, nil
 		}
@@ -501,8 +516,16 @@ func (r *Repository) ListRelationships(_ context.Context, issueID issue.ID) ([]i
 
 	var rels []issue.Relationship
 	for _, rel := range r.relationships {
-		if rel.SourceID() == issueID || rel.TargetID() == issueID {
+		if rel.SourceID() == issueID {
 			rels = append(rels, rel)
+		} else if rel.TargetID() == issueID {
+			if rel.Type().IsSymmetric() {
+				// Present the symmetric relationship from this issue's perspective.
+				swapped, _ := issue.NewRelationship(issueID, rel.SourceID(), rel.Type())
+				rels = append(rels, swapped)
+			} else {
+				rels = append(rels, rel)
+			}
 		}
 	}
 	return rels, nil

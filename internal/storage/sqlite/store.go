@@ -864,6 +864,26 @@ func (r *claimRepo) scanClaim(query string, args ...any) (claim.Claim, error) {
 type relRepo struct{ conn *sqlite.Conn }
 
 func (r *relRepo) CreateRelationship(_ context.Context, rel issue.Relationship) (bool, error) {
+	// For symmetric types, check if the reverse direction already exists.
+	if rel.Type().IsSymmetric() {
+		var exists bool
+		err := sqlitex.Execute(r.conn,
+			`SELECT 1 FROM relationships WHERE source_id = ? AND target_id = ? AND rel_type = ?`,
+			&sqlitex.ExecOptions{
+				Args: []any{rel.TargetID().String(), rel.SourceID().String(), rel.Type().String()},
+				ResultFunc: func(_ *sqlite.Stmt) error {
+					exists = true
+					return nil
+				},
+			})
+		if err != nil {
+			return false, &domain.DatabaseError{Op: "create relationship", Err: err}
+		}
+		if exists {
+			return false, nil // Reverse direction exists — idempotent.
+		}
+	}
+
 	err := sqlitex.Execute(r.conn, `INSERT OR IGNORE INTO relationships (source_id, target_id, rel_type) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 		Args: []any{rel.SourceID().String(), rel.TargetID().String(), rel.Type().String()},
 	})
@@ -874,9 +894,20 @@ func (r *relRepo) CreateRelationship(_ context.Context, rel issue.Relationship) 
 }
 
 func (r *relRepo) DeleteRelationship(_ context.Context, sourceID, targetID issue.ID, relType issue.RelationType) (bool, error) {
-	err := sqlitex.Execute(r.conn, `DELETE FROM relationships WHERE source_id = ? AND target_id = ? AND rel_type = ?`, &sqlitex.ExecOptions{
-		Args: []any{sourceID.String(), targetID.String(), relType.String()},
-	})
+	query := `DELETE FROM relationships WHERE source_id = ? AND target_id = ? AND rel_type = ?`
+	if relType.IsSymmetric() {
+		// For symmetric types, delete whichever direction is stored.
+		query = `DELETE FROM relationships WHERE rel_type = ? AND ((source_id = ? AND target_id = ?) OR (source_id = ? AND target_id = ?))`
+	}
+
+	var args []any
+	if relType.IsSymmetric() {
+		args = []any{relType.String(), sourceID.String(), targetID.String(), targetID.String(), sourceID.String()}
+	} else {
+		args = []any{sourceID.String(), targetID.String(), relType.String()}
+	}
+
+	err := sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{Args: args})
 	if err != nil {
 		return false, &domain.DatabaseError{Op: "delete relationship", Err: err}
 	}
@@ -885,14 +916,23 @@ func (r *relRepo) DeleteRelationship(_ context.Context, sourceID, targetID issue
 
 func (r *relRepo) ListRelationships(_ context.Context, issueID issue.ID) ([]issue.Relationship, error) {
 	var rels []issue.Relationship
+	id := issueID.String()
 	err := sqlitex.Execute(r.conn, `SELECT source_id, target_id, rel_type FROM relationships WHERE source_id = ? OR target_id = ?`, &sqlitex.ExecOptions{
-		Args: []any{issueID.String(), issueID.String()},
+		Args: []any{id, id},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			src, _ := issue.ParseID(stmt.ColumnText(0))
 			tgt, _ := issue.ParseID(stmt.ColumnText(1))
 			rt, _ := issue.ParseRelationType(stmt.ColumnText(2))
-			rel, _ := issue.NewRelationship(src, tgt, rt)
-			rels = append(rels, rel)
+
+			// For symmetric types where this issue is the target, present the
+			// relationship from this issue's perspective (swap source/target).
+			if rt.IsSymmetric() && tgt == issueID {
+				rel, _ := issue.NewRelationship(issueID, src, rt)
+				rels = append(rels, rel)
+			} else {
+				rel, _ := issue.NewRelationship(src, tgt, rt)
+				rels = append(rels, rel)
+			}
 			return nil
 		},
 	})

@@ -992,6 +992,154 @@ func TestCloseIssue_WithAllChildrenClosed_Succeeds(t *testing.T) {
 	}
 }
 
+// --- Symmetric refs relationships ---
+
+func TestAddRelationship_Refs_AppearsInBothDirections(t *testing.T) {
+	t.Parallel()
+
+	// Given — two tasks exist.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "refs-test")
+
+	aOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task A", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create A: %v", err)
+	}
+	bOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task B", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create B: %v", err)
+	}
+
+	// When — add A refs B.
+	err = svc.AddRelationship(ctx, aOut.Issue.ID(), service.RelationshipInput{
+		Type: issue.RelRefs, TargetID: bOut.Issue.ID(),
+	}, author)
+	if err != nil {
+		t.Fatalf("precondition: add refs: %v", err)
+	}
+
+	// Then — ShowIssue for B should include the refs relationship.
+	showB, err := svc.ShowIssue(ctx, bOut.Issue.ID())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	foundRefs := false
+	for _, rel := range showB.Relationships {
+		if rel.Type() == issue.RelRefs {
+			foundRefs = true
+			// From B's perspective, B is the source and A is the target.
+			if rel.SourceID() != bOut.Issue.ID() || rel.TargetID() != aOut.Issue.ID() {
+				t.Errorf("expected B→refs→A, got %s→refs→%s", rel.SourceID(), rel.TargetID())
+			}
+		}
+	}
+	if !foundRefs {
+		t.Error("expected refs relationship visible from B's side")
+	}
+}
+
+func TestAddRelationship_Refs_Idempotent_BothDirections(t *testing.T) {
+	t.Parallel()
+
+	// Given — A refs B already exists.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "refs-test")
+
+	aOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task A", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+	bOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task B", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+
+	err = svc.AddRelationship(ctx, aOut.Issue.ID(), service.RelationshipInput{
+		Type: issue.RelRefs, TargetID: bOut.Issue.ID(),
+	}, author)
+	if err != nil {
+		t.Fatalf("precondition: add refs: %v", err)
+	}
+
+	// When — add B refs A (reverse direction of same symmetric link).
+	err = svc.AddRelationship(ctx, bOut.Issue.ID(), service.RelationshipInput{
+		Type: issue.RelRefs, TargetID: aOut.Issue.ID(),
+	}, author)
+	// Then — should succeed (idempotent), and only one relationship should exist.
+	if err != nil {
+		t.Fatalf("unexpected error adding reverse refs: %v", err)
+	}
+	showA, err := svc.ShowIssue(ctx, aOut.Issue.ID())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	refsCount := 0
+	for _, rel := range showA.Relationships {
+		if rel.Type() == issue.RelRefs {
+			refsCount++
+		}
+	}
+	if refsCount != 1 {
+		t.Errorf("expected exactly 1 refs relationship from A's side, got %d", refsCount)
+	}
+}
+
+func TestRemoveRelationship_Refs_DeletesEitherDirection(t *testing.T) {
+	t.Parallel()
+
+	// Given — A refs B exists.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "refs-test")
+
+	aOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task A", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+	bOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Task B", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+	err = svc.AddRelationship(ctx, aOut.Issue.ID(), service.RelationshipInput{
+		Type: issue.RelRefs, TargetID: bOut.Issue.ID(),
+	}, author)
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+
+	// When — remove B refs A (reverse of stored direction).
+	err = svc.RemoveRelationship(ctx, bOut.Issue.ID(), service.RelationshipInput{
+		Type: issue.RelRefs, TargetID: aOut.Issue.ID(),
+	}, author)
+	// Then — the relationship should be gone from both sides.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	showA, err := svc.ShowIssue(ctx, aOut.Issue.ID())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, rel := range showA.Relationships {
+		if rel.Type() == issue.RelRefs {
+			t.Error("expected refs relationship to be removed from A's side")
+		}
+	}
+}
+
 // --- Doctor: no-ready-issues analysis ---
 
 func TestDoctor_NoIssues_NoReadinessFinding(t *testing.T) {

@@ -60,8 +60,8 @@ func TestE2E_Update_FacetSetAndRemove(t *testing.T) {
 	// When — set two facets.
 	_, stderr, code := runNP(t, dir, "update", taskID,
 		"--claim", claimID,
-		"--facet-set", "kind:fix",
-		"--facet-set", "area:auth",
+		"--facet", "kind:fix",
+		"--facet", "area:auth",
 		"--json",
 	)
 	if code != 0 {

@@ -26,6 +26,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/transition"
 	"github.com/pinkhop/nitpicking/internal/cmd/update"
 	"github.com/pinkhop/nitpicking/internal/cmd/version"
+	"github.com/pinkhop/nitpicking/internal/cmd/welcome"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 )
 
@@ -65,6 +66,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			version.NewCmd(f),
 			cmdinit.NewCmd(f),
 			agent.NewCmd(f),
+			welcome.NewCmd(f),
 
 			// Ticket lifecycle.
 			create.NewCmd(f),

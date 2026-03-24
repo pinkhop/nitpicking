@@ -54,13 +54,19 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				IncludeClosed: includeClosed,
 			}
 
-			svc, err := cmdutil.NewTracker(f)
+			store, err := f.Store()
 			if err != nil {
-				return err
+				return fmt.Errorf("opening database: %w", err)
 			}
+			svc := service.New(store)
 			result, err := svc.GC(ctx, input)
 			if err != nil {
 				return fmt.Errorf("running garbage collection: %w", err)
+			}
+
+			// VACUUM must run outside a transaction to reclaim disk space.
+			if err := store.Vacuum(ctx); err != nil {
+				return fmt.Errorf("running vacuum: %w", err)
 			}
 
 			if jsonOutput {

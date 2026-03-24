@@ -37,7 +37,7 @@ func IsGitIgnored(dir string) bool {
 // (CLAUDE.md or AGENTS.md) exists at the given directory and contains a
 // reference to np.
 func HasAgentInstructions(dir string) bool {
-	candidates := []string{"CLAUDE.md", "AGENTS.md"}
+	candidates := []string{"CLAUDE.md", "AGENTS.md", filepath.Join(".github", "copilot-instructions.md")}
 	for _, name := range candidates {
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {

@@ -85,6 +85,22 @@ func (s *Store) Close() error {
 	return s.pool.Close()
 }
 
+// Vacuum reclaims disk space and defragments the database file. Must be
+// called outside any transaction — takes a connection from the pool, runs
+// VACUUM, and returns it.
+func (s *Store) Vacuum(ctx context.Context) error {
+	conn, err := s.pool.Take(ctx)
+	if err != nil {
+		return &domain.DatabaseError{Op: "take connection for vacuum", Err: err}
+	}
+	defer s.pool.Put(conn)
+
+	if err := sqlitex.Execute(conn, `VACUUM`, nil); err != nil {
+		return &domain.DatabaseError{Op: "vacuum", Err: err}
+	}
+	return nil
+}
+
 // --- Transactor ---
 
 // WithTransaction executes fn within an IMMEDIATE transaction. IMMEDIATE
@@ -188,11 +204,6 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 				return &domain.DatabaseError{Op: q.op, Err: err}
 			}
 		}
-	}
-
-	// Reclaim disk space and defragment after removing rows.
-	if err := sqlitex.Execute(r.conn, `VACUUM`, nil); err != nil {
-		return &domain.DatabaseError{Op: "vacuum", Err: err}
 	}
 
 	return nil

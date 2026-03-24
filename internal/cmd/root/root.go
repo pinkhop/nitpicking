@@ -116,7 +116,6 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				show.NewCmd(f),
 				list.NewCmd(f),
 				search.NewCmd(f),
-				historyview.NewCmd(f),
 			}},
 			{"Annotations", []*cli.Command{
 				relcmd.NewCmd(f),
@@ -134,6 +133,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 	// appear in help output. Use the new subcommand groups instead.
 	deprecated := []*cli.Command{
 		claim.NewCmd(f),
+		historyview.NewCmd(f),
 		doctor.NewCmd(f),
 		gc.NewCmd(f),
 	}

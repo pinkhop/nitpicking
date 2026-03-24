@@ -188,7 +188,7 @@ func TestE2E_TaskLifecycle_ClaimReleaseReclaimClose(t *testing.T) {
 		t.Errorf("expected state 'closed', got %v", issue["state"])
 	}
 
-	histStdout, stderr, code := runNP(t, dir, "history", taskID, "--json")
+	histStdout, stderr, code := runNP(t, dir, "issue", "history", taskID, "--json")
 	if code != 0 {
 		t.Fatalf("history failed (exit %d): %s", code, stderr)
 	}
@@ -511,7 +511,7 @@ func TestE2E_HistoryAuditTrail(t *testing.T) {
 		"--json",
 	)
 
-	histStdout, stderr, code := runNP(t, dir, "history", taskID, "--json")
+	histStdout, stderr, code := runNP(t, dir, "issue", "history", taskID, "--json")
 	if code != 0 {
 		t.Fatalf("history failed (exit %d): %s", code, stderr)
 	}

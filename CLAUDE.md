@@ -283,6 +283,7 @@ np issue reopen <ID> --author <name>                   # reopen a closed issue
 np issue undefer <ID> --author <name>                  # restore a deferred issue
 np issue defer <ID> --claim <CLAIM-ID>                 # defer a claimed issue
 np issue delete <ID> --claim <CLAIM-ID> --confirm      # delete a claimed issue
+np issue history <ID>                                  # audit trail of all changes
 np issue note <ID> --author <name> --body "Note text"  # add a comment (alias: comment)
 np issue orphans                                       # list issues with no parent epic
 ```
@@ -304,7 +305,7 @@ np admin upgrade                       # check for schema upgrades
 ```bash
 np doctor       # detect cycles, deadlocks, stale claims, epics needing decomposition
 np show <ID>    # full issue detail including readiness, relationships, completion
-np history <ID> # audit trail of all changes
+np issue history <ID> # audit trail of all changes
 np admin graph                         # generate Graphviz DOT of all issues and relationships
 np admin graph -o issues.dot           # write to file instead of stdout
 ```

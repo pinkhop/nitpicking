@@ -13,6 +13,7 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmd/done"
+	"github.com/pinkhop/nitpicking/internal/cmd/historyview"
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
 	"github.com/pinkhop/nitpicking/internal/cmd/search"
 	"github.com/pinkhop/nitpicking/internal/cmd/update"
@@ -49,6 +50,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			newUndeferCmd(f),
 			newDeferCmd(f),
 			cmddelete.NewCmd(f),
+			historyview.NewCmd(f),
 			newNoteCmd(f),
 			newOrphansCmd(f),
 		},

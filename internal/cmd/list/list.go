@@ -39,6 +39,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		role          string
 		state         string
 		ready         bool
+		includeClosed bool
 		parent        string
 		descendantsOf string
 		ancestorsOf   string
@@ -73,6 +74,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "ready",
 				Usage:       "Show only ready tickets",
 				Destination: &ready,
+			},
+			&cli.BoolFlag{
+				Name:        "include-closed",
+				Usage:       "Include closed tickets in the output (hidden by default)",
+				Destination: &includeClosed,
 			},
 			&cli.StringFlag{
 				Name:        "parent",
@@ -113,6 +119,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			var filter port.TicketFilter
 			filter.Ready = ready
+			filter.ExcludeClosed = !includeClosed && state == ""
 
 			if role != "" {
 				parsedRole, err := ticket.ParseRole(role)

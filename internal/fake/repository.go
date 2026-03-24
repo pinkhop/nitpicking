@@ -632,6 +632,9 @@ func (r *Repository) matchesFilter(t ticket.Ticket, f port.TicketFilter) bool {
 	if len(f.States) > 0 && !slices.Contains(f.States, t.State()) {
 		return false
 	}
+	if f.ExcludeClosed && len(f.States) == 0 && t.State() == ticket.StateClosed {
+		return false
+	}
 	if !f.ParentID.IsZero() && t.ParentID() != f.ParentID {
 		return false
 	}

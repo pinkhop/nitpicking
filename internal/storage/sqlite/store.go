@@ -1121,6 +1121,10 @@ func buildTicketWhere(filter port.TicketFilter) (string, []any) {
 		conditions = append(conditions, fmt.Sprintf("t.state IN (%s)", strings.Join(placeholders, ",")))
 	}
 
+	if filter.ExcludeClosed && len(filter.States) == 0 {
+		conditions = append(conditions, "t.state != 'closed'")
+	}
+
 	if !filter.ParentID.IsZero() {
 		conditions = append(conditions, "t.parent_id = ?")
 		args = append(args, filter.ParentID.String())

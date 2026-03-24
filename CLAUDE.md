@@ -90,8 +90,12 @@ Every mutation requires an `--author` flag identifying who is acting. Pick a sta
 np claim ready --author <your-name>   # claim the highest-priority ready ticket
 np list --ready                       # browse all ready tickets without claiming
 np list --ready --facet kind:fix      # filter ready tickets by facet
+np list --include-closed              # include closed tickets (hidden by default)
+np list --state closed                # show only closed tickets
 np search "login timeout"             # full-text search across titles and descriptions
 ```
+
+`np list` hides closed tickets by default since they are terminal and no longer actionable. Use `--include-closed` to show them, or `--state closed` to list only closed tickets.
 
 A ticket is **ready** when it is `open` (task) or `active` with no children (epic needing decomposition), has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred` or `waiting`.
 

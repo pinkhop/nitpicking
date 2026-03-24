@@ -531,6 +531,110 @@ func TestListTickets_FilterByReady(t *testing.T) {
 	}
 }
 
+func TestListTickets_ExcludeClosed_HidesClosedTickets(t *testing.T) {
+	t.Parallel()
+
+	// Given: one open task and one closed task.
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+
+	_, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
+		Role:   ticket.RoleTask,
+		Title:  "Open task",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create open task: %v", err)
+	}
+
+	closed, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
+		Role:   ticket.RoleTask,
+		Title:  "Closed task",
+		Author: author,
+		Claim:  true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create closed task: %v", err)
+	}
+	err = svc.TransitionState(t.Context(), service.TransitionInput{
+		TicketID: closed.Ticket.ID(),
+		ClaimID:  closed.ClaimID,
+		Action:   service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close task: %v", err)
+	}
+
+	// When: listing with ExcludeClosed.
+	output, err := svc.ListTickets(t.Context(), service.ListTicketsInput{
+		Filter: port.TicketFilter{ExcludeClosed: true},
+	})
+	// Then: only the open task appears.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.TotalCount != 1 {
+		t.Errorf("expected 1 ticket, got %d", output.TotalCount)
+	}
+	if len(output.Items) == 1 && output.Items[0].Title != "Open task" {
+		t.Errorf("expected Open task, got %q", output.Items[0].Title)
+	}
+}
+
+func TestListTickets_ExcludeClosed_WithExplicitClosedState_ShowsClosed(t *testing.T) {
+	t.Parallel()
+
+	// Given: one open task and one closed task.
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+
+	_, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
+		Role:   ticket.RoleTask,
+		Title:  "Open task",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create open task: %v", err)
+	}
+
+	closed, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
+		Role:   ticket.RoleTask,
+		Title:  "Closed task",
+		Author: author,
+		Claim:  true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create closed task: %v", err)
+	}
+	err = svc.TransitionState(t.Context(), service.TransitionInput{
+		TicketID: closed.Ticket.ID(),
+		ClaimID:  closed.ClaimID,
+		Action:   service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close task: %v", err)
+	}
+
+	// When: ExcludeClosed is set but States explicitly requests closed — States
+	// takes precedence because it represents an explicit user intent.
+	output, err := svc.ListTickets(t.Context(), service.ListTicketsInput{
+		Filter: port.TicketFilter{
+			ExcludeClosed: true,
+			States:        []ticket.State{ticket.StateClosed},
+		},
+	})
+	// Then: only the closed task appears; ExcludeClosed is overridden.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.TotalCount != 1 {
+		t.Errorf("expected 1 ticket, got %d", output.TotalCount)
+	}
+	if len(output.Items) == 1 && output.Items[0].Title != "Closed task" {
+		t.Errorf("expected Closed task, got %q", output.Items[0].Title)
+	}
+}
+
 // --- DeleteTicket ---
 
 func TestDeleteTicket_TaskSucceeds(t *testing.T) {

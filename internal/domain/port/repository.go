@@ -70,6 +70,10 @@ type TicketFilter struct {
 	AncestorsOf ticket.ID
 	// FacetFilters specifies facet-based filters.
 	FacetFilters []FacetFilter
+	// ExcludeClosed hides closed tickets from results when true. Ignored when
+	// States explicitly includes StateClosed — an explicit state filter
+	// represents intentional user selection and takes precedence.
+	ExcludeClosed bool
 	// IncludeDeleted includes soft-deleted tickets when true.
 	IncludeDeleted bool
 }

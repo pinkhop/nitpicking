@@ -218,6 +218,8 @@ np extend <TICKET-ID> --claim <CLAIM-ID> --threshold 4h
 np doctor       # detect cycles, deadlocks, stale claims, epics needing decomposition
 np show <ID>    # full ticket detail including readiness, relationships, completion
 np history <ID> # audit trail of all changes
+np graph        # generate Graphviz DOT of all tickets and relationships
+np graph -o tickets.dot   # write to file instead of stdout
 ```
 
 ## Exit Codes

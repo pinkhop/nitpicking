@@ -15,6 +15,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/edit"
 	"github.com/pinkhop/nitpicking/internal/cmd/extend"
 	"github.com/pinkhop/nitpicking/internal/cmd/gc"
+	"github.com/pinkhop/nitpicking/internal/cmd/graphcmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/historyview"
 	cmdinit "github.com/pinkhop/nitpicking/internal/cmd/init"
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
@@ -86,6 +87,9 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			// Relationships and notes.
 			relate.NewCmd(f),
 			note.NewCmd(f),
+
+			// Visualization.
+			graphcmd.NewCmd(f),
 
 			// Diagnostics and maintenance.
 			doctor.NewCmd(f),

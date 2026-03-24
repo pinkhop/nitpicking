@@ -132,7 +132,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			if result.CommentCount > 0 {
-				_, _ = fmt.Fprintf(w, "Comments: %d\n", result.CommentCount)
+				_, _ = fmt.Fprintf(w, "Comments: %d — %s\n",
+					result.CommentCount,
+					cs.Dim(fmt.Sprintf("np comment list --issue %s", t.ID())))
 			}
 
 			if result.ClaimID != "" {

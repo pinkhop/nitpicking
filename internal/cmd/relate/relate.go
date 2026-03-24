@@ -44,7 +44,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:      "add",
 		Usage:     "Add a relationship between two tickets",
-		ArgsUsage: "<SOURCE> <TYPE> <TARGET>",
+		ArgsUsage: "<SOURCE> <TYPE> <TARGET>\n\n   TYPE must be one of: blocked_by, blocks, cites, cited_by",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -134,7 +134,7 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:      "remove",
 		Usage:     "Remove a relationship between two tickets",
-		ArgsUsage: "<SOURCE> <TYPE> <TARGET>",
+		ArgsUsage: "<SOURCE> <TYPE> <TARGET>\n\n   TYPE must be one of: blocked_by, blocks, cites, cited_by",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",

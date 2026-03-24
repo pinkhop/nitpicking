@@ -3,10 +3,13 @@ package doctor
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 )
 
@@ -48,6 +51,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			if err != nil {
 				return fmt.Errorf("running diagnostics: %w", err)
 			}
+
+			// Run filesystem-level checks that don't require database access.
+			cwd, _ := os.Getwd()
+			result.Findings = append(result.Findings, checkNpInstructionsPresent(cwd)...)
 
 			healthy := len(result.Findings) == 0
 
@@ -91,4 +98,43 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			return nil
 		},
 	}
+}
+
+// instructionFiles lists the agent instruction files to check for np references.
+var instructionFiles = []string{"CLAUDE.md", "AGENTS.md"}
+
+// checkNpInstructionsPresent checks whether at least one agent instruction file
+// (CLAUDE.md or AGENTS.md) exists and contains a reference to np. AI agents
+// need these instructions to know that np is the project's issue tracker.
+func checkNpInstructionsPresent(cwd string) []service.DoctorFinding {
+	var found bool
+	var anyExists bool
+
+	for _, name := range instructionFiles {
+		path := filepath.Join(cwd, name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		anyExists = true
+		if strings.Contains(string(data), "np ") || strings.Contains(string(data), "`np`") {
+			found = true
+			break
+		}
+	}
+
+	if found {
+		return nil
+	}
+
+	msg := "No agent instruction files (CLAUDE.md, AGENTS.md) found — AI agents need np workflow instructions to use the tool effectively. Run 'np agent prime' and paste the output into your agent's instruction file."
+	if anyExists {
+		msg = "Agent instruction files exist but none mention np — AI agents need np workflow instructions to use the tool effectively. Run 'np agent prime' and paste the output into your agent's instruction file."
+	}
+
+	return []service.DoctorFinding{{
+		Category: "instructions",
+		Severity: "warning",
+		Message:  msg,
+	}}
 }

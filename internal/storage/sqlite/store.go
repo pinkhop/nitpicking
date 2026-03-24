@@ -1147,6 +1147,43 @@ func buildTicketWhere(filter port.TicketFilter) (string, []any) {
 		args = append(args, ff.Key)
 	}
 
+	if filter.Ready {
+		// Ready means: correct state, no unresolved blockers, no deferred/waiting
+		// ancestors, and (for epics) no children.
+		//
+		// State: tasks must be open, epics must be active.
+		conditions = append(conditions, `((t.role = 'task' AND t.state = 'open') OR (t.role = 'epic' AND t.state = 'active'))`)
+
+		// Epics with children are already decomposed — not ready.
+		conditions = append(conditions, `(t.role = 'task' OR NOT EXISTS (
+			SELECT 1 FROM tickets c WHERE c.parent_id = t.ticket_id AND c.deleted = 0
+		))`)
+
+		// No unresolved blocked_by relationships. A blocker is resolved if its
+		// target ticket is closed or deleted.
+		conditions = append(conditions, `NOT EXISTS (
+			SELECT 1 FROM relationships r
+			JOIN tickets bt ON r.target_id = bt.ticket_id
+			WHERE r.source_id = t.ticket_id
+			  AND r.rel_type = 'blocked_by'
+			  AND bt.state != 'closed'
+			  AND bt.deleted = 0
+		)`)
+
+		// No ancestor epic is deferred or waiting. Walk the parent chain with
+		// a recursive CTE and reject tickets that have any such ancestor.
+		conditions = append(conditions, `NOT EXISTS (
+			WITH RECURSIVE ancestors(aid) AS (
+				SELECT t.parent_id
+				UNION ALL
+				SELECT p.parent_id FROM tickets p JOIN ancestors a ON p.ticket_id = a.aid WHERE p.parent_id IS NOT NULL
+			)
+			SELECT 1 FROM ancestors a
+			JOIN tickets anc ON anc.ticket_id = a.aid
+			WHERE anc.state IN ('deferred', 'waiting')
+		)`)
+	}
+
 	return "WHERE " + strings.Join(conditions, " AND "), args
 }
 

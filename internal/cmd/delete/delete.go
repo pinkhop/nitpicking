@@ -30,22 +30,24 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Delete a claimed issue",
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the issue",
+				Usage:       "Active claim ID for the issue (required)",
 				Required:    true,
 				Destination: &claimID,
 			},
 			&cli.BoolFlag{
 				Name:        "confirm",
 				Usage:       "Confirm the deletion (required)",
+				Category:    "Options",
 				Destination: &confirm,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

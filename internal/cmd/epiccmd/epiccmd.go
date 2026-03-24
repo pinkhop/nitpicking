@@ -84,20 +84,23 @@ func newStatusCmd(f *cmdutil.Factory) *cli.Command {
 		Usage: "Show completion status for open epics",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
-			&cli.BoolFlag{
 				Name:        "eligible-only",
 				Usage:       "Show only epics eligible for closure",
+				Category:    "Options",
 				Destination: &eligibleOnly,
 			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
 				Usage:       "Show status for a specific epic ID",
+				Category:    "Options",
 				Destination: &issueArg,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

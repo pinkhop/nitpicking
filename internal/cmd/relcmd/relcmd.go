@@ -80,17 +80,18 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "list",
 		Usage: "List all relationships for an issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Issue ID",
+				Usage:       "Issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -127,17 +128,18 @@ func newTreeCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "tree",
 		Usage: "Show the hierarchy tree starting from an issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Root issue ID",
+				Usage:       "Root issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -209,6 +211,7 @@ func newCyclesCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
 				Destination: &jsonOutput,
 			},
 		},

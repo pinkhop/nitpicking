@@ -35,23 +35,25 @@ func newCloseEligibleCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "close-eligible",
 		Usage: "Close all epics whose children are fully resolved",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name (for claiming and commenting)",
+				Usage:       "Author name (for claiming and commenting) (required)",
 				Required:    true,
 				Destination: &author,
 			},
 			&cli.BoolFlag{
 				Name:        "dry-run",
 				Usage:       "List eligible epics without closing them",
+				Category:    "Options",
 				Destination: &dryRun,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

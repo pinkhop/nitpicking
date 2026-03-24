@@ -69,15 +69,10 @@ func newCloseCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Close a claimed issue with a required reason",
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the issue",
+				Usage:       "Active claim ID for the issue (required)",
 				Required:    true,
 				Destination: &claimID,
 			},
@@ -85,16 +80,22 @@ func newCloseCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name for the closing comment",
+				Usage:       "Author name for the closing comment (required)",
 				Required:    true,
 				Destination: &author,
 			},
 			&cli.StringFlag{
 				Name:        "reason",
 				Aliases:     []string{"r"},
-				Usage:       "Reason for closing (added as a comment)",
+				Usage:       "Reason for closing (added as a comment) (required)",
 				Required:    true,
 				Destination: &reason,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -147,18 +148,19 @@ func newReopenCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Reopen closed or deferred issues (transition back to open)",
 		ArgsUsage: "<ISSUE-ID> [ISSUE-ID...]",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name",
+				Usage:       "Author name (required)",
 				Required:    true,
 				Destination: &author,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -216,17 +218,18 @@ func newDeferCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Defer a claimed issue for later",
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the issue",
+				Usage:       "Active claim ID for the issue (required)",
 				Required:    true,
 				Destination: &claimID,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -283,17 +286,18 @@ func newReleaseCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Release a claimed issue without closing",
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the issue",
+				Usage:       "Active claim ID for the issue (required)",
 				Required:    true,
 				Destination: &claimID,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -355,16 +359,11 @@ func newEditCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Atomically claim, update, and release an issue",
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name for the one-shot claim",
+				Usage:       "Author name for the one-shot claim (required)",
 				Required:    true,
 				Destination: &author,
 			},
@@ -372,37 +371,50 @@ func newEditCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "title",
 				Aliases:     []string{"t"},
 				Usage:       "New title",
+				Category:    "Options",
 				Destination: &title,
 			},
 			&cli.StringFlag{
 				Name:        "description",
 				Aliases:     []string{"d"},
 				Usage:       "New description",
+				Category:    "Options",
 				Destination: &description,
 			},
 			&cli.StringFlag{
 				Name:        "acceptance-criteria",
 				Usage:       "New acceptance criteria",
+				Category:    "Options",
 				Destination: &acceptanceCriteria,
 			},
 			&cli.StringFlag{
 				Name:        "priority",
 				Aliases:     []string{"p"},
 				Usage:       "New priority: P0–P4",
+				Category:    "Options",
 				Destination: &priority,
 			},
 			&cli.StringFlag{
 				Name:        "parent",
 				Usage:       "New parent epic ID (empty string to remove parent)",
+				Category:    "Options",
 				Destination: &parent,
 			},
 			&cli.StringSliceFlag{
-				Name:  "dimension",
-				Usage: "Set a dimension in key:value format (repeatable)",
+				Name:     "dimension",
+				Usage:    "Set a dimension in key:value format (repeatable)",
+				Category: "Options",
 			},
 			&cli.StringSliceFlag{
-				Name:  "dimension-remove",
-				Usage: "Remove a dimension by key (repeatable)",
+				Name:     "dimension-remove",
+				Usage:    "Remove a dimension by key (repeatable)",
+				Category: "Options",
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -510,25 +522,26 @@ func newNoteCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Add a note (comment) to an issue",
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name",
+				Usage:       "Author name (required)",
 				Required:    true,
 				Destination: &author,
 			},
 			&cli.StringFlag{
 				Name:        "body",
 				Aliases:     []string{"b", "m"},
-				Usage:       "Note body text",
+				Usage:       "Note body text (required)",
 				Required:    true,
 				Destination: &body,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -592,16 +605,18 @@ func newOrphansCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "orphans",
 		Usage: "List issues that have no parent epic",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
 				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Category:    "Options",
 				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

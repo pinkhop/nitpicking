@@ -66,15 +66,10 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "add",
 		Usage: "Add a comment to an issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"t"},
-				Usage:       "Issue ID",
+				Usage:       "Issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
 			},
@@ -82,16 +77,22 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name",
+				Usage:       "Author name (required)",
 				Required:    true,
 				Destination: &author,
 			},
 			&cli.StringFlag{
 				Name:        "body",
 				Aliases:     []string{"b"},
-				Usage:       "Comment body text",
+				Usage:       "Comment body text (required)",
 				Required:    true,
 				Destination: &body,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -152,6 +153,7 @@ func newShowCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
 				Destination: &jsonOutput,
 			},
 		},
@@ -213,15 +215,10 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 		Aliases: []string{"ls"},
 		Usage:   "List comments for an issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"t"},
-				Usage:       "Issue ID",
+				Usage:       "Issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
 			},
@@ -229,7 +226,14 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "limit",
 				Aliases:     []string{"n"},
 				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Category:    "Options",
 				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -314,22 +318,25 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Search comments by text",
 		ArgsUsage: "<QUERY>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"t"},
 				Usage:       "Scope search to a specific issue ID",
+				Category:    "Options",
 				Destination: &issueArg,
 			},
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
 				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Category:    "Options",
 				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

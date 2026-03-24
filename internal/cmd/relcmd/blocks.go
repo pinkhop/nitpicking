@@ -41,32 +41,33 @@ func newRelAddCmd(f *cmdutil.Factory, typeName string, relType issue.RelationTyp
 		Name:  "add",
 		Usage: fmt.Sprintf("Add a %s relationship", typeName),
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name",
+				Usage:       "Author name (required)",
 				Required:    true,
 				Destination: &author,
 			},
 			&cli.StringFlag{
 				Name:        "source",
 				Aliases:     []string{"s"},
-				Usage:       "Source issue ID",
+				Usage:       "Source issue ID (required)",
 				Required:    true,
 				Destination: &source,
 			},
 			&cli.StringFlag{
 				Name:        "target",
 				Aliases:     []string{"t"},
-				Usage:       "Target issue ID",
+				Usage:       "Target issue ID (required)",
 				Required:    true,
 				Destination: &target,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -132,32 +133,33 @@ func newRelRemoveCmd(f *cmdutil.Factory, typeName string, relType issue.Relation
 		Name:  "remove",
 		Usage: fmt.Sprintf("Remove a %s relationship", typeName),
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name",
+				Usage:       "Author name (required)",
 				Required:    true,
 				Destination: &author,
 			},
 			&cli.StringFlag{
 				Name:        "source",
 				Aliases:     []string{"s"},
-				Usage:       "Source issue ID",
+				Usage:       "Source issue ID (required)",
 				Required:    true,
 				Destination: &source,
 			},
 			&cli.StringFlag{
 				Name:        "target",
 				Aliases:     []string{"t"},
-				Usage:       "Target issue ID",
+				Usage:       "Target issue ID (required)",
 				Required:    true,
 				Destination: &target,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -221,17 +223,18 @@ func newRelTypeListCmd(f *cmdutil.Factory, typeName string, types ...issue.Relat
 		Name:  "list",
 		Usage: fmt.Sprintf("List %s relationships for an issue", typeName),
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Issue ID",
+				Usage:       "Issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

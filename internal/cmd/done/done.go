@@ -91,15 +91,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Close a claimed issue with a required reason",
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the issue",
+				Usage:       "Active claim ID for the issue (required)",
 				Required:    true,
 				Destination: &claimID,
 			},
@@ -107,16 +102,22 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name for the closing comment",
+				Usage:       "Author name for the closing comment (required)",
 				Required:    true,
 				Destination: &author,
 			},
 			&cli.StringFlag{
 				Name:        "reason",
 				Aliases:     []string{"r"},
-				Usage:       "Reason for closing (added as a comment)",
+				Usage:       "Reason for closing (added as a comment) (required)",
 				Required:    true,
 				Destination: &reason,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

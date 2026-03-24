@@ -49,38 +49,39 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "add",
 		Usage: "Set a dimension on a claimed issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Issue ID",
+				Usage:       "Issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
 			},
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the issue",
+				Usage:       "Active claim ID for the issue (required)",
 				Required:    true,
 				Destination: &claimID,
 			},
 			&cli.StringFlag{
 				Name:        "key",
 				Aliases:     []string{"k"},
-				Usage:       "Dimension key",
+				Usage:       "Dimension key (required)",
 				Required:    true,
 				Destination: &key,
 			},
 			&cli.StringFlag{
 				Name:        "value",
 				Aliases:     []string{"v"},
-				Usage:       "Dimension value",
+				Usage:       "Dimension value (required)",
 				Required:    true,
 				Destination: &value,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -140,31 +141,32 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "remove",
 		Usage: "Remove a dimension from a claimed issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Issue ID",
+				Usage:       "Issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
 			},
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the issue",
+				Usage:       "Active claim ID for the issue (required)",
 				Required:    true,
 				Destination: &claimID,
 			},
 			&cli.StringFlag{
 				Name:        "key",
 				Aliases:     []string{"k"},
-				Usage:       "Dimension key to remove",
+				Usage:       "Dimension key to remove (required)",
 				Required:    true,
 				Destination: &key,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -216,17 +218,18 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "list",
 		Usage: "List dimensions for an issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Issue ID",
+				Usage:       "Issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -289,6 +292,7 @@ func newListAllCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
 				Destination: &jsonOutput,
 			},
 		},
@@ -359,15 +363,10 @@ func newPropagateCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "propagate",
 		Usage: "Propagate a dimension from a parent to all descendants",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Parent issue ID",
+				Usage:       "Parent issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
 			},
@@ -375,16 +374,22 @@ func newPropagateCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name (for claiming descendants)",
+				Usage:       "Author name (for claiming descendants) (required)",
 				Required:    true,
 				Destination: &author,
 			},
 			&cli.StringFlag{
 				Name:        "key",
 				Aliases:     []string{"k"},
-				Usage:       "Dimension key to propagate",
+				Usage:       "Dimension key to propagate (required)",
 				Required:    true,
 				Destination: &key,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

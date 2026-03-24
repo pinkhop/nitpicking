@@ -28,6 +28,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
 				Destination: &jsonOutput,
 			},
 		},

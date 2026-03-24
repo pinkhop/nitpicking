@@ -42,16 +42,18 @@ func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "List all children of an epic",
 		ArgsUsage: "<EPIC-ID>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
 				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Category:    "Options",
 				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

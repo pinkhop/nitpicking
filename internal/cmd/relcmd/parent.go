@@ -40,24 +40,25 @@ func newDetachCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "detach",
 		Usage: "Remove the parent from a claimed issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Issue ID",
+				Usage:       "Issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
 			},
 			&cli.StringFlag{
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the issue",
+				Usage:       "Active claim ID for the issue (required)",
 				Required:    true,
 				Destination: &claimID,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -109,17 +110,18 @@ func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "children",
 		Usage: "List direct children of an issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Parent issue ID",
+				Usage:       "Parent issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -190,17 +192,18 @@ func newParentTreeCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "tree",
 		Usage: "Show the full descendant hierarchy of an issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Root issue ID",
+				Usage:       "Root issue ID (required)",
 				Required:    true,
 				Destination: &issueArg,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

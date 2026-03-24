@@ -51,28 +51,31 @@ func newIDCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Claim a specific issue by ID",
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name for the claim",
+				Usage:       "Author name for the claim (required)",
 				Required:    true,
 				Destination: &author,
 			},
 			&cli.BoolFlag{
 				Name:        "steal",
 				Usage:       "Steal the claim from another agent if already claimed",
+				Category:    "Options",
 				Destination: &steal,
 			},
 			&cli.StringFlag{
 				Name:        "stale-threshold",
 				Usage:       "Duration after which the claim becomes stale (e.g., 30m, 1h)",
+				Category:    "Options",
 				Destination: &staleThreshold,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -136,16 +139,11 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "ready",
 		Usage: "Claim the next ready issue",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name for the claim",
+				Usage:       "Author name for the claim (required)",
 				Required:    true,
 				Destination: &author,
 			},
@@ -153,22 +151,32 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "role",
 				Aliases:     []string{"r"},
 				Usage:       "Filter by role: task or epic",
+				Category:    "Options",
 				Destination: &role,
 			},
 			&cli.StringSliceFlag{
-				Name:  "dimension",
-				Usage: "Dimension filter in key:value format (repeatable)",
+				Name:     "dimension",
+				Usage:    "Dimension filter in key:value format (repeatable)",
+				Category: "Options",
 			},
 			&cli.BoolFlag{
 				Name:        "steal-if-needed",
 				Aliases:     []string{"steal"},
 				Usage:       "Fall back to stealing a stale claim if no unclaimed issues are ready",
+				Category:    "Options",
 				Destination: &stealIfNeeded,
 			},
 			&cli.StringFlag{
 				Name:        "stale-threshold",
 				Usage:       "Duration after which the claim becomes stale (e.g., 30m, 1h)",
+				Category:    "Options",
 				Destination: &staleThreshold,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

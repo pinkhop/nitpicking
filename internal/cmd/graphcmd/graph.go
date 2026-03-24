@@ -33,21 +33,24 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "graph",
 		Usage: "Generate a Graphviz DOT graph of issues and relationships",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output DOT content as a JSON string field",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "output",
 				Aliases:     []string{"o"},
 				Usage:       "Write DOT output to a file instead of stdout",
+				Category:    "Options",
 				Destination: &outputFile,
 			},
 			&cli.BoolFlag{
 				Name:        "include-closed",
 				Usage:       "Include closed issues in the graph (hidden by default)",
+				Category:    "Options",
 				Destination: &includeClosed,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output DOT content as a JSON string field",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

@@ -44,14 +44,16 @@ func newResetCmd(f *cmdutil.Factory) *cli.Command {
 		Usage: "Delete the .np/ database (destructive — requires --confirm)",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
-			&cli.BoolFlag{
 				Name:        "confirm",
 				Usage:       "Confirm the reset (required)",
+				Category:    "Options",
 				Destination: &confirm,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -103,6 +105,7 @@ func newUpgradeCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
 				Destination: &jsonOutput,
 			},
 		},

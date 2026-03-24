@@ -51,52 +51,61 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Search issues by text query",
 		ArgsUsage: "<QUERY>",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "role",
 				Aliases:     []string{"r"},
 				Usage:       "Filter by role: task or epic",
+				Category:    "Options",
 				Destination: &role,
 			},
 			&cli.StringFlag{
 				Name:        "state",
 				Aliases:     []string{"s"},
 				Usage:       "Filter by state",
+				Category:    "Options",
 				Destination: &state,
 			},
 			&cli.StringSliceFlag{
-				Name:  "dimension",
-				Usage: "Dimension filter in key:value format (repeatable)",
+				Name:     "dimension",
+				Usage:    "Dimension filter in key:value format (repeatable)",
+				Category: "Options",
 			},
 			&cli.StringFlag{
 				Name:        "order",
 				Usage:       "Sort order: priority, created, modified (default: priority)",
+				Category:    "Options",
 				Destination: &order,
 			},
 			&cli.BoolFlag{
 				Name:        "search-comments",
 				Usage:       "Include comment bodies in the full-text search",
+				Category:    "Options",
 				Destination: &includeNotes,
 			},
 			&cli.BoolFlag{
 				Name:        "timestamps",
 				Usage:       "Include created_at timestamp in text output",
+				Category:    "Options",
 				Destination: &timestamps,
 			},
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
 				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Category:    "Options",
 				Destination: &limit,
 			},
 			&cli.BoolFlag{
 				Name:        "all",
 				Usage:       "Return all results without limit",
+				Category:    "Options",
 				Destination: &all,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

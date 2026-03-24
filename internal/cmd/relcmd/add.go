@@ -163,16 +163,11 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:     "Add a relationship between two issues",
 		ArgsUsage: "<A> <rel> <B>  where <rel> is: " + validRelArgs,
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Destination: &jsonOutput,
-			},
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name",
+				Usage:       "Author name (required)",
 				Required:    true,
 				Destination: &author,
 			},
@@ -180,7 +175,14 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "claim",
 				Sources:     cli.EnvVars("NP_CLAIM"),
 				Usage:       "Claim ID (required for parent_of/child_of)",
+				Category:    "Options",
 				Destination: &claimID,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

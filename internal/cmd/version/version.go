@@ -75,11 +75,13 @@ func NewCmd(f *cmdutil.Factory, runFn ...func(context.Context, *Options) error) 
 			&cli.BoolFlag{
 				Name:        "verbose",
 				Usage:       "Include VCS build metadata (commit, timestamp)",
+				Category:    "Options",
 				Destination: &opts.Verbose,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
 				Destination: &opts.JSON,
 			},
 		},

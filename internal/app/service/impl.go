@@ -610,6 +610,12 @@ func (s *serviceImpl) ShowTicket(ctx context.Context, id ticket.ID) (ShowTicketO
 			output.IsComplete = ticket.IsEpicComplete(children)
 		}
 
+		// Note count.
+		_, noteResult, noteErr := uow.Notes().ListNotes(ctx, id, port.NoteFilter{}, port.PageRequest{PageSize: 1})
+		if noteErr == nil {
+			output.NoteCount = noteResult.TotalCount
+		}
+
 		// Claim info.
 		activeClaim, err := uow.Claims().GetClaimByTicket(ctx, id)
 		if err == nil {

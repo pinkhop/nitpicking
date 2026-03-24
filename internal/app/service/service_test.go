@@ -496,6 +496,42 @@ func TestShowTicket_ReturnsRevisionAndAuthor(t *testing.T) {
 	}
 }
 
+func TestShowTicket_IncludesNoteCount(t *testing.T) {
+	t.Parallel()
+
+	// Given: a ticket with two notes.
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+	created, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
+		Role: ticket.RoleTask, Title: "Task with notes", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create ticket: %v", err)
+	}
+	_, err = svc.AddNote(t.Context(), service.AddNoteInput{
+		TicketID: created.Ticket.ID(), Author: author, Body: "Note one",
+	})
+	if err != nil {
+		t.Fatalf("precondition: add note 1: %v", err)
+	}
+	_, err = svc.AddNote(t.Context(), service.AddNoteInput{
+		TicketID: created.Ticket.ID(), Author: author, Body: "Note two",
+	})
+	if err != nil {
+		t.Fatalf("precondition: add note 2: %v", err)
+	}
+
+	// When
+	show, err := svc.ShowTicket(t.Context(), created.Ticket.ID())
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if show.NoteCount != 2 {
+		t.Errorf("expected NoteCount 2, got %d", show.NoteCount)
+	}
+}
+
 // --- ListTickets ---
 
 func TestListTickets_FilterByReady(t *testing.T) {

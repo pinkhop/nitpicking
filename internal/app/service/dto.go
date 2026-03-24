@@ -131,6 +131,7 @@ type ShowTicketOutput struct {
 	Relationships []ticket.Relationship
 	IsReady       bool
 	IsComplete    bool // Only meaningful for epics.
+	NoteCount     int
 	ClaimID       string
 	ClaimAuthor   string
 	ClaimStaleAt  time.Time

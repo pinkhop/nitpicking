@@ -24,6 +24,7 @@ type showOutput struct {
 	Author             string               `json:"author,omitzero"`
 	IsReady            bool                 `json:"is_ready"`
 	IsComplete         bool                 `json:"is_complete,omitzero"`
+	NoteCount          int                  `json:"note_count,omitzero"`
 	ClaimID            string               `json:"claim_id,omitzero"`
 	ClaimAuthor        string               `json:"claim_author,omitzero"`
 	ClaimStaleAt       string               `json:"claim_stale_at,omitzero"`
@@ -89,6 +90,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					Author:             result.Author.String(),
 					IsReady:            result.IsReady,
 					IsComplete:         result.IsComplete,
+					NoteCount:          result.NoteCount,
 					ClaimID:            result.ClaimID,
 					ClaimAuthor:        result.ClaimAuthor,
 					CreatedAt:          t.CreatedAt().Format(time.RFC3339),
@@ -131,6 +133,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			if result.IsComplete {
 				_, _ = fmt.Fprintf(w, "Complete: %s\n", cs.Green("yes"))
+			}
+
+			if result.NoteCount > 0 {
+				_, _ = fmt.Fprintf(w, "Notes: %d\n", result.NoteCount)
 			}
 
 			if result.ClaimID != "" {

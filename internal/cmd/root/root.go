@@ -15,6 +15,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/create"
 	cmddelete "github.com/pinkhop/nitpicking/internal/cmd/delete"
 	"github.com/pinkhop/nitpicking/internal/cmd/doctor"
+	"github.com/pinkhop/nitpicking/internal/cmd/done"
 	"github.com/pinkhop/nitpicking/internal/cmd/edit"
 	"github.com/pinkhop/nitpicking/internal/cmd/extend"
 	"github.com/pinkhop/nitpicking/internal/cmd/gc"
@@ -40,6 +41,7 @@ import (
 var categoryOrder = []string{
 	"Setup",
 	"Issue Lifecycle",
+	"Workflow",
 	"Query",
 	"Annotations",
 	"Maintenance",
@@ -112,6 +114,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				ready.NewCmd(f),
 				blocked.NewCmd(f),
 				status.NewCmd(f),
+				done.NewCmd(f),
 			}},
 			{"Query", []*cli.Command{
 				show.NewCmd(f),

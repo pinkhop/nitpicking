@@ -137,13 +137,18 @@ np comment add --issue <ISSUE-ID> --body "Approach taken: ..." --author <your-na
 
 ### 5. Transition state when done
 
-Every transition requires the claim ID and ends the claim.
+Use `np done` (alias: `close`) for the common workflow of closing an issue with a reason. It adds a comment and closes in one step:
 
 ```bash
-np state close <ISSUE-ID> --claim <CLAIM-ID>   # complete the task (terminal — cannot reopen)
+np done <ISSUE-ID> --claim <CLAIM-ID> --author <your-name> --reason "Completed: all tests pass."
+```
+
+For other transitions, use the explicit commands:
+
+```bash
 np release <ISSUE-ID> --claim <CLAIM-ID>   # return to open/active without completing
 np state defer <ISSUE-ID> --claim <CLAIM-ID>   # shelve for later
-
+np state close <ISSUE-ID> --claim <CLAIM-ID>   # close without a reason (prefer 'done' instead)
 ```
 
 **Always transition state when you are done.** Abandoned claims block other agents until the stale threshold expires.

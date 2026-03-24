@@ -252,6 +252,7 @@ np epic status --issue <EPIC-ID>       # status for a specific epic
 np epic status --eligible-only         # show only epics ready to close
 np epic close-eligible --author <name> # batch-close all fully-resolved epics
 np epic close-eligible --dry-run --author <name>  # preview without closing
+np epic children <EPIC-ID>             # list all children of an epic
 ```
 
 ## Dimension Subcommand Group

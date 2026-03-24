@@ -65,6 +65,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Commands: []*cli.Command{
 			newStatusCmd(f),
 			newCloseEligibleCmd(f),
+			newChildrenCmd(f),
 		},
 	}
 }

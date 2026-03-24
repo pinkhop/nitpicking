@@ -567,6 +567,130 @@ func TestListTickets_FilterByReady(t *testing.T) {
 	}
 }
 
+func TestBlockedByCompleteEpic_TaskBecomesReady(t *testing.T) {
+	t.Parallel()
+
+	// Given — an epic with one child task (closed), and another task
+	// blocked_by that epic. The epic is "complete" (all children closed)
+	// but never explicitly closed (epics have no closed state).
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "agent-a")
+
+	epicOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
+		Role: ticket.RoleEpic, Title: "Blocker epic", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create epic: %v", err)
+	}
+	epicID := epicOut.Ticket.ID()
+
+	childOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
+		Role: ticket.RoleTask, Title: "Child task", Author: author,
+		ParentID: epicID, Claim: true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create child: %v", err)
+	}
+
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		TicketID: childOut.Ticket.ID(), ClaimID: childOut.ClaimID,
+		Action: service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close child: %v", err)
+	}
+
+	blockedOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
+		Role: ticket.RoleTask, Title: "Blocked task", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create blocked task: %v", err)
+	}
+
+	err = svc.AddRelationship(ctx, blockedOut.Ticket.ID(),
+		service.RelationshipInput{Type: ticket.RelBlockedBy, TargetID: epicID}, author)
+	if err != nil {
+		t.Fatalf("precondition: add blocked_by: %v", err)
+	}
+
+	// When — list ready tickets.
+	listOut, err := svc.ListTickets(ctx, service.ListTicketsInput{
+		Filter: port.TicketFilter{Ready: true},
+	})
+	// Then — the blocked task should appear as ready because its epic
+	// blocker is complete.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, item := range listOut.Items {
+		if item.ID == blockedOut.Ticket.ID() {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected blocked task %s to be ready (epic blocker is complete), but it was not in ready list", blockedOut.Ticket.ID())
+	}
+}
+
+func TestShowTicket_BlockedByCompleteEpic_IsReady(t *testing.T) {
+	t.Parallel()
+
+	// Given — same setup: task blocked by a complete epic.
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "agent-b")
+
+	epicOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
+		Role: ticket.RoleEpic, Title: "Blocker epic", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create epic: %v", err)
+	}
+
+	childOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
+		Role: ticket.RoleTask, Title: "Child task", Author: author,
+		ParentID: epicOut.Ticket.ID(), Claim: true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create child: %v", err)
+	}
+
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		TicketID: childOut.Ticket.ID(), ClaimID: childOut.ClaimID,
+		Action: service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close child: %v", err)
+	}
+
+	blockedOut, err := svc.CreateTicket(ctx, service.CreateTicketInput{
+		Role: ticket.RoleTask, Title: "Blocked task", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create blocked task: %v", err)
+	}
+
+	err = svc.AddRelationship(ctx, blockedOut.Ticket.ID(),
+		service.RelationshipInput{Type: ticket.RelBlockedBy, TargetID: epicOut.Ticket.ID()}, author)
+	if err != nil {
+		t.Fatalf("precondition: add blocked_by: %v", err)
+	}
+
+	// When — show the blocked task.
+	showOut, err := svc.ShowTicket(ctx, blockedOut.Ticket.ID())
+	// Then — the blocked task should be ready.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !showOut.IsReady {
+		t.Error("expected blocked task to be ready when epic blocker is complete")
+	}
+}
+
 func TestListTickets_ExcludeClosed_HidesClosedTickets(t *testing.T) {
 	t.Parallel()
 

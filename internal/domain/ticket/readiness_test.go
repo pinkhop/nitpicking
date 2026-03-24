@@ -192,3 +192,54 @@ func TestIsEpicReady_UnresolvedBlocker_NotReady(t *testing.T) {
 		t.Error("expected not ready with unresolved blocker")
 	}
 }
+
+func TestIsTaskReady_CompleteEpicBlocker_Ready(t *testing.T) {
+	t.Parallel()
+
+	// Given — a blocker that is not closed and not deleted, but is a complete epic.
+	blockers := []ticket.BlockerStatus{
+		{IsClosed: false, IsDeleted: false, IsComplete: true},
+	}
+
+	// When
+	result := ticket.IsTaskReady(ticket.StateOpen, blockers, nil)
+
+	// Then
+	if !result {
+		t.Error("expected ready when epic blocker is complete")
+	}
+}
+
+func TestIsEpicReady_CompleteEpicBlocker_Ready(t *testing.T) {
+	t.Parallel()
+
+	// Given — a blocker that is a complete epic (not closed, not deleted).
+	blockers := []ticket.BlockerStatus{
+		{IsClosed: false, IsDeleted: false, IsComplete: true},
+	}
+
+	// When
+	result := ticket.IsEpicReady(ticket.StateActive, false, blockers, nil)
+
+	// Then
+	if !result {
+		t.Error("expected ready when epic blocker is complete")
+	}
+}
+
+func TestIsTaskReady_IncompleteEpicBlocker_NotReady(t *testing.T) {
+	t.Parallel()
+
+	// Given — a blocker that is an incomplete epic.
+	blockers := []ticket.BlockerStatus{
+		{IsClosed: false, IsDeleted: false, IsComplete: false},
+	}
+
+	// When
+	result := ticket.IsTaskReady(ticket.StateOpen, blockers, nil)
+
+	// Then
+	if result {
+		t.Error("expected not ready when epic blocker is incomplete")
+	}
+}

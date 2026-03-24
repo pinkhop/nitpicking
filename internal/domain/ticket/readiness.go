@@ -6,6 +6,11 @@ type BlockerStatus struct {
 	IsClosed bool
 	// IsDeleted is true if the blocker has been soft-deleted.
 	IsDeleted bool
+	// IsComplete is true if the blocker is a complete epic (all children
+	// closed or recursively complete). Epics have no closed state, so
+	// derived completion is the only way an epic blocker can be resolved
+	// without deletion.
+	IsComplete bool
 }
 
 // AncestorStatus summarizes an ancestor epic's state for readiness propagation.
@@ -18,8 +23,8 @@ type AncestorStatus struct {
 //
 // A task is ready when:
 //  1. Its state is open.
-//  2. It has no unresolved blocked_by relationships (closed or deleted targets
-//     count as resolved).
+//  2. It has no unresolved blocked_by relationships (closed, deleted, or
+//     complete targets count as resolved).
 //  3. No ancestor epic is deferred or waiting.
 func IsTaskReady(state State, blockers []BlockerStatus, ancestors []AncestorStatus) bool {
 	if state != StateOpen {
@@ -27,7 +32,7 @@ func IsTaskReady(state State, blockers []BlockerStatus, ancestors []AncestorStat
 	}
 
 	for _, b := range blockers {
-		if !b.IsClosed && !b.IsDeleted {
+		if !blockerResolved(b) {
 			return false
 		}
 	}
@@ -58,7 +63,7 @@ func IsEpicReady(state State, hasChildren bool, blockers []BlockerStatus, ancest
 	}
 
 	for _, b := range blockers {
-		if !b.IsClosed && !b.IsDeleted {
+		if !blockerResolved(b) {
 			return false
 		}
 	}
@@ -70,4 +75,11 @@ func IsEpicReady(state State, hasChildren bool, blockers []BlockerStatus, ancest
 	}
 
 	return true
+}
+
+// blockerResolved reports whether a blocked_by target is resolved. A blocker
+// is resolved when it has been closed, soft-deleted, or — for epics — derived
+// as complete (all children closed or recursively complete).
+func blockerResolved(b BlockerStatus) bool {
+	return b.IsClosed || b.IsDeleted || b.IsComplete
 }

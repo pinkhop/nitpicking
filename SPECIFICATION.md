@@ -352,7 +352,7 @@ Readiness identifies tickets that can be worked on right now.
 A task is **ready** when all of the following are true:
 
 1. Its state is `open`.
-2. It has no `blocked_by` relationships, **or** every `blocked_by` target has been closed or deleted.
+2. It has no `blocked_by` relationships, **or** every `blocked_by` target has been closed, deleted, or completed (epics only — an epic is complete when all its children are closed or recursively complete; see [6.2](#62-epic-completion-derivation)).
 3. No ancestor epic is `deferred` or `waiting`.
 
 #### Epic Readiness
@@ -361,7 +361,7 @@ An epic is **ready** when all of the following are true:
 
 1. Its state is `active`.
 2. It has **no children** — it needs decomposition into tasks and/or sub-epics.
-3. It has no `blocked_by` relationships, **or** every `blocked_by` target has been closed or deleted.
+3. It has no `blocked_by` relationships, **or** every `blocked_by` target has been closed, deleted, or completed (epics only).
 4. No ancestor epic is `deferred` or `waiting`.
 
 An epic that already has children is not ready — its work is defined; progress comes from completing its descendants.

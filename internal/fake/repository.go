@@ -486,21 +486,7 @@ func (r *Repository) GetBlockerStatuses(_ context.Context, ticketID ticket.ID) (
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var statuses []ticket.BlockerStatus
-	for _, rel := range r.relationships {
-		if rel.SourceID() == ticketID && rel.Type() == ticket.RelBlockedBy {
-			target, ok := r.tickets[rel.TargetID().String()]
-			if !ok {
-				statuses = append(statuses, ticket.BlockerStatus{IsDeleted: true})
-				continue
-			}
-			statuses = append(statuses, ticket.BlockerStatus{
-				IsClosed:  target.State() == ticket.StateClosed,
-				IsDeleted: target.IsDeleted(),
-			})
-		}
-	}
-	return statuses, nil
+	return r.getBlockerStatusesInternal(ticketID), nil
 }
 
 // --- HistoryRepository ---
@@ -695,8 +681,9 @@ func (r *Repository) getBlockerStatusesInternal(ticketID ticket.ID) []ticket.Blo
 				continue
 			}
 			statuses = append(statuses, ticket.BlockerStatus{
-				IsClosed:  target.State() == ticket.StateClosed,
-				IsDeleted: target.IsDeleted(),
+				IsClosed:   target.State() == ticket.StateClosed,
+				IsDeleted:  target.IsDeleted(),
+				IsComplete: target.IsEpic() && r.isEpicCompleteInternal(target.ID()),
 			})
 		}
 	}

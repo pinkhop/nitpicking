@@ -860,14 +860,24 @@ func (r *relRepo) ListRelationships(_ context.Context, ticketID ticket.ID) ([]ti
 func (r *relRepo) GetBlockerStatuses(_ context.Context, ticketID ticket.ID) ([]ticket.BlockerStatus, error) {
 	var statuses []ticket.BlockerStatus
 	err := sqlitex.Execute(r.conn,
-		`SELECT t.state, t.deleted FROM relationships r JOIN tickets t ON r.target_id = t.ticket_id WHERE r.source_id = ? AND r.rel_type = 'blocked_by'`,
+		`SELECT t.state, t.deleted, t.role, t.ticket_id FROM relationships r JOIN tickets t ON r.target_id = t.ticket_id WHERE r.source_id = ? AND r.rel_type = 'blocked_by'`,
 		&sqlitex.ExecOptions{
 			Args: []any{ticketID.String()},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
 				state, _ := ticket.ParseState(stmt.ColumnText(0))
+				deleted := stmt.ColumnInt(1) != 0
+				role, _ := ticket.ParseRole(stmt.ColumnText(2))
+				targetID := stmt.ColumnText(3)
+
+				isComplete := false
+				if role == ticket.RoleEpic {
+					isComplete = r.isEpicComplete(targetID)
+				}
+
 				statuses = append(statuses, ticket.BlockerStatus{
-					IsClosed:  state == ticket.StateClosed,
-					IsDeleted: stmt.ColumnInt(1) != 0,
+					IsClosed:   state == ticket.StateClosed,
+					IsDeleted:  deleted,
+					IsComplete: isComplete,
 				})
 				return nil
 			},
@@ -876,6 +886,48 @@ func (r *relRepo) GetBlockerStatuses(_ context.Context, ticketID ticket.ID) ([]t
 		return nil, &domain.DatabaseError{Op: "get blocker statuses", Err: err}
 	}
 	return statuses, nil
+}
+
+// isEpicComplete recursively derives whether an epic is complete by checking
+// that it has children and all of them are closed (tasks) or complete
+// (sub-epics).
+func (r *relRepo) isEpicComplete(epicID string) bool {
+	type child struct {
+		role  ticket.Role
+		state ticket.State
+		id    string
+	}
+
+	var children []child
+	_ = sqlitex.Execute(r.conn,
+		`SELECT role, state, ticket_id FROM tickets WHERE parent_id = ? AND deleted = 0`,
+		&sqlitex.ExecOptions{
+			Args: []any{epicID},
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				role, _ := ticket.ParseRole(stmt.ColumnText(0))
+				state, _ := ticket.ParseState(stmt.ColumnText(1))
+				children = append(children, child{role: role, state: state, id: stmt.ColumnText(2)})
+				return nil
+			},
+		})
+
+	if len(children) == 0 {
+		return false
+	}
+
+	for _, c := range children {
+		switch c.role {
+		case ticket.RoleTask:
+			if c.state != ticket.StateClosed {
+				return false
+			}
+		case ticket.RoleEpic:
+			if !r.isEpicComplete(c.id) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // --- HistoryRepository ---
@@ -1208,14 +1260,27 @@ func buildTicketWhere(filter port.TicketFilter) (string, []any) {
 		))`)
 
 		// No unresolved blocked_by relationships. A blocker is resolved if its
-		// target ticket is closed or deleted.
+		// target ticket is closed, deleted, or a complete epic (all non-deleted
+		// children closed; checked one level deep — sufficient because the
+		// readiness filter runs on list queries where deep nesting is rare,
+		// and the per-ticket GetBlockerStatuses path handles full recursion).
 		conditions = append(conditions, `NOT EXISTS (
 			SELECT 1 FROM relationships r
 			JOIN tickets bt ON r.target_id = bt.ticket_id
 			WHERE r.source_id = t.ticket_id
 			  AND r.rel_type = 'blocked_by'
-			  AND bt.state != 'closed'
 			  AND bt.deleted = 0
+			  AND bt.state != 'closed'
+			  AND NOT (
+			    bt.role = 'epic'
+			    AND EXISTS (SELECT 1 FROM tickets ec WHERE ec.parent_id = bt.ticket_id AND ec.deleted = 0)
+			    AND NOT EXISTS (
+			      SELECT 1 FROM tickets ec
+			      WHERE ec.parent_id = bt.ticket_id
+			        AND ec.deleted = 0
+			        AND ec.state != 'closed'
+			    )
+			  )
 		)`)
 
 		// No ancestor epic is deferred or waiting. Walk the parent chain with

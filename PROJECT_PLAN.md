@@ -474,42 +474,42 @@ CLI adapter for `ClaimNextReady`. Flags: `--facet` (filter), `--role` (filter), 
 
 ### 5.9 `np update` Command
 
-CLI adapter for claimed update. Flags for each mutable field, `--claim-id` required, `--facet-set`, `--facet-remove`, `--relationship-add`, `--relationship-remove`, `--note`.
+CLI adapter for claimed update. Flags for each mutable field, `--claim` required, `--facet-set`, `--facet-remove`, `--relationship-add`, `--relationship-remove`, `--note`.
 
 - **Depends on:** 3.5, 5.1, 5.2
 - **Package:** `internal/cmd/update`
 
 ### 5.10 `np edit` Command
 
-CLI adapter for one-shot update. Same field flags as `np update` but no `--claim-id`; requires `--author`.
+CLI adapter for one-shot update. Same field flags as `np update` but no `--claim`; requires `--author`.
 
 - **Depends on:** 3.6, 5.1, 5.2
 - **Package:** `internal/cmd/edit`
 
 ### 5.11 `np release`, `np close`, `np defer`, `np wait` Commands
 
-CLI adapters for state transitions. Each requires `--claim-id`. `np close` is tasks only.
+CLI adapters for state transitions. Each requires `--claim`. `np close` is tasks only.
 
 - **Depends on:** 3.7, 5.1, 5.2
 - **Package:** `internal/cmd/transition`
 
 ### 5.12 `np extend` Command
 
-CLI adapter for stale threshold extension. Requires `--claim-id` and new duration.
+CLI adapter for stale threshold extension. Requires `--claim` and new duration.
 
 - **Depends on:** 3.8, 5.1, 5.2
 - **Package:** `internal/cmd/extend`
 
 ### 5.13 `np delete` Command
 
-CLI adapter for soft deletion. Requires `--claim-id` and `--confirm` flag.
+CLI adapter for soft deletion. Requires `--claim` and `--confirm` flag.
 
 - **Depends on:** 3.9, 5.1, 5.2
 - **Package:** `internal/cmd/delete`
 
 ### 5.14 `np relate` Command
 
-CLI adapter for ungated relationship management per §8.4. Subcommands or flags for add/remove. Requires `--author`, source ticket ID, relationship type (`blocks` or `cites`), and target ticket ID. Does not require `--claim-id`.
+CLI adapter for ungated relationship management per §8.4. Subcommands or flags for add/remove. Requires `--author`, source ticket ID, relationship type (`blocks` or `cites`), and target ticket ID. Does not require `--claim`.
 
 - **Depends on:** 3.11, 5.1, 5.2
 - **Package:** `internal/cmd/relate`

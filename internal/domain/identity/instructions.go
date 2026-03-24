@@ -38,7 +38,7 @@ np list --ready                       # browse all ready tickets without claimin
 **If you claimed a task:** implement it. Use the claim ID for all updates.
 
 ` + "```" + `
-np update <TICKET-ID> --claim-id <CLAIM-ID> --title "Revised title"
+np update <TICKET-ID> --claim <CLAIM-ID> --title "Revised title"
 ` + "```" + `
 
 **If you claimed an epic:** plan and decompose it into child tasks.
@@ -56,9 +56,9 @@ Use ` + "`--parent`" + ` to attach children to the epic. For large epics, decomp
 
 | Transition | When to use |
 |------------|-------------|
-| ` + "`np close <ID> --claim-id <CID>`" + ` | Task is complete (terminal — cannot reopen) |
-| ` + "`np release <ID> --claim-id <CID>`" + ` | Epic has been decomposed; or task cannot be completed now |
-| ` + "`np wait <ID> --claim-id <CID>`" + ` | Blocked on a human or stakeholder decision |
+| ` + "`np close <ID> --claim <CID>`" + ` | Task is complete (terminal — cannot reopen) |
+| ` + "`np release <ID> --claim <CID>`" + ` | Epic has been decomposed; or task cannot be completed now |
+| ` + "`np wait <ID> --claim <CID>`" + ` | Blocked on a human or stakeholder decision |
 
 ### 4. Leave notes about your work
 

@@ -38,7 +38,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &jsonOutput,
 			},
 			&cli.StringFlag{
-				Name:        "claim-id",
+				Name:        "claim",
 				Usage:       "Active claim ID",
 				Required:    true,
 				Destination: &claimID,

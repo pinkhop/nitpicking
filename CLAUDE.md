@@ -109,10 +109,10 @@ Persist the claim ID for the duration of your work on that ticket. If you lose i
 ### 3. Update fields
 
 ```bash
-np update <TICKET-ID> --claim-id <CLAIM-ID> --title "Revised title"
-np update <TICKET-ID> --claim-id <CLAIM-ID> --description "More detail"
-np update <TICKET-ID> --claim-id <CLAIM-ID> --priority 1
-np update <TICKET-ID> --claim-id <CLAIM-ID> --facet-set kind:fix
+np update <TICKET-ID> --claim <CLAIM-ID> --title "Revised title"
+np update <TICKET-ID> --claim <CLAIM-ID> --description "More detail"
+np update <TICKET-ID> --claim <CLAIM-ID> --priority 1
+np update <TICKET-ID> --claim <CLAIM-ID> --facet-set kind:fix
 ```
 
 For a quick one-shot edit that does not require holding a claim, use `np edit`:
@@ -126,10 +126,10 @@ np edit <TICKET-ID> --author <your-name> --title "Quick fix"
 Every transition requires the claim ID and ends the claim.
 
 ```bash
-np close   <TICKET-ID> --claim-id <CLAIM-ID>   # complete the task (terminal — cannot reopen)
-np release <TICKET-ID> --claim-id <CLAIM-ID>   # return to open/active without completing
-np defer   <TICKET-ID> --claim-id <CLAIM-ID>   # shelve for later
-np wait    <TICKET-ID> --claim-id <CLAIM-ID>   # blocked on an external dependency
+np close   <TICKET-ID> --claim <CLAIM-ID>   # complete the task (terminal — cannot reopen)
+np release <TICKET-ID> --claim <CLAIM-ID>   # return to open/active without completing
+np defer   <TICKET-ID> --claim <CLAIM-ID>   # shelve for later
+np wait    <TICKET-ID> --claim <CLAIM-ID>   # blocked on an external dependency
 ```
 
 **Always transition state when you are done.** Abandoned claims block other agents until the stale threshold expires.
@@ -196,7 +196,7 @@ np claim id <TICKET-ID> --author <your-name> --steal
 Extend your own claim's threshold if you need more time:
 
 ```bash
-np extend <TICKET-ID> --claim-id <CLAIM-ID> --threshold 4h
+np extend <TICKET-ID> --claim <CLAIM-ID> --threshold 4h
 ```
 
 ## Diagnostics

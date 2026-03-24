@@ -46,7 +46,7 @@ func closeTicket(t *testing.T, dir, ticketID, author string) {
 
 	claimID := claimTicket(t, dir, ticketID, author)
 	_, stderr, code := runNP(t, dir, "close", ticketID,
-		"--claim-id", claimID,
+		"--claim", claimID,
 		"--json",
 	)
 	if code != 0 {
@@ -71,7 +71,7 @@ func deferTicket(t *testing.T, dir, ticketID, author string) {
 
 	claimID := claimTicket(t, dir, ticketID, author)
 	_, stderr, code := runNP(t, dir, "defer", ticketID,
-		"--claim-id", claimID,
+		"--claim", claimID,
 		"--json",
 	)
 	if code != 0 {
@@ -95,7 +95,7 @@ func waitTicket(t *testing.T, dir, ticketID, author string) {
 
 	claimID := claimTicket(t, dir, ticketID, author)
 	_, stderr, code := runNP(t, dir, "wait", ticketID,
-		"--claim-id", claimID,
+		"--claim", claimID,
 		"--json",
 	)
 	if code != 0 {

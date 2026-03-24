@@ -37,7 +37,7 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 				Destination: &jsonOutput,
 			},
 			&cli.StringFlag{
-				Name:        "claim-id",
+				Name:        "claim",
 				Usage:       "Active claim ID for the ticket",
 				Required:    true,
 				Destination: &claimID,

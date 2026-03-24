@@ -71,7 +71,7 @@ func TestE2E_ClaimStealing_OriginalClaimInvalidatedAfterSteal(t *testing.T) {
 
 	// When — agent A attempts to use the original claim to update the ticket.
 	_, _, code = runNP(t, dir, "update", ticketID,
-		"--claim-id", claimA,
+		"--claim", claimA,
 		"--title", "Agent A's update",
 		"--json",
 	)
@@ -155,7 +155,7 @@ func TestE2E_ClaimStealing_StolenClaimAllowsFullLifecycle(t *testing.T) {
 
 	// When — agent B updates the ticket and closes it using the stolen claim.
 	_, stderr, code = runNP(t, dir, "update", ticketID,
-		"--claim-id", claimB,
+		"--claim", claimB,
 		"--title", "Fixed by agent B",
 		"--json",
 	)
@@ -164,7 +164,7 @@ func TestE2E_ClaimStealing_StolenClaimAllowsFullLifecycle(t *testing.T) {
 	}
 
 	_, stderr, code = runNP(t, dir, "close", ticketID,
-		"--claim-id", claimB,
+		"--claim", claimB,
 		"--json",
 	)
 	if code != 0 {

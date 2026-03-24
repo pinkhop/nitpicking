@@ -12,7 +12,7 @@ func TestE2E_Update_AcceptanceCriteriaFlag_RoundTrips(t *testing.T) {
 
 	// When — update with --acceptance-criteria.
 	_, stderr, code := runNP(t, dir, "update", taskID,
-		"--claim-id", claimID,
+		"--claim", claimID,
 		"--acceptance-criteria", "All unit tests pass",
 		"--json",
 	)
@@ -36,7 +36,7 @@ func TestE2E_Update_ParentFlag_ReparentsTicket(t *testing.T) {
 
 	// When — update the task's parent to the epic.
 	_, stderr, code := runNP(t, dir, "update", taskID,
-		"--claim-id", claimID,
+		"--claim", claimID,
 		"--parent", epicID,
 		"--json",
 	)
@@ -59,7 +59,7 @@ func TestE2E_Update_FacetSetAndRemove(t *testing.T) {
 
 	// When — set two facets.
 	_, stderr, code := runNP(t, dir, "update", taskID,
-		"--claim-id", claimID,
+		"--claim", claimID,
 		"--facet-set", "kind:fix",
 		"--facet-set", "area:auth",
 		"--json",
@@ -91,7 +91,7 @@ func TestE2E_Update_FacetSetAndRemove(t *testing.T) {
 
 	// When — remove one facet.
 	_, stderr, code = runNP(t, dir, "update", taskID,
-		"--claim-id", claimID,
+		"--claim", claimID,
 		"--facet-remove", "area",
 		"--json",
 	)
@@ -130,7 +130,7 @@ func TestE2E_Update_NoteFlag_AddsNote(t *testing.T) {
 
 	// When — update with --note to add a note inline.
 	_, stderr, code := runNP(t, dir, "update", taskID,
-		"--claim-id", claimID,
+		"--claim", claimID,
 		"--note", "Progress update: halfway done",
 		"--json",
 	)

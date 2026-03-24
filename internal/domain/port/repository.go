@@ -71,6 +71,9 @@ type IssueFilter struct {
 	AncestorsOf issue.ID
 	// DimensionFilters specifies dimension-based filters.
 	DimensionFilters []DimensionFilter
+	// Blocked filters to issues that have at least one unresolved blocked_by
+	// relationship (target is neither closed nor deleted).
+	Blocked bool
 	// ExcludeClosed hides closed issues from results when true. Ignored when
 	// States explicitly includes StateClosed — an explicit state filter
 	// represents intentional user selection and takes precedence.

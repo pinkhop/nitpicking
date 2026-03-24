@@ -1245,10 +1245,7 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 		))`)
 
 		// No unresolved blocked_by relationships. A blocker is resolved if its
-		// target issue is closed, deleted, or a complete epic (all non-deleted
-		// children closed; checked one level deep — sufficient because the
-		// readiness filter runs on list queries where deep nesting is rare,
-		// and the per-issue GetBlockerStatuses path handles full recursion).
+		// target issue is closed or deleted.
 		conditions = append(conditions, `NOT EXISTS (
 			SELECT 1 FROM relationships r
 			JOIN issues bt ON r.target_id = bt.issue_id
@@ -1256,16 +1253,6 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 			  AND r.rel_type = 'blocked_by'
 			  AND bt.deleted = 0
 			  AND bt.state != 'closed'
-			  AND NOT (
-			    bt.role = 'epic'
-			    AND EXISTS (SELECT 1 FROM issues ec WHERE ec.parent_id = bt.issue_id AND ec.deleted = 0)
-			    AND NOT EXISTS (
-			      SELECT 1 FROM issues ec
-			      WHERE ec.parent_id = bt.issue_id
-			        AND ec.deleted = 0
-			        AND ec.state != 'closed'
-			    )
-			  )
 		)`)
 
 		// No ancestor epic is deferred. Walk the parent chain with
@@ -1279,6 +1266,18 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 			SELECT 1 FROM ancestors a
 			JOIN issues anc ON anc.issue_id = a.aid
 			WHERE anc.state = 'deferred'
+		)`)
+	}
+
+	if filter.Blocked {
+		// Issues with at least one unresolved blocked_by relationship.
+		conditions = append(conditions, `EXISTS (
+			SELECT 1 FROM relationships r
+			JOIN issues bt ON r.target_id = bt.issue_id
+			WHERE r.source_id = t.issue_id
+			  AND r.rel_type = 'blocked_by'
+			  AND bt.deleted = 0
+			  AND bt.state != 'closed'
 		)`)
 	}
 

@@ -631,6 +631,11 @@ func (r *Repository) matchesFilter(t issue.Issue, f port.IssueFilter) bool {
 			return false
 		}
 	}
+	if f.Blocked {
+		if !r.isIssueBlocked(t) {
+			return false
+		}
+	}
 	for _, ff := range f.DimensionFilters {
 		val, exists := t.Dimensions().Get(ff.Key)
 		if ff.Negate {
@@ -661,6 +666,16 @@ func (r *Repository) isIssueReady(t issue.Issue) bool {
 	}
 	hasChildren := r.hasChildrenInternal(t.ID())
 	return issue.IsEpicReady(t.State(), hasChildren, blockers, ancestors)
+}
+
+func (r *Repository) isIssueBlocked(t issue.Issue) bool {
+	blockers := r.getBlockerStatusesInternal(t.ID())
+	for _, b := range blockers {
+		if !b.IsClosed && !b.IsDeleted {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Repository) getBlockerStatusesInternal(issueID issue.ID) []issue.BlockerStatus {

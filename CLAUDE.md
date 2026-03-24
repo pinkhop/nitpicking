@@ -88,8 +88,10 @@ Every mutation requires an `--author` flag identifying who is acting. Pick a sta
 
 ```bash
 np claim ready --author <your-name>   # claim the highest-priority ready issue
-np list --ready                       # browse all ready issues without claiming
-np list --ready --dimension kind:fix      # filter ready issues by dimension
+np ready                              # browse all ready issues without claiming
+np blocked                            # list issues blocked by unresolved dependencies
+np status                             # dashboard with counts by state
+np list --ready --dimension kind:fix  # filter ready issues by dimension
 np list --include-closed              # include closed issues (hidden by default)
 np list --state closed                # show only closed issues
 np search "login timeout"             # full-text search across titles and descriptions

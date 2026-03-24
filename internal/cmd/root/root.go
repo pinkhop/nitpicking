@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/pinkhop/nitpicking/internal/cmd/agent"
+	"github.com/pinkhop/nitpicking/internal/cmd/blocked"
 	"github.com/pinkhop/nitpicking/internal/cmd/claim"
 	"github.com/pinkhop/nitpicking/internal/cmd/comment"
 	"github.com/pinkhop/nitpicking/internal/cmd/create"
@@ -21,9 +22,11 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/historyview"
 	cmdinit "github.com/pinkhop/nitpicking/internal/cmd/init"
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
+	"github.com/pinkhop/nitpicking/internal/cmd/ready"
 	"github.com/pinkhop/nitpicking/internal/cmd/relate"
 	"github.com/pinkhop/nitpicking/internal/cmd/search"
 	"github.com/pinkhop/nitpicking/internal/cmd/show"
+	"github.com/pinkhop/nitpicking/internal/cmd/status"
 	"github.com/pinkhop/nitpicking/internal/cmd/transition"
 	"github.com/pinkhop/nitpicking/internal/cmd/update"
 	"github.com/pinkhop/nitpicking/internal/cmd/version"
@@ -104,6 +107,11 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				cmddelete.NewCmd(f),
 				transition.NewReleaseCmd(f),
 				transition.NewStateCmd(f),
+			}},
+			{"Workflow", []*cli.Command{
+				ready.NewCmd(f),
+				blocked.NewCmd(f),
+				status.NewCmd(f),
 			}},
 			{"Query", []*cli.Command{
 				show.NewCmd(f),

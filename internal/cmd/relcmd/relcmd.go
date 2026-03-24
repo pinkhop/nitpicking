@@ -41,7 +41,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Commands: []*cli.Command{
 			newAddCmd(f),
 			newBlocksCmd(f),
-			newCitesCmd(f),
+			newRefsCmd(f),
 			newParentCmd(f),
 			newListCmd(f),
 			newTreeCmd(f),

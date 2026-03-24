@@ -408,12 +408,12 @@ func TestE2E_RelationshipsAndSearch(t *testing.T) {
 	}
 
 	_, stderr, code = runNP(t, dir, "rel", "add", referenceID,
-		"cites", blockerID,
+		"refs", blockerID,
 		"--author", author,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("relate cites failed (exit %d): %s", code, stderr)
+		t.Fatalf("relate refs failed (exit %d): %s", code, stderr)
 	}
 
 	// Then — the blocked issue shows the relationship and is not ready.

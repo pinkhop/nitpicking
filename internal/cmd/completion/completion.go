@@ -68,7 +68,7 @@ _np() {
             COMPREPLY=($(compgen -W "status close-eligible children" -- "${cur}"))
             ;;
         rel)
-            COMPREPLY=($(compgen -W "add blocks cites parent list tree cycles" -- "${cur}"))
+            COMPREPLY=($(compgen -W "add blocks refs parent list tree cycles" -- "${cur}"))
             ;;
         comment)
             COMPREPLY=($(compgen -W "add list" -- "${cur}"))
@@ -159,7 +159,7 @@ complete -c np -n "__fish_seen_subcommand_from issue" -a "list query update edit
 complete -c np -n "__fish_seen_subcommand_from epic" -a "status close-eligible children"
 
 # rel subcommands.
-complete -c np -n "__fish_seen_subcommand_from rel" -a "add blocks cites parent list tree cycles"
+complete -c np -n "__fish_seen_subcommand_from rel" -a "add blocks refs parent list tree cycles"
 
 # comment subcommands.
 complete -c np -n "__fish_seen_subcommand_from comment" -a "add list"

@@ -193,7 +193,7 @@ Precedence: explicit flags > JSON values > env vars. Dimensions with different k
 Relationships do **not** require claiming.
 
 - `blocked_by` / `blocks` — the issue cannot progress until the blocker is closed.
-- `cites` / `cited_by` — informational reference; does not block.
+- `refs` — symmetric informational reference; does not block.
 
 The `rel` command (alias: `r`) manages relationships between issues:
 
@@ -201,13 +201,13 @@ The `rel` command (alias: `r`) manages relationships between issues:
 np rel add <A> <rel> <B> --author <name>                                  # add any relationship
 np rel add <A> blocked_by <B> --author <name>                             # A is blocked by B
 np rel add <A> blocks <B> --author <name>                                 # A blocks B
-np rel add <A> cites <B> --author <name>                                  # A cites B
+np rel add <A> refs <B> --author <name>                                   # A refs B (symmetric)
 np rel add <A> parent_of <B> --claim <CLAIM-ID> --author <name>          # set B's parent to A (claim on B)
 np rel add <A> child_of <B> --claim <CLAIM-ID> --author <name>           # set A's parent to B (claim on A)
 np rel blocks unblock <A> <B> --author <name>                             # remove blocking between A and B (either direction)
 np rel blocks list <ID>                                                   # list blocking rels
-np rel cites uncite <A> <B> --author <name>                               # remove citation between A and B (either direction)
-np rel cites list <ID>                                                    # list citations
+np rel refs unref <A> <B> --author <name>                                 # remove ref between A and B
+np rel refs list <ID>                                                     # list refs
 np rel parent detach <A> <B> --author <name>                              # detach parent-child (order-independent, no claim needed)
 np rel parent children <ID>                                               # list children
 np rel parent tree <ID>                                                   # show descendant tree
@@ -215,7 +215,7 @@ np rel list <ID>                                                          # all 
 np rel cycles                                                             # detect cycles
 ```
 
-Valid `<rel>` values: `blocked_by`, `blocks`, `cites`, `cited_by`, `parent_of`, `child_of`. The `--claim` flag is only required for `parent_of` and `child_of` (which mutate the child issue's parent field).
+Valid `<rel>` values: `blocked_by`, `blocks`, `refs`, `parent_of`, `child_of`. The `--claim` flag is only required for `parent_of` and `child_of` (which mutate the child issue's parent field). Note: `cites` and `cited_by` are still accepted for backward compatibility but `refs` is preferred.
 
 ## Comments
 

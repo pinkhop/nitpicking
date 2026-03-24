@@ -113,6 +113,12 @@ func TestParseRelArg_ValidTypes_ReturnsExpectedResult(t *testing.T) {
 			wantLabel: "cited_by",
 		},
 		{
+			name:      "refs",
+			input:     "refs",
+			wantType:  relcmd.RelArgRelationship,
+			wantLabel: "refs",
+		},
+		{
 			name:      "parent_of",
 			input:     "parent_of",
 			wantType:  relcmd.RelArgParentOf,
@@ -199,7 +205,7 @@ func TestRunAdd_BlockedBy_CreatesRelationship(t *testing.T) {
 	}
 }
 
-func TestRunAdd_Cites_CreatesRelationship(t *testing.T) {
+func TestRunAdd_Refs_CreatesRelationship(t *testing.T) {
 	t.Parallel()
 
 	// Given: two tasks.
@@ -210,31 +216,31 @@ func TestRunAdd_Cites_CreatesRelationship(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	// When: adding a cites relationship.
+	// When: adding a refs relationship.
 	err := relcmd.RunAdd(t.Context(), relcmd.RunAddInput{
 		Service: svc,
 		A:       taskA,
-		Rel:     "cites",
+		Rel:     "refs",
 		B:       taskB,
 		Author:  author,
 		WriteTo: &buf,
 	})
-	// Then: no error and the relationship exists.
+	// Then: no error and the relationship exists from both sides.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	shown, err := svc.ShowIssue(t.Context(), taskA)
 	if err != nil {
-		t.Fatalf("precondition: show issue failed: %v", err)
+		t.Fatalf("show issue failed: %v", err)
 	}
 	found := false
 	for _, r := range shown.Relationships {
-		if r.Type() == issue.RelCites && r.SourceID() == taskA && r.TargetID() == taskB {
+		if r.Type() == issue.RelRefs && r.SourceID() == taskA && r.TargetID() == taskB {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("cites relationship not found")
+		t.Error("refs relationship not found")
 	}
 }
 

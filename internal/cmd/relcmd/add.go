@@ -18,7 +18,7 @@ type RelArgType int
 
 const (
 	// RelArgRelationship means the argument maps to a standard
-	// AddRelationship call (blocks, blocked_by, cites, cited_by).
+	// AddRelationship call (blocks, blocked_by, cites, cited_by, refs).
 	RelArgRelationship RelArgType = iota + 1
 
 	// RelArgParentOf means A is the parent of B — sets B's parent to A.
@@ -40,7 +40,7 @@ type RelArgResult struct {
 }
 
 // validRelArgs enumerates all accepted <rel> values for help text.
-const validRelArgs = "blocked_by, blocks, cites, cited_by, parent_of, child_of"
+const validRelArgs = "blocked_by, blocks, refs, cites, cited_by, parent_of, child_of"
 
 // ParseRelArg parses a relationship argument string into a dispatch decision.
 // Returns an error if the argument is not one of the six accepted values.

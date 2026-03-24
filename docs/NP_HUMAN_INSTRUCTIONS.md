@@ -88,7 +88,7 @@ and `[accent]` below.
     [accent]np list --ready[/accent]                                      Find available work
     [accent]np claim ready --author <name>[/accent]                       Claim next ready issue
     [accent]np state close <ID> --claim <CLAIM-ID>[/accent]               Complete a task
-    [accent]np doctor[/accent]                                            Run diagnostics
+    [accent]np admin doctor[/accent]                                      Run diagnostics
     [accent]np help[/accent]                                              Full command reference
     [accent]np agent prime[/accent]                                       Agent workflow instructions
 ```

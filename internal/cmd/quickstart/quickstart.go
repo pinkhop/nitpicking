@@ -98,7 +98,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			_, _ = fmt.Fprintf(w, "    %s                                      Find available work\n", cs.Cyan("np list --ready"))
 			_, _ = fmt.Fprintf(w, "    %s                       Claim next ready issue\n", cs.Cyan("np claim ready --author <name>"))
 			_, _ = fmt.Fprintf(w, "    %s  Complete a task\n", cs.Cyan(`np done <ID> --claim <CLAIM-ID> --author <name> --reason "..."`))
-			_, _ = fmt.Fprintf(w, "    %s                                            Run diagnostics\n", cs.Cyan("np doctor"))
+			_, _ = fmt.Fprintf(w, "    %s                                      Run diagnostics\n", cs.Cyan("np admin doctor"))
 			_, _ = fmt.Fprintf(w, "    %s                                              Full command reference\n", cs.Cyan("np help"))
 			_, _ = fmt.Fprintf(w, "    %s                                       Agent workflow instructions\n", cs.Cyan("np agent prime"))
 

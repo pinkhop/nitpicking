@@ -90,9 +90,9 @@ np claim ready --steal-if-needed --author <your-name>
 ## Diagnostics
 
 ` + "```" + `
-np doctor       # detect cycles, stale claims, epics needing decomposition
-np show <ID>    # full issue detail including readiness and relationships
-np history <ID> # audit trail of all changes
+np admin doctor    # detect stale claims, no-ready-issues analysis, suggest unblock actions
+np show <ID>       # full issue detail including readiness and relationships
+np issue history <ID> # audit trail of all changes
 ` + "```" + `
 
 ## Key Rules

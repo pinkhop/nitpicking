@@ -34,6 +34,35 @@ func TestE2E_List_DescendantsOf_ReturnsAllChildren(t *testing.T) {
 	}
 }
 
+func TestE2E_List_AncestorsOf_ReturnsParentChain(t *testing.T) {
+	// Given — a three-level hierarchy: root epic → sub-epic → task.
+	dir := initDB(t, "ANC")
+	author := "ancestry-agent"
+	rootID := createEpic(t, dir, "Root epic", author)
+	subStdout, _, _ := runNP(t, dir, "create",
+		"--role", "epic",
+		"--title", "Sub-epic",
+		"--author", author,
+		"--parent", rootID,
+		"--json",
+	)
+	subID := parseJSON(t, subStdout)["id"].(string)
+	leafID := createTaskWithParent(t, dir, "Leaf task", author, subID)
+
+	// When — list ancestors of the leaf task.
+	stdout, stderr, code := runNP(t, dir, "list", "--ancestors-of", leafID, "--json")
+
+	// Then — both the sub-epic and root epic are returned.
+	if code != 0 {
+		t.Fatalf("list --ancestors-of failed (exit %d): %s", code, stderr)
+	}
+	result := parseJSON(t, stdout)
+	totalCount, ok := result["total_count"].(float64)
+	if !ok || totalCount != 2 {
+		t.Errorf("expected 2 ancestors (sub-epic + root), got %v", result["total_count"])
+	}
+}
+
 func TestE2E_List_DescendantsOf_ComposesWithReady(t *testing.T) {
 	// Given — an epic with a closed child and an open child.
 	dir := initDB(t, "ANC")

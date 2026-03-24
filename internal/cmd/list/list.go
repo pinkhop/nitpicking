@@ -41,6 +41,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		ready         bool
 		parent        string
 		descendantsOf string
+		ancestorsOf   string
 		order         string
 		pageSize      int
 		timestamps    bool
@@ -82,6 +83,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "descendants-of",
 				Usage:       "Recursively list all descendants of the given ticket ID",
 				Destination: &descendantsOf,
+			},
+			&cli.StringFlag{
+				Name:        "ancestors-of",
+				Usage:       "List the parent chain of the given ticket ID up to the root",
+				Destination: &ancestorsOf,
 			},
 			&cli.StringSliceFlag{
 				Name:  "facet",
@@ -138,6 +144,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					return cmdutil.FlagErrorf("invalid descendants-of ID: %s", err)
 				}
 				filter.DescendantsOf = descID
+			}
+
+			if ancestorsOf != "" {
+				ancID, err := ticket.ParseID(ancestorsOf)
+				if err != nil {
+					return cmdutil.FlagErrorf("invalid ancestors-of ID: %s", err)
+				}
+				filter.AncestorsOf = ancID
 			}
 
 			// Parse facet filters.

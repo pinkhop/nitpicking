@@ -640,6 +640,11 @@ func (r *Repository) matchesFilter(t ticket.Ticket, f port.TicketFilter) bool {
 			return false
 		}
 	}
+	if !f.AncestorsOf.IsZero() {
+		if !r.isAncestorOf(t.ID(), f.AncestorsOf) {
+			return false
+		}
+	}
 	if f.Ready {
 		if !r.isTicketReady(t) {
 			return false
@@ -733,6 +738,27 @@ func (r *Repository) isDescendantOf(id ticket.ID, ancestorID ticket.ID) bool {
 			return false
 		}
 		if parentID == ancestorID {
+			return true
+		}
+		visited[parentID.String()] = true
+		current = parentID
+	}
+}
+
+func (r *Repository) isAncestorOf(candidateID ticket.ID, childID ticket.ID) bool {
+	// Walk up from childID; if we hit candidateID, it's an ancestor.
+	current := childID
+	visited := make(map[string]bool)
+	for {
+		t, ok := r.tickets[current.String()]
+		if !ok {
+			return false
+		}
+		parentID := t.ParentID()
+		if parentID.IsZero() || visited[parentID.String()] {
+			return false
+		}
+		if parentID == candidateID {
 			return true
 		}
 		visited[parentID.String()] = true

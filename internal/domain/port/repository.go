@@ -66,6 +66,8 @@ type TicketFilter struct {
 	ParentID ticket.ID
 	// DescendantsOf recursively filters to all descendants of a ticket.
 	DescendantsOf ticket.ID
+	// AncestorsOf filters to the parent chain of a ticket (up to the root).
+	AncestorsOf ticket.ID
 	// FacetFilters specifies facet-based filters.
 	FacetFilters []FacetFilter
 	// IncludeDeleted includes soft-deleted tickets when true.

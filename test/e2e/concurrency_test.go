@@ -197,12 +197,12 @@ func TestE2E_Concurrency_ClaimReadyClaimsDifferentIssues(t *testing.T) {
 }
 
 func TestE2E_Concurrency_ConcurrentNotesOnSameIssue(t *testing.T) {
-	// Given — an issue that two agents will add notes to simultaneously.
-	// Notes do not require claiming, so both should succeed.
+	// Given — an issue that two agents will add comments to simultaneously.
+	// Comments do not require claiming, so both should succeed.
 	dir := initDB(t, "CONC")
 	taskID := createTask(t, dir, "Shared issue", "setup-agent")
 
-	// When — both agents add notes simultaneously.
+	// When — both agents add comments simultaneously.
 	var (
 		wg    sync.WaitGroup
 		codeA int
@@ -212,40 +212,40 @@ func TestE2E_Concurrency_ConcurrentNotesOnSameIssue(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		_, _, codeA = runNPAsync(t, dir, "note", "add",
+		_, _, codeA = runNPAsync(t, dir, "comment", "add",
 			"--issue", taskID,
-			"--body", "Note from alpha",
+			"--body", "Comment from alpha",
 			"--author", "agent-alpha",
 			"--json",
 		)
 	}()
 	go func() {
 		defer wg.Done()
-		_, _, codeB = runNPAsync(t, dir, "note", "add",
+		_, _, codeB = runNPAsync(t, dir, "comment", "add",
 			"--issue", taskID,
-			"--body", "Note from beta",
+			"--body", "Comment from beta",
 			"--author", "agent-beta",
 			"--json",
 		)
 	}()
 	wg.Wait()
 
-	// Then — both notes should be added successfully.
+	// Then — both comments should be added successfully.
 	if codeA != 0 {
-		t.Errorf("agent-alpha note add failed (exit %d)", codeA)
+		t.Errorf("agent-alpha comment add failed (exit %d)", codeA)
 	}
 	if codeB != 0 {
-		t.Errorf("agent-beta note add failed (exit %d)", codeB)
+		t.Errorf("agent-beta comment add failed (exit %d)", codeB)
 	}
 
-	// Verify both notes exist.
-	noteStdout, stderr, code := runNP(t, dir, "note", "list", "--issue", taskID, "--json")
+	// Verify both comments exist.
+	commentStdout, stderr, code := runNP(t, dir, "comment", "list", "--issue", taskID, "--json")
 	if code != 0 {
-		t.Fatalf("note list failed (exit %d): %s", code, stderr)
+		t.Fatalf("comment list failed (exit %d): %s", code, stderr)
 	}
-	noteResult := parseJSON(t, noteStdout)
-	noteCount, ok := noteResult["total_count"].(float64)
+	commentResult := parseJSON(t, commentStdout)
+	noteCount, ok := commentResult["total_count"].(float64)
 	if !ok || noteCount != 2 {
-		t.Errorf("expected 2 notes, got %v", noteResult["total_count"])
+		t.Errorf("expected 2 comments, got %v", commentResult["total_count"])
 	}
 }

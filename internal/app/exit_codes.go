@@ -13,7 +13,7 @@ const (
 	// ExitError indicates a general or unexpected error.
 	ExitError ExitCode = 1
 
-	// ExitNotFound indicates the requested entity (issue, note, etc.)
+	// ExitNotFound indicates the requested entity (issue, comment, etc.)
 	// does not exist.
 	ExitNotFound ExitCode = 2
 

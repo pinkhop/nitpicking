@@ -9,18 +9,18 @@ func TestE2E_AuthorEnvVar_NoteAddUsesNPAUTHOR(t *testing.T) {
 	dir := initDB(t, "AENV")
 	taskID := createTask(t, dir, "Author env test", "setup-agent")
 
-	// When — add a note using NP_AUTHOR env var instead of --author flag.
+	// When — add a comment using NP_AUTHOR env var instead of --author flag.
 	stdout, stderr, code := runNPWithEnv(t, dir,
 		[]string{"NP_AUTHOR=env-author"},
-		"note", "add",
+		"comment", "add",
 		"--issue", taskID,
-		"--body", "Note from env author",
+		"--body", "Comment from env author",
 		"--json",
 	)
 
-	// Then — the note is created with the env-supplied author.
+	// Then — the comment is created with the env-supplied author.
 	if code != 0 {
-		t.Fatalf("note add with NP_AUTHOR failed (exit %d): %s", code, stderr)
+		t.Fatalf("comment add with NP_AUTHOR failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
 	if result["author"] != "env-author" {

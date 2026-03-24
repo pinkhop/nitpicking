@@ -77,8 +77,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &order,
 			},
 			&cli.BoolFlag{
-				Name:        "search-notes",
-				Usage:       "Include note bodies in the full-text search",
+				Name:        "search-comments",
+				Usage:       "Include comment bodies in the full-text search",
 				Destination: &includeNotes,
 			},
 			&cli.BoolFlag{

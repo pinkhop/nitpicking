@@ -1,4 +1,4 @@
-package note_test
+package comment_test
 
 import (
 	"errors"
@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain"
+	"github.com/pinkhop/nitpicking/internal/domain/comment"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
-	"github.com/pinkhop/nitpicking/internal/domain/note"
 )
 
 func mustAuthor(t *testing.T, name string) identity.Author {
@@ -29,7 +29,7 @@ func mustIssueID(t *testing.T) issue.ID {
 	return id
 }
 
-func TestNewNote_ValidParams_Succeeds(t *testing.T) {
+func TestNewComment_ValidParams_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -38,39 +38,39 @@ func TestNewNote_ValidParams_Succeeds(t *testing.T) {
 	now := time.Now()
 
 	// When
-	n, err := note.NewNote(note.NewNoteParams{
+	c, err := comment.NewComment(comment.NewCommentParams{
 		ID:        42,
 		IssueID:   tid,
 		Author:    author,
 		CreatedAt: now,
-		Body:      "This is a note.",
+		Body:      "This is a comment.",
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if n.ID() != 42 {
-		t.Errorf("expected ID 42, got %d", n.ID())
+	if c.ID() != 42 {
+		t.Errorf("expected ID 42, got %d", c.ID())
 	}
-	if n.DisplayID() != "note-42" {
-		t.Errorf("expected note-42, got %s", n.DisplayID())
+	if c.DisplayID() != "comment-42" {
+		t.Errorf("expected comment-42, got %s", c.DisplayID())
 	}
-	if n.IssueID() != tid {
-		t.Errorf("expected issue ID %s, got %s", tid, n.IssueID())
+	if c.IssueID() != tid {
+		t.Errorf("expected issue ID %s, got %s", tid, c.IssueID())
 	}
-	if !n.Author().Equal(author) {
-		t.Errorf("expected author alice, got %s", n.Author())
+	if !c.Author().Equal(author) {
+		t.Errorf("expected author alice, got %s", c.Author())
 	}
-	if n.Body() != "This is a note." {
-		t.Errorf("expected body, got %q", n.Body())
+	if c.Body() != "This is a comment." {
+		t.Errorf("expected body, got %q", c.Body())
 	}
 }
 
-func TestNewNote_EmptyBody_Fails(t *testing.T) {
+func TestNewComment_EmptyBody_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := note.NewNote(note.NewNoteParams{
+	_, err := comment.NewComment(comment.NewCommentParams{
 		IssueID: mustIssueID(t),
 		Author:  mustAuthor(t, "alice"),
 		Body:    "",
@@ -85,11 +85,11 @@ func TestNewNote_EmptyBody_Fails(t *testing.T) {
 	}
 }
 
-func TestNewNote_ZeroIssueID_Fails(t *testing.T) {
+func TestNewComment_ZeroIssueID_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := note.NewNote(note.NewNoteParams{
+	_, err := comment.NewComment(comment.NewCommentParams{
 		Author: mustAuthor(t, "alice"),
 		Body:   "content",
 	})
@@ -100,11 +100,11 @@ func TestNewNote_ZeroIssueID_Fails(t *testing.T) {
 	}
 }
 
-func TestNewNote_ZeroAuthor_Fails(t *testing.T) {
+func TestNewComment_ZeroAuthor_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := note.NewNote(note.NewNoteParams{
+	_, err := comment.NewComment(comment.NewCommentParams{
 		IssueID: mustIssueID(t),
 		Body:    "content",
 	})

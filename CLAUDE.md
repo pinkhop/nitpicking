@@ -60,7 +60,7 @@ The core domain is unit-tested with in-memory fakes for the persistence port —
 ## Domain Model (key concepts)
 
 - **Two issue types:** Epic (organizes children; completion derived) and Task (leaf node; directly stateful). See state machines, claiming, readiness, and all other domain details in `SPECIFICATION.md`.
-- **Claiming gates all mutations.** Bearer-authenticated via random claim IDs. Notes and relationships can be added without claiming.
+- **Claiming gates all mutations.** Bearer-authenticated via random claim IDs. Comments and relationships can be added without claiming.
 - **Issue IDs:** `<PREFIX>-<random>` (e.g., `NP-a3bxr`). Prefix set at db init; random part is 5 lowercase Crockford Base32 characters.
 - **Database discovery:** `np` walks up from `cwd` looking for a `.np/` directory.
 
@@ -125,12 +125,12 @@ For a quick one-shot edit that does not require holding a claim, use `np edit`:
 np edit <ISSUE-ID> --author <your-name> --title "Quick fix"
 ```
 
-### 4. Document your work with notes
+### 4. Document your work with comments
 
-Before transitioning state, add a note capturing your reasoning, trade-offs, findings, or anything a future reader would find useful.
+Before transitioning state, add a comment capturing your reasoning, trade-offs, findings, or anything a future reader would find useful.
 
 ```bash
-np note add --issue <ISSUE-ID> --body "Approach taken: ..." --author <your-name>
+np comment add --issue <ISSUE-ID> --body "Approach taken: ..." --author <your-name>
 ```
 
 ### 5. Transition state when done
@@ -195,14 +195,14 @@ np relate remove <ISSUE-ID> blocked_by <BLOCKER-ID> --author <your-name>
 - `blocked_by` / `blocks` — the issue cannot progress until the blocker is closed.
 - `cites` / `cited_by` — informational reference; does not block.
 
-## Notes
+## Comments
 
-Notes do **not** require claiming and can be added to closed issues.
+Comments do **not** require claiming and can be added to closed issues.
 
 ```bash
-np note add <ISSUE-ID> --body "Found the root cause in auth.go:142" --author <your-name>
-np note list <ISSUE-ID>
-np note search "root cause"
+np comment add <ISSUE-ID> --body "Found the root cause in auth.go:142" --author <your-name>
+np comment list <ISSUE-ID>
+np comment search "root cause"
 ```
 
 ## Stale Claims and Stealing
@@ -250,8 +250,8 @@ Append `--json` to any command for structured, machine-readable output. JSON is 
 ## Key Rules
 
 - **Claim before mutating.** Field updates and state transitions are gated by claiming.
-- **Document your work.** Add a note before transitioning state — capture reasoning, trade-offs, and findings.
+- **Document your work.** Add a comment before transitioning state — capture reasoning, trade-offs, and findings.
 - **Always transition state when done.** Do not abandon claims — release, close, defer, or wait.
-- **Close is terminal.** Closed tasks cannot be reopened, reclaimed, or modified (notes can still be added).
+- **Close is terminal.** Closed tasks cannot be reopened, reclaimed, or modified (comments can still be added).
 - **Epics are never closed directly.** An epic is complete when all its children are resolved.
 - **Use `np` exclusively.** Do not track work outside of `np`.

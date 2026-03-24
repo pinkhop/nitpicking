@@ -37,16 +37,16 @@ CREATE TABLE IF NOT EXISTS dimensions (
     PRIMARY KEY (issue_id, key)
 ) WITHOUT ROWID;
 
--- Notes table.
-CREATE TABLE IF NOT EXISTS notes (
-    note_id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    issue_id  TEXT NOT NULL REFERENCES issues(issue_id),
+-- Comments table.
+CREATE TABLE IF NOT EXISTS comments (
+    comment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_id   TEXT NOT NULL REFERENCES issues(issue_id),
     author     TEXT NOT NULL,
     created_at TEXT NOT NULL,
     body       TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_notes_issue ON notes(issue_id);
+CREATE INDEX IF NOT EXISTS idx_comments_issue ON comments(issue_id);
 
 -- Claims table.
 CREATE TABLE IF NOT EXISTS claims (
@@ -92,9 +92,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS issues_fts USING fts5(
     acceptance_criteria
 );
 
--- Full-text search for notes (standalone).
-CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
-    note_id,
+-- Full-text search for comments (standalone).
+CREATE VIRTUAL TABLE IF NOT EXISTS comments_fts USING fts5(
+    comment_id,
     body
 );
 `

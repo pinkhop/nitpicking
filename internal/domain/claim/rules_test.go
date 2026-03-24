@@ -132,15 +132,15 @@ func TestValidateClaim_NotStaleButStealRequested_Fails(t *testing.T) {
 	}
 }
 
-func TestStealNote_FormatsCorrectly(t *testing.T) {
+func TestStealComment_FormatsCorrectly(t *testing.T) {
 	t.Parallel()
 
 	// When
-	note := claim.StealNote("alice")
+	comment := claim.StealComment("alice")
 
 	// Then
 	expected := `Stolen from "alice".`
-	if note != expected {
-		t.Errorf("expected %q, got %q", expected, note)
+	if comment != expected {
+		t.Errorf("expected %q, got %q", expected, comment)
 	}
 }

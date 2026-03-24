@@ -1,4 +1,4 @@
-package note
+package comment
 
 import (
 	"context"
@@ -16,34 +16,34 @@ import (
 
 // --- JSON output types ---
 
-// addNoteOutput is the JSON representation of the note add result.
-type addNoteOutput struct {
-	NoteID  string `json:"note_id"`
-	IssueID string `json:"issue_id"`
-	Author  string `json:"author"`
+// addCommentOutput is the JSON representation of the comment add result.
+type addCommentOutput struct {
+	CommentID string `json:"comment_id"`
+	IssueID   string `json:"issue_id"`
+	Author    string `json:"author"`
 }
 
-// noteOutput is the JSON representation of a single note.
-type noteOutput struct {
-	NoteID    string `json:"note_id"`
+// commentOutput is the JSON representation of a single comment.
+type commentOutput struct {
+	CommentID string `json:"comment_id"`
 	IssueID   string `json:"issue_id"`
 	Author    string `json:"author"`
 	Body      string `json:"body"`
 	CreatedAt string `json:"created_at"`
 }
 
-// noteListOutput is the JSON representation of a note listing.
-type noteListOutput struct {
-	Notes      []noteOutput `json:"notes"`
-	TotalCount int          `json:"total_count"`
+// commentListOutput is the JSON representation of a comment listing.
+type commentListOutput struct {
+	Comments   []commentOutput `json:"comments"`
+	TotalCount int             `json:"total_count"`
 }
 
-// NewCmd constructs the "note" command with add, show, list, and search
-// subcommands for managing issue notes.
+// NewCmd constructs the "comment" command with add, show, list, and search
+// subcommands for managing issue comments.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
-		Name:  "note",
-		Usage: "Manage issue notes",
+		Name:  "comment",
+		Usage: "Manage issue comments",
 		Commands: []*cli.Command{
 			newAddCmd(f),
 			newShowCmd(f),
@@ -53,7 +53,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newAddCmd constructs the "note add" subcommand, which adds a new note to
+// newAddCmd constructs the "comment add" subcommand, which adds a new comment to
 // an issue.
 func newAddCmd(f *cmdutil.Factory) *cli.Command {
 	var (
@@ -65,7 +65,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:  "add",
-		Usage: "Add a note to an issue",
+		Usage: "Add a comment to an issue",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -90,7 +90,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "body",
 				Aliases:     []string{"b"},
-				Usage:       "Note body text",
+				Usage:       "Comment body text",
 				Required:    true,
 				Destination: &body,
 			},
@@ -112,43 +112,43 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
-			input := service.AddNoteInput{
+			input := service.AddCommentInput{
 				IssueID: issueID,
 				Author:  parsedAuthor,
 				Body:    body,
 			}
-			result, err := svc.AddNote(ctx, input)
+			result, err := svc.AddComment(ctx, input)
 			if err != nil {
-				return fmt.Errorf("adding note: %w", err)
+				return fmt.Errorf("adding comment: %w", err)
 			}
 
 			if jsonOutput {
-				return cmdutil.WriteJSON(f.IOStreams.Out, addNoteOutput{
-					NoteID:  result.Note.DisplayID(),
-					IssueID: issueID.String(),
-					Author:  author,
+				return cmdutil.WriteJSON(f.IOStreams.Out, addCommentOutput{
+					CommentID: result.Comment.DisplayID(),
+					IssueID:   issueID.String(),
+					Author:    author,
 				})
 			}
 
 			cs := f.IOStreams.ColorScheme()
 			_, err = fmt.Fprintf(f.IOStreams.Out, "%s Added %s to %s\n",
 				cs.SuccessIcon(),
-				cs.Bold(result.Note.DisplayID()),
+				cs.Bold(result.Comment.DisplayID()),
 				cs.Bold(issueID.String()))
 			return err
 		},
 	}
 }
 
-// newShowCmd constructs the "note show" subcommand, which retrieves a single
-// note by its numeric ID.
+// newShowCmd constructs the "comment show" subcommand, which retrieves a single
+// comment by its numeric ID.
 func newShowCmd(f *cmdutil.Factory) *cli.Command {
 	var jsonOutput bool
 
 	return &cli.Command{
 		Name:      "show",
-		Usage:     "Show a note by ID",
-		ArgsUsage: "<NOTE-ID>",
+		Usage:     "Show a comment by ID",
+		ArgsUsage: "<COMMENT-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -159,10 +159,10 @@ func newShowCmd(f *cmdutil.Factory) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
 			if rawID == "" {
-				return cmdutil.FlagErrorf("note ID argument is required")
+				return cmdutil.FlagErrorf("comment ID argument is required")
 			}
 
-			noteID, err := parseNoteID(rawID)
+			commentID, err := parseCommentID(rawID)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
@@ -171,14 +171,14 @@ func newShowCmd(f *cmdutil.Factory) *cli.Command {
 			if err != nil {
 				return err
 			}
-			n, err := svc.ShowNote(ctx, noteID)
+			n, err := svc.ShowComment(ctx, commentID)
 			if err != nil {
-				return fmt.Errorf("showing note: %w", err)
+				return fmt.Errorf("showing comment: %w", err)
 			}
 
 			if jsonOutput {
-				return cmdutil.WriteJSON(f.IOStreams.Out, noteOutput{
-					NoteID:    n.DisplayID(),
+				return cmdutil.WriteJSON(f.IOStreams.Out, commentOutput{
+					CommentID: n.DisplayID(),
 					IssueID:   n.IssueID().String(),
 					Author:    n.Author().String(),
 					Body:      n.Body(),
@@ -200,7 +200,7 @@ func newShowCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newListCmd constructs the "note list" subcommand, which lists notes for a
+// newListCmd constructs the "comment list" subcommand, which lists comments for a
 // specific issue.
 func newListCmd(f *cmdutil.Factory) *cli.Command {
 	var (
@@ -212,7 +212,7 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:    "list",
 		Aliases: []string{"ls"},
-		Usage:   "List notes for an issue",
+		Usage:   "List comments for an issue",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -245,23 +245,23 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
-			input := service.ListNotesInput{
+			input := service.ListCommentsInput{
 				IssueID: issueID,
 				Page:    port.PageRequest{PageSize: pageSize},
 			}
-			result, err := svc.ListNotes(ctx, input)
+			result, err := svc.ListComments(ctx, input)
 			if err != nil {
-				return fmt.Errorf("listing notes: %w", err)
+				return fmt.Errorf("listing comments: %w", err)
 			}
 
 			if jsonOutput {
-				out := noteListOutput{
+				out := commentListOutput{
 					TotalCount: result.TotalCount,
-					Notes:      make([]noteOutput, 0, len(result.Notes)),
+					Comments:   make([]commentOutput, 0, len(result.Comments)),
 				}
-				for _, n := range result.Notes {
-					out.Notes = append(out.Notes, noteOutput{
-						NoteID:    n.DisplayID(),
+				for _, n := range result.Comments {
+					out.Comments = append(out.Comments, commentOutput{
+						CommentID: n.DisplayID(),
 						IssueID:   n.IssueID().String(),
 						Author:    n.Author().String(),
 						Body:      n.Body(),
@@ -274,12 +274,12 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 			w := f.IOStreams.Out
 			cs := f.IOStreams.ColorScheme()
 
-			if len(result.Notes) == 0 {
-				_, _ = fmt.Fprintln(w, "No notes found.")
+			if len(result.Comments) == 0 {
+				_, _ = fmt.Fprintln(w, "No comments found.")
 				return nil
 			}
 
-			for _, n := range result.Notes {
+			for _, n := range result.Comments {
 				_, _ = fmt.Fprintf(w, "%s  %s  %s  %s\n",
 					cs.Bold(n.DisplayID()),
 					n.Author().String(),
@@ -294,8 +294,8 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newSearchCmd constructs the "note search" subcommand, which performs
-// full-text search across note bodies.
+// newSearchCmd constructs the "comment search" subcommand, which performs
+// full-text search across comment bodies.
 func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
@@ -305,7 +305,7 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "search",
-		Usage:     "Search notes by text",
+		Usage:     "Search comments by text",
 		ArgsUsage: "<QUERY>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
@@ -338,7 +338,7 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			input := service.SearchNotesInput{
+			input := service.SearchCommentsInput{
 				Query: query,
 				Page:  port.PageRequest{PageSize: pageSize},
 			}
@@ -350,19 +350,19 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 				}
 				input.IssueID = tid
 			}
-			result, err := svc.SearchNotes(ctx, input)
+			result, err := svc.SearchComments(ctx, input)
 			if err != nil {
-				return fmt.Errorf("searching notes: %w", err)
+				return fmt.Errorf("searching comments: %w", err)
 			}
 
 			if jsonOutput {
-				out := noteListOutput{
+				out := commentListOutput{
 					TotalCount: result.TotalCount,
-					Notes:      make([]noteOutput, 0, len(result.Notes)),
+					Comments:   make([]commentOutput, 0, len(result.Comments)),
 				}
-				for _, n := range result.Notes {
-					out.Notes = append(out.Notes, noteOutput{
-						NoteID:    n.DisplayID(),
+				for _, n := range result.Comments {
+					out.Comments = append(out.Comments, commentOutput{
+						CommentID: n.DisplayID(),
 						IssueID:   n.IssueID().String(),
 						Author:    n.Author().String(),
 						Body:      n.Body(),
@@ -375,12 +375,12 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 			w := f.IOStreams.Out
 			cs := f.IOStreams.ColorScheme()
 
-			if len(result.Notes) == 0 {
-				_, _ = fmt.Fprintln(w, "No notes found.")
+			if len(result.Comments) == 0 {
+				_, _ = fmt.Fprintln(w, "No comments found.")
 				return nil
 			}
 
-			for _, n := range result.Notes {
+			for _, n := range result.Comments {
 				_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  %s\n",
 					cs.Bold(n.DisplayID()),
 					cs.Cyan(n.IssueID().String()),
@@ -396,16 +396,16 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// parseNoteID parses a note ID string. It accepts both "note-123" and "123"
+// parseCommentID parses a comment ID string. It accepts both "comment-123" and "123"
 // forms, returning the numeric portion.
-func parseNoteID(s string) (int64, error) {
-	s = strings.TrimPrefix(s, "note-")
+func parseCommentID(s string) (int64, error) {
+	s = strings.TrimPrefix(s, "comment-")
 	var id int64
 	if _, err := fmt.Sscanf(s, "%d", &id); err != nil {
-		return 0, fmt.Errorf("invalid note ID %q: must be a number or note-<number>", s)
+		return 0, fmt.Errorf("invalid comment ID %q: must be a number or comment-<number>", s)
 	}
 	if id <= 0 {
-		return 0, fmt.Errorf("invalid note ID %q: must be a positive integer", s)
+		return 0, fmt.Errorf("invalid comment ID %q: must be a positive integer", s)
 	}
 	return id, nil
 }

@@ -166,7 +166,7 @@ All mutable fields (except notes and relationships) require claiming to modify.
 
 ### 4.2 Note
 
-Notes are comments on an issue. They can be added at any time by anyone without claiming. Notes cannot be added to deleted issues (deleted issues are immutable). Notes **can** be added to closed issues — closure is terminal for state changes, not for commentary.
+Comments are annotations on an issue. They can be added at any time by anyone without claiming. Comments cannot be added to deleted issues (deleted issues are immutable). Comments **can** be added to closed issues — closure is terminal for state changes, not for commentary.
 
 | Field      | Required | Notes |
 |------------|----------|-------|
@@ -176,7 +176,7 @@ Notes are comments on an issue. They can be added at any time by anyone without 
 | Created At | Yes      | Automatically applied timestamp. |
 | Body       | Yes      | Free-form text. |
 
-Notes are a flat list — no threading, no `reply_to` field. Conversational context is established by convention (referencing note IDs in body text, topic lines).
+Notes are a flat list — no threading, no `reply_to` field. Conversational context is established by convention (referencing comment IDs in body text, topic lines).
 
 ### 4.3 Relationship
 
@@ -317,7 +317,7 @@ claimed → waiting                     externally blocked
 
 - An issue must be claimed before its mutable fields can be updated.
 - **Exceptions — no claim required:**
-  - **Notes** — anyone can add a note to any issue.
+  - **Notes** — anyone can add a comment to any issue.
   - **Relationships** — anyone can add or remove relationships.
 - `closed` and `deleted` issues cannot be claimed.
 - For quick updates, the CLI supports a one-shot claim → update → release as a single command. The claim ID is generated and immediately invalidated internally.
@@ -383,7 +383,7 @@ Readiness propagates downward — a deferred or waiting epic suppresses readines
 
 - Stale claimed issues can be stolen directly by ID, or automatically when no ready issues are available.
 - **Atomic**: the old claim is invalidated and the new claim is created in a single transaction. If two agents race to steal the same stale issue, exactly one succeeds; the other receives a claim-conflict error.
-- When an issue is stolen, a note is automatically generated using the stealer's claim-bound author (e.g., "Stolen from `<previous-claimer>`.").
+- When an issue is stolen, a comment is automatically generated using the stealer's claim-bound author (e.g., "Stolen from `<previous-claimer>`.").
 
 ### 6.5 Soft Deletion
 
@@ -404,7 +404,7 @@ Deletion is soft — data is retained but invisible to normal operations.
 
 Every mutation to an issue's own state produces exactly one history entry. This includes creation, field updates, state transitions, claiming, releasing, relationship changes, and deletion.
 
-**Notes do not produce history entries.** Notes are separate entities with their own storage and listing; they are not part of the issue's field state. Adding a note does, however, update the claim's `Last Activity` timestamp for staleness purposes.
+**Comments do not produce history entries.** Notes are separate entities with their own storage and listing; they are not part of the issue's field state. Adding a note does, however, update the claim's `Last Activity` timestamp for staleness purposes.
 
 History is per-issue: an ordered, append-only sequence of entries that fully describes the issue's evolution from creation to its current state.
 
@@ -487,7 +487,7 @@ Update one or more properties on an **unclaimed** issue in a single atomic claim
 
 #### Update
 
-Update one or more properties, dimensions (add/modify/remove), relationships (add/remove), and/or parent assignment. Optionally add a note in the same operation. Requires the claim ID. All changes are a single atomic mutation.
+Update one or more properties, dimensions (add/modify/remove), relationships (add/remove), and/or parent assignment. Optionally add a comment in the same operation. Requires the claim ID. All changes are a single atomic mutation.
 
 #### Extend Stale Threshold
 
@@ -552,7 +552,7 @@ Remove an existing relationship between two issues. Does not require claiming ei
 
 #### Add Note
 
-Add a note to an issue. Does not require claiming. Requires explicit author and body.
+Add a comment to an issue. Does not require claiming. Requires explicit author and body.
 
 #### Show Note
 
@@ -562,7 +562,7 @@ Display a single note by its ID.
 
 List notes on a specific issue.
 
-- Filterable by: author, created-after date-time, created-after a specific note ID.
+- Filterable by: author, created-after date-time, created-after a specific comment ID.
 - Orderable and paginated.
 
 #### Search Notes (Per-Issue)
@@ -571,9 +571,9 @@ Full-text search on notes for a specific issue.
 
 #### Search Notes (Global)
 
-Full-text search across all notes in the database.
+Full-text search across all comments in the database.
 
-- Filterable by: author, created-after date-time, created-after note ID, issue dimensions, issue state.
+- Filterable by: author, created-after date-time, created-after comment ID, issue dimensions, issue state.
 - Orderable and paginated.
 
 ### 8.6 History Operations

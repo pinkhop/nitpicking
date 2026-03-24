@@ -97,7 +97,7 @@ func TestE2E_TaskLifecycle_CreateClaimUpdateClose(t *testing.T) {
 	author := "workflow-agent"
 	taskID := createTask(t, dir, "Implement feature X", author)
 
-	// When — claim the task, update its fields, add a note, and close it.
+	// When — claim the task, update its fields, add a comment, and close it.
 	claimID := claimIssue(t, dir, taskID, author)
 
 	_, stderr, code := runNP(t, dir, "update", taskID,
@@ -111,14 +111,14 @@ func TestE2E_TaskLifecycle_CreateClaimUpdateClose(t *testing.T) {
 		t.Fatalf("update failed (exit %d): %s", code, stderr)
 	}
 
-	_, stderr, code = runNP(t, dir, "note", "add",
+	_, stderr, code = runNP(t, dir, "comment", "add",
 		"--issue", taskID,
 		"--body", "Root cause found in auth module",
 		"--author", author,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("note add failed (exit %d): %s", code, stderr)
+		t.Fatalf("comment add failed (exit %d): %s", code, stderr)
 	}
 
 	closeStdout, stderr, code := runNP(t, dir, "state", "close", taskID,
@@ -339,7 +339,7 @@ func TestE2E_AtomicEdit(t *testing.T) {
 func TestE2E_NotesOnClosedIssue(t *testing.T) {
 	// Given — a task that has been closed.
 	dir := initDB(t, "WF")
-	author := "notes-agent"
+	author := "comments-agent"
 	taskID := createTask(t, dir, "Closed task", author)
 	claimID := claimIssue(t, dir, taskID, author)
 
@@ -351,36 +351,36 @@ func TestE2E_NotesOnClosedIssue(t *testing.T) {
 		t.Fatalf("close failed (exit %d): %s", code, stderr)
 	}
 
-	// When — add notes to the closed issue (notes don't require claiming).
-	_, stderr, code = runNP(t, dir, "note", "add",
+	// When — add comments to the closed issue (comments don't require claiming).
+	_, stderr, code = runNP(t, dir, "comment", "add",
 		"--issue", taskID,
 		"--body", "Post-mortem: root cause was a race condition",
 		"--author", author,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("note add on closed issue failed (exit %d): %s", code, stderr)
+		t.Fatalf("comment add on closed issue failed (exit %d): %s", code, stderr)
 	}
 
-	_, stderr, code = runNP(t, dir, "note", "add",
+	_, stderr, code = runNP(t, dir, "comment", "add",
 		"--issue", taskID,
 		"--body", "Follow-up issue created for monitoring",
 		"--author", "other-agent",
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("second note add failed (exit %d): %s", code, stderr)
+		t.Fatalf("second comment add failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — both notes are present on the closed issue.
-	noteStdout, stderr, code := runNP(t, dir, "note", "list", "--issue", taskID, "--json")
+	// Then — both comments are present on the closed issue.
+	commentStdout, stderr, code := runNP(t, dir, "comment", "list", "--issue", taskID, "--json")
 	if code != 0 {
-		t.Fatalf("note list failed (exit %d): %s", code, stderr)
+		t.Fatalf("comment list failed (exit %d): %s", code, stderr)
 	}
-	noteResult := parseJSON(t, noteStdout)
-	noteCount, ok := noteResult["total_count"].(float64)
+	commentResult := parseJSON(t, commentStdout)
+	noteCount, ok := commentResult["total_count"].(float64)
 	if !ok || noteCount != 2 {
-		t.Errorf("expected 2 notes on closed issue, got %v", noteResult["total_count"])
+		t.Errorf("expected 2 comments on closed issue, got %v", commentResult["total_count"])
 	}
 }
 

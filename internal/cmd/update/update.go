@@ -86,8 +86,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Usage: "Remove a dimension by key (repeatable)",
 			},
 			&cli.StringFlag{
-				Name:        "note",
-				Usage:       "Add a note to the issue",
+				Name:        "comment",
+				Usage:       "Add a comment to the issue",
 				Destination: &noteBody,
 			},
 		},

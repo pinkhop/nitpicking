@@ -11,9 +11,9 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/domain/claim"
+	"github.com/pinkhop/nitpicking/internal/domain/comment"
 	"github.com/pinkhop/nitpicking/internal/domain/history"
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
-	"github.com/pinkhop/nitpicking/internal/domain/note"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
@@ -22,10 +22,10 @@ import (
 type Repository struct {
 	mu sync.RWMutex
 
-	prefix string
-	issues map[string]issue.Issue // keyed by issue ID string
-	notes  map[int64]note.Note    // keyed by note ID
-	claims map[string]claim.Claim // keyed by claim ID
+	prefix   string
+	issues   map[string]issue.Issue    // keyed by issue ID string
+	comments map[int64]comment.Comment // keyed by comment ID
+	claims   map[string]claim.Claim    // keyed by claim ID
 	// claimsByIssue maps issue ID string → claim ID for active claims.
 	claimsByIssue map[string]string
 	relationships []issue.Relationship
@@ -38,7 +38,7 @@ type Repository struct {
 func NewRepository() *Repository {
 	return &Repository{
 		issues:        make(map[string]issue.Issue),
-		notes:         make(map[int64]note.Note),
+		comments:      make(map[int64]comment.Comment),
 		claims:        make(map[string]claim.Claim),
 		claimsByIssue: make(map[string]string),
 		histories:     make(map[string][]history.Entry),
@@ -248,17 +248,17 @@ func (r *Repository) GetIssueByIdempotencyKey(_ context.Context, key string) (is
 	return issue.Issue{}, domain.ErrNotFound
 }
 
-// --- NoteRepository ---
+// --- CommentRepository ---
 
-func (r *Repository) CreateNote(_ context.Context, n note.Note) (int64, error) {
+func (r *Repository) CreateComment(_ context.Context, n comment.Comment) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	id := r.nextNoteID
 	r.nextNoteID++
 
-	// Reconstruct note with the assigned ID.
-	created, err := note.NewNote(note.NewNoteParams{
+	// Reconstruct comment with the assigned ID.
+	created, err := comment.NewComment(comment.NewCommentParams{
 		ID:        id,
 		IssueID:   n.IssueID(),
 		Author:    n.Author(),
@@ -269,81 +269,81 @@ func (r *Repository) CreateNote(_ context.Context, n note.Note) (int64, error) {
 		return 0, err
 	}
 
-	r.notes[id] = created
+	r.comments[id] = created
 	return id, nil
 }
 
-func (r *Repository) GetNote(_ context.Context, id int64) (note.Note, error) {
+func (r *Repository) GetComment(_ context.Context, id int64) (comment.Comment, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	n, ok := r.notes[id]
+	n, ok := r.comments[id]
 	if !ok {
-		return note.Note{}, domain.ErrNotFound
+		return comment.Comment{}, domain.ErrNotFound
 	}
 	return n, nil
 }
 
-func (r *Repository) ListNotes(_ context.Context, issueID issue.ID, filter port.NoteFilter, page port.PageRequest) ([]note.Note, port.PageResult, error) {
+func (r *Repository) ListComments(_ context.Context, issueID issue.ID, filter port.CommentFilter, page port.PageRequest) ([]comment.Comment, port.PageResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	page = page.Normalize()
 
-	var notes []note.Note
-	for _, n := range r.notes {
+	var comments []comment.Comment
+	for _, n := range r.comments {
 		if n.IssueID() != issueID {
 			continue
 		}
-		if !r.matchesNoteFilter(n, filter) {
+		if !r.matchesCommentFilter(n, filter) {
 			continue
 		}
-		notes = append(notes, n)
+		comments = append(comments, n)
 	}
 
-	slices.SortFunc(notes, func(a, b note.Note) int {
+	slices.SortFunc(comments, func(a, b comment.Comment) int {
 		return cmp.Compare(a.ID(), b.ID())
 	})
 
-	total := len(notes)
-	if page.PageSize > 0 && len(notes) > page.PageSize {
-		notes = notes[:page.PageSize]
+	total := len(comments)
+	if page.PageSize > 0 && len(comments) > page.PageSize {
+		comments = comments[:page.PageSize]
 	}
 
-	return notes, port.PageResult{TotalCount: total}, nil
+	return comments, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *Repository) SearchNotes(_ context.Context, query string, filter port.NoteFilter, page port.PageRequest) ([]note.Note, port.PageResult, error) {
+func (r *Repository) SearchComments(_ context.Context, query string, filter port.CommentFilter, page port.PageRequest) ([]comment.Comment, port.PageResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	page = page.Normalize()
 	queryLower := strings.ToLower(query)
 
-	var notes []note.Note
-	for _, n := range r.notes {
+	var comments []comment.Comment
+	for _, n := range r.comments {
 		if !filter.IssueID.IsZero() && n.IssueID() != filter.IssueID {
 			continue
 		}
-		if !r.matchesNoteFilter(n, filter) {
+		if !r.matchesCommentFilter(n, filter) {
 			continue
 		}
 		if !strings.Contains(strings.ToLower(n.Body()), queryLower) {
 			continue
 		}
-		notes = append(notes, n)
+		comments = append(comments, n)
 	}
 
-	slices.SortFunc(notes, func(a, b note.Note) int {
+	slices.SortFunc(comments, func(a, b comment.Comment) int {
 		return cmp.Compare(a.ID(), b.ID())
 	})
 
-	total := len(notes)
-	if page.PageSize > 0 && len(notes) > page.PageSize {
-		notes = notes[:page.PageSize]
+	total := len(comments)
+	if page.PageSize > 0 && len(comments) > page.PageSize {
+		comments = comments[:page.PageSize]
 	}
 
-	return notes, port.PageResult{TotalCount: total}, nil
+	return comments, port.PageResult{TotalCount: total}, nil
 }
 
 // --- ClaimRepository ---
@@ -598,10 +598,10 @@ func (r *Repository) GC(_ context.Context, includeClosed bool) error {
 	for _, key := range toDelete {
 		delete(r.issues, key)
 		delete(r.histories, key)
-		// Remove related notes.
-		for id, n := range r.notes {
+		// Remove related comments.
+		for id, n := range r.comments {
 			if n.IssueID().String() == key {
-				delete(r.notes, id)
+				delete(r.comments, id)
 			}
 		}
 	}
@@ -816,14 +816,14 @@ func (r *Repository) matchesSearch(t issue.Issue, queryLower string) bool {
 		strings.Contains(strings.ToLower(t.AcceptanceCriteria()), queryLower)
 }
 
-func (r *Repository) matchesNoteFilter(n note.Note, f port.NoteFilter) bool {
+func (r *Repository) matchesCommentFilter(n comment.Comment, f port.CommentFilter) bool {
 	if !f.Author.IsZero() && !n.Author().Equal(f.Author) {
 		return false
 	}
 	if !f.CreatedAfter.IsZero() && !n.CreatedAt().After(f.CreatedAfter) {
 		return false
 	}
-	if f.AfterNoteID > 0 && n.ID() <= f.AfterNoteID {
+	if f.AfterCommentID > 0 && n.ID() <= f.AfterCommentID {
 		return false
 	}
 	return true

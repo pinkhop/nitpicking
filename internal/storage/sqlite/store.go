@@ -13,10 +13,10 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/domain/claim"
+	"github.com/pinkhop/nitpicking/internal/domain/comment"
 	"github.com/pinkhop/nitpicking/internal/domain/history"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
-	"github.com/pinkhop/nitpicking/internal/domain/note"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
@@ -91,10 +91,16 @@ func Open(dbPath string) (*Store, error) {
 		return nil, &domain.DatabaseError{Op: "migrate tickets to issues", Err: errors.Join(err, closeErr)}
 	}
 	err = migrateFacetsToDimensions(conn)
+	if err != nil {
+		pool.Put(conn)
+		closeErr := pool.Close()
+		return nil, &domain.DatabaseError{Op: "migrate facets to dimensions", Err: errors.Join(err, closeErr)}
+	}
+	err = migrateNotesToComments(conn)
 	pool.Put(conn)
 	if err != nil {
 		closeErr := pool.Close()
-		return nil, &domain.DatabaseError{Op: "migrate facets to dimensions", Err: errors.Join(err, closeErr)}
+		return nil, &domain.DatabaseError{Op: "migrate notes to comments", Err: errors.Join(err, closeErr)}
 	}
 
 	return &Store{pool: pool}, nil
@@ -162,7 +168,7 @@ type connUnitOfWork struct {
 }
 
 func (u *connUnitOfWork) Issues() port.IssueRepository               { return &issueRepo{conn: u.conn} }
-func (u *connUnitOfWork) Notes() port.NoteRepository                 { return &noteRepo{conn: u.conn} }
+func (u *connUnitOfWork) Comments() port.CommentRepository           { return &commentRepo{conn: u.conn} }
 func (u *connUnitOfWork) Claims() port.ClaimRepository               { return &claimRepo{conn: u.conn} }
 func (u *connUnitOfWork) Relationships() port.RelationshipRepository { return &relRepo{conn: u.conn} }
 func (u *connUnitOfWork) History() port.HistoryRepository            { return &histRepo{conn: u.conn} }
@@ -196,7 +202,7 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 		query string
 	}{
 		{"gc dimensions", `DELETE FROM dimensions WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
-		{"gc notes", `DELETE FROM notes WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
+		{"gc comments", `DELETE FROM comments WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
 		{"gc history", `DELETE FROM history WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
 		{"gc relationships", `DELETE FROM relationships WHERE source_id IN (SELECT issue_id FROM issues WHERE deleted = 1) OR target_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
 		{"gc issues", `DELETE FROM issues WHERE deleted = 1`},
@@ -214,7 +220,7 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 			query string
 		}{
 			{"gc closed dimensions", `DELETE FROM dimensions WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
-			{"gc closed notes", `DELETE FROM notes WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
+			{"gc closed comments", `DELETE FROM comments WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
 			{"gc closed history", `DELETE FROM history WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
 			{"gc closed issues", `DELETE FROM issues WHERE state = 'closed'`},
 		}
@@ -597,33 +603,33 @@ func (r *issueRepo) loadDimensions(issueID string) (issue.DimensionSet, error) {
 	return fs, nil
 }
 
-// --- NoteRepository ---
+// --- CommentRepository ---
 
-type noteRepo struct{ conn *sqlite.Conn }
+type commentRepo struct{ conn *sqlite.Conn }
 
-func (r *noteRepo) CreateNote(_ context.Context, n note.Note) (int64, error) {
-	err := sqlitex.Execute(r.conn, `INSERT INTO notes (issue_id, author, created_at, body) VALUES (?, ?, ?, ?)`, &sqlitex.ExecOptions{
+func (r *commentRepo) CreateComment(_ context.Context, n comment.Comment) (int64, error) {
+	err := sqlitex.Execute(r.conn, `INSERT INTO comments (issue_id, author, created_at, body) VALUES (?, ?, ?, ?)`, &sqlitex.ExecOptions{
 		Args: []any{n.IssueID().String(), n.Author().String(), n.CreatedAt().Format(time.RFC3339Nano), n.Body()},
 	})
 	if err != nil {
-		return 0, &domain.DatabaseError{Op: "create note", Err: err}
+		return 0, &domain.DatabaseError{Op: "create comment", Err: err}
 	}
 
-	noteID := r.conn.LastInsertRowID()
+	commentID := r.conn.LastInsertRowID()
 
 	// FTS sync.
-	_ = sqlitex.Execute(r.conn, `INSERT INTO notes_fts (note_id, body) VALUES (?, ?)`, &sqlitex.ExecOptions{
-		Args: []any{noteID, n.Body()},
+	_ = sqlitex.Execute(r.conn, `INSERT INTO comments_fts (comment_id, body) VALUES (?, ?)`, &sqlitex.ExecOptions{
+		Args: []any{commentID, n.Body()},
 	})
 
-	return noteID, nil
+	return commentID, nil
 }
 
-func (r *noteRepo) GetNote(_ context.Context, id int64) (note.Note, error) {
-	var result note.Note
+func (r *commentRepo) GetComment(_ context.Context, id int64) (comment.Comment, error) {
+	var result comment.Comment
 	var found bool
 
-	err := sqlitex.Execute(r.conn, `SELECT issue_id, author, created_at, body FROM notes WHERE note_id = ?`, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, `SELECT issue_id, author, created_at, body FROM comments WHERE comment_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{id},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			found = true
@@ -632,22 +638,22 @@ func (r *noteRepo) GetNote(_ context.Context, id int64) (note.Note, error) {
 			createdAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(2))
 
 			var err error
-			result, err = note.NewNote(note.NewNoteParams{
+			result, err = comment.NewComment(comment.NewCommentParams{
 				ID: id, IssueID: issueID, Author: author, CreatedAt: createdAt, Body: stmt.ColumnText(3),
 			})
 			return err
 		},
 	})
 	if err != nil {
-		return note.Note{}, &domain.DatabaseError{Op: "get note", Err: err}
+		return comment.Comment{}, &domain.DatabaseError{Op: "get comment", Err: err}
 	}
 	if !found {
-		return note.Note{}, domain.ErrNotFound
+		return comment.Comment{}, domain.ErrNotFound
 	}
 	return result, nil
 }
 
-func (r *noteRepo) ListNotes(_ context.Context, issueID issue.ID, filter port.NoteFilter, page port.PageRequest) ([]note.Note, port.PageResult, error) {
+func (r *commentRepo) ListComments(_ context.Context, issueID issue.ID, filter port.CommentFilter, page port.PageRequest) ([]comment.Comment, port.PageResult, error) {
 	page = page.Normalize()
 
 	where := `WHERE issue_id = ?`
@@ -661,78 +667,78 @@ func (r *noteRepo) ListNotes(_ context.Context, issueID issue.ID, filter port.No
 		where += ` AND created_at > ?`
 		args = append(args, filter.CreatedAfter.Format(time.RFC3339Nano))
 	}
-	if filter.AfterNoteID > 0 {
-		where += ` AND note_id > ?`
-		args = append(args, filter.AfterNoteID)
+	if filter.AfterCommentID > 0 {
+		where += ` AND comment_id > ?`
+		args = append(args, filter.AfterCommentID)
 	}
 
-	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM notes `+where, args...)
+	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM comments `+where, args...)
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count notes", Err: err}
+		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count comments", Err: err}
 	}
 
-	query := `SELECT note_id, issue_id, author, created_at, body FROM notes ` + where + ` ORDER BY note_id LIMIT ?`
+	query := `SELECT comment_id, issue_id, author, created_at, body FROM comments ` + where + ` ORDER BY comment_id LIMIT ?`
 	args = append(args, page.PageSize)
 
-	var notes []note.Note
+	var comments []comment.Comment
 	err = sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			tid, _ := issue.ParseID(stmt.ColumnText(1))
 			author, _ := identity.NewAuthor(stmt.ColumnText(2))
 			created, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(3))
-			n, _ := note.NewNote(note.NewNoteParams{
+			n, _ := comment.NewComment(comment.NewCommentParams{
 				ID: stmt.ColumnInt64(0), IssueID: tid, Author: author, CreatedAt: created, Body: stmt.ColumnText(4),
 			})
-			notes = append(notes, n)
+			comments = append(comments, n)
 			return nil
 		},
 	})
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "list notes", Err: err}
+		return nil, port.PageResult{}, &domain.DatabaseError{Op: "list comments", Err: err}
 	}
 
-	return notes, port.PageResult{TotalCount: total}, nil
+	return comments, port.PageResult{TotalCount: total}, nil
 }
 
-func (r *noteRepo) SearchNotes(_ context.Context, query string, filter port.NoteFilter, page port.PageRequest) ([]note.Note, port.PageResult, error) {
+func (r *commentRepo) SearchComments(_ context.Context, query string, filter port.CommentFilter, page port.PageRequest) ([]comment.Comment, port.PageResult, error) {
 	page = page.Normalize()
 
-	where := `WHERE n.note_id IN (SELECT note_id FROM notes_fts WHERE notes_fts MATCH ?)`
+	where := `WHERE c.comment_id IN (SELECT comment_id FROM comments_fts WHERE comments_fts MATCH ?)`
 	args := []any{query}
 
 	if !filter.IssueID.IsZero() {
-		where += ` AND n.issue_id = ?`
+		where += ` AND c.issue_id = ?`
 		args = append(args, filter.IssueID.String())
 	}
 
-	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM notes n `+where, args...)
+	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM comments c `+where, args...)
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count note search results", Err: err}
+		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count comment search results", Err: err}
 	}
 
-	selectQuery := `SELECT n.note_id, n.issue_id, n.author, n.created_at, n.body FROM notes n ` + where + ` ORDER BY n.note_id LIMIT ?`
+	selectQuery := `SELECT c.comment_id, c.issue_id, c.author, c.created_at, c.body FROM comments c ` + where + ` ORDER BY c.comment_id LIMIT ?`
 	args = append(args, page.PageSize)
 
-	var notes []note.Note
+	var comments []comment.Comment
 	err = sqlitex.Execute(r.conn, selectQuery, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			tid, _ := issue.ParseID(stmt.ColumnText(1))
 			author, _ := identity.NewAuthor(stmt.ColumnText(2))
 			created, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(3))
-			n, _ := note.NewNote(note.NewNoteParams{
+			n, _ := comment.NewComment(comment.NewCommentParams{
 				ID: stmt.ColumnInt64(0), IssueID: tid, Author: author, CreatedAt: created, Body: stmt.ColumnText(4),
 			})
-			notes = append(notes, n)
+			comments = append(comments, n)
 			return nil
 		},
 	})
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "search notes", Err: err}
+		return nil, port.PageResult{}, &domain.DatabaseError{Op: "search comments", Err: err}
 	}
 
-	return notes, port.PageResult{TotalCount: total}, nil
+	return comments, port.PageResult{TotalCount: total}, nil
 }
 
 // --- ClaimRepository ---

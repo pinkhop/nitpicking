@@ -62,7 +62,7 @@
 
 ## DD-008: FTS5 uses standalone tables, not external content
 
-**Decision:** The FTS5 virtual tables (`issues_fts`, `notes_fts`) are standalone (not backed by `content=issues`). Sync is managed manually in the repository layer via INSERT/DELETE on create and update operations.
+**Decision:** The FTS5 virtual tables (`issues_fts`, `comments_fts`) are standalone (not backed by `content=issues`). Sync is managed manually in the repository layer via INSERT/DELETE on create and update operations.
 
 **Why:** The issues table is `WITHOUT ROWID` (per §4.7), which means it has no implicit `rowid` column. FTS5's external content mode (`content=`) requires a `content_rowid=` mapping to an integer column, but `WITHOUT ROWID` tables lack this. Standalone FTS tables avoid this incompatibility at the cost of slightly more storage and manual sync.
 

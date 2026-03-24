@@ -126,26 +126,26 @@ func TestE2E_Update_NoteFlag_AddsNote(t *testing.T) {
 	// Given — a claimed task.
 	dir := initDB(t, "UFLAG")
 	author := "flag-agent"
-	taskID, claimID := seedClaimedTask(t, dir, "Note test", author)
+	taskID, claimID := seedClaimedTask(t, dir, "Comment test", author)
 
-	// When — update with --note to add a note inline.
+	// When — update with --comment to add a comment inline.
 	_, stderr, code := runNP(t, dir, "update", taskID,
 		"--claim", claimID,
-		"--note", "Progress update: halfway done",
+		"--comment", "Progress update: halfway done",
 		"--json",
 	)
 
-	// Then — the note exists on the issue.
+	// Then — the comment exists on the issue.
 	if code != 0 {
-		t.Fatalf("update --note failed (exit %d): %s", code, stderr)
+		t.Fatalf("update --comment failed (exit %d): %s", code, stderr)
 	}
-	noteStdout, stderr, code := runNP(t, dir, "note", "list", "--issue", taskID, "--json")
+	commentStdout, stderr, code := runNP(t, dir, "comment", "list", "--issue", taskID, "--json")
 	if code != 0 {
-		t.Fatalf("note list failed (exit %d): %s", code, stderr)
+		t.Fatalf("comment list failed (exit %d): %s", code, stderr)
 	}
-	noteResult := parseJSON(t, noteStdout)
-	noteCount, ok := noteResult["total_count"].(float64)
+	commentResult := parseJSON(t, commentStdout)
+	noteCount, ok := commentResult["total_count"].(float64)
 	if !ok || noteCount < 1 {
-		t.Errorf("expected at least 1 note after update --note, got %v", noteResult["total_count"])
+		t.Errorf("expected at least 1 comment after update --comment, got %v", commentResult["total_count"])
 	}
 }

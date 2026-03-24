@@ -37,7 +37,7 @@ type unitOfWork struct {
 }
 
 func (u *unitOfWork) Issues() port.IssueRepository               { return u.repo }
-func (u *unitOfWork) Notes() port.NoteRepository                 { return u.repo }
+func (u *unitOfWork) Comments() port.CommentRepository           { return u.repo }
 func (u *unitOfWork) Claims() port.ClaimRepository               { return u.repo }
 func (u *unitOfWork) Relationships() port.RelationshipRepository { return u.repo }
 func (u *unitOfWork) History() port.HistoryRepository            { return u.repo }

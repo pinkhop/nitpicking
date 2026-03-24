@@ -10,6 +10,7 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/cmd/agent"
 	"github.com/pinkhop/nitpicking/internal/cmd/claim"
+	"github.com/pinkhop/nitpicking/internal/cmd/comment"
 	"github.com/pinkhop/nitpicking/internal/cmd/create"
 	cmddelete "github.com/pinkhop/nitpicking/internal/cmd/delete"
 	"github.com/pinkhop/nitpicking/internal/cmd/doctor"
@@ -20,7 +21,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/historyview"
 	cmdinit "github.com/pinkhop/nitpicking/internal/cmd/init"
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
-	"github.com/pinkhop/nitpicking/internal/cmd/note"
 	"github.com/pinkhop/nitpicking/internal/cmd/relate"
 	"github.com/pinkhop/nitpicking/internal/cmd/search"
 	"github.com/pinkhop/nitpicking/internal/cmd/show"
@@ -113,7 +113,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			}},
 			{"Annotations", []*cli.Command{
 				relate.NewCmd(f),
-				note.NewCmd(f),
+				comment.NewCmd(f),
 			}},
 			{"Maintenance", []*cli.Command{
 				graphcmd.NewCmd(f),

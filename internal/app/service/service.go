@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/pinkhop/nitpicking/internal/domain/comment"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
-	"github.com/pinkhop/nitpicking/internal/domain/note"
 )
 
 // Service defines the driving port — the use-case boundary that CLI and
@@ -70,19 +70,19 @@ type Service interface {
 	// RemoveRelationship removes a relationship between two issues.
 	RemoveRelationship(ctx context.Context, sourceID issue.ID, rel RelationshipInput, author identity.Author) error
 
-	// --- Note Operations ---
+	// --- Comment Operations ---
 
-	// AddNote adds a note to an issue.
-	AddNote(ctx context.Context, input AddNoteInput) (AddNoteOutput, error)
+	// AddComment adds a comment to an issue.
+	AddComment(ctx context.Context, input AddCommentInput) (AddCommentOutput, error)
 
-	// ShowNote retrieves a single note by ID.
-	ShowNote(ctx context.Context, noteID int64) (note.Note, error)
+	// ShowComment retrieves a single comment by ID.
+	ShowComment(ctx context.Context, commentID int64) (comment.Comment, error)
 
-	// ListNotes lists notes for an issue.
-	ListNotes(ctx context.Context, input ListNotesInput) (ListNotesOutput, error)
+	// ListComments lists comments for an issue.
+	ListComments(ctx context.Context, input ListCommentsInput) (ListCommentsOutput, error)
 
-	// SearchNotes searches notes by text.
-	SearchNotes(ctx context.Context, input SearchNotesInput) (ListNotesOutput, error)
+	// SearchComments searches comments by text.
+	SearchComments(ctx context.Context, input SearchCommentsInput) (ListCommentsOutput, error)
 
 	// --- History Operations ---
 

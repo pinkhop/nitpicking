@@ -376,9 +376,9 @@ func TestOneShotUpdate_ChangesAndReleases(t *testing.T) {
 	}
 }
 
-// --- AddNote ---
+// --- AddComment ---
 
-func TestAddNote_Succeeds(t *testing.T) {
+func TestAddComment_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -391,21 +391,21 @@ func TestAddNote_Succeeds(t *testing.T) {
 	})
 
 	// When
-	output, err := svc.AddNote(context.Background(), service.AddNoteInput{
+	output, err := svc.AddComment(context.Background(), service.AddCommentInput{
 		IssueID: created.Issue.ID(),
 		Author:  author,
-		Body:    "This is a note.",
+		Body:    "This is a comment.",
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if output.Note.Body() != "This is a note." {
-		t.Errorf("expected note body, got %q", output.Note.Body())
+	if output.Comment.Body() != "This is a comment." {
+		t.Errorf("expected comment body, got %q", output.Comment.Body())
 	}
 }
 
-func TestAddNote_DeletedIssue_Fails(t *testing.T) {
+func TestAddComment_DeletedIssue_Fails(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -425,10 +425,10 @@ func TestAddNote_DeletedIssue_Fails(t *testing.T) {
 	})
 
 	// When
-	_, err := svc.AddNote(context.Background(), service.AddNoteInput{
+	_, err := svc.AddComment(context.Background(), service.AddCommentInput{
 		IssueID: created.Issue.ID(),
 		Author:  author,
-		Body:    "Note on deleted issue",
+		Body:    "Comment on deleted issue",
 	})
 
 	// Then
@@ -437,7 +437,7 @@ func TestAddNote_DeletedIssue_Fails(t *testing.T) {
 	}
 }
 
-func TestAddNote_ClosedIssue_Succeeds(t *testing.T) {
+func TestAddComment_ClosedIssue_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -456,15 +456,15 @@ func TestAddNote_ClosedIssue_Succeeds(t *testing.T) {
 		Action:  service.ActionClose,
 	})
 
-	// When — notes CAN be added to closed issues
-	_, err := svc.AddNote(context.Background(), service.AddNoteInput{
+	// When — comments CAN be added to closed issues
+	_, err := svc.AddComment(context.Background(), service.AddCommentInput{
 		IssueID: created.Issue.ID(),
 		Author:  author,
-		Body:    "Post-mortem note",
+		Body:    "Post-mortem comment",
 	})
 	// Then
 	if err != nil {
-		t.Fatalf("expected success adding note to closed issue, got: %v", err)
+		t.Fatalf("expected success adding comment to closed issue, got: %v", err)
 	}
 }
 
@@ -496,29 +496,29 @@ func TestShowIssue_ReturnsRevisionAndAuthor(t *testing.T) {
 	}
 }
 
-func TestShowIssue_IncludesNoteCount(t *testing.T) {
+func TestShowIssue_IncludesCommentCount(t *testing.T) {
 	t.Parallel()
 
-	// Given: an issue with two notes.
+	// Given: an issue with two comments.
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
 	created, err := svc.CreateIssue(t.Context(), service.CreateIssueInput{
-		Role: issue.RoleTask, Title: "Task with notes", Author: author,
+		Role: issue.RoleTask, Title: "Task with comments", Author: author,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create issue: %v", err)
 	}
-	_, err = svc.AddNote(t.Context(), service.AddNoteInput{
-		IssueID: created.Issue.ID(), Author: author, Body: "Note one",
+	_, err = svc.AddComment(t.Context(), service.AddCommentInput{
+		IssueID: created.Issue.ID(), Author: author, Body: "Comment one",
 	})
 	if err != nil {
-		t.Fatalf("precondition: add note 1: %v", err)
+		t.Fatalf("precondition: add comment 1: %v", err)
 	}
-	_, err = svc.AddNote(t.Context(), service.AddNoteInput{
-		IssueID: created.Issue.ID(), Author: author, Body: "Note two",
+	_, err = svc.AddComment(t.Context(), service.AddCommentInput{
+		IssueID: created.Issue.ID(), Author: author, Body: "Comment two",
 	})
 	if err != nil {
-		t.Fatalf("precondition: add note 2: %v", err)
+		t.Fatalf("precondition: add comment 2: %v", err)
 	}
 
 	// When
@@ -527,8 +527,8 @@ func TestShowIssue_IncludesNoteCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if show.NoteCount != 2 {
-		t.Errorf("expected NoteCount 2, got %d", show.NoteCount)
+	if show.CommentCount != 2 {
+		t.Errorf("expected CommentCount 2, got %d", show.CommentCount)
 	}
 }
 

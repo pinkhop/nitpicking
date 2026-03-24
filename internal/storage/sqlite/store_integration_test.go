@@ -118,16 +118,16 @@ func TestIntegration_NoteOnClosedIssue(t *testing.T) {
 		IssueID: createOut.Issue.ID(), ClaimID: createOut.ClaimID, Action: service.ActionClose,
 	})
 
-	// When — add note to closed issue
-	noteOut, err := svc.AddNote(ctx, service.AddNoteInput{
-		IssueID: createOut.Issue.ID(), Author: author, Body: "Post-close note",
+	// When — add comment to closed issue
+	commentOut, err := svc.AddComment(ctx, service.AddCommentInput{
+		IssueID: createOut.Issue.ID(), Author: author, Body: "Post-close comment",
 	})
 	// Then — should succeed per spec
 	if err != nil {
-		t.Fatalf("expected success adding note to closed issue: %v", err)
+		t.Fatalf("expected success adding comment to closed issue: %v", err)
 	}
-	if noteOut.Note.Body() != "Post-close note" {
-		t.Errorf("expected note body, got %q", noteOut.Note.Body())
+	if commentOut.Comment.Body() != "Post-close comment" {
+		t.Errorf("expected comment body, got %q", commentOut.Comment.Body())
 	}
 }
 

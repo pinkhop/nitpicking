@@ -3,10 +3,10 @@ package service
 import (
 	"time"
 
+	"github.com/pinkhop/nitpicking/internal/domain/comment"
 	"github.com/pinkhop/nitpicking/internal/domain/history"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
-	"github.com/pinkhop/nitpicking/internal/domain/note"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
@@ -131,7 +131,7 @@ type ShowIssueOutput struct {
 	Relationships []issue.Relationship
 	IsReady       bool
 	IsComplete    bool // Only meaningful for epics.
-	NoteCount     int
+	CommentCount  int
 	ClaimID       string
 	ClaimAuthor   string
 	ClaimStaleAt  time.Time
@@ -159,38 +159,38 @@ type SearchIssuesInput struct {
 	IncludeNotes bool
 }
 
-// --- Note DTOs ---
+// --- Comment DTOs ---
 
-// AddNoteInput holds the parameters for adding a note.
-type AddNoteInput struct {
+// AddCommentInput holds the parameters for adding a comment.
+type AddCommentInput struct {
 	IssueID issue.ID
 	Author  identity.Author
 	Body    string
 }
 
-// AddNoteOutput holds the result of adding a note.
-type AddNoteOutput struct {
-	Note note.Note
+// AddCommentOutput holds the result of adding a comment.
+type AddCommentOutput struct {
+	Comment comment.Comment
 }
 
-// ListNotesInput holds the parameters for listing notes.
-type ListNotesInput struct {
+// ListCommentsInput holds the parameters for listing comments.
+type ListCommentsInput struct {
 	IssueID issue.ID
-	Filter  port.NoteFilter
+	Filter  port.CommentFilter
 	Page    port.PageRequest
 }
 
-// ListNotesOutput holds the result of listing notes.
-type ListNotesOutput struct {
-	Notes      []note.Note
+// ListCommentsOutput holds the result of listing comments.
+type ListCommentsOutput struct {
+	Comments   []comment.Comment
 	TotalCount int
 }
 
-// SearchNotesInput holds the parameters for searching notes.
-type SearchNotesInput struct {
+// SearchCommentsInput holds the parameters for searching comments.
+type SearchCommentsInput struct {
 	Query   string
 	IssueID issue.ID // Zero for global search.
-	Filter  port.NoteFilter
+	Filter  port.CommentFilter
 	Page    port.PageRequest
 }
 

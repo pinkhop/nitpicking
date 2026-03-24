@@ -124,7 +124,7 @@
 - [x] **5.15** `np show <ISSUE-ID>` — full issue detail view
 - [x] **5.16** `np list` — filtered, ordered, paginated issue listing
 - [x] **5.17** `np search <QUERY>` — full-text search across issues
-- [x] **5.18** `np note add/show/list/search` — note management
+- [x] **5.18** `np comment add/show/list/search` — note management
 - [x] **5.19** `np history <ISSUE-ID>` — mutation history
 - [x] **5.20** `np doctor` — diagnostics (stale claims)
 - [x] **5.21** `np gc --confirm` — garbage collection

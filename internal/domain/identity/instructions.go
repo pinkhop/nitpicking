@@ -50,15 +50,15 @@ np create --role task --title "Subtask B" --author <your-name> --parent <EPIC-ID
 
 Use ` + "`--parent`" + ` to attach children to the epic. For large epics, decompose into sub-epics and leave further planning to a future implementor. Add ` + "`blocked_by`" + ` relationships between children to indicate required ordering.
 
-### 3. Document your work with notes
+### 3. Document your work with comments
 
-**Before transitioning state, add a note to the issue.** Notes record context that the code and commit history cannot capture — your reasoning, trade-offs considered, dead ends explored, or anything a future reader would find useful.
+**Before transitioning state, add a comment to the issue.** Comments record context that the code and commit history cannot capture — your reasoning, trade-offs considered, dead ends explored, or anything a future reader would find useful.
 
 ` + "```" + `
-np note add --issue <ISSUE-ID> --body "Approach taken: ..." --author <your-name>
+np comment add --issue <ISSUE-ID> --body "Approach taken: ..." --author <your-name>
 ` + "```" + `
 
-Notes do not require claiming and can be added to any issue, including closed ones.
+Comments do not require claiming and can be added to any issue, including closed ones.
 
 ### 4. Transition state when done
 
@@ -98,9 +98,9 @@ np history <ID> # audit trail of all changes
 ## Key Rules
 
 - **Use ` + "`np claim ready`" + ` to find work.** Do not browse and cherry-pick issues.
-- **Document your work.** Add a note before transitioning state — capture reasoning, trade-offs, and findings.
+- **Document your work.** Add a comment before transitioning state — capture reasoning, trade-offs, and findings.
 - **Always transition state when done.** Close, release, or wait — never abandon a claim.
-- **Close is terminal.** Closed tasks cannot be reopened or modified (notes can still be added).
+- **Close is terminal.** Closed tasks cannot be reopened or modified (comments can still be added).
 - **Epics are never closed directly.** They complete when all children resolve.
 - **Use ` + "`np`" + ` exclusively.** Do not track work outside of ` + "`np`" + `.
 `

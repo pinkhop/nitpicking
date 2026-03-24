@@ -189,7 +189,7 @@ currently under here is closed", not "this epic is finished forever."
 
 ### 3.6 Notes
 
-Notes are comments on an issue. They can be added **at any time by anyone** without
+Comments are annotations on an issue. They can be added **at any time by anyone** without
 claiming the issue.
 
 | Field      | Required | Notes |
@@ -212,7 +212,7 @@ deliberate. Conversational context can be established by convention:
 These conventions are free — agents and humans can use them immediately without any
 tooling support. If note-to-note references become frequent enough that tracing a
 conversation thread is painful, the CLI can add query commands that pattern-match on
-note IDs in body text, build the reference graph at query time, and output threaded
+comment IDs in body text, build the reference graph at query time, and output threaded
 views. If that proves too slow, a non-canonical index can accelerate the queries without
 changing the data model. The point is that flat notes with conventions scale surprisingly
 far before structural threading is needed — and structural threading, once added, cannot
@@ -403,7 +403,7 @@ When an issue is determined to be a duplicate:
 - Stealing is **atomic**: the old claim is invalidated and the new claim is created in
   a single transaction. If two agents race to steal the same stale issue, exactly one
   succeeds; the other receives a claim-conflict error.
-- When an issue is stolen, a note is **automatically generated** using the stealer's
+- When an issue is stolen, a comment is **automatically generated** using the stealer's
   claim-bound author (e.g., "Stolen from `<previous-claimer>`."). The stealer inherits the issue
   content in whatever state it was left in — how they deal with potentially incomplete
   work is their concern, not the tracker's.
@@ -642,7 +642,7 @@ claim ID.
 #### Update
 
 Update one or more properties, dimensions (full CRUD), relationships (create/delete), and/or
-parent assignment on a claimed issue. Optionally add a note as part of the same
+parent assignment on a claimed issue. Optionally add a comment as part of the same
 operation. Requires the claim ID. All changes are applied as a **single atomic mutation**.
 
 #### Transition State
@@ -693,7 +693,7 @@ and possibly negative matching).
 
 #### Add Note
 
-Add a note to an issue. Does **not** require claiming. Requires an **explicit author**
+Add a comment to an issue. Does **not** require claiming. Requires an **explicit author**
 and body (see [4.1 Author Attribution](#41-claiming--updating)).
 
 #### Show Note
@@ -705,7 +705,7 @@ Display a single note by its ID.
 List notes on a specific issue.
 
 - **Filterable** by author, by created-after date-time, or by created-after a specific
-  note ID.
+  comment ID.
 - **Orderable** and **paginated**.
 
 #### Search Notes (Per-Issue)
@@ -714,9 +714,9 @@ Search notes on a specific issue using full-text search.
 
 #### Search Notes (Global)
 
-Search all notes across all issues using full-text search.
+Search all comments across all issues using full-text search.
 
-- **Filterable** by author, created-after date-time, created-after a specific note ID,
+- **Filterable** by author, created-after date-time, created-after a specific comment ID,
   issue dimensions, and issue state.
 - **Orderable** and **paginated**.
 

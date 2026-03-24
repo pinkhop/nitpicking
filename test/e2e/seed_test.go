@@ -200,19 +200,19 @@ func seedClaimedTaskWithThreshold(t *testing.T, dir, title, author, threshold st
 	return taskID, cid
 }
 
-// addNote adds a note to an issue. The test fails if the command does not
+// addComment adds a comment to an issue. The test fails if the command does not
 // succeed.
-func addNote(t *testing.T, dir, issueID, body, author string) {
+func addComment(t *testing.T, dir, issueID, body, author string) {
 	t.Helper()
 
-	_, stderr, code := runNP(t, dir, "note", "add",
+	_, stderr, code := runNP(t, dir, "comment", "add",
 		"--issue", issueID,
 		"--body", body,
 		"--author", author,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("note add on %s failed (exit %d): %s", issueID, code, stderr)
+		t.Fatalf("comment add on %s failed (exit %d): %s", issueID, code, stderr)
 	}
 }
 

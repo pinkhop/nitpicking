@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain/claim"
+	"github.com/pinkhop/nitpicking/internal/domain/comment"
 	"github.com/pinkhop/nitpicking/internal/domain/history"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
-	"github.com/pinkhop/nitpicking/internal/domain/note"
 )
 
 // PageRequest specifies keyset pagination parameters for list operations.
@@ -104,14 +104,14 @@ const (
 	OrderByUpdatedAt
 )
 
-// NoteFilter defines filtering criteria for note listings.
-type NoteFilter struct {
-	// Author filters notes by author.
+// CommentFilter defines filtering criteria for comment listings.
+type CommentFilter struct {
+	// Author filters comments by author.
 	Author identity.Author
-	// CreatedAfter filters to notes created after this timestamp.
+	// CreatedAfter filters to comments created after this timestamp.
 	CreatedAfter time.Time
-	// AfterNoteID filters to notes with ID greater than this.
-	AfterNoteID int64
+	// AfterCommentID filters to comments with ID greater than this.
+	AfterCommentID int64
 	// IssueID scopes the search to a specific issue (zero = global).
 	IssueID issue.ID
 }
@@ -172,19 +172,19 @@ type IssueRepository interface {
 	GetIssueByIdempotencyKey(ctx context.Context, key string) (issue.Issue, error)
 }
 
-// NoteRepository defines the persistence interface for notes.
-type NoteRepository interface {
-	// CreateNote persists a new note and returns the assigned ID.
-	CreateNote(ctx context.Context, n note.Note) (int64, error)
+// CommentRepository defines the persistence interface for comments.
+type CommentRepository interface {
+	// CreateComment persists a new comment and returns the assigned ID.
+	CreateComment(ctx context.Context, c comment.Comment) (int64, error)
 
-	// GetNote retrieves a note by ID. Returns domain.ErrNotFound if not found.
-	GetNote(ctx context.Context, id int64) (note.Note, error)
+	// GetComment retrieves a comment by ID. Returns domain.ErrNotFound if not found.
+	GetComment(ctx context.Context, id int64) (comment.Comment, error)
 
-	// ListNotes returns notes for an issue with optional filters.
-	ListNotes(ctx context.Context, issueID issue.ID, filter NoteFilter, page PageRequest) ([]note.Note, PageResult, error)
+	// ListComments returns comments for an issue with optional filters.
+	ListComments(ctx context.Context, issueID issue.ID, filter CommentFilter, page PageRequest) ([]comment.Comment, PageResult, error)
 
-	// SearchNotes performs full-text search on note bodies.
-	SearchNotes(ctx context.Context, query string, filter NoteFilter, page PageRequest) ([]note.Note, PageResult, error)
+	// SearchComments performs full-text search on comment bodies.
+	SearchComments(ctx context.Context, query string, filter CommentFilter, page PageRequest) ([]comment.Comment, PageResult, error)
 }
 
 // ClaimRepository defines the persistence interface for claims.
@@ -267,8 +267,8 @@ type UnitOfWork interface {
 	// Issues returns the issue repository within this transaction.
 	Issues() IssueRepository
 
-	// Notes returns the note repository within this transaction.
-	Notes() NoteRepository
+	// Comments returns the comment repository within this transaction.
+	Comments() CommentRepository
 
 	// Claims returns the claim repository within this transaction.
 	Claims() ClaimRepository

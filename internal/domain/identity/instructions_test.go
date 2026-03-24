@@ -21,7 +21,7 @@ func TestAgentInstructions_ContainsCoreWorkflowSections(t *testing.T) {
 		"np release",
 		"claim",
 		"np create",
-		"np note",
+		"np comment",
 		"exclusive",
 		"np state wait",
 		"np search",

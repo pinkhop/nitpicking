@@ -8,10 +8,10 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/domain/claim"
+	"github.com/pinkhop/nitpicking/internal/domain/comment"
 	"github.com/pinkhop/nitpicking/internal/domain/history"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
-	"github.com/pinkhop/nitpicking/internal/domain/note"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
@@ -265,17 +265,17 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow port.UnitOfWork, in
 			return output, err
 		}
 
-		// Add steal note.
-		stealNote, err := note.NewNote(note.NewNoteParams{
+		// Add steal comment.
+		stealComment, err := comment.NewComment(comment.NewCommentParams{
 			IssueID:   input.IssueID,
 			Author:    input.Author,
 			CreatedAt: now,
-			Body:      claim.StealNote(previousHolder),
+			Body:      claim.StealComment(previousHolder),
 		})
 		if err != nil {
 			return output, err
 		}
-		if _, err := uow.Notes().CreateNote(ctx, stealNote); err != nil {
+		if _, err := uow.Comments().CreateComment(ctx, stealComment); err != nil {
 			return output, err
 		}
 	}
@@ -417,9 +417,9 @@ func (s *serviceImpl) UpdateIssue(ctx context.Context, input UpdateIssueInput) e
 			return err
 		}
 
-		// Add note if provided.
+		// Add comment if provided.
 		if input.NoteBody != "" {
-			n, err := note.NewNote(note.NewNoteParams{
+			n, err := comment.NewComment(comment.NewCommentParams{
 				IssueID:   input.IssueID,
 				Author:    c.Author(),
 				CreatedAt: now,
@@ -428,7 +428,7 @@ func (s *serviceImpl) UpdateIssue(ctx context.Context, input UpdateIssueInput) e
 			if err != nil {
 				return err
 			}
-			if _, err := uow.Notes().CreateNote(ctx, n); err != nil {
+			if _, err := uow.Comments().CreateComment(ctx, n); err != nil {
 				return err
 			}
 		}
@@ -610,10 +610,10 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id issue.ID) (ShowIssueOutp
 			output.IsComplete = issue.IsEpicComplete(children)
 		}
 
-		// Note count.
-		_, noteResult, noteErr := uow.Notes().ListNotes(ctx, id, port.NoteFilter{}, port.PageRequest{PageSize: 1})
-		if noteErr == nil {
-			output.NoteCount = noteResult.TotalCount
+		// Comment count.
+		_, commentResult, commentErr := uow.Comments().ListComments(ctx, id, port.CommentFilter{}, port.PageRequest{PageSize: 1})
+		if commentErr == nil {
+			output.CommentCount = commentResult.TotalCount
 		}
 
 		// Claim info.
@@ -730,10 +730,10 @@ func (s *serviceImpl) RemoveRelationship(ctx context.Context, sourceID issue.ID,
 	})
 }
 
-// --- Note Operations ---
+// --- Comment Operations ---
 
-func (s *serviceImpl) AddNote(ctx context.Context, input AddNoteInput) (AddNoteOutput, error) {
-	var output AddNoteOutput
+func (s *serviceImpl) AddComment(ctx context.Context, input AddCommentInput) (AddCommentOutput, error) {
+	var output AddCommentOutput
 
 	err := s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		now := time.Now()
@@ -744,10 +744,10 @@ func (s *serviceImpl) AddNote(ctx context.Context, input AddNoteInput) (AddNoteO
 			return err
 		}
 		if t.IsDeleted() {
-			return fmt.Errorf("cannot add note to deleted issue: %w", domain.ErrDeletedIssue)
+			return fmt.Errorf("cannot add comment to deleted issue: %w", domain.ErrDeletedIssue)
 		}
 
-		n, err := note.NewNote(note.NewNoteParams{
+		n, err := comment.NewComment(comment.NewCommentParams{
 			IssueID:   input.IssueID,
 			Author:    input.Author,
 			CreatedAt: now,
@@ -757,7 +757,7 @@ func (s *serviceImpl) AddNote(ctx context.Context, input AddNoteInput) (AddNoteO
 			return err
 		}
 
-		id, err := uow.Notes().CreateNote(ctx, n)
+		id, err := uow.Comments().CreateComment(ctx, n)
 		if err != nil {
 			return err
 		}
@@ -768,18 +768,18 @@ func (s *serviceImpl) AddNote(ctx context.Context, input AddNoteInput) (AddNoteO
 			_ = uow.Claims().UpdateClaimLastActivity(ctx, activeClaim.ID(), now)
 		}
 
-		output.Note, err = uow.Notes().GetNote(ctx, id)
+		output.Comment, err = uow.Comments().GetComment(ctx, id)
 		return err
 	})
 
 	return output, err
 }
 
-func (s *serviceImpl) ShowNote(ctx context.Context, noteID int64) (note.Note, error) {
-	var result note.Note
+func (s *serviceImpl) ShowComment(ctx context.Context, commentID int64) (comment.Comment, error) {
+	var result comment.Comment
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		n, err := uow.Notes().GetNote(ctx, noteID)
+		n, err := uow.Comments().GetComment(ctx, commentID)
 		if err != nil {
 			return err
 		}
@@ -790,15 +790,15 @@ func (s *serviceImpl) ShowNote(ctx context.Context, noteID int64) (note.Note, er
 	return result, err
 }
 
-func (s *serviceImpl) ListNotes(ctx context.Context, input ListNotesInput) (ListNotesOutput, error) {
-	var output ListNotesOutput
+func (s *serviceImpl) ListComments(ctx context.Context, input ListCommentsInput) (ListCommentsOutput, error) {
+	var output ListCommentsOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		notes, result, err := uow.Notes().ListNotes(ctx, input.IssueID, input.Filter, input.Page)
+		comments, result, err := uow.Comments().ListComments(ctx, input.IssueID, input.Filter, input.Page)
 		if err != nil {
 			return err
 		}
-		output.Notes = notes
+		output.Comments = comments
 		output.TotalCount = result.TotalCount
 		return nil
 	})
@@ -806,18 +806,18 @@ func (s *serviceImpl) ListNotes(ctx context.Context, input ListNotesInput) (List
 	return output, err
 }
 
-func (s *serviceImpl) SearchNotes(ctx context.Context, input SearchNotesInput) (ListNotesOutput, error) {
-	var output ListNotesOutput
+func (s *serviceImpl) SearchComments(ctx context.Context, input SearchCommentsInput) (ListCommentsOutput, error) {
+	var output ListCommentsOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
 		filter := input.Filter
 		filter.IssueID = input.IssueID
 
-		notes, result, err := uow.Notes().SearchNotes(ctx, input.Query, filter, input.Page)
+		comments, result, err := uow.Comments().SearchComments(ctx, input.Query, filter, input.Page)
 		if err != nil {
 			return err
 		}
-		output.Notes = notes
+		output.Comments = comments
 		output.TotalCount = result.TotalCount
 		return nil
 	})

@@ -107,7 +107,7 @@ Implement parent validation rules from §4.1.1: only epics can be parents; an is
 
 ### 1.11 Note Entity
 
-Define `Note` with fields from §4.2: auto-assigned sequential ID (displayed as `note-<int>`), issue ID reference, author, created-at, body (non-empty). Notes are immutable after creation.
+Define `Note` with fields from §4.2: auto-assigned sequential ID (displayed as `note-<int>`), issue ID reference, author, created-at, body (non-empty). Comments are immutable after creation.
 
 - **Depends on:** 1.2, 1.3
 - **Package:** `internal/domain/note`
@@ -121,7 +121,7 @@ Define `Relationship` with types from §4.3: `blocked_by`/`blocks`, `cites`/`cit
 
 ### 1.13 History Entry Entity
 
-Define `HistoryEntry` per §4.4 and §7: entry ID, issue ID, zero-based revision, author, timestamp, event type enum (`created`, `claimed`, `released`, `updated`, `state_changed`, `deleted`, `relationship_added`, `relationship_removed`), structured changes (field name → before/after). Immutable. Notes do not produce history entries.
+Define `HistoryEntry` per §4.4 and §7: entry ID, issue ID, zero-based revision, author, timestamp, event type enum (`created`, `claimed`, `released`, `updated`, `state_changed`, `deleted`, `relationship_added`, `relationship_removed`), structured changes (field name → before/after). Immutable. Comments do not produce history entries.
 
 - **Depends on:** 1.2, 1.3
 - **Package:** `internal/domain/history`
@@ -258,7 +258,7 @@ Implement issue creation: validate all fields, generate issue ID (with collision
 
 ### 3.4 Claim Services (ClaimByID, ClaimNextReady)
 
-Implement claiming: validate issue is claimable (not terminal, not already claimed unless stale + steal opt-in), generate claim ID, bind author, set stale threshold. `ClaimNextReady` uses readiness rules and priority ordering. Produce `claimed` history entry. Handle steal fallback with auto-note.
+Implement claiming: validate issue is claimable (not terminal, not already claimed unless stale + steal opt-in), generate claim ID, bind author, set stale threshold. `ClaimNextReady` uses readiness rules and priority ordering. Produce `claimed` history entry. Handle steal fallback with auto-comment.
 
 - **Depends on:** 3.1, 3.3
 - **Package:** `internal/app/service`
@@ -269,7 +269,7 @@ Implement claimed update: verify claim ID matches, apply field changes (title, d
 
 When the parent is changed or removed, recalculate the **old** parent's epic completion status (per §4.1.1).
 
-Optionally add a note in the same atomic operation (per §8.3 Update). The note follows normal note rules (author, body validation) and updates claim last-activity.
+Optionally add a comment in the same atomic operation (per §8.3 Update). The note follows normal note rules (author, body validation) and updates claim last-activity.
 
 - **Depends on:** 3.4
 - **Package:** `internal/app/service`
@@ -306,7 +306,7 @@ Implement soft deletion: verify claim, recursive epic deletion (collect unclaime
 
 Implement note operations: add note (no claim required, validate author and body, update claim last-activity if issue is claimed), show by ID, list by issue with filters (author, created-after, after-note-ID), search per-issue, search global with filters.
 
-Enforcement rules: notes **cannot** be added to deleted issues (deleted issues are immutable per §4.2). Notes **can** be added to closed issues — closure is terminal for state changes, not for commentary.
+Enforcement rules: notes **cannot** be added to deleted issues (deleted issues are immutable per §4.2). Comments **can** be added to closed issues — closure is terminal for state changes, not for commentary.
 
 - **Depends on:** 3.1, 3.3
 - **Package:** `internal/app/service`
@@ -535,9 +535,9 @@ CLI adapter for full-text search. Positional arg: query. Flags for filters, orde
 - **Depends on:** 3.12, 5.1, 5.2
 - **Package:** `internal/cmd/search`
 
-### 5.18 `np note add`, `np note show`, `np note list`, `np note search` Commands
+### 5.18 `np comment add`, `np comment show`, `np comment list`, `np comment search` Commands
 
-CLI adapters for note operations. `np note add` requires `--author` and `--body`. Search has both per-issue and global modes.
+CLI adapters for note operations. `np comment add` requires `--author` and `--body`. Search has both per-issue and global modes.
 
 - **Depends on:** 3.10, 5.1, 5.2
 - **Package:** `internal/cmd/note`

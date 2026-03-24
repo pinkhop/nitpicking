@@ -53,7 +53,7 @@ func ValidateClaim(status IssueClaimStatus, allowSteal bool, now time.Time) erro
 	return nil
 }
 
-// StealNote generates the auto-note body added when an issue is stolen.
-func StealNote(previousHolder string) string {
+// StealComment generates the auto-comment body added when an issue is stolen.
+func StealComment(previousHolder string) string {
 	return fmt.Sprintf("Stolen from %q.", previousHolder)
 }

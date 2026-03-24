@@ -9,7 +9,7 @@ import (
 // Sentinel errors for domain failure categories. Adapters use errors.Is to
 // classify these into exit codes or HTTP status codes.
 var (
-	// ErrNotFound indicates a requested entity (issue, note, etc.) does not
+	// ErrNotFound indicates a requested entity (issue, comment, etc.) does not
 	// exist or has been soft-deleted.
 	ErrNotFound = errors.New("not found")
 

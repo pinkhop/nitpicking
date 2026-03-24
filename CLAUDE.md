@@ -211,7 +211,7 @@ np rel cites uncite <A> <B> --author <name>                               # remo
 np rel cites list --issue <ID>                                            # list citations
 np rel parent detach <A> <B> --author <name>                              # detach parent-child (order-independent, no claim needed)
 np rel parent children <ID>                                               # list children
-np rel parent tree --issue <ID>                                           # show descendant tree
+np rel parent tree <ID>                                                   # show descendant tree
 np rel list --issue <ID>                                                  # all relationships
 np rel cycles                                                             # detect cycles
 ```

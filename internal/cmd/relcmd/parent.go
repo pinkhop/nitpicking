@@ -181,25 +181,16 @@ func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newParentTreeCmd constructs "rel parent tree" which shows the full descendant
-// hierarchy from a given issue.
+// newParentTreeCmd constructs "rel parent tree <ID>" which shows the full
+// descendant hierarchy from a given issue.
 func newParentTreeCmd(f *cmdutil.Factory) *cli.Command {
-	var (
-		jsonOutput bool
-		issueArg   string
-	)
+	var jsonOutput bool
 
 	return &cli.Command{
-		Name:  "tree",
-		Usage: "Show the full descendant hierarchy of an issue",
+		Name:      "tree",
+		Usage:     "Show the full descendant hierarchy of an issue",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "issue",
-				Aliases:     []string{"i"},
-				Usage:       "Root issue ID (required)",
-				Required:    true,
-				Destination: &issueArg,
-			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -208,13 +199,18 @@ func newParentTreeCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			rawID := cmd.Args().Get(0)
+			if rawID == "" {
+				return cmdutil.FlagErrorf("issue ID argument is required")
+			}
+
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			issueID, err := resolver.Resolve(ctx, issueArg)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}

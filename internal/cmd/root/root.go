@@ -22,6 +22,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/graphcmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/historyview"
 	cmdinit "github.com/pinkhop/nitpicking/internal/cmd/init"
+	"github.com/pinkhop/nitpicking/internal/cmd/issuecmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
 	"github.com/pinkhop/nitpicking/internal/cmd/ready"
 	"github.com/pinkhop/nitpicking/internal/cmd/relate"
@@ -101,6 +102,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				version.NewCmd(f),
 			}},
 			{"Issue Lifecycle", []*cli.Command{
+				issuecmd.NewCmd(f),
 				create.NewCmd(f),
 				claim.NewCmd(f),
 				update.NewCmd(f),

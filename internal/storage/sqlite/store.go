@@ -1231,6 +1231,10 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 		)`)
 	}
 
+	if filter.Orphan {
+		conditions = append(conditions, "(t.parent_id IS NULL OR t.parent_id = '')")
+	}
+
 	if filter.Blocked {
 		// Issues with at least one unresolved blocked_by relationship.
 		conditions = append(conditions, `EXISTS (

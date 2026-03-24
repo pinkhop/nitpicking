@@ -71,6 +71,8 @@ type IssueFilter struct {
 	AncestorsOf issue.ID
 	// DimensionFilters specifies dimension-based filters.
 	DimensionFilters []DimensionFilter
+	// Orphan filters to issues that have no parent epic.
+	Orphan bool
 	// Blocked filters to issues that have at least one unresolved blocked_by
 	// relationship (target is neither closed nor deleted).
 	Blocked bool

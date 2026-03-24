@@ -227,6 +227,22 @@ Extend your own claim's threshold if you need more time:
 np extend <ISSUE-ID> --claim <CLAIM-ID> --threshold 4h
 ```
 
+## Issue Subcommand Group
+
+The `issue` (alias: `i`) command groups issue management operations under a single namespace:
+
+```bash
+np issue list                                          # list issues (same as top-level 'list')
+np issue query "search text"                           # search issues (same as top-level 'search')
+np issue update <ID> --claim <CLAIM-ID> --title "New"  # update a claimed issue
+np issue close <ID> --claim <CLAIM-ID> --author <name> --reason "Done."  # close with reason
+np issue reopen <ID> --author <name>                   # reopen a deferred issue (alias: undefer)
+np issue defer <ID> --claim <CLAIM-ID>                 # defer a claimed issue
+np issue delete <ID> --claim <CLAIM-ID> --confirm      # delete a claimed issue
+np issue note <ID> --author <name> --body "Note text"  # add a comment (alias: comment)
+np issue orphans                                       # list issues with no parent epic
+```
+
 ## Diagnostics
 
 ```bash

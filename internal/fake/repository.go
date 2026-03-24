@@ -631,6 +631,9 @@ func (r *Repository) matchesFilter(t issue.Issue, f port.IssueFilter) bool {
 			return false
 		}
 	}
+	if f.Orphan && !t.ParentID().IsZero() {
+		return false
+	}
 	if f.Blocked {
 		if !r.isIssueBlocked(t) {
 			return false

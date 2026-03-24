@@ -612,6 +612,13 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id issue.ID) (ShowIssueOutp
 			output.CommentCount = len(allComments)
 		}
 
+		// Child count.
+		children, _, childErr := uow.Issues().ListIssues(ctx,
+			port.IssueFilter{ParentID: id}, port.OrderByPriority, -1)
+		if childErr == nil {
+			output.ChildCount = len(children)
+		}
+
 		// Claim info.
 		activeClaim, err := uow.Claims().GetClaimByIssue(ctx, id)
 		if err == nil {

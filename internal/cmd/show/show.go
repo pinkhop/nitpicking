@@ -24,6 +24,7 @@ type showOutput struct {
 	Author             string               `json:"author,omitzero"`
 	IsReady            bool                 `json:"is_ready"`
 	CommentCount       int                  `json:"comment_count,omitzero"`
+	ChildCount         int                  `json:"child_count,omitzero"`
 	ClaimID            string               `json:"claim_id,omitzero"`
 	ClaimAuthor        string               `json:"claim_author,omitzero"`
 	ClaimStaleAt       string               `json:"claim_stale_at,omitzero"`
@@ -90,6 +91,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					Author:             result.Author.String(),
 					IsReady:            result.IsReady,
 					CommentCount:       result.CommentCount,
+					ChildCount:         result.ChildCount,
 					ClaimID:            result.ClaimID,
 					ClaimAuthor:        result.ClaimAuthor,
 					CreatedAt:          t.CreatedAt().Format(time.RFC3339),
@@ -129,6 +131,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 			if result.IsReady {
 				_, _ = fmt.Fprintf(w, "Ready: %s\n", cs.Green("yes"))
+			}
+
+			if result.ChildCount > 0 {
+				_, _ = fmt.Fprintf(w, "Children: %d — %s\n",
+					result.ChildCount,
+					cs.Dim(fmt.Sprintf("np epic children %s", t.ID())))
 			}
 
 			if result.CommentCount > 0 {

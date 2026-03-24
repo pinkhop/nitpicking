@@ -128,6 +128,7 @@ type ShowIssueOutput struct {
 	Relationships []issue.Relationship
 	IsReady       bool
 	CommentCount  int
+	ChildCount    int
 	ClaimID       string
 	ClaimAuthor   string
 	ClaimStaleAt  time.Time

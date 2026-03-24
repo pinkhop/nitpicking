@@ -104,7 +104,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "author",
 				Aliases:     []string{"a"},
 				Sources:     cli.EnvVars("NP_AUTHOR"),
-				Usage:       "Author name (required when --claim is set)",
+				Usage:       "Author name (required)",
 				Destination: &author,
 			},
 			&cli.StringFlag{
@@ -185,16 +185,13 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
-			// Parse author if claiming.
-			var parsedAuthor identity.Author
-			if claim {
-				if author == "" {
-					return cmdutil.FlagErrorf("--author is required when --claim is set")
-				}
-				parsedAuthor, err = identity.NewAuthor(author)
-				if err != nil {
-					return cmdutil.FlagErrorf("invalid author: %s", err)
-				}
+			// Parse author — required for all creates.
+			if author == "" {
+				return cmdutil.FlagErrorf("--author is required")
+			}
+			parsedAuthor, err := identity.NewAuthor(author)
+			if err != nil {
+				return cmdutil.FlagErrorf("invalid author: %s", err)
 			}
 
 			svc, err := cmdutil.NewTracker(f)

@@ -129,6 +129,43 @@ func TestE2E_ExitCodes(t *testing.T) {
 	}
 }
 
+func TestE2E_ShowAuthor_PresentAfterCreate(t *testing.T) {
+	// Given — a ticket created with --author but without --claim.
+	dir := t.TempDir()
+	runNP(t, dir, "init", "TEST")
+	createOut, _, code := runNP(t, dir, "create", "--role", "task", "--title", "Author round-trip", "--author", "sweet-anchor-jump", "--json")
+	if code != 0 {
+		t.Fatalf("precondition: create failed with exit code %d", code)
+	}
+	var created map[string]any
+	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
+		t.Fatalf("precondition: invalid create JSON: %v", err)
+	}
+	ticketID, ok := created["id"].(string)
+	if !ok || ticketID == "" {
+		t.Fatalf("precondition: missing id in create output")
+	}
+
+	// When — show the ticket as JSON.
+	showOut, _, code := runNP(t, dir, "show", ticketID, "--json")
+
+	// Then — author field is present and correct.
+	if code != 0 {
+		t.Fatalf("show failed with exit code %d", code)
+	}
+	var shown map[string]any
+	if err := json.Unmarshal([]byte(showOut), &shown); err != nil {
+		t.Fatalf("invalid show JSON: %v\nstdout: %s", err, showOut)
+	}
+	authorVal, ok := shown["author"].(string)
+	if !ok {
+		t.Fatalf("expected author field in show JSON, got: %s", showOut)
+	}
+	if authorVal != "sweet-anchor-jump" {
+		t.Errorf("expected author %q, got %q", "sweet-anchor-jump", authorVal)
+	}
+}
+
 func TestE2E_AgentName(t *testing.T) {
 	// Given
 	dir := t.TempDir()

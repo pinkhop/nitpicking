@@ -27,28 +27,29 @@ type ReopenInput struct {
 	WriteTo io.Writer
 }
 
-// Reopen transitions a deferred issue back to the open state. It claims the
-// issue (deferred → claimed) and immediately releases it (claimed → open),
-// making the issue available for work again. Returns an error if the issue
-// is not in the deferred state.
+// Reopen transitions a closed or deferred issue back to the open state. It
+// claims the issue and immediately releases it (→ open), making the issue
+// available for work again. Returns an error if the issue is already open or
+// claimed.
 func Reopen(ctx context.Context, input ReopenInput) error {
-	// Verify the issue is deferred before claiming.
+	// Verify the issue is in a reopenable state.
 	shown, err := input.Service.ShowIssue(ctx, input.IssueID)
 	if err != nil {
 		return fmt.Errorf("looking up issue: %w", err)
 	}
-	if shown.Issue.State() != issue.StateDeferred {
-		return fmt.Errorf("issue %s is %s, not deferred: only deferred issues can be reopened",
-			input.IssueID, shown.Issue.State())
+	state := shown.Issue.State()
+	if state != issue.StateClosed && state != issue.StateDeferred {
+		return fmt.Errorf("issue %s is %s: only closed or deferred issues can be reopened",
+			input.IssueID, state)
 	}
 
-	// Step 1: Claim the deferred issue.
+	// Step 1: Claim the issue.
 	claimOut, err := input.Service.ClaimByID(ctx, service.ClaimInput{
 		IssueID: input.IssueID,
 		Author:  input.Author,
 	})
 	if err != nil {
-		return fmt.Errorf("claiming deferred issue: %w", err)
+		return fmt.Errorf("claiming issue: %w", err)
 	}
 
 	// Step 2: Release immediately to return to open.

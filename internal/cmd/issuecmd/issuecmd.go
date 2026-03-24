@@ -129,7 +129,8 @@ func newCloseCmd(f *cmdutil.Factory) *cli.Command {
 }
 
 // newReopenCmd constructs the "issue reopen" subcommand (aliased as
-// "undefer"), which transitions a deferred issue back to open.
+// "undefer"), which transitions closed or deferred issues back to open.
+// Supports multiple issue IDs in one invocation.
 func newReopenCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
@@ -139,8 +140,8 @@ func newReopenCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:      "reopen",
 		Aliases:   []string{"undefer"},
-		Usage:     "Reopen a deferred issue (transition back to open)",
-		ArgsUsage: "<ISSUE-ID>",
+		Usage:     "Reopen closed or deferred issues (transition back to open)",
+		ArgsUsage: "<ISSUE-ID> [ISSUE-ID...]",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",
@@ -157,9 +158,8 @@ func newReopenCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			rawID := cmd.Args().Get(0)
-			if rawID == "" {
-				return cmdutil.FlagErrorf("issue ID argument is required")
+			if cmd.NArg() == 0 {
+				return cmdutil.FlagErrorf("at least one issue ID argument is required")
 			}
 
 			parsedAuthor, err := identity.NewAuthor(author)
@@ -173,18 +173,28 @@ func newReopenCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			issueID, err := resolver.Resolve(ctx, rawID)
-			if err != nil {
-				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
+			var lastErr error
+			for i := range cmd.NArg() {
+				rawID := cmd.Args().Get(i)
+				issueID, resolveErr := resolver.Resolve(ctx, rawID)
+				if resolveErr != nil {
+					lastErr = fmt.Errorf("invalid issue ID %q: %w", rawID, resolveErr)
+					_, _ = fmt.Fprintf(f.IOStreams.ErrOut, "Error: %v\n", lastErr)
+					continue
+				}
+				reopenErr := Reopen(ctx, ReopenInput{
+					Service: svc,
+					IssueID: issueID,
+					Author:  parsedAuthor,
+					JSON:    jsonOutput,
+					WriteTo: f.IOStreams.Out,
+				})
+				if reopenErr != nil {
+					lastErr = reopenErr
+					_, _ = fmt.Fprintf(f.IOStreams.ErrOut, "Error reopening %s: %v\n", issueID, reopenErr)
+				}
 			}
-
-			return Reopen(ctx, ReopenInput{
-				Service: svc,
-				IssueID: issueID,
-				Author:  parsedAuthor,
-				JSON:    jsonOutput,
-				WriteTo: f.IOStreams.Out,
-			})
+			return lastErr
 		},
 	}
 }

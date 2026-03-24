@@ -74,6 +74,30 @@ func claimAndDefer(t *testing.T, svc service.Service, issueID issue.ID) {
 	}
 }
 
+// claimAndClose claims an issue and closes it.
+func claimAndClose(t *testing.T, svc service.Service, issueID issue.ID) {
+	t.Helper()
+	ctx := t.Context()
+	author := mustAuthor(t, "test-agent")
+
+	claimOut, err := svc.ClaimByID(ctx, service.ClaimInput{
+		IssueID: issueID,
+		Author:  author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim failed: %v", err)
+	}
+
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: issueID,
+		ClaimID: claimOut.ClaimID,
+		Action:  service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close failed: %v", err)
+	}
+}
+
 // --- Reopen Tests ---
 
 func TestReopen_DeferredIssue_TransitionsToOpen(t *testing.T) {
@@ -109,10 +133,43 @@ func TestReopen_DeferredIssue_TransitionsToOpen(t *testing.T) {
 	}
 }
 
+func TestReopen_ClosedIssue_TransitionsToOpen(t *testing.T) {
+	t.Parallel()
+
+	// Given: a closed issue.
+	svc := setupService(t)
+	issueID := createTask(t, svc, "Closed task")
+	claimAndClose(t, svc, issueID)
+
+	var buf bytes.Buffer
+	input := issuecmd.ReopenInput{
+		Service: svc,
+		IssueID: issueID,
+		Author:  mustAuthor(t, "test-agent"),
+		JSON:    false,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := issuecmd.Reopen(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	shown, err := svc.ShowIssue(t.Context(), issueID)
+	if err != nil {
+		t.Fatalf("show issue failed: %v", err)
+	}
+	if shown.Issue.State() != issue.StateOpen {
+		t.Errorf("state: got %q, want %q", shown.Issue.State(), issue.StateOpen)
+	}
+}
+
 func TestReopen_OpenIssue_ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	// Given: an issue that is already open (not deferred).
+	// Given: an issue that is already open.
 	svc := setupService(t)
 	issueID := createTask(t, svc, "Open task")
 
@@ -128,7 +185,7 @@ func TestReopen_OpenIssue_ReturnsError(t *testing.T) {
 	// When
 	err := issuecmd.Reopen(t.Context(), input)
 
-	// Then: should error because open issues cannot be claimed for reopen.
+	// Then: should error because open issues cannot be reopened.
 	if err == nil {
 		t.Fatal("expected error for reopening an already-open issue")
 	}

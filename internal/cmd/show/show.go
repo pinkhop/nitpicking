@@ -45,7 +45,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "show",
-		Usage:     "Show full details for a ticket",
+		Usage:     "Show ticket details, relationships, and metadata",
 		ArgsUsage: "<TICKET-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{

@@ -64,7 +64,6 @@ func TestRenderDOT_StateColors_MatchExpected(t *testing.T) {
 		color string
 	}{
 		{"open", issue.StateOpen, "white"},
-		{"active", issue.StateActive, "lightblue"},
 		{"claimed", issue.StateClaimed, "yellow"},
 		{"closed", issue.StateClosed, "gray"},
 		{"deferred", issue.StateDeferred, "lightyellow"},
@@ -98,7 +97,7 @@ func TestRenderDOT_ParentChild_CreatesClusterAndEdge(t *testing.T) {
 	taskID := mustID(t, "NP-ta5k0")
 
 	nodes := []graph.Node{
-		{ID: epicID, Role: issue.RoleEpic, State: issue.StateActive, Title: "Auth epic"},
+		{ID: epicID, Role: issue.RoleEpic, State: issue.StateOpen, Title: "Auth epic"},
 		{ID: taskID, Role: issue.RoleTask, State: issue.StateOpen, Title: "Login fix", ParentID: epicID},
 	}
 

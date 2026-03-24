@@ -49,12 +49,12 @@ func IsTaskReady(state State, blockers []BlockerStatus, ancestors []AncestorStat
 // IsEpicReady determines whether an epic is ready for decomposition per §6.3.
 //
 // An epic is ready when:
-//  1. Its state is active.
+//  1. Its state is open.
 //  2. It has no children (needs decomposition).
 //  3. It has no unresolved blocked_by relationships.
-//  4. No ancestor epic is deferred or waiting.
+//  4. No ancestor is deferred or waiting.
 func IsEpicReady(state State, hasChildren bool, blockers []BlockerStatus, ancestors []AncestorStatus) bool {
-	if state != StateActive {
+	if state != StateOpen {
 		return false
 	}
 

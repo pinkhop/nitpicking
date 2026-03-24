@@ -116,7 +116,7 @@ func NewEpic(p NewEpicParams) (Issue, error) {
 		description:        p.Description,
 		acceptanceCriteria: p.AcceptanceCriteria,
 		priority:           priority,
-		state:              StateActive,
+		state:              StateOpen,
 		parentID:           p.ParentID,
 		dimensions:         p.Dimensions,
 		createdAt:          createdAt,
@@ -198,8 +198,7 @@ func (t Issue) WithPriority(p Priority) Issue {
 }
 
 // WithState returns a new issue with the updated state. This does not
-// validate the transition — callers must use TransitionTask or TransitionEpic
-// before calling this.
+// validate the transition — callers must use Transition before calling this.
 func (t Issue) WithState(s State) Issue {
 	t.state = s
 	return t

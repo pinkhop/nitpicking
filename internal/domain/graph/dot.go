@@ -30,7 +30,6 @@ type Edge struct {
 // stateColors maps issue states to Graphviz fill colors.
 var stateColors = map[issue.State]string{
 	issue.StateOpen:     "white",
-	issue.StateActive:   "lightblue",
 	issue.StateClaimed:  "yellow",
 	issue.StateClosed:   "gray",
 	issue.StateDeferred: "lightyellow",

@@ -97,10 +97,16 @@ func Open(dbPath string) (*Store, error) {
 		return nil, &domain.DatabaseError{Op: "migrate facets to dimensions", Err: errors.Join(err, closeErr)}
 	}
 	err = migrateNotesToComments(conn)
+	if err != nil {
+		pool.Put(conn)
+		closeErr := pool.Close()
+		return nil, &domain.DatabaseError{Op: "migrate notes to comments", Err: errors.Join(err, closeErr)}
+	}
+	err = migrateActiveToOpen(conn)
 	pool.Put(conn)
 	if err != nil {
 		closeErr := pool.Close()
-		return nil, &domain.DatabaseError{Op: "migrate notes to comments", Err: errors.Join(err, closeErr)}
+		return nil, &domain.DatabaseError{Op: "migrate active to open", Err: errors.Join(err, closeErr)}
 	}
 
 	return &Store{pool: pool}, nil
@@ -1277,8 +1283,8 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 		// Ready means: correct state, no unresolved blockers, no deferred/waiting
 		// ancestors, and (for epics) no children.
 		//
-		// State: tasks must be open, epics must be active.
-		conditions = append(conditions, `((t.role = 'task' AND t.state = 'open') OR (t.role = 'epic' AND t.state = 'active'))`)
+		// State: all issues must be open.
+		conditions = append(conditions, `t.state = 'open'`)
 
 		// Epics with children are already decomposed — not ready.
 		conditions = append(conditions, `(t.role = 'task' OR NOT EXISTS (

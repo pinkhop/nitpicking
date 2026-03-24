@@ -132,7 +132,7 @@ func TestIsEpicReady_ActiveNoChildrenNoBlockers_Ready(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := issue.IsEpicReady(issue.StateActive, false, nil, nil)
+	result := issue.IsEpicReady(issue.StateOpen, false, nil, nil)
 
 	// Then
 	if !result {
@@ -144,7 +144,7 @@ func TestIsEpicReady_HasChildren_NotReady(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := issue.IsEpicReady(issue.StateActive, true, nil, nil)
+	result := issue.IsEpicReady(issue.StateOpen, true, nil, nil)
 
 	// Then
 	if result {
@@ -185,7 +185,7 @@ func TestIsEpicReady_UnresolvedBlocker_NotReady(t *testing.T) {
 	}
 
 	// When
-	result := issue.IsEpicReady(issue.StateActive, false, blockers, nil)
+	result := issue.IsEpicReady(issue.StateOpen, false, blockers, nil)
 
 	// Then
 	if result {
@@ -219,7 +219,7 @@ func TestIsEpicReady_CompleteEpicBlocker_Ready(t *testing.T) {
 	}
 
 	// When
-	result := issue.IsEpicReady(issue.StateActive, false, blockers, nil)
+	result := issue.IsEpicReady(issue.StateOpen, false, blockers, nil)
 
 	// Then
 	if !result {

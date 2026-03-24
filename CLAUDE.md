@@ -97,7 +97,7 @@ np search "login timeout"             # full-text search across titles and descr
 
 `np list` hides closed issues by default since they are terminal and no longer actionable. Use `--include-closed` to show them, or `--state closed` to list only closed issues.
 
-An issue is **ready** when it is `open` (task) or `active` with no children (epic needing decomposition), has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred` or `waiting`.
+An issue is **ready** when it is `open` with no children (for epics, needing decomposition), has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred` or `waiting`.
 
 ### 2. Claim before mutating
 

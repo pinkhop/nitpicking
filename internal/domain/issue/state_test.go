@@ -8,7 +8,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
-func TestTransitionTask_LegalTransitions(t *testing.T) {
+func TestTransition_LegalTransitions(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -30,7 +30,7 @@ func TestTransitionTask_LegalTransitions(t *testing.T) {
 			t.Parallel()
 
 			// When
-			err := issue.TransitionTask(tc.current, tc.next)
+			err := issue.Transition(tc.current, tc.next)
 			// Then
 			if err != nil {
 				t.Errorf("expected legal transition, got error: %v", err)
@@ -39,7 +39,7 @@ func TestTransitionTask_LegalTransitions(t *testing.T) {
 	}
 }
 
-func TestTransitionTask_IllegalTransitions(t *testing.T) {
+func TestTransition_IllegalTransitions(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -59,7 +59,7 @@ func TestTransitionTask_IllegalTransitions(t *testing.T) {
 			t.Parallel()
 
 			// When
-			err := issue.TransitionTask(tc.current, tc.next)
+			err := issue.Transition(tc.current, tc.next)
 
 			// Then
 			if !errors.Is(err, domain.ErrIllegalTransition) {
@@ -69,11 +69,11 @@ func TestTransitionTask_IllegalTransitions(t *testing.T) {
 	}
 }
 
-func TestTransitionTask_FromClosed_ReturnsTerminalState(t *testing.T) {
+func TestTransition_FromClosed_ReturnsTerminalState(t *testing.T) {
 	t.Parallel()
 
 	// When
-	err := issue.TransitionTask(issue.StateClosed, issue.StateClaimed)
+	err := issue.Transition(issue.StateClosed, issue.StateClaimed)
 
 	// Then
 	if !errors.Is(err, domain.ErrTerminalState) {
@@ -81,86 +81,15 @@ func TestTransitionTask_FromClosed_ReturnsTerminalState(t *testing.T) {
 	}
 }
 
-func TestTransitionEpic_LegalTransitions(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name    string
-		current issue.State
-		next    issue.State
-	}{
-		{"active to claimed", issue.StateActive, issue.StateClaimed},
-		{"claimed to active", issue.StateClaimed, issue.StateActive},
-		{"claimed to deferred", issue.StateClaimed, issue.StateDeferred},
-		{"claimed to waiting", issue.StateClaimed, issue.StateWaiting},
-		{"deferred to claimed", issue.StateDeferred, issue.StateClaimed},
-		{"waiting to claimed", issue.StateWaiting, issue.StateClaimed},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// When
-			err := issue.TransitionEpic(tc.current, tc.next)
-			// Then
-			if err != nil {
-				t.Errorf("expected legal transition, got error: %v", err)
-			}
-		})
-	}
-}
-
-func TestTransitionEpic_IllegalTransitions(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name    string
-		current issue.State
-		next    issue.State
-	}{
-		{"active to deferred", issue.StateActive, issue.StateDeferred},
-		{"active to waiting", issue.StateActive, issue.StateWaiting},
-		{"claimed to closed", issue.StateClaimed, issue.StateClosed},
-		{"deferred to active", issue.StateDeferred, issue.StateActive},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// When
-			err := issue.TransitionEpic(tc.current, tc.next)
-
-			// Then
-			if !errors.Is(err, domain.ErrIllegalTransition) {
-				t.Errorf("expected ErrIllegalTransition, got %v", err)
-			}
-		})
-	}
-}
-
-func TestDefaultStateForRole_Task_ReturnsOpen(t *testing.T) {
+func TestDefaultState_ReturnsOpen(t *testing.T) {
 	t.Parallel()
 
 	// When
-	s := issue.DefaultStateForRole(issue.RoleTask)
+	s := issue.DefaultState()
 
 	// Then
 	if s != issue.StateOpen {
 		t.Errorf("expected open, got %s", s)
-	}
-}
-
-func TestDefaultStateForRole_Epic_ReturnsActive(t *testing.T) {
-	t.Parallel()
-
-	// When
-	s := issue.DefaultStateForRole(issue.RoleEpic)
-
-	// Then
-	if s != issue.StateActive {
-		t.Errorf("expected active, got %s", s)
 	}
 }
 
@@ -172,7 +101,6 @@ func TestParseState_ValidStates(t *testing.T) {
 		expected issue.State
 	}{
 		{"open", issue.StateOpen},
-		{"active", issue.StateActive},
 		{"claimed", issue.StateClaimed},
 		{"closed", issue.StateClosed},
 		{"deferred", issue.StateDeferred},

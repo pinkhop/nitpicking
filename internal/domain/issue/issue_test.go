@@ -77,8 +77,8 @@ func TestNewEpic_ValidParams_Succeeds(t *testing.T) {
 	if tk.Role() != issue.RoleEpic {
 		t.Errorf("expected epic role, got %s", tk.Role())
 	}
-	if tk.State() != issue.StateActive {
-		t.Errorf("expected active state, got %s", tk.State())
+	if tk.State() != issue.StateOpen {
+		t.Errorf("expected open state, got %s", tk.State())
 	}
 	if tk.Priority() != issue.P1 {
 		t.Errorf("expected P1, got %s", tk.Priority())

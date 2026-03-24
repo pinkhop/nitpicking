@@ -135,7 +135,7 @@ All issues — regardless of type — carry these fields:
 | Acceptance Criteria | No       | |
 | Priority            | Yes      | `P0`–`P4`. Default: `P2`. Lower number = higher urgency. Changing priority requires claiming. |
 | Revision            | Yes      | Integer; derived from history entry count (`revision = history count − 1`). Starts at `0` for a newly created issue. See [5](#5-history--auditability). |
-| State               | Yes      | See [3.4](#34-states). Tasks start as `open`; epics start as `active`. |
+| State               | Yes      | See [3.4](#34-states). All issues start as `open`. |
 | Dimensions              | —        | Zero or more key-value pairs. See [3.8](#38-dimensions). |
 | Notes               | —        | Zero or more. See [3.6](#36-notes). |
 | Relationships       | —        | Zero or more. See [3.5](#35-relationships). |
@@ -150,7 +150,7 @@ how completion works.
 | State      | Applies to  | Meaning |
 |------------|-------------|---------|
 | `open`     | Tasks       | Available for work. Default state at creation. |
-| `active`   | Epics       | This epic is live. Children follow their own lifecycles; readiness flows normally. Default state at creation. |
+
 | `claimed`  | Both        | An agent or human has taken ownership. For tasks: working on it or updating fields. For epics: editing metadata or decomposing into children. |
 | `closed`   | Tasks       | Fully resolved. **Terminal** — cannot be claimed or reopened. Create a new issue and cite the old one instead. |
 | `deferred` | Both        | Should not be worked on now. For epics: unclaimed descendants are no longer ready (see [4.3](#43-readiness)); claimed descendants continue, but nothing new starts. |
@@ -650,7 +650,7 @@ operation. Requires the claim ID. All changes are applied as a **single atomic m
 Change the state of a claimed issue. Requires the claim ID. Valid transitions from
 `claimed`:
 
-- **Release** — return to `open` (tasks) or `active` (epics) without completing.
+- **Release** — return to `open` without completing.
 - **Close** — mark as complete (tasks only). Terminal.
 - **Defer** — shelve.
 - **Wait** — externally blocked.

@@ -123,7 +123,7 @@ An issue that organizes other issues. Its completion is derived from its childre
 
 - Optionally has a parent issue (nesting is allowed).
 - Cannot be directly completed — completion is derived (see [6.2](#62-epic-completion-derivation)).
-- Has three directly settable planning states: `active`, `deferred`, `waiting` (see [5.2](#52-epic-states)).
+- Has two directly settable planning states: `deferred`, `waiting` (see [5.2](#52-epic-states)).
 - Claimable — an epic must be claimed to edit its metadata or decompose it into children.
 
 #### Task
@@ -145,7 +145,7 @@ All issues carry these fields regardless of role:
 | Description         | No       | Yes     | Free-form text. |
 | Acceptance Criteria | No       | Yes     | Free-form text. |
 | Priority            | Yes      | Yes     | `P0`–`P4`. Default: `P2`. Lower number = higher urgency. Changing requires claiming. |
-| State               | Yes      | Yes     | See [5](#5-state-machines). Tasks start as `open`; epics start as `active`. |
+| State               | Yes      | Yes     | See [5](#5-state-machines). All issues start as `open`. |
 | Revision            | Yes      | No      | Integer; derived from history entry count (`revision = history count − 1`). Starts at `0`. |
 | Parent              | No       | Yes     | Reference to a parent issue. Any issue may have any other issue as its parent. See [4.1.1](#411-parent-constraints). |
 | Dimensions              | —        | Yes     | Zero or more key–value pairs. See [4.6](#46-dimension). |
@@ -275,26 +275,17 @@ All author fields — whether bound to a claim or passed explicitly — must sat
 
 ## 5. State Machines
 
-### 5.1 Task States
+### 5.1 Issue States
+
+All issue roles (task and epic) share the same state lifecycle:
 
 | State      | Meaning |
 |------------|---------|
 | `open`     | Available for work. Default state at creation. |
 | `claimed`  | An agent or human has taken ownership; working on it or updating fields. |
 | `closed`   | Fully resolved. **Terminal** — cannot be claimed or reopened. |
-| `deferred` | Should not be worked on now. |
-| `waiting`  | Cannot proceed until something external to the issue tracker happens. |
-
-### 5.2 Epic States
-
-| State      | Meaning |
-|------------|---------|
-| `active`   | Live. Children follow their own lifecycles; readiness flows normally. Default state at creation. |
-| `claimed`  | An agent or human is editing metadata or decomposing into children. |
 | `deferred` | Should not be worked on now. Unclaimed descendants are no longer ready; claimed descendants continue. |
-| `waiting`  | Cannot proceed until something external happens. Same readiness propagation as `deferred`. |
-
-Epics have no `closed` state. Epic completion is derived (see [6.2](#62-epic-completion-derivation)).
+| `waiting`  | Cannot proceed until something external to the issue tracker happens. Same readiness propagation as `deferred`. |
 
 ### 5.3 State Transition Rules
 
@@ -360,7 +351,7 @@ A task is **ready** when all of the following are true:
 
 An epic is **ready** when all of the following are true:
 
-1. Its state is `active`.
+1. Its state is `open`.
 2. It has **no children** — it needs decomposition into tasks and/or sub-epics.
 3. It has no `blocked_by` relationships, **or** every `blocked_by` target has been closed, deleted, or completed (epics only).
 4. No ancestor epic is `deferred` or `waiting`.
@@ -500,7 +491,7 @@ Change the state of a claimed issue. Requires the claim ID. Valid transitions fr
 
 | Transition | Effect |
 |------------|--------|
-| Release    | Return to `open` (tasks) or `active` (epics). |
+| Release    | Return to `open`. |
 | Close      | Mark as complete. Tasks only. Terminal. |
 | Defer      | Shelve. |
 | Wait       | Externally blocked. |

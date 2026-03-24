@@ -940,7 +940,7 @@ func (s *serviceImpl) releaseIssue(ctx context.Context, uow port.UnitOfWork, iss
 		return err
 	}
 
-	releaseState := issue.ReleaseStateForRole(t.Role())
+	releaseState := issue.ReleaseState()
 
 	t = t.WithState(releaseState)
 	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
@@ -969,7 +969,7 @@ func (s *serviceImpl) closeIssue(ctx context.Context, uow port.UnitOfWork, t iss
 		return fmt.Errorf("only tasks can be closed: %w", domain.ErrIllegalTransition)
 	}
 
-	if err := issue.TransitionTask(t.State(), issue.StateClosed); err != nil {
+	if err := issue.Transition(t.State(), issue.StateClosed); err != nil {
 		return err
 	}
 
@@ -996,14 +996,8 @@ func (s *serviceImpl) closeIssue(ctx context.Context, uow port.UnitOfWork, t iss
 }
 
 func (s *serviceImpl) transitionIssue(ctx context.Context, uow port.UnitOfWork, t issue.Issue, claimID string, author identity.Author, now time.Time, targetState issue.State) error {
-	var transErr error
-	if t.IsTask() {
-		transErr = issue.TransitionTask(t.State(), targetState)
-	} else {
-		transErr = issue.TransitionEpic(t.State(), targetState)
-	}
-	if transErr != nil {
-		return transErr
+	if err := issue.Transition(t.State(), targetState); err != nil {
+		return err
 	}
 
 	t = t.WithState(targetState)

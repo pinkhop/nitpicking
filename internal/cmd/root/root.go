@@ -18,8 +18,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/dimensioncmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/done"
 	"github.com/pinkhop/nitpicking/internal/cmd/epiccmd"
-	"github.com/pinkhop/nitpicking/internal/cmd/gc"
-	"github.com/pinkhop/nitpicking/internal/cmd/historyview"
 	cmdinit "github.com/pinkhop/nitpicking/internal/cmd/init"
 	"github.com/pinkhop/nitpicking/internal/cmd/issuecmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
@@ -122,17 +120,13 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 		}),
 	}
 
-	// Register deprecated commands as hidden — they work but don't
-	// appear in help output. Use the new subcommand groups instead.
-	deprecated := []*cli.Command{
-		claim.NewCmd(f),
-		historyview.NewCmd(f),
-		gc.NewCmd(f),
-	}
-	for _, cmd := range deprecated {
-		cmd.Hidden = true
-		rootCmd.Commands = append(rootCmd.Commands, cmd)
-	}
+	// Register claim as a hidden top-level command — the canonical
+	// location for "np claim ready" and "np claim id". It does not
+	// appear in help because `np claim ready` is surfaced via `np ready`
+	// and the claim workflow is documented separately.
+	claimCmd := claim.NewCmd(f)
+	claimCmd.Hidden = true
+	rootCmd.Commands = append(rootCmd.Commands, claimCmd)
 
 	return rootCmd
 }

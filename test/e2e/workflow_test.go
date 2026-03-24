@@ -686,7 +686,7 @@ func TestE2E_DeleteAndGC(t *testing.T) {
 	}
 
 	// GC should succeed.
-	_, stderr, code = runNP(t, dir, "gc", "--confirm", "--json")
+	_, stderr, code = runNP(t, dir, "admin", "gc", "--confirm", "--json")
 	if code != 0 {
 		t.Errorf("gc failed (exit %d): %s", code, stderr)
 	}

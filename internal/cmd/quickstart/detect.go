@@ -1,6 +1,6 @@
-// Package welcome implements the setup guide detection logic and rendering
-// for the "np welcome" command.
-package welcome
+// Package quickstart implements the setup guide detection logic and rendering
+// for the "np quickstart" command.
+package quickstart
 
 import (
 	"os"

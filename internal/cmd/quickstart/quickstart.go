@@ -1,4 +1,4 @@
-package welcome
+package quickstart
 
 import (
 	"context"
@@ -11,12 +11,13 @@ import (
 	"github.com/pinkhop/nitpicking/internal/iostreams"
 )
 
-// NewCmd constructs the "welcome" command, which displays the full setup guide
-// with live status indicators. This command is read-only — it inspects the
-// current project state but does not modify any files or create the database.
+// NewCmd constructs the "quickstart" command, which displays the full setup
+// guide with live status indicators. This command is read-only — it inspects
+// the current project state but does not modify any files or create the
+// database.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
-		Name:  "welcome",
+		Name:  "quickstart",
 		Usage: "Show the setup guide with live status indicators",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cwd, err := os.Getwd()
@@ -93,7 +94,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			_, _ = fmt.Fprintf(w, "    %s  Create an issue\n", cs.Cyan(`np create --role task --title "..." --author <name>`))
 			_, _ = fmt.Fprintf(w, "    %s                                      Find available work\n", cs.Cyan("np list --ready"))
 			_, _ = fmt.Fprintf(w, "    %s                       Claim next ready issue\n", cs.Cyan("np claim ready --author <name>"))
-			_, _ = fmt.Fprintf(w, "    %s               Complete a task\n", cs.Cyan("np state close <ID> --claim <CLAIM-ID>"))
+			_, _ = fmt.Fprintf(w, "    %s  Complete a task\n", cs.Cyan(`np done <ID> --claim <CLAIM-ID> --author <name> --reason "..."`))
 			_, _ = fmt.Fprintf(w, "    %s                                            Run diagnostics\n", cs.Cyan("np doctor"))
 			_, _ = fmt.Fprintf(w, "    %s                                              Full command reference\n", cs.Cyan("np help"))
 			_, _ = fmt.Fprintf(w, "    %s                                       Agent workflow instructions\n", cs.Cyan("np agent prime"))

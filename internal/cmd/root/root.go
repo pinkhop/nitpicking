@@ -24,6 +24,7 @@ import (
 	cmdinit "github.com/pinkhop/nitpicking/internal/cmd/init"
 	"github.com/pinkhop/nitpicking/internal/cmd/issuecmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
+	"github.com/pinkhop/nitpicking/internal/cmd/quickstart"
 	"github.com/pinkhop/nitpicking/internal/cmd/ready"
 	"github.com/pinkhop/nitpicking/internal/cmd/relate"
 	"github.com/pinkhop/nitpicking/internal/cmd/relcmd"
@@ -33,7 +34,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/transition"
 	"github.com/pinkhop/nitpicking/internal/cmd/update"
 	"github.com/pinkhop/nitpicking/internal/cmd/version"
-	"github.com/pinkhop/nitpicking/internal/cmd/welcome"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 )
 
@@ -97,7 +97,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 		},
 		Commands: categorize([]commandGroup{
 			{"Setup", []*cli.Command{
-				welcome.NewCmd(f),
+				quickstart.NewCmd(f),
 				cmdinit.NewCmd(f),
 				agent.NewCmd(f),
 				version.NewCmd(f),

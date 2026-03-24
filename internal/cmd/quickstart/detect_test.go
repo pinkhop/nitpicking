@@ -1,11 +1,11 @@
-package welcome_test
+package quickstart_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/cmd/welcome"
+	"github.com/pinkhop/nitpicking/internal/cmd/quickstart"
 )
 
 func TestIsDatabaseInitialized_WithNpDir_ReturnsTrue(t *testing.T) {
@@ -18,7 +18,7 @@ func TestIsDatabaseInitialized_WithNpDir_ReturnsTrue(t *testing.T) {
 	}
 
 	// When
-	result := welcome.IsDatabaseInitialized(dir)
+	result := quickstart.IsDatabaseInitialized(dir)
 
 	// Then
 	if !result {
@@ -33,7 +33,7 @@ func TestIsDatabaseInitialized_WithoutNpDir_ReturnsFalse(t *testing.T) {
 	dir := t.TempDir()
 
 	// When
-	result := welcome.IsDatabaseInitialized(dir)
+	result := quickstart.IsDatabaseInitialized(dir)
 
 	// Then
 	if result {
@@ -64,7 +64,7 @@ func TestIsGitIgnored_WithNpPattern_ReturnsTrue(t *testing.T) {
 			}
 
 			// When
-			result := welcome.IsGitIgnored(dir)
+			result := quickstart.IsGitIgnored(dir)
 
 			// Then
 			if !result {
@@ -84,7 +84,7 @@ func TestIsGitIgnored_WithoutPattern_ReturnsFalse(t *testing.T) {
 	}
 
 	// When
-	result := welcome.IsGitIgnored(dir)
+	result := quickstart.IsGitIgnored(dir)
 
 	// Then
 	if result {
@@ -99,7 +99,7 @@ func TestIsGitIgnored_NoGitignore_ReturnsFalse(t *testing.T) {
 	dir := t.TempDir()
 
 	// When
-	result := welcome.IsGitIgnored(dir)
+	result := quickstart.IsGitIgnored(dir)
 
 	// Then
 	if result {
@@ -118,7 +118,7 @@ func TestHasAgentInstructions_WithNpInClaudeMd_ReturnsTrue(t *testing.T) {
 	}
 
 	// When
-	result := welcome.HasAgentInstructions(dir)
+	result := quickstart.HasAgentInstructions(dir)
 
 	// Then
 	if !result {
@@ -137,7 +137,7 @@ func TestHasAgentInstructions_WithNpInAgentsMd_ReturnsTrue(t *testing.T) {
 	}
 
 	// When
-	result := welcome.HasAgentInstructions(dir)
+	result := quickstart.HasAgentInstructions(dir)
 
 	// Then
 	if !result {
@@ -156,7 +156,7 @@ func TestHasAgentInstructions_NoMention_ReturnsFalse(t *testing.T) {
 	}
 
 	// When
-	result := welcome.HasAgentInstructions(dir)
+	result := quickstart.HasAgentInstructions(dir)
 
 	// Then
 	if result {
@@ -171,7 +171,7 @@ func TestHasAgentInstructions_NoFiles_ReturnsFalse(t *testing.T) {
 	dir := t.TempDir()
 
 	// When
-	result := welcome.HasAgentInstructions(dir)
+	result := quickstart.HasAgentInstructions(dir)
 
 	// Then
 	if result {
@@ -183,7 +183,7 @@ func TestHasAuthorConfigured_NonEmpty_ReturnsTrue(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := welcome.HasAuthorConfigured("alice")
+	result := quickstart.HasAuthorConfigured("alice")
 
 	// Then
 	if !result {
@@ -195,7 +195,7 @@ func TestHasAuthorConfigured_Empty_ReturnsFalse(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := welcome.HasAuthorConfigured("")
+	result := quickstart.HasAuthorConfigured("")
 
 	// Then
 	if result {

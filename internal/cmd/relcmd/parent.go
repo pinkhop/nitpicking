@@ -165,8 +165,14 @@ func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			_ = tw.Flush()
 
-			_, _ = fmt.Fprintf(w, "\n%s\n",
-				cs.Dim(fmt.Sprintf("%d children", result.TotalCount)))
+			shown := len(result.Items)
+			if result.HasMore {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d children (more available)", shown)))
+			} else {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d children", shown)))
+			}
 			return nil
 		},
 	}
@@ -240,8 +246,14 @@ func newParentTreeCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			_ = tw.Flush()
 
-			_, _ = fmt.Fprintf(w, "\n%s\n",
-				cs.Dim(fmt.Sprintf("%d descendants", result.TotalCount)))
+			shown := len(result.Items)
+			if result.HasMore {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d descendants (more available)", shown)))
+			} else {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d descendants", shown)))
+			}
 			return nil
 		},
 	}

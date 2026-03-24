@@ -215,9 +215,9 @@ func TestE2E_CreateFromJSON_DimensionsMerge(t *testing.T) {
 		t.Fatalf("list failed")
 	}
 	listResult := parseJSON(t, listStdout)
-	count, _ := listResult["total_count"].(float64)
-	if count != 1 {
-		t.Errorf("expected 1 issue with kind:feature, got %v", count)
+	items, _ := listResult["items"].([]any)
+	if len(items) != 1 {
+		t.Errorf("expected 1 issue with kind:feature, got %d", len(items))
 	}
 
 	// Verify area:auth (from JSON, no conflict).
@@ -227,9 +227,9 @@ func TestE2E_CreateFromJSON_DimensionsMerge(t *testing.T) {
 		"--json",
 	)
 	listResult2 := parseJSON(t, listStdout2)
-	count2, _ := listResult2["total_count"].(float64)
-	if count2 != 1 {
-		t.Errorf("expected 1 issue with area:auth, got %v", count2)
+	items2, _ := listResult2["items"].([]any)
+	if len(items2) != 1 {
+		t.Errorf("expected 1 issue with area:auth, got %d", len(items2))
 	}
 
 	// Suppress unused variable warning for showStdout.

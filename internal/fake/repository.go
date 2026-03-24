@@ -87,11 +87,11 @@ func (r *Repository) UpdateIssue(_ context.Context, t issue.Issue) error {
 	return nil
 }
 
-func (r *Repository) ListIssues(_ context.Context, filter port.IssueFilter, orderBy port.IssueOrderBy, page port.PageRequest) ([]port.IssueListItem, port.PageResult, error) {
+func (r *Repository) ListIssues(_ context.Context, filter port.IssueFilter, orderBy port.IssueOrderBy, limit int) ([]port.IssueListItem, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	page = page.Normalize()
+	limit = port.NormalizeLimit(limit)
 
 	var items []port.IssueListItem
 	for _, t := range r.issues {
@@ -105,19 +105,22 @@ func (r *Repository) ListIssues(_ context.Context, filter port.IssueFilter, orde
 	}
 
 	r.sortIssueItems(items, orderBy)
-	total := len(items)
 
-	// Apply keyset pagination.
-	items = r.applyPagination(items, page)
+	// Apply limit and detect hasMore.
+	hasMore := false
+	if limit > 0 && len(items) > limit {
+		hasMore = true
+		items = items[:limit]
+	}
 
-	return items, port.PageResult{TotalCount: total}, nil
+	return items, hasMore, nil
 }
 
-func (r *Repository) SearchIssues(_ context.Context, query string, filter port.IssueFilter, orderBy port.IssueOrderBy, page port.PageRequest) ([]port.IssueListItem, port.PageResult, error) {
+func (r *Repository) SearchIssues(_ context.Context, query string, filter port.IssueFilter, orderBy port.IssueOrderBy, limit int) ([]port.IssueListItem, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	page = page.Normalize()
+	limit = port.NormalizeLimit(limit)
 	queryLower := strings.ToLower(query)
 
 	var items []port.IssueListItem
@@ -135,10 +138,15 @@ func (r *Repository) SearchIssues(_ context.Context, query string, filter port.I
 	}
 
 	r.sortIssueItems(items, orderBy)
-	total := len(items)
-	items = r.applyPagination(items, page)
 
-	return items, port.PageResult{TotalCount: total}, nil
+	// Apply limit and detect hasMore.
+	hasMore := false
+	if limit > 0 && len(items) > limit {
+		hasMore = true
+		items = items[:limit]
+	}
+
+	return items, hasMore, nil
 }
 
 func (r *Repository) GetChildStatuses(_ context.Context, epicID issue.ID) ([]issue.ChildStatus, error) {
@@ -298,11 +306,11 @@ func (r *Repository) GetComment(_ context.Context, id int64) (comment.Comment, e
 	return n, nil
 }
 
-func (r *Repository) ListComments(_ context.Context, issueID issue.ID, filter port.CommentFilter, page port.PageRequest) ([]comment.Comment, port.PageResult, error) {
+func (r *Repository) ListComments(_ context.Context, issueID issue.ID, filter port.CommentFilter, limit int) ([]comment.Comment, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	page = page.Normalize()
+	limit = port.NormalizeLimit(limit)
 
 	var comments []comment.Comment
 	for _, n := range r.comments {
@@ -319,19 +327,21 @@ func (r *Repository) ListComments(_ context.Context, issueID issue.ID, filter po
 		return cmp.Compare(a.ID(), b.ID())
 	})
 
-	total := len(comments)
-	if page.PageSize > 0 && len(comments) > page.PageSize {
-		comments = comments[:page.PageSize]
+	// Apply limit and detect hasMore.
+	hasMore := false
+	if limit > 0 && len(comments) > limit {
+		hasMore = true
+		comments = comments[:limit]
 	}
 
-	return comments, port.PageResult{TotalCount: total}, nil
+	return comments, hasMore, nil
 }
 
-func (r *Repository) SearchComments(_ context.Context, query string, filter port.CommentFilter, page port.PageRequest) ([]comment.Comment, port.PageResult, error) {
+func (r *Repository) SearchComments(_ context.Context, query string, filter port.CommentFilter, limit int) ([]comment.Comment, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	page = page.Normalize()
+	limit = port.NormalizeLimit(limit)
 	queryLower := strings.ToLower(query)
 
 	var comments []comment.Comment
@@ -352,12 +362,14 @@ func (r *Repository) SearchComments(_ context.Context, query string, filter port
 		return cmp.Compare(a.ID(), b.ID())
 	})
 
-	total := len(comments)
-	if page.PageSize > 0 && len(comments) > page.PageSize {
-		comments = comments[:page.PageSize]
+	// Apply limit and detect hasMore.
+	hasMore := false
+	if limit > 0 && len(comments) > limit {
+		hasMore = true
+		comments = comments[:limit]
 	}
 
-	return comments, port.PageResult{TotalCount: total}, nil
+	return comments, hasMore, nil
 }
 
 // --- ClaimRepository ---
@@ -526,11 +538,11 @@ func (r *Repository) AppendHistory(_ context.Context, entry history.Entry) (int6
 	return id, nil
 }
 
-func (r *Repository) ListHistory(_ context.Context, issueID issue.ID, filter port.HistoryFilter, page port.PageRequest) ([]history.Entry, port.PageResult, error) {
+func (r *Repository) ListHistory(_ context.Context, issueID issue.ID, filter port.HistoryFilter, limit int) ([]history.Entry, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	page = page.Normalize()
+	limit = port.NormalizeLimit(limit)
 	entries := r.histories[issueID.String()]
 
 	var filtered []history.Entry
@@ -547,12 +559,14 @@ func (r *Repository) ListHistory(_ context.Context, issueID issue.ID, filter por
 		filtered = append(filtered, e)
 	}
 
-	total := len(filtered)
-	if page.PageSize > 0 && len(filtered) > page.PageSize {
-		filtered = filtered[:page.PageSize]
+	// Apply limit and detect hasMore.
+	hasMore := false
+	if limit > 0 && len(filtered) > limit {
+		hasMore = true
+		filtered = filtered[:limit]
 	}
 
-	return filtered, port.PageResult{TotalCount: total}, nil
+	return filtered, hasMore, nil
 }
 
 func (r *Repository) CountHistory(_ context.Context, issueID issue.ID) (int, error) {
@@ -875,22 +889,4 @@ func (r *Repository) sortIssueItems(items []port.IssueListItem, orderBy port.Iss
 			return 0
 		}
 	})
-}
-
-func (r *Repository) applyPagination(items []port.IssueListItem, page port.PageRequest) []port.IssueListItem {
-	if page.AfterID != "" {
-		idx := slices.IndexFunc(items, func(item port.IssueListItem) bool {
-			return item.ID.String() == page.AfterID
-		})
-		if idx >= 0 && idx+1 < len(items) {
-			items = items[idx+1:]
-		} else if idx >= 0 {
-			return nil
-		}
-	}
-
-	if page.PageSize > 0 && len(items) > page.PageSize {
-		items = items[:page.PageSize]
-	}
-	return items
 }

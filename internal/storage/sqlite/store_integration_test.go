@@ -11,7 +11,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
-	"github.com/pinkhop/nitpicking/internal/domain/port"
 	"github.com/pinkhop/nitpicking/internal/storage/sqlite"
 )
 
@@ -146,19 +145,19 @@ func TestIntegration_ListAndPagination(t *testing.T) {
 		}
 	}
 
-	// When — list with page size 3
+	// When — list with limit 3
 	out, err := svc.ListIssues(ctx, service.ListIssuesInput{
-		Page: port.PageRequest{PageSize: 3},
+		Limit: 3,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("listing issues: %v", err)
 	}
-	if out.TotalCount != 5 {
-		t.Errorf("expected 5 total, got %d", out.TotalCount)
+	if !out.HasMore {
+		t.Errorf("expected HasMore to be true with 5 issues and limit 3")
 	}
 	if len(out.Items) != 3 {
-		t.Errorf("expected 3 items on page, got %d", len(out.Items))
+		t.Errorf("expected 3 items, got %d", len(out.Items))
 	}
 }
 

@@ -419,11 +419,11 @@ func newPropagateCmd(f *cmdutil.Factory) *cli.Command {
 				return fmt.Errorf("invalid dimension: %w", err)
 			}
 
-			// List all descendants.
+			// List all descendants (unlimited).
 			descendants, err := svc.ListIssues(ctx, service.ListIssuesInput{
 				Filter:  port.IssueFilter{DescendantsOf: issueID},
 				OrderBy: port.OrderByPriority,
-				Page:    port.PageRequest{PageSize: 1000},
+				Limit:   -1,
 			})
 			if err != nil {
 				return fmt.Errorf("listing descendants: %w", err)

@@ -9,7 +9,6 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
-	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
 // fieldChangeOutput is the JSON representation of a single field change.
@@ -31,9 +30,9 @@ type historyEntryOutput struct {
 
 // historyOutput is the JSON representation of the history command result.
 type historyOutput struct {
-	IssueID    string               `json:"issue_id"`
-	Entries    []historyEntryOutput `json:"entries"`
-	TotalCount int                  `json:"total_count"`
+	IssueID string               `json:"issue_id"`
+	Entries []historyEntryOutput `json:"entries"`
+	HasMore bool                 `json:"has_more"`
 }
 
 // NewCmd constructs the "history" command, which displays the mutation history
@@ -41,7 +40,7 @@ type historyOutput struct {
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
-		pageSize   int
+		limit      int
 	)
 
 	return &cli.Command{
@@ -55,10 +54,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &jsonOutput,
 			},
 			&cli.IntFlag{
-				Name:        "page-size",
-				Usage:       "Number of entries per page",
-				Value:       20,
-				Destination: &pageSize,
+				Name:        "limit",
+				Aliases:     []string{"n"},
+				Usage:       "Maximum number of entries (0 = default, negative = unlimited)",
+				Destination: &limit,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -80,7 +79,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 			input := service.ListHistoryInput{
 				IssueID: issueID,
-				Page:    port.PageRequest{PageSize: pageSize},
+				Limit:   limit,
 			}
 			result, err := svc.ShowHistory(ctx, input)
 			if err != nil {
@@ -89,9 +88,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 			if jsonOutput {
 				out := historyOutput{
-					IssueID:    issueID.String(),
-					TotalCount: result.TotalCount,
-					Entries:    make([]historyEntryOutput, 0, len(result.Entries)),
+					IssueID: issueID.String(),
+					HasMore: result.HasMore,
+					Entries: make([]historyEntryOutput, 0, len(result.Entries)),
 				}
 				for _, e := range result.Entries {
 					entry := historyEntryOutput{
@@ -136,8 +135,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintf(w, "\n%s total entries\n",
-				cs.Dim(fmt.Sprintf("%d", result.TotalCount)))
+			shown := len(result.Entries)
+			if result.HasMore {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d entries (more available)", shown)))
+			} else {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d entries", shown)))
+			}
 
 			return nil
 		},

@@ -11,35 +11,18 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
-// PageRequest specifies keyset pagination parameters for list operations.
-type PageRequest struct {
-	// PageSize is the maximum number of items to return. Default: 20.
-	PageSize int
+// DefaultLimit is the default maximum number of items for list operations
+// when the caller does not specify a limit.
+const DefaultLimit = 20
 
-	// AfterSortKey is the sort key of the last item from the previous page.
-	// Empty for the first page.
-	AfterSortKey string
-
-	// AfterID is the ID of the last item from the previous page, used as a
-	// tiebreaker. Empty for the first page.
-	AfterID string
-}
-
-// DefaultPageSize is the default number of items per page.
-const DefaultPageSize = 20
-
-// Normalize applies defaults to a PageRequest.
-func (p PageRequest) Normalize() PageRequest {
-	if p.PageSize <= 0 {
-		p.PageSize = DefaultPageSize
+// NormalizeLimit applies the default limit when the caller passes zero.
+// A zero limit is treated as "use the default", not "unlimited". To request
+// all results without truncation, pass a negative limit.
+func NormalizeLimit(limit int) int {
+	if limit == 0 {
+		return DefaultLimit
 	}
-	return p
-}
-
-// PageResult holds pagination metadata alongside results.
-type PageResult struct {
-	// TotalCount is the total number of matching items (not just this page).
-	TotalCount int
+	return limit
 }
 
 // IssueListItem is a lightweight projection of an issue for list views.
@@ -143,12 +126,15 @@ type IssueRepository interface {
 	// UpdateIssue persists changes to an existing issue.
 	UpdateIssue(ctx context.Context, t issue.Issue) error
 
-	// ListIssues returns a filtered, ordered, paginated list of issues.
-	ListIssues(ctx context.Context, filter IssueFilter, orderBy IssueOrderBy, page PageRequest) ([]IssueListItem, PageResult, error)
+	// ListIssues returns a filtered, ordered list of issues. A positive limit
+	// caps the result size; a negative limit returns all matching results.
+	// The hasMore return value indicates whether additional results exist
+	// beyond the limit.
+	ListIssues(ctx context.Context, filter IssueFilter, orderBy IssueOrderBy, limit int) (items []IssueListItem, hasMore bool, err error)
 
 	// SearchIssues performs full-text search on title, description, and
-	// acceptance criteria.
-	SearchIssues(ctx context.Context, query string, filter IssueFilter, orderBy IssueOrderBy, page PageRequest) ([]IssueListItem, PageResult, error)
+	// acceptance criteria. Limit semantics match ListIssues.
+	SearchIssues(ctx context.Context, query string, filter IssueFilter, orderBy IssueOrderBy, limit int) (items []IssueListItem, hasMore bool, err error)
 
 	// GetChildStatuses returns the completion-relevant status of all direct
 	// children of an epic, for deriving epic completion.
@@ -190,10 +176,12 @@ type CommentRepository interface {
 	GetComment(ctx context.Context, id int64) (comment.Comment, error)
 
 	// ListComments returns comments for an issue with optional filters.
-	ListComments(ctx context.Context, issueID issue.ID, filter CommentFilter, page PageRequest) ([]comment.Comment, PageResult, error)
+	// Limit semantics match IssueRepository.ListIssues.
+	ListComments(ctx context.Context, issueID issue.ID, filter CommentFilter, limit int) (items []comment.Comment, hasMore bool, err error)
 
 	// SearchComments performs full-text search on comment bodies.
-	SearchComments(ctx context.Context, query string, filter CommentFilter, page PageRequest) ([]comment.Comment, PageResult, error)
+	// Limit semantics match IssueRepository.ListIssues.
+	SearchComments(ctx context.Context, query string, filter CommentFilter, limit int) (items []comment.Comment, hasMore bool, err error)
 }
 
 // ClaimRepository defines the persistence interface for claims.
@@ -247,7 +235,8 @@ type HistoryRepository interface {
 	AppendHistory(ctx context.Context, entry history.Entry) (int64, error)
 
 	// ListHistory returns history entries for an issue with optional filters.
-	ListHistory(ctx context.Context, issueID issue.ID, filter HistoryFilter, page PageRequest) ([]history.Entry, PageResult, error)
+	// Limit semantics match IssueRepository.ListIssues.
+	ListHistory(ctx context.Context, issueID issue.ID, filter HistoryFilter, limit int) (items []history.Entry, hasMore bool, err error)
 
 	// CountHistory returns the number of history entries for an issue
 	// (used to compute revision).

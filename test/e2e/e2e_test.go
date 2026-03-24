@@ -109,9 +109,9 @@ func TestE2E_ListJSON(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
-	totalCount, ok := result["total_count"].(float64)
-	if !ok || totalCount != 2 {
-		t.Errorf("expected total_count 2, got %v", result["total_count"])
+	items, ok := result["items"].([]any)
+	if !ok || len(items) != 2 {
+		t.Errorf("expected 2 items, got %v", len(items))
 	}
 }
 

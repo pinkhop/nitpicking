@@ -11,7 +11,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
-	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
 // --- JSON output types ---
@@ -34,8 +33,8 @@ type commentOutput struct {
 
 // commentListOutput is the JSON representation of a comment listing.
 type commentListOutput struct {
-	Comments   []commentOutput `json:"comments"`
-	TotalCount int             `json:"total_count"`
+	Comments []commentOutput `json:"comments"`
+	HasMore  bool            `json:"has_more"`
 }
 
 // NewCmd constructs the "comment" command with add, show, list, and search
@@ -206,7 +205,7 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		issueArg   string
-		pageSize   int
+		limit      int
 	)
 
 	return &cli.Command{
@@ -227,10 +226,10 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &issueArg,
 			},
 			&cli.IntFlag{
-				Name:        "page-size",
-				Usage:       "Number of results per page",
-				Value:       20,
-				Destination: &pageSize,
+				Name:        "limit",
+				Aliases:     []string{"n"},
+				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Destination: &limit,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -247,7 +246,7 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 
 			input := service.ListCommentsInput{
 				IssueID: issueID,
-				Page:    port.PageRequest{PageSize: pageSize},
+				Limit:   limit,
 			}
 			result, err := svc.ListComments(ctx, input)
 			if err != nil {
@@ -256,8 +255,8 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 
 			if jsonOutput {
 				out := commentListOutput{
-					TotalCount: result.TotalCount,
-					Comments:   make([]commentOutput, 0, len(result.Comments)),
+					HasMore:  result.HasMore,
+					Comments: make([]commentOutput, 0, len(result.Comments)),
 				}
 				for _, n := range result.Comments {
 					out.Comments = append(out.Comments, commentOutput{
@@ -287,7 +286,14 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 					truncate(n.Body(), 80))
 			}
 
-			_, _ = fmt.Fprintf(w, "\n%s total\n", cs.Dim(fmt.Sprintf("%d", result.TotalCount)))
+			shown := len(result.Comments)
+			if result.HasMore {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d comments (more available)", shown)))
+			} else {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d comments", shown)))
+			}
 
 			return nil
 		},
@@ -300,7 +306,7 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		issueArg   string
-		pageSize   int
+		limit      int
 	)
 
 	return &cli.Command{
@@ -320,10 +326,10 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &issueArg,
 			},
 			&cli.IntFlag{
-				Name:        "page-size",
-				Usage:       "Number of results per page",
-				Value:       20,
-				Destination: &pageSize,
+				Name:        "limit",
+				Aliases:     []string{"n"},
+				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Destination: &limit,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -340,7 +346,7 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 
 			input := service.SearchCommentsInput{
 				Query: query,
-				Page:  port.PageRequest{PageSize: pageSize},
+				Limit: limit,
 			}
 
 			if issueArg != "" {
@@ -357,8 +363,8 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 
 			if jsonOutput {
 				out := commentListOutput{
-					TotalCount: result.TotalCount,
-					Comments:   make([]commentOutput, 0, len(result.Comments)),
+					HasMore:  result.HasMore,
+					Comments: make([]commentOutput, 0, len(result.Comments)),
 				}
 				for _, n := range result.Comments {
 					out.Comments = append(out.Comments, commentOutput{
@@ -389,7 +395,14 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 					truncate(n.Body(), 60))
 			}
 
-			_, _ = fmt.Fprintf(w, "\n%s total\n", cs.Dim(fmt.Sprintf("%d", result.TotalCount)))
+			shown := len(result.Comments)
+			if result.HasMore {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d comments (more available)", shown)))
+			} else {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d comments", shown)))
+			}
 
 			return nil
 		},

@@ -347,7 +347,7 @@ func newNoteCmd(f *cmdutil.Factory) *cli.Command {
 func newOrphansCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
-		pageSize   int
+		limit      int
 	)
 
 	return &cli.Command{
@@ -360,10 +360,10 @@ func newOrphansCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &jsonOutput,
 			},
 			&cli.IntFlag{
-				Name:        "page-size",
-				Usage:       "Number of results per page",
-				Value:       20,
-				Destination: &pageSize,
+				Name:        "limit",
+				Aliases:     []string{"n"},
+				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Destination: &limit,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -375,7 +375,7 @@ func newOrphansCmd(f *cmdutil.Factory) *cli.Command {
 			result, err := svc.ListIssues(ctx, service.ListIssuesInput{
 				Filter:  port.IssueFilter{Orphan: true, ExcludeClosed: true},
 				OrderBy: port.OrderByPriority,
-				Page:    port.PageRequest{PageSize: pageSize},
+				Limit:   limit,
 			})
 			if err != nil {
 				return fmt.Errorf("listing orphan issues: %w", err)
@@ -390,12 +390,12 @@ func newOrphansCmd(f *cmdutil.Factory) *cli.Command {
 					Title    string `json:"title"`
 				}
 				type orphanOutput struct {
-					Items      []orphanItem `json:"items"`
-					TotalCount int          `json:"total_count"`
+					Items   []orphanItem `json:"items"`
+					HasMore bool         `json:"has_more"`
 				}
 				out := orphanOutput{
-					TotalCount: result.TotalCount,
-					Items:      make([]orphanItem, 0, len(result.Items)),
+					HasMore: result.HasMore,
+					Items:   make([]orphanItem, 0, len(result.Items)),
 				}
 				for _, item := range result.Items {
 					out.Items = append(out.Items, orphanItem{
@@ -428,8 +428,14 @@ func newOrphansCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			_ = tw.Flush()
 
-			_, _ = fmt.Fprintf(w, "\n%s\n",
-				cs.Dim(fmt.Sprintf("%d orphan issues", result.TotalCount)))
+			shown := len(result.Items)
+			if result.HasMore {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d orphan issues (more available)", shown)))
+			} else {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d orphan issues", shown)))
+			}
 
 			return nil
 		},

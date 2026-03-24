@@ -65,8 +65,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 			_ = tw.Flush()
 
-			_, _ = fmt.Fprintf(w, "\n%s\n",
-				cs.Dim(fmt.Sprintf("%d ready", result.TotalCount)))
+			shown := len(result.Items)
+			if result.HasMore {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d ready (more available)", shown)))
+			} else {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d ready", shown)))
+			}
 
 			return nil
 		},

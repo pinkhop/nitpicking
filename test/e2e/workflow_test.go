@@ -189,9 +189,9 @@ func TestE2E_TaskLifecycle_ClaimReleaseReclaimClose(t *testing.T) {
 		t.Fatalf("history failed (exit %d): %s", code, stderr)
 	}
 	histResult := parseJSON(t, histStdout)
-	totalCount, ok := histResult["total_count"].(float64)
-	if !ok || totalCount < 4 {
-		t.Errorf("expected at least 4 history entries (create, claim, release, claim, close), got %v", histResult["total_count"])
+	entries, ok := histResult["entries"].([]any)
+	if !ok || len(entries) < 4 {
+		t.Errorf("expected at least 4 history entries (create, claim, release, claim, close), got %d", len(entries))
 	}
 }
 
@@ -376,9 +376,9 @@ func TestE2E_NotesOnClosedIssue(t *testing.T) {
 		t.Fatalf("comment list failed (exit %d): %s", code, stderr)
 	}
 	commentResult := parseJSON(t, commentStdout)
-	noteCount, ok := commentResult["total_count"].(float64)
-	if !ok || noteCount != 2 {
-		t.Errorf("expected 2 comments on closed issue, got %v", commentResult["total_count"])
+	comments, ok := commentResult["comments"].([]any)
+	if !ok || len(comments) != 2 {
+		t.Errorf("expected 2 comments on closed issue, got %d", len(comments))
 	}
 }
 
@@ -427,9 +427,9 @@ func TestE2E_RelationshipsAndSearch(t *testing.T) {
 		t.Fatalf("search failed (exit %d): %s", code, stderr)
 	}
 	searchResult := parseJSON(t, searchStdout)
-	searchCount, ok := searchResult["total_count"].(float64)
-	if !ok || searchCount < 2 {
-		t.Errorf("expected at least 2 search results for 'migration', got %v", searchResult["total_count"])
+	searchItems, ok := searchResult["items"].([]any)
+	if !ok || len(searchItems) < 2 {
+		t.Errorf("expected at least 2 search results for 'migration', got %d", len(searchItems))
 	}
 }
 
@@ -616,12 +616,12 @@ func TestE2E_DimensionsAndFiltering(t *testing.T) {
 
 	// Then — only the fix issue should appear.
 	result := parseJSON(t, stdout)
-	totalCount, ok := result["total_count"].(float64)
-	if !ok || totalCount != 1 {
-		t.Errorf("expected 1 issue with dimension kind:fix, got %v", result["total_count"])
+	items, ok := result["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Errorf("expected 1 issue with dimension kind:fix, got %d", len(items))
 	}
 
-	items, ok := result["items"].([]any)
+	items, ok = result["items"].([]any)
 	if !ok || len(items) == 0 {
 		t.Fatal("expected items array with one entry")
 	}
@@ -670,9 +670,9 @@ func TestE2E_DeleteAndGC(t *testing.T) {
 		t.Fatalf("list failed after delete (exit %d)", listCode)
 	}
 	listResult := parseJSON(t, listStdout)
-	totalCount, _ := listResult["total_count"].(float64)
-	if totalCount != 0 {
-		t.Errorf("expected 0 issues after delete, got %v", totalCount)
+	listItems, _ := listResult["items"].([]any)
+	if len(listItems) != 0 {
+		t.Errorf("expected 0 issues after delete, got %d", len(listItems))
 	}
 
 	// GC should succeed.

@@ -315,22 +315,25 @@ func (r *issueRepo) UpdateIssue(_ context.Context, t issue.Issue) error {
 	return nil
 }
 
-func (r *issueRepo) ListIssues(_ context.Context, filter port.IssueFilter, orderBy port.IssueOrderBy, page port.PageRequest) ([]port.IssueListItem, port.PageResult, error) {
-	page = page.Normalize()
+func (r *issueRepo) ListIssues(_ context.Context, filter port.IssueFilter, orderBy port.IssueOrderBy, limit int) ([]port.IssueListItem, bool, error) {
+	limit = port.NormalizeLimit(limit)
 	where, args := buildIssueWhere(filter)
 
-	// Count total.
-	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM issues t `+where, args...)
-	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count issues", Err: err}
+	orderClause := issueOrderClause(orderBy)
+
+	// Fetch limit+1 rows to detect whether more results exist.
+	fetchLimit := limit + 1
+	if limit < 0 {
+		fetchLimit = -1 // unlimited
+	}
+	query := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM issues t ` + where + orderClause
+	if fetchLimit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, fetchLimit)
 	}
 
-	orderClause := issueOrderClause(orderBy)
-	query := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM issues t ` + where + orderClause + ` LIMIT ?`
-	args = append(args, page.PageSize)
-
 	var items []port.IssueListItem
-	err = sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			id, _ := issue.ParseID(stmt.ColumnText(0))
@@ -349,30 +352,36 @@ func (r *issueRepo) ListIssues(_ context.Context, filter port.IssueFilter, order
 		},
 	})
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "list issues", Err: err}
+		return nil, false, &domain.DatabaseError{Op: "list issues", Err: err}
 	}
 
-	return items, port.PageResult{TotalCount: total}, nil
+	hasMore := limit > 0 && len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	return items, hasMore, nil
 }
 
-func (r *issueRepo) SearchIssues(_ context.Context, query string, filter port.IssueFilter, orderBy port.IssueOrderBy, page port.PageRequest) ([]port.IssueListItem, port.PageResult, error) {
-	page = page.Normalize()
+func (r *issueRepo) SearchIssues(_ context.Context, query string, filter port.IssueFilter, orderBy port.IssueOrderBy, limit int) ([]port.IssueListItem, bool, error) {
+	limit = port.NormalizeLimit(limit)
 	where, args := buildIssueWhere(filter)
 
 	ftsWhere := ` AND t.issue_id IN (SELECT issue_id FROM issues_fts WHERE issues_fts MATCH ?)`
 	args = append(args, query)
 
-	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM issues t `+where+ftsWhere, args...)
-	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count search results", Err: err}
+	orderClause := issueOrderClause(orderBy)
+	fetchLimit := limit + 1
+	if limit < 0 {
+		fetchLimit = -1
+	}
+	selectQuery := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM issues t ` + where + ftsWhere + orderClause
+	if fetchLimit > 0 {
+		selectQuery += ` LIMIT ?`
+		args = append(args, fetchLimit)
 	}
 
-	orderClause := issueOrderClause(orderBy)
-	selectQuery := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM issues t ` + where + ftsWhere + orderClause + ` LIMIT ?`
-	args = append(args, page.PageSize)
-
 	var items []port.IssueListItem
-	err = sqlitex.Execute(r.conn, selectQuery, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, selectQuery, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			id, _ := issue.ParseID(stmt.ColumnText(0))
@@ -391,10 +400,14 @@ func (r *issueRepo) SearchIssues(_ context.Context, query string, filter port.Is
 		},
 	})
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "search issues", Err: err}
+		return nil, false, &domain.DatabaseError{Op: "search issues", Err: err}
 	}
 
-	return items, port.PageResult{TotalCount: total}, nil
+	hasMore := limit > 0 && len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	return items, hasMore, nil
 }
 
 func (r *issueRepo) GetChildStatuses(_ context.Context, epicID issue.ID) ([]issue.ChildStatus, error) {
@@ -647,8 +660,8 @@ func (r *commentRepo) GetComment(_ context.Context, id int64) (comment.Comment, 
 	return result, nil
 }
 
-func (r *commentRepo) ListComments(_ context.Context, issueID issue.ID, filter port.CommentFilter, page port.PageRequest) ([]comment.Comment, port.PageResult, error) {
-	page = page.Normalize()
+func (r *commentRepo) ListComments(_ context.Context, issueID issue.ID, filter port.CommentFilter, limit int) ([]comment.Comment, bool, error) {
+	limit = port.NormalizeLimit(limit)
 
 	where := `WHERE issue_id = ?`
 	args := []any{issueID.String()}
@@ -666,16 +679,17 @@ func (r *commentRepo) ListComments(_ context.Context, issueID issue.ID, filter p
 		args = append(args, filter.AfterCommentID)
 	}
 
-	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM comments `+where, args...)
-	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count comments", Err: err}
+	// Fetch limit+1 rows to detect whether more results exist beyond the limit.
+	fetchLimit := limit + 1
+	if limit < 0 {
+		fetchLimit = -1
 	}
 
 	query := `SELECT comment_id, issue_id, author, created_at, body FROM comments ` + where + ` ORDER BY comment_id LIMIT ?`
-	args = append(args, page.PageSize)
+	args = append(args, fetchLimit)
 
 	var comments []comment.Comment
-	err = sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			tid, _ := issue.ParseID(stmt.ColumnText(1))
@@ -689,14 +703,19 @@ func (r *commentRepo) ListComments(_ context.Context, issueID issue.ID, filter p
 		},
 	})
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "list comments", Err: err}
+		return nil, false, &domain.DatabaseError{Op: "list comments", Err: err}
 	}
 
-	return comments, port.PageResult{TotalCount: total}, nil
+	hasMore := limit > 0 && len(comments) > limit
+	if hasMore {
+		comments = comments[:limit]
+	}
+
+	return comments, hasMore, nil
 }
 
-func (r *commentRepo) SearchComments(_ context.Context, query string, filter port.CommentFilter, page port.PageRequest) ([]comment.Comment, port.PageResult, error) {
-	page = page.Normalize()
+func (r *commentRepo) SearchComments(_ context.Context, query string, filter port.CommentFilter, limit int) ([]comment.Comment, bool, error) {
+	limit = port.NormalizeLimit(limit)
 
 	where := `WHERE c.comment_id IN (SELECT comment_id FROM comments_fts WHERE comments_fts MATCH ?)`
 	args := []any{query}
@@ -706,16 +725,17 @@ func (r *commentRepo) SearchComments(_ context.Context, query string, filter por
 		args = append(args, filter.IssueID.String())
 	}
 
-	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM comments c `+where, args...)
-	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count comment search results", Err: err}
+	// Fetch limit+1 rows to detect whether more results exist beyond the limit.
+	fetchLimit := limit + 1
+	if limit < 0 {
+		fetchLimit = -1
 	}
 
 	selectQuery := `SELECT c.comment_id, c.issue_id, c.author, c.created_at, c.body FROM comments c ` + where + ` ORDER BY c.comment_id LIMIT ?`
-	args = append(args, page.PageSize)
+	args = append(args, fetchLimit)
 
 	var comments []comment.Comment
-	err = sqlitex.Execute(r.conn, selectQuery, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, selectQuery, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			tid, _ := issue.ParseID(stmt.ColumnText(1))
@@ -729,10 +749,15 @@ func (r *commentRepo) SearchComments(_ context.Context, query string, filter por
 		},
 	})
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "search comments", Err: err}
+		return nil, false, &domain.DatabaseError{Op: "search comments", Err: err}
 	}
 
-	return comments, port.PageResult{TotalCount: total}, nil
+	hasMore := limit > 0 && len(comments) > limit
+	if hasMore {
+		comments = comments[:limit]
+	}
+
+	return comments, hasMore, nil
 }
 
 // --- ClaimRepository ---
@@ -921,8 +946,8 @@ func (r *histRepo) AppendHistory(_ context.Context, entry history.Entry) (int64,
 	return r.conn.LastInsertRowID(), nil
 }
 
-func (r *histRepo) ListHistory(_ context.Context, issueID issue.ID, filter port.HistoryFilter, page port.PageRequest) ([]history.Entry, port.PageResult, error) {
-	page = page.Normalize()
+func (r *histRepo) ListHistory(_ context.Context, issueID issue.ID, filter port.HistoryFilter, limit int) ([]history.Entry, bool, error) {
+	limit = port.NormalizeLimit(limit)
 
 	where := `WHERE issue_id = ?`
 	args := []any{issueID.String()}
@@ -940,16 +965,17 @@ func (r *histRepo) ListHistory(_ context.Context, issueID issue.ID, filter port.
 		args = append(args, filter.Before.Format(time.RFC3339Nano))
 	}
 
-	total, err := queryInt(r.conn, `SELECT COUNT(*) FROM history `+where, args...)
-	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "count history", Err: err}
+	// Fetch limit+1 rows to detect whether more results exist beyond the limit.
+	fetchLimit := limit + 1
+	if limit < 0 {
+		fetchLimit = -1
 	}
 
 	query := `SELECT entry_id, issue_id, revision, author, timestamp, event_type, changes FROM history ` + where + ` ORDER BY revision LIMIT ?`
-	args = append(args, page.PageSize)
+	args = append(args, fetchLimit)
 
 	var entries []history.Entry
-	err = sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
 		Args: args,
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			tid, _ := issue.ParseID(stmt.ColumnText(1))
@@ -968,10 +994,15 @@ func (r *histRepo) ListHistory(_ context.Context, issueID issue.ID, filter port.
 		},
 	})
 	if err != nil {
-		return nil, port.PageResult{}, &domain.DatabaseError{Op: "list history", Err: err}
+		return nil, false, &domain.DatabaseError{Op: "list history", Err: err}
 	}
 
-	return entries, port.PageResult{TotalCount: total}, nil
+	hasMore := limit > 0 && len(entries) > limit
+	if hasMore {
+		entries = entries[:limit]
+	}
+
+	return entries, hasMore, nil
 }
 
 func (r *histRepo) CountHistory(_ context.Context, issueID issue.ID) (int, error) {

@@ -562,8 +562,8 @@ func TestListIssues_FilterByReady(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if output.TotalCount != 1 {
-		t.Errorf("expected 1 ready issue, got %d", output.TotalCount)
+	if len(output.Items) != 1 {
+		t.Errorf("expected 1 ready issue, got %d", len(output.Items))
 	}
 }
 
@@ -714,8 +714,8 @@ func TestListIssues_ExcludeClosed_HidesClosedIssues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if output.TotalCount != 1 {
-		t.Errorf("expected 1 issue, got %d", output.TotalCount)
+	if len(output.Items) != 1 {
+		t.Errorf("expected 1 issue, got %d", len(output.Items))
 	}
 	if len(output.Items) == 1 && output.Items[0].Title != "Open task" {
 		t.Errorf("expected Open task, got %q", output.Items[0].Title)
@@ -768,8 +768,8 @@ func TestListIssues_ExcludeClosed_WithExplicitClosedState_ShowsClosed(t *testing
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if output.TotalCount != 1 {
-		t.Errorf("expected 1 issue, got %d", output.TotalCount)
+	if len(output.Items) != 1 {
+		t.Errorf("expected 1 issue, got %d", len(output.Items))
 	}
 	if len(output.Items) == 1 && output.Items[0].Title != "Closed task" {
 		t.Errorf("expected Closed task, got %q", output.Items[0].Title)
@@ -894,7 +894,7 @@ func TestShowHistory_ReturnsEntries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if output.TotalCount < 1 {
+	if len(output.Entries) < 1 {
 		t.Error("expected at least 1 history entry (creation)")
 	}
 }

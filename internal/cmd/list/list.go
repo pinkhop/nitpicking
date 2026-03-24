@@ -28,8 +28,8 @@ type listItemOutput struct {
 
 // listOutput is the JSON representation of the list command result.
 type listOutput struct {
-	Items      []listItemOutput `json:"items"`
-	TotalCount int              `json:"total_count"`
+	Items   []listItemOutput `json:"items"`
+	HasMore bool             `json:"has_more"`
 }
 
 // NewCmd constructs the "list" command, which returns a filtered, ordered,
@@ -45,7 +45,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		descendantsOf string
 		ancestorsOf   string
 		order         string
-		pageSize      int
+		limit         int
 		timestamps    bool
 	)
 
@@ -111,10 +111,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &timestamps,
 			},
 			&cli.IntFlag{
-				Name:        "page-size",
-				Usage:       "Number of results per page",
-				Value:       20,
-				Destination: &pageSize,
+				Name:        "limit",
+				Aliases:     []string{"n"},
+				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Destination: &limit,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -190,7 +190,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			input := service.ListIssuesInput{
 				Filter:  filter,
 				OrderBy: orderBy,
-				Page:    port.PageRequest{PageSize: pageSize},
+				Limit:   limit,
 			}
 			result, err := svc.ListIssues(ctx, input)
 			if err != nil {
@@ -199,8 +199,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 			if jsonOutput {
 				out := listOutput{
-					TotalCount: result.TotalCount,
-					Items:      make([]listItemOutput, 0, len(result.Items)),
+					HasMore: result.HasMore,
+					Items:   make([]listItemOutput, 0, len(result.Items)),
 				}
 				for _, item := range result.Items {
 					out.Items = append(out.Items, listItemOutput{
@@ -247,12 +247,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			_ = tw.Flush()
 
 			shown := len(result.Items)
-			if shown < result.TotalCount {
+			if result.HasMore {
 				_, _ = fmt.Fprintf(w, "\n%s\n",
-					cs.Dim(fmt.Sprintf("Showing %d of %d issues", shown, result.TotalCount)))
+					cs.Dim(fmt.Sprintf("%d issues (more available)", shown)))
 			} else {
 				_, _ = fmt.Fprintf(w, "\n%s\n",
-					cs.Dim(fmt.Sprintf("%d issues", result.TotalCount)))
+					cs.Dim(fmt.Sprintf("%d issues", shown)))
 			}
 
 			return nil

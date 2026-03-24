@@ -59,20 +59,20 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			for _, s := range states {
 				result, err := svc.ListIssues(ctx, service.ListIssuesInput{
 					Filter: port.IssueFilter{States: []issue.State{s}},
-					Page:   port.PageRequest{PageSize: 1},
+					Limit:  -1,
 				})
 				if err != nil {
 					return fmt.Errorf("counting %s issues: %w", s, err)
 				}
 				switch s {
 				case issue.StateOpen:
-					out.Open = result.TotalCount
+					out.Open = len(result.Items)
 				case issue.StateClaimed:
-					out.Claimed = result.TotalCount
+					out.Claimed = len(result.Items)
 				case issue.StateDeferred:
-					out.Deferred = result.TotalCount
+					out.Deferred = len(result.Items)
 				case issue.StateClosed:
-					out.Closed = result.TotalCount
+					out.Closed = len(result.Items)
 				}
 			}
 			out.Total = out.Open + out.Claimed + out.Deferred + out.Closed
@@ -80,22 +80,22 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			// Count ready.
 			readyResult, err := svc.ListIssues(ctx, service.ListIssuesInput{
 				Filter: port.IssueFilter{Ready: true},
-				Page:   port.PageRequest{PageSize: 1},
+				Limit:  -1,
 			})
 			if err != nil {
 				return fmt.Errorf("counting ready issues: %w", err)
 			}
-			out.Ready = readyResult.TotalCount
+			out.Ready = len(readyResult.Items)
 
 			// Count blocked.
 			blockedResult, err := svc.ListIssues(ctx, service.ListIssuesInput{
 				Filter: port.IssueFilter{Blocked: true, ExcludeClosed: true},
-				Page:   port.PageRequest{PageSize: 1},
+				Limit:  -1,
 			})
 			if err != nil {
 				return fmt.Errorf("counting blocked issues: %w", err)
 			}
-			out.Blocked = blockedResult.TotalCount
+			out.Blocked = len(blockedResult.Items)
 
 			if jsonOutput {
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)

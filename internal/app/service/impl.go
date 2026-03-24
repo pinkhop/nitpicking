@@ -328,7 +328,7 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input ClaimNextReadyIn
 			DimensionFilters: input.DimensionFilters,
 		}
 
-		items, _, err := uow.Issues().ListIssues(ctx, filter, port.OrderByPriority, port.PageRequest{PageSize: 1})
+		items, _, err := uow.Issues().ListIssues(ctx, filter, port.OrderByPriority, 1)
 		if err != nil {
 			return err
 		}
@@ -606,10 +606,10 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id issue.ID) (ShowIssueOutp
 			// Completion.
 		}
 
-		// Comment count.
-		_, commentResult, commentErr := uow.Comments().ListComments(ctx, id, port.CommentFilter{}, port.PageRequest{PageSize: 1})
+		// Comment count — use unlimited listing to count all comments.
+		allComments, _, commentErr := uow.Comments().ListComments(ctx, id, port.CommentFilter{}, -1)
 		if commentErr == nil {
-			output.CommentCount = commentResult.TotalCount
+			output.CommentCount = len(allComments)
 		}
 
 		// Claim info.
@@ -630,12 +630,12 @@ func (s *serviceImpl) ListIssues(ctx context.Context, input ListIssuesInput) (Li
 	var output ListIssuesOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		items, result, err := uow.Issues().ListIssues(ctx, input.Filter, input.OrderBy, input.Page)
+		items, hasMore, err := uow.Issues().ListIssues(ctx, input.Filter, input.OrderBy, input.Limit)
 		if err != nil {
 			return err
 		}
 		output.Items = items
-		output.TotalCount = result.TotalCount
+		output.HasMore = hasMore
 		return nil
 	})
 
@@ -646,12 +646,12 @@ func (s *serviceImpl) SearchIssues(ctx context.Context, input SearchIssuesInput)
 	var output ListIssuesOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		items, result, err := uow.Issues().SearchIssues(ctx, input.Query, input.Filter, input.OrderBy, input.Page)
+		items, hasMore, err := uow.Issues().SearchIssues(ctx, input.Query, input.Filter, input.OrderBy, input.Limit)
 		if err != nil {
 			return err
 		}
 		output.Items = items
-		output.TotalCount = result.TotalCount
+		output.HasMore = hasMore
 		return nil
 	})
 
@@ -802,12 +802,12 @@ func (s *serviceImpl) ListComments(ctx context.Context, input ListCommentsInput)
 	var output ListCommentsOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		comments, result, err := uow.Comments().ListComments(ctx, input.IssueID, input.Filter, input.Page)
+		comments, hasMore, err := uow.Comments().ListComments(ctx, input.IssueID, input.Filter, input.Limit)
 		if err != nil {
 			return err
 		}
 		output.Comments = comments
-		output.TotalCount = result.TotalCount
+		output.HasMore = hasMore
 		return nil
 	})
 
@@ -821,12 +821,12 @@ func (s *serviceImpl) SearchComments(ctx context.Context, input SearchCommentsIn
 		filter := input.Filter
 		filter.IssueID = input.IssueID
 
-		comments, result, err := uow.Comments().SearchComments(ctx, input.Query, filter, input.Page)
+		comments, hasMore, err := uow.Comments().SearchComments(ctx, input.Query, filter, input.Limit)
 		if err != nil {
 			return err
 		}
 		output.Comments = comments
-		output.TotalCount = result.TotalCount
+		output.HasMore = hasMore
 		return nil
 	})
 
@@ -839,12 +839,12 @@ func (s *serviceImpl) ShowHistory(ctx context.Context, input ListHistoryInput) (
 	var output ListHistoryOutput
 
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		entries, result, err := uow.History().ListHistory(ctx, input.IssueID, input.Filter, input.Page)
+		entries, hasMore, err := uow.History().ListHistory(ctx, input.IssueID, input.Filter, input.Limit)
 		if err != nil {
 			return err
 		}
 		output.Entries = entries
-		output.TotalCount = result.TotalCount
+		output.HasMore = hasMore
 		return nil
 	})
 
@@ -856,8 +856,8 @@ func (s *serviceImpl) ShowHistory(ctx context.Context, input ListHistoryInput) (
 func (s *serviceImpl) GetGraphData(ctx context.Context) (GraphDataOutput, error) {
 	var output GraphDataOutput
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
-		// Fetch all non-deleted issues with a high page size.
-		items, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{}, port.OrderByPriority, port.PageRequest{PageSize: 10000})
+		// Fetch all non-deleted issues (unlimited).
+		items, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{}, port.OrderByPriority, -1)
 		if err != nil {
 			return err
 		}

@@ -244,8 +244,8 @@ func TestE2E_Concurrency_ConcurrentNotesOnSameIssue(t *testing.T) {
 		t.Fatalf("comment list failed (exit %d): %s", code, stderr)
 	}
 	commentResult := parseJSON(t, commentStdout)
-	noteCount, ok := commentResult["total_count"].(float64)
-	if !ok || noteCount != 2 {
-		t.Errorf("expected 2 comments, got %v", commentResult["total_count"])
+	comments, ok := commentResult["comments"].([]any)
+	if !ok || len(comments) != 2 {
+		t.Errorf("expected 2 comments, got %d", len(comments))
 	}
 }

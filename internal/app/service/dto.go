@@ -137,13 +137,13 @@ type ShowIssueOutput struct {
 type ListIssuesInput struct {
 	Filter  port.IssueFilter
 	OrderBy port.IssueOrderBy
-	Page    port.PageRequest
+	Limit   int
 }
 
 // ListIssuesOutput holds the result of listing issues.
 type ListIssuesOutput struct {
-	Items      []port.IssueListItem
-	TotalCount int
+	Items   []port.IssueListItem
+	HasMore bool
 }
 
 // SearchIssuesInput holds the parameters for searching issues.
@@ -151,7 +151,7 @@ type SearchIssuesInput struct {
 	Query        string
 	Filter       port.IssueFilter
 	OrderBy      port.IssueOrderBy
-	Page         port.PageRequest
+	Limit        int
 	IncludeNotes bool
 }
 
@@ -173,13 +173,13 @@ type AddCommentOutput struct {
 type ListCommentsInput struct {
 	IssueID issue.ID
 	Filter  port.CommentFilter
-	Page    port.PageRequest
+	Limit   int
 }
 
 // ListCommentsOutput holds the result of listing comments.
 type ListCommentsOutput struct {
-	Comments   []comment.Comment
-	TotalCount int
+	Comments []comment.Comment
+	HasMore  bool
 }
 
 // SearchCommentsInput holds the parameters for searching comments.
@@ -187,7 +187,7 @@ type SearchCommentsInput struct {
 	Query   string
 	IssueID issue.ID // Zero for global search.
 	Filter  port.CommentFilter
-	Page    port.PageRequest
+	Limit   int
 }
 
 // --- History DTOs ---
@@ -196,13 +196,13 @@ type SearchCommentsInput struct {
 type ListHistoryInput struct {
 	IssueID issue.ID
 	Filter  port.HistoryFilter
-	Page    port.PageRequest
+	Limit   int
 }
 
 // ListHistoryOutput holds the result of listing history.
 type ListHistoryOutput struct {
-	Entries    []history.Entry
-	TotalCount int
+	Entries []history.Entry
+	HasMore bool
 }
 
 // --- Diagnostics DTOs ---

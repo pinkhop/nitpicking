@@ -74,9 +74,9 @@ func TestE2E_Update_DimensionSetAndRemove(t *testing.T) {
 		t.Fatal("list --dimension kind:fix failed")
 	}
 	listResult := parseJSON(t, listStdout)
-	listCount, _ := listResult["total_count"].(float64)
-	if listCount != 1 {
-		t.Errorf("expected 1 issue with dimension kind:fix, got %v", listCount)
+	listItems, _ := listResult["items"].([]any)
+	if len(listItems) != 1 {
+		t.Errorf("expected 1 issue with dimension kind:fix, got %d", len(listItems))
 	}
 
 	listStdout, _, listCode = runNP(t, dir, "list", "--dimension", "area:auth", "--json")
@@ -84,9 +84,9 @@ func TestE2E_Update_DimensionSetAndRemove(t *testing.T) {
 		t.Fatal("list --dimension area:auth failed")
 	}
 	listResult = parseJSON(t, listStdout)
-	listCount, _ = listResult["total_count"].(float64)
-	if listCount != 1 {
-		t.Errorf("expected 1 issue with dimension area:auth, got %v", listCount)
+	listItems, _ = listResult["items"].([]any)
+	if len(listItems) != 1 {
+		t.Errorf("expected 1 issue with dimension area:auth, got %d", len(listItems))
 	}
 
 	// When — remove one dimension.
@@ -105,9 +105,9 @@ func TestE2E_Update_DimensionSetAndRemove(t *testing.T) {
 		t.Fatal("list --dimension area:auth after remove failed")
 	}
 	listResult = parseJSON(t, listStdout)
-	listCount, _ = listResult["total_count"].(float64)
-	if listCount != 0 {
-		t.Errorf("expected 0 issues with dimension area:auth after removal, got %v", listCount)
+	listItems, _ = listResult["items"].([]any)
+	if len(listItems) != 0 {
+		t.Errorf("expected 0 issues with dimension area:auth after removal, got %d", len(listItems))
 	}
 
 	// The remaining dimension is still present.
@@ -116,9 +116,9 @@ func TestE2E_Update_DimensionSetAndRemove(t *testing.T) {
 		t.Fatal("list --dimension kind:fix after remove failed")
 	}
 	listResult = parseJSON(t, listStdout)
-	listCount, _ = listResult["total_count"].(float64)
-	if listCount != 1 {
-		t.Errorf("expected 1 issue still matching kind:fix, got %v", listCount)
+	listItems, _ = listResult["items"].([]any)
+	if len(listItems) != 1 {
+		t.Errorf("expected 1 issue still matching kind:fix, got %d", len(listItems))
 	}
 }
 
@@ -144,8 +144,8 @@ func TestE2E_Update_NoteFlag_AddsNote(t *testing.T) {
 		t.Fatalf("comment list failed (exit %d): %s", code, stderr)
 	}
 	commentResult := parseJSON(t, commentStdout)
-	noteCount, ok := commentResult["total_count"].(float64)
-	if !ok || noteCount < 1 {
-		t.Errorf("expected at least 1 comment after update --comment, got %v", commentResult["total_count"])
+	commentItems, ok := commentResult["comments"].([]any)
+	if !ok || len(commentItems) < 1 {
+		t.Errorf("expected at least 1 comment after update --comment, got %d", len(commentItems))
 	}
 }

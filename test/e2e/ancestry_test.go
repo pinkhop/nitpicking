@@ -28,9 +28,9 @@ func TestE2E_List_DescendantsOf_ReturnsAllChildren(t *testing.T) {
 		t.Fatalf("list --descendants-of failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
-	totalCount, ok := result["total_count"].(float64)
-	if !ok || totalCount != 3 {
-		t.Errorf("expected 3 descendants, got %v", result["total_count"])
+	items, ok := result["items"].([]any)
+	if !ok || len(items) != 3 {
+		t.Errorf("expected 3 descendants, got %d", len(items))
 	}
 }
 
@@ -57,9 +57,9 @@ func TestE2E_List_AncestorsOf_ReturnsParentChain(t *testing.T) {
 		t.Fatalf("list --ancestors-of failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
-	totalCount, ok := result["total_count"].(float64)
-	if !ok || totalCount != 2 {
-		t.Errorf("expected 2 ancestors (sub-epic + root), got %v", result["total_count"])
+	items, ok := result["items"].([]any)
+	if !ok || len(items) != 2 {
+		t.Errorf("expected 2 ancestors (sub-epic + root), got %d", len(items))
 	}
 }
 
@@ -84,8 +84,8 @@ func TestE2E_List_DescendantsOf_ComposesWithReady(t *testing.T) {
 		t.Fatalf("list --descendants-of --ready failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
-	totalCount, ok := result["total_count"].(float64)
-	if !ok || totalCount != 1 {
-		t.Errorf("expected 1 ready descendant, got %v", result["total_count"])
+	items, ok := result["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Errorf("expected 1 ready descendant, got %d", len(items))
 	}
 }

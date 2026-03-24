@@ -46,6 +46,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		ancestorsOf   string
 		order         string
 		limit         int
+		all           bool
 		timestamps    bool
 	)
 
@@ -115,6 +116,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Aliases:     []string{"n"},
 				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
 				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "all",
+				Usage:       "Return all results without limit",
+				Destination: &all,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -187,10 +193,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
+			effectiveLimit := cmdutil.ResolveLimit(limit, all, f.IOStreams.IsStdoutTTY())
 			input := service.ListIssuesInput{
 				Filter:  filter,
 				OrderBy: orderBy,
-				Limit:   limit,
+				Limit:   effectiveLimit,
 			}
 			result, err := svc.ListIssues(ctx, input)
 			if err != nil {
@@ -247,12 +254,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			_ = tw.Flush()
 
 			shown := len(result.Items)
+			_, _ = fmt.Fprintf(w, "\n%s\n",
+				cs.Dim(fmt.Sprintf("%d issues", shown)))
 			if result.HasMore {
-				_, _ = fmt.Fprintf(w, "\n%s\n",
-					cs.Dim(fmt.Sprintf("%d issues (more available)", shown)))
-			} else {
-				_, _ = fmt.Fprintf(w, "\n%s\n",
-					cs.Dim(fmt.Sprintf("%d issues", shown)))
+				_, _ = fmt.Fprintf(f.IOStreams.ErrOut,
+					"Showing %d issues (use --all for all results)\n", shown)
 			}
 
 			return nil

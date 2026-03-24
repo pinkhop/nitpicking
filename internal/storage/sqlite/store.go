@@ -190,6 +190,11 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 		}
 	}
 
+	// Reclaim disk space and defragment after removing rows.
+	if err := sqlitex.Execute(r.conn, `VACUUM`, nil); err != nil {
+		return &domain.DatabaseError{Op: "vacuum", Err: err}
+	}
+
 	return nil
 }
 

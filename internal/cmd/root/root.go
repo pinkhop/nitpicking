@@ -32,6 +32,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/show"
 	"github.com/pinkhop/nitpicking/internal/cmd/status"
 	"github.com/pinkhop/nitpicking/internal/cmd/version"
+	"github.com/pinkhop/nitpicking/internal/cmd/where"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 )
 
@@ -126,6 +127,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			{"Maintenance", []*cli.Command{
 				admincmd.NewCmd(f),
 				graphcmd.NewCmd(f),
+				where.NewCmd(f),
 			}},
 		}),
 	}

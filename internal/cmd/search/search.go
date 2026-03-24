@@ -199,7 +199,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintf(w, "\n%s total\n", cs.Dim(fmt.Sprintf("%d", result.TotalCount)))
+			shown := len(result.Items)
+			if shown < result.TotalCount {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("Showing %d of %d tickets", shown, result.TotalCount)))
+			} else {
+				_, _ = fmt.Fprintf(w, "\n%s\n",
+					cs.Dim(fmt.Sprintf("%d tickets", result.TotalCount)))
+			}
 
 			return nil
 		},

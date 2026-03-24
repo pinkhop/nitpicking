@@ -20,7 +20,7 @@ type Issue struct {
 	priority           Priority
 	state              State
 	parentID           ID
-	facets             FacetSet
+	dimensions         DimensionSet
 	createdAt          time.Time
 	idempotencyKey     string
 	deleted            bool
@@ -34,7 +34,7 @@ type NewTaskParams struct {
 	AcceptanceCriteria string
 	Priority           Priority
 	ParentID           ID
-	Facets             FacetSet
+	Dimensions         DimensionSet
 	CreatedAt          time.Time
 	IdempotencyKey     string
 }
@@ -47,7 +47,7 @@ type NewEpicParams struct {
 	AcceptanceCriteria string
 	Priority           Priority
 	ParentID           ID
-	Facets             FacetSet
+	Dimensions         DimensionSet
 	CreatedAt          time.Time
 	IdempotencyKey     string
 }
@@ -82,7 +82,7 @@ func NewTask(p NewTaskParams) (Issue, error) {
 		priority:           priority,
 		state:              StateOpen,
 		parentID:           p.ParentID,
-		facets:             p.Facets,
+		dimensions:         p.Dimensions,
 		createdAt:          createdAt,
 		idempotencyKey:     p.IdempotencyKey,
 	}, nil
@@ -118,7 +118,7 @@ func NewEpic(p NewEpicParams) (Issue, error) {
 		priority:           priority,
 		state:              StateActive,
 		parentID:           p.ParentID,
-		facets:             p.Facets,
+		dimensions:         p.Dimensions,
 		createdAt:          createdAt,
 		idempotencyKey:     p.IdempotencyKey,
 	}, nil
@@ -150,8 +150,8 @@ func (t Issue) State() State { return t.state }
 // ParentID returns the ID of the parent epic, or zero ID if unparented.
 func (t Issue) ParentID() ID { return t.parentID }
 
-// Facets returns the issue's facet set.
-func (t Issue) Facets() FacetSet { return t.facets }
+// Dimensions returns the issue's dimension set.
+func (t Issue) Dimensions() DimensionSet { return t.dimensions }
 
 // CreatedAt returns the issue's creation timestamp.
 func (t Issue) CreatedAt() time.Time { return t.createdAt }
@@ -212,9 +212,9 @@ func (t Issue) WithParentID(parentID ID) Issue {
 	return t
 }
 
-// WithFacets returns a new issue with the updated facet set.
-func (t Issue) WithFacets(fs FacetSet) Issue {
-	t.facets = fs
+// WithDimensions returns a new issue with the updated dimension set.
+func (t Issue) WithDimensions(fs DimensionSet) Issue {
+	t.dimensions = fs
 	return t
 }
 

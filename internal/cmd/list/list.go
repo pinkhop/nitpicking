@@ -97,8 +97,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &ancestorsOf,
 			},
 			&cli.StringSliceFlag{
-				Name:  "facet",
-				Usage: "Facet filter in key:value format (repeatable)",
+				Name:  "dimension",
+				Usage: "Dimension filter in key:value format (repeatable)",
 			},
 			&cli.StringFlag{
 				Name:        "order",
@@ -168,18 +168,18 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				filter.AncestorsOf = ancID
 			}
 
-			// Parse facet filters.
-			rawFacets := cmd.StringSlice("facet")
-			for _, s := range rawFacets {
+			// Parse dimension filters.
+			rawDimensions := cmd.StringSlice("dimension")
+			for _, s := range rawDimensions {
 				key, value, ok := strings.Cut(s, ":")
 				if !ok {
-					return cmdutil.FlagErrorf("invalid facet filter %q: must be in key:value format", s)
+					return cmdutil.FlagErrorf("invalid dimension filter %q: must be in key:value format", s)
 				}
-				ff := port.FacetFilter{Key: key}
+				ff := port.DimensionFilter{Key: key}
 				if value != "*" {
 					ff.Value = value
 				}
-				filter.FacetFilters = append(filter.FacetFilters, ff)
+				filter.DimensionFilters = append(filter.DimensionFilters, ff)
 			}
 
 			orderBy, err := parseOrderBy(order)

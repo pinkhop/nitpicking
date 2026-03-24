@@ -578,49 +578,49 @@ func createTaskWithPriority(t *testing.T, dir, title, author, priority string) s
 	return id
 }
 
-func TestE2E_FacetsAndFiltering(t *testing.T) {
-	// Given — tasks with facets.
+func TestE2E_DimensionsAndFiltering(t *testing.T) {
+	// Given — tasks with dimensions.
 	dir := initDB(t, "WF")
-	author := "facet-agent"
+	author := "dimension-agent"
 
-	// Create tasks using edit to set facets (create supports --facet).
+	// Create tasks using edit to set dimensions (create supports --dimension).
 	_, stderr, code := runNP(t, dir, "create",
 		"--role", "task",
 		"--title", "Fix login bug",
 		"--author", author,
-		"--facet", "kind:fix",
+		"--dimension", "kind:fix",
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("create with facet failed (exit %d): %s", code, stderr)
+		t.Fatalf("create with dimension failed (exit %d): %s", code, stderr)
 	}
 
 	_, stderr, code = runNP(t, dir, "create",
 		"--role", "task",
 		"--title", "Add dashboard feature",
 		"--author", author,
-		"--facet", "kind:feature",
+		"--dimension", "kind:feature",
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("create with facet failed (exit %d): %s", code, stderr)
+		t.Fatalf("create with dimension failed (exit %d): %s", code, stderr)
 	}
 
-	// When — list with facet filter.
+	// When — list with dimension filter.
 	stdout, stderr, code := runNP(t, dir, "list",
 		"--ready",
-		"--facet", "kind:fix",
+		"--dimension", "kind:fix",
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("list --facet failed (exit %d): %s", code, stderr)
+		t.Fatalf("list --dimension failed (exit %d): %s", code, stderr)
 	}
 
 	// Then — only the fix issue should appear.
 	result := parseJSON(t, stdout)
 	totalCount, ok := result["total_count"].(float64)
 	if !ok || totalCount != 1 {
-		t.Errorf("expected 1 issue with facet kind:fix, got %v", result["total_count"])
+		t.Errorf("expected 1 issue with dimension kind:fix, got %v", result["total_count"])
 	}
 
 	items, ok := result["items"].([]any)

@@ -101,7 +101,7 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input CreateIssueInput) (
 				AcceptanceCriteria: input.AcceptanceCriteria,
 				Priority:           input.Priority,
 				ParentID:           input.ParentID,
-				Facets:             issue.FacetSetFrom(input.Facets),
+				Dimensions:         issue.DimensionSetFrom(input.Dimensions),
 				CreatedAt:          now,
 				IdempotencyKey:     input.IdempotencyKey,
 			})
@@ -113,7 +113,7 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input CreateIssueInput) (
 				AcceptanceCriteria: input.AcceptanceCriteria,
 				Priority:           input.Priority,
 				ParentID:           input.ParentID,
-				Facets:             issue.FacetSetFrom(input.Facets),
+				Dimensions:         issue.DimensionSetFrom(input.Dimensions),
 				CreatedAt:          now,
 				IdempotencyKey:     input.IdempotencyKey,
 			})
@@ -323,9 +323,9 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input ClaimNextReadyIn
 
 	err := s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		filter := port.IssueFilter{
-			Ready:        true,
-			Role:         input.Role,
-			FacetFilters: input.FacetFilters,
+			Ready:            true,
+			Role:             input.Role,
+			DimensionFilters: input.DimensionFilters,
 		}
 
 		items, _, err := uow.Issues().ListIssues(ctx, filter, port.OrderByPriority, port.PageRequest{PageSize: 1})
@@ -1031,8 +1031,8 @@ type updateFields struct {
 	AcceptanceCriteria *string
 	Priority           *issue.Priority
 	ParentID           *issue.ID
-	FacetSet           []issue.Facet
-	FacetRemove        []string
+	DimensionSet       []issue.Dimension
+	DimensionRemove    []string
 }
 
 func oneShotToUpdateFields(input OneShotUpdateInput) updateFields {
@@ -1042,8 +1042,8 @@ func oneShotToUpdateFields(input OneShotUpdateInput) updateFields {
 		AcceptanceCriteria: input.AcceptanceCriteria,
 		Priority:           input.Priority,
 		ParentID:           input.ParentID,
-		FacetSet:           input.FacetSet,
-		FacetRemove:        input.FacetRemove,
+		DimensionSet:       input.DimensionSet,
+		DimensionRemove:    input.DimensionRemove,
 	}
 }
 
@@ -1054,8 +1054,8 @@ func updateFieldsFromInput(input UpdateIssueInput) updateFields {
 		AcceptanceCriteria: input.AcceptanceCriteria,
 		Priority:           input.Priority,
 		ParentID:           input.ParentID,
-		FacetSet:           input.FacetSet,
-		FacetRemove:        input.FacetRemove,
+		DimensionSet:       input.DimensionSet,
+		DimensionRemove:    input.DimensionRemove,
 	}
 }
 
@@ -1112,15 +1112,15 @@ func (s *serviceImpl) applyIssueUpdates(ctx context.Context, uow port.UnitOfWork
 		})
 	}
 
-	// Apply facet changes.
-	facets := t.Facets()
-	for _, f := range fields.FacetSet {
-		facets = facets.Set(f)
+	// Apply dimension changes.
+	dimensions := t.Dimensions()
+	for _, f := range fields.DimensionSet {
+		dimensions = dimensions.Set(f)
 	}
-	for _, key := range fields.FacetRemove {
-		facets = facets.Remove(key)
+	for _, key := range fields.DimensionRemove {
+		dimensions = dimensions.Remove(key)
 	}
-	t = t.WithFacets(facets)
+	t = t.WithDimensions(dimensions)
 
 	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
 		return err

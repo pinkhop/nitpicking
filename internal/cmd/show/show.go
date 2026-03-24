@@ -161,10 +161,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			// Display facets.
-			if t.Facets().Len() > 0 {
-				_, _ = fmt.Fprintf(w, "\n%s\n", cs.Bold("Facets:"))
-				for k, v := range t.Facets().All() {
+			// Display dimensions.
+			if t.Dimensions().Len() > 0 {
+				_, _ = fmt.Fprintf(w, "\n%s\n", cs.Bold("Dimensions:"))
+				for k, v := range t.Dimensions().All() {
 					_, _ = fmt.Fprintf(w, "  %s: %s\n", k, v)
 				}
 			}

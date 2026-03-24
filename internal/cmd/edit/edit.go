@@ -79,12 +79,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &parent,
 			},
 			&cli.StringSliceFlag{
-				Name:  "facet",
-				Usage: "Set a facet in key:value format (repeatable)",
+				Name:  "dimension",
+				Usage: "Set a dimension in key:value format (repeatable)",
 			},
 			&cli.StringSliceFlag{
-				Name:  "facet-remove",
-				Usage: "Remove a facet by key (repeatable)",
+				Name:  "dimension-remove",
+				Usage: "Remove a dimension by key (repeatable)",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -110,9 +110,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			input := service.OneShotUpdateInput{
-				IssueID:     issueID,
-				Author:      parsedAuthor,
-				FacetRemove: cmd.StringSlice("facet-remove"),
+				IssueID:         issueID,
+				Author:          parsedAuthor,
+				DimensionRemove: cmd.StringSlice("dimension-remove"),
 			}
 
 			// Set optional pointer fields only when flags are explicitly provided.
@@ -145,18 +145,18 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			// Parse facet-set values.
-			rawFacetSet := cmd.StringSlice("facet")
-			for _, s := range rawFacetSet {
+			// Parse dimension-set values.
+			rawDimensionSet := cmd.StringSlice("dimension")
+			for _, s := range rawDimensionSet {
 				key, value, ok := strings.Cut(s, ":")
 				if !ok {
-					return cmdutil.FlagErrorf("invalid facet %q: must be in key:value format", s)
+					return cmdutil.FlagErrorf("invalid dimension %q: must be in key:value format", s)
 				}
-				facet, err := issue.NewFacet(key, value)
+				dimension, err := issue.NewDimension(key, value)
 				if err != nil {
-					return cmdutil.FlagErrorf("invalid facet %q: %s", s, err)
+					return cmdutil.FlagErrorf("invalid dimension %q: %s", s, err)
 				}
-				input.FacetSet = append(input.FacetSet, facet)
+				input.DimensionSet = append(input.DimensionSet, dimension)
 			}
 			if err := svc.OneShotUpdate(ctx, input); err != nil {
 				return fmt.Errorf("editing issue: %w", err)

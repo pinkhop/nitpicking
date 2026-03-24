@@ -51,69 +51,69 @@ func TestE2E_Update_ParentFlag_ReparentsIssue(t *testing.T) {
 	}
 }
 
-func TestE2E_Update_FacetSetAndRemove(t *testing.T) {
+func TestE2E_Update_DimensionSetAndRemove(t *testing.T) {
 	// Given — a claimed task.
 	dir := initDB(t, "UFLAG")
 	author := "flag-agent"
-	taskID, claimID := seedClaimedTask(t, dir, "Facet test", author)
+	taskID, claimID := seedClaimedTask(t, dir, "Dimension test", author)
 
-	// When — set two facets.
+	// When — set two dimensions.
 	_, stderr, code := runNP(t, dir, "update", taskID,
 		"--claim", claimID,
-		"--facet", "kind:fix",
-		"--facet", "area:auth",
+		"--dimension", "kind:fix",
+		"--dimension", "area:auth",
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("facet-set failed (exit %d): %s", code, stderr)
+		t.Fatalf("dimension-set failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — list with facet filter finds the issue.
-	listStdout, _, listCode := runNP(t, dir, "list", "--facet", "kind:fix", "--json")
+	// Then — list with dimension filter finds the issue.
+	listStdout, _, listCode := runNP(t, dir, "list", "--dimension", "kind:fix", "--json")
 	if listCode != 0 {
-		t.Fatal("list --facet kind:fix failed")
+		t.Fatal("list --dimension kind:fix failed")
 	}
 	listResult := parseJSON(t, listStdout)
 	listCount, _ := listResult["total_count"].(float64)
 	if listCount != 1 {
-		t.Errorf("expected 1 issue with facet kind:fix, got %v", listCount)
+		t.Errorf("expected 1 issue with dimension kind:fix, got %v", listCount)
 	}
 
-	listStdout, _, listCode = runNP(t, dir, "list", "--facet", "area:auth", "--json")
+	listStdout, _, listCode = runNP(t, dir, "list", "--dimension", "area:auth", "--json")
 	if listCode != 0 {
-		t.Fatal("list --facet area:auth failed")
+		t.Fatal("list --dimension area:auth failed")
 	}
 	listResult = parseJSON(t, listStdout)
 	listCount, _ = listResult["total_count"].(float64)
 	if listCount != 1 {
-		t.Errorf("expected 1 issue with facet area:auth, got %v", listCount)
+		t.Errorf("expected 1 issue with dimension area:auth, got %v", listCount)
 	}
 
-	// When — remove one facet.
+	// When — remove one dimension.
 	_, stderr, code = runNP(t, dir, "update", taskID,
 		"--claim", claimID,
-		"--facet-remove", "area",
+		"--dimension-remove", "area",
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("facet-remove failed (exit %d): %s", code, stderr)
+		t.Fatalf("dimension-remove failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — the removed facet no longer matches.
-	listStdout, _, listCode = runNP(t, dir, "list", "--facet", "area:auth", "--json")
+	// Then — the removed dimension no longer matches.
+	listStdout, _, listCode = runNP(t, dir, "list", "--dimension", "area:auth", "--json")
 	if listCode != 0 {
-		t.Fatal("list --facet area:auth after remove failed")
+		t.Fatal("list --dimension area:auth after remove failed")
 	}
 	listResult = parseJSON(t, listStdout)
 	listCount, _ = listResult["total_count"].(float64)
 	if listCount != 0 {
-		t.Errorf("expected 0 issues with facet area:auth after removal, got %v", listCount)
+		t.Errorf("expected 0 issues with dimension area:auth after removal, got %v", listCount)
 	}
 
-	// The remaining facet is still present.
-	listStdout, _, listCode = runNP(t, dir, "list", "--facet", "kind:fix", "--json")
+	// The remaining dimension is still present.
+	listStdout, _, listCode = runNP(t, dir, "list", "--dimension", "kind:fix", "--json")
 	if listCode != 0 {
-		t.Fatal("list --facet kind:fix after remove failed")
+		t.Fatal("list --dimension kind:fix after remove failed")
 	}
 	listResult = parseJSON(t, listStdout)
 	listCount, _ = listResult["total_count"].(float64)

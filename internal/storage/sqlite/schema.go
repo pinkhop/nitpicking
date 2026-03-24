@@ -29,8 +29,8 @@ CREATE INDEX IF NOT EXISTS idx_issues_state ON issues(state) WHERE deleted = 0;
 CREATE INDEX IF NOT EXISTS idx_issues_priority_created ON issues(priority, created_at) WHERE deleted = 0;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_idempotency ON issues(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
--- Facets table.
-CREATE TABLE IF NOT EXISTS facets (
+-- Dimensions table.
+CREATE TABLE IF NOT EXISTS dimensions (
     issue_id TEXT NOT NULL REFERENCES issues(issue_id),
     key       TEXT NOT NULL,
     value     TEXT NOT NULL,

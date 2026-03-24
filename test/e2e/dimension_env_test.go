@@ -7,33 +7,33 @@ import (
 	"testing"
 )
 
-func TestE2E_FacetEnvVar_CreateMergesNPFACETS(t *testing.T) {
-	// Given — NP_FACETS env var contains default facets.
+func TestE2E_DimensionEnvVar_CreateMergesNPDIMENSIONS(t *testing.T) {
+	// Given — NP_DIMENSIONS env var contains default dimensions.
 	dir := initDB(t, "FENV")
-	author := "facet-agent"
+	author := "dimension-agent"
 
-	// When — create an issue with NP_FACETS set and no explicit --facet flags.
+	// When — create an issue with NP_DIMENSIONS set and no explicit --dimension flags.
 	stdout, stderr, code := runNPWithEnv(t, dir,
-		[]string{"NP_FACETS=repo:auth kind:feature"},
+		[]string{"NP_DIMENSIONS=repo:auth kind:feature"},
 		"create",
 		"--role", "task",
-		"--title", "Facet env test",
+		"--title", "Dimension env test",
 		"--author", author,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("create with NP_FACETS failed (exit %d): %s", code, stderr)
+		t.Fatalf("create with NP_DIMENSIONS failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
 	issueID := result["id"].(string)
 
-	// Then — the issue appears when filtering by the env-provided facet.
+	// Then — the issue appears when filtering by the env-provided dimension.
 	listStdout, stderr, code := runNP(t, dir, "list",
-		"--facet", "repo:auth",
+		"--dimension", "repo:auth",
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("list --facet repo:auth failed (exit %d): %s", code, stderr)
+		t.Fatalf("list --dimension repo:auth failed (exit %d): %s", code, stderr)
 	}
 
 	listResult := parseJSON(t, listStdout)
@@ -51,34 +51,34 @@ func TestE2E_FacetEnvVar_CreateMergesNPFACETS(t *testing.T) {
 	}
 }
 
-func TestE2E_FacetEnvVar_ExplicitFlagOverridesEnv(t *testing.T) {
-	// Given — NP_FACETS has kind:feature but --facet sets kind:fix.
+func TestE2E_DimensionEnvVar_ExplicitFlagOverridesEnv(t *testing.T) {
+	// Given — NP_DIMENSIONS has kind:feature but --dimension sets kind:fix.
 	dir := initDB(t, "FOVR")
-	author := "facet-agent"
+	author := "dimension-agent"
 
-	// When — create with explicit --facet that conflicts with env var.
+	// When — create with explicit --dimension that conflicts with env var.
 	stdout, stderr, code := runNPWithEnv(t, dir,
-		[]string{"NP_FACETS=kind:feature repo:auth"},
+		[]string{"NP_DIMENSIONS=kind:feature repo:auth"},
 		"create",
 		"--role", "task",
-		"--title", "Facet override test",
+		"--title", "Dimension override test",
 		"--author", author,
-		"--facet", "kind:fix",
+		"--dimension", "kind:fix",
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("create with NP_FACETS + --facet failed (exit %d): %s", code, stderr)
+		t.Fatalf("create with NP_DIMENSIONS + --dimension failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
 	issueID := result["id"].(string)
 
 	// Then — the issue appears with kind:fix (explicit) not kind:feature (env).
 	listFixStdout, _, code := runNP(t, dir, "list",
-		"--facet", "kind:fix",
+		"--dimension", "kind:fix",
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("list --facet kind:fix failed")
+		t.Fatalf("list --dimension kind:fix failed")
 	}
 	fixResult := parseJSON(t, listFixStdout)
 	fixItems := fixResult["items"].([]any)
@@ -97,7 +97,7 @@ func TestE2E_FacetEnvVar_ExplicitFlagOverridesEnv(t *testing.T) {
 	// The issue should NOT appear when filtering by kind:feature (env value
 	// was overridden).
 	listFeatureStdout, _, code := runNP(t, dir, "list",
-		"--facet", "kind:feature",
+		"--dimension", "kind:feature",
 		"--json",
 	)
 	if code == 0 {
@@ -107,7 +107,7 @@ func TestE2E_FacetEnvVar_ExplicitFlagOverridesEnv(t *testing.T) {
 				for _, item := range featureItems {
 					m := item.(map[string]any)
 					if m["id"] == issueID {
-						t.Errorf("issue %s should not have kind:feature (overridden by --facet kind:fix)", issueID)
+						t.Errorf("issue %s should not have kind:feature (overridden by --dimension kind:fix)", issueID)
 					}
 				}
 			}

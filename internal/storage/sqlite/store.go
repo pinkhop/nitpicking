@@ -85,10 +85,16 @@ func Open(dbPath string) (*Store, error) {
 		return nil, &domain.DatabaseError{Op: "take connection for migration", Err: errors.Join(err, closeErr)}
 	}
 	err = migrateTicketsToIssues(conn)
+	if err != nil {
+		pool.Put(conn)
+		closeErr := pool.Close()
+		return nil, &domain.DatabaseError{Op: "migrate tickets to issues", Err: errors.Join(err, closeErr)}
+	}
+	err = migrateFacetsToDimensions(conn)
 	pool.Put(conn)
 	if err != nil {
 		closeErr := pool.Close()
-		return nil, &domain.DatabaseError{Op: "migrate tickets to issues", Err: errors.Join(err, closeErr)}
+		return nil, &domain.DatabaseError{Op: "migrate facets to dimensions", Err: errors.Join(err, closeErr)}
 	}
 
 	return &Store{pool: pool}, nil
@@ -189,7 +195,7 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 		op    string
 		query string
 	}{
-		{"gc facets", `DELETE FROM facets WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
+		{"gc dimensions", `DELETE FROM dimensions WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
 		{"gc notes", `DELETE FROM notes WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
 		{"gc history", `DELETE FROM history WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
 		{"gc relationships", `DELETE FROM relationships WHERE source_id IN (SELECT issue_id FROM issues WHERE deleted = 1) OR target_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
@@ -207,7 +213,7 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 			op    string
 			query string
 		}{
-			{"gc closed facets", `DELETE FROM facets WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
+			{"gc closed dimensions", `DELETE FROM dimensions WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
 			{"gc closed notes", `DELETE FROM notes WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
 			{"gc closed history", `DELETE FROM history WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
 			{"gc closed issues", `DELETE FROM issues WHERE state = 'closed'`},
@@ -247,12 +253,12 @@ func (r *issueRepo) CreateIssue(_ context.Context, t issue.Issue) error {
 		return &domain.DatabaseError{Op: "create issue", Err: err}
 	}
 
-	// Save facets.
-	for k, v := range t.Facets().All() {
-		if err := sqlitex.Execute(r.conn, `INSERT INTO facets (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
+	// Save dimensions.
+	for k, v := range t.Dimensions().All() {
+		if err := sqlitex.Execute(r.conn, `INSERT INTO dimensions (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 			Args: []any{t.ID().String(), k, v},
 		}); err != nil {
-			return &domain.DatabaseError{Op: "create facet", Err: err}
+			return &domain.DatabaseError{Op: "create dimension", Err: err}
 		}
 	}
 
@@ -281,12 +287,12 @@ func (r *issueRepo) GetIssue(_ context.Context, id issue.ID, includeDeleted bool
 		return issue.Issue{}, &domain.DatabaseError{Op: "get issue", Err: err}
 	}
 
-	// Load facets.
-	facets, err := r.loadFacets(id.String())
+	// Load dimensions.
+	dimensions, err := r.loadDimensions(id.String())
 	if err != nil {
 		return issue.Issue{}, err
 	}
-	t = t.WithFacets(facets)
+	t = t.WithDimensions(dimensions)
 
 	return t, nil
 }
@@ -306,15 +312,15 @@ func (r *issueRepo) UpdateIssue(_ context.Context, t issue.Issue) error {
 		return &domain.DatabaseError{Op: "update issue", Err: err}
 	}
 
-	// Replace facets.
-	_ = sqlitex.Execute(r.conn, `DELETE FROM facets WHERE issue_id = ?`, &sqlitex.ExecOptions{
+	// Replace dimensions.
+	_ = sqlitex.Execute(r.conn, `DELETE FROM dimensions WHERE issue_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{t.ID().String()},
 	})
-	for k, v := range t.Facets().All() {
-		if err := sqlitex.Execute(r.conn, `INSERT INTO facets (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
+	for k, v := range t.Dimensions().All() {
+		if err := sqlitex.Execute(r.conn, `INSERT INTO dimensions (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 			Args: []any{t.ID().String(), k, v},
 		}); err != nil {
-			return &domain.DatabaseError{Op: "update facet", Err: err}
+			return &domain.DatabaseError{Op: "update dimension", Err: err}
 		}
 	}
 
@@ -575,18 +581,18 @@ func (r *issueRepo) GetIssueByIdempotencyKey(_ context.Context, key string) (iss
 	return t, nil
 }
 
-func (r *issueRepo) loadFacets(issueID string) (issue.FacetSet, error) {
-	fs := issue.NewFacetSet()
-	err := sqlitex.Execute(r.conn, `SELECT key, value FROM facets WHERE issue_id = ?`, &sqlitex.ExecOptions{
+func (r *issueRepo) loadDimensions(issueID string) (issue.DimensionSet, error) {
+	fs := issue.NewDimensionSet()
+	err := sqlitex.Execute(r.conn, `SELECT key, value FROM dimensions WHERE issue_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{issueID},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			f, _ := issue.NewFacet(stmt.ColumnText(0), stmt.ColumnText(1))
+			f, _ := issue.NewDimension(stmt.ColumnText(0), stmt.ColumnText(1))
 			fs = fs.Set(f)
 			return nil
 		},
 	})
 	if err != nil {
-		return issue.NewFacetSet(), &domain.DatabaseError{Op: "load facets", Err: err}
+		return issue.NewDimensionSet(), &domain.DatabaseError{Op: "load dimensions", Err: err}
 	}
 	return fs, nil
 }
@@ -1240,20 +1246,20 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 		args = append(args, filter.AncestorsOf.String())
 	}
 
-	for _, ff := range filter.FacetFilters {
+	for _, ff := range filter.DimensionFilters {
 		if ff.Negate {
 			if ff.Value == "" {
-				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM facets f WHERE f.issue_id = t.issue_id AND f.key = ?)`)
+				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM dimensions f WHERE f.issue_id = t.issue_id AND f.key = ?)`)
 			} else {
-				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM facets f WHERE f.issue_id = t.issue_id AND f.key = ? AND f.value = ?)`)
+				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM dimensions f WHERE f.issue_id = t.issue_id AND f.key = ? AND f.value = ?)`)
 				args = append(args, ff.Key, ff.Value)
 				continue
 			}
 		} else {
 			if ff.Value == "" {
-				conditions = append(conditions, `EXISTS (SELECT 1 FROM facets f WHERE f.issue_id = t.issue_id AND f.key = ?)`)
+				conditions = append(conditions, `EXISTS (SELECT 1 FROM dimensions f WHERE f.issue_id = t.issue_id AND f.key = ?)`)
 			} else {
-				conditions = append(conditions, `EXISTS (SELECT 1 FROM facets f WHERE f.issue_id = t.issue_id AND f.key = ? AND f.value = ?)`)
+				conditions = append(conditions, `EXISTS (SELECT 1 FROM dimensions f WHERE f.issue_id = t.issue_id AND f.key = ? AND f.value = ?)`)
 				args = append(args, ff.Key, ff.Value)
 				continue
 			}

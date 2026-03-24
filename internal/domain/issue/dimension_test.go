@@ -7,7 +7,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
-func TestNewFacet_ValidKeyValue_Succeeds(t *testing.T) {
+func TestNewDimension_ValidKeyValue_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -25,7 +25,7 @@ func TestNewFacet_ValidKeyValue_Succeeds(t *testing.T) {
 			t.Parallel()
 
 			// When
-			f, err := issue.NewFacet(tc.key, tc.value)
+			f, err := issue.NewDimension(tc.key, tc.value)
 			// Then
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -40,7 +40,7 @@ func TestNewFacet_ValidKeyValue_Succeeds(t *testing.T) {
 	}
 }
 
-func TestNewFacet_InvalidKey_Fails(t *testing.T) {
+func TestNewDimension_InvalidKey_Fails(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -60,7 +60,7 @@ func TestNewFacet_InvalidKey_Fails(t *testing.T) {
 			t.Parallel()
 
 			// When
-			_, err := issue.NewFacet(tc.key, "valid")
+			_, err := issue.NewDimension(tc.key, "valid")
 
 			// Then
 			if err == nil {
@@ -70,7 +70,7 @@ func TestNewFacet_InvalidKey_Fails(t *testing.T) {
 	}
 }
 
-func TestNewFacet_InvalidValue_Fails(t *testing.T) {
+func TestNewDimension_InvalidValue_Fails(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -88,7 +88,7 @@ func TestNewFacet_InvalidValue_Fails(t *testing.T) {
 			t.Parallel()
 
 			// When
-			_, err := issue.NewFacet("kind", tc.value)
+			_, err := issue.NewDimension("kind", tc.value)
 
 			// Then
 			if err == nil {
@@ -98,12 +98,12 @@ func TestNewFacet_InvalidValue_Fails(t *testing.T) {
 	}
 }
 
-func TestFacetSet_SetAndGet(t *testing.T) {
+func TestDimensionSet_SetAndGet(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f, _ := issue.NewFacet("kind", "feat")
-	fs := issue.NewFacetSet()
+	f, _ := issue.NewDimension("kind", "feat")
+	fs := issue.NewDimensionSet()
 
 	// When
 	fs = fs.Set(f)
@@ -111,20 +111,20 @@ func TestFacetSet_SetAndGet(t *testing.T) {
 	// Then
 	v, ok := fs.Get("kind")
 	if !ok {
-		t.Fatal("expected facet to exist")
+		t.Fatal("expected dimension to exist")
 	}
 	if v != "feat" {
 		t.Errorf("expected feat, got %s", v)
 	}
 }
 
-func TestFacetSet_SetOverwrites(t *testing.T) {
+func TestDimensionSet_SetOverwrites(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := issue.NewFacet("kind", "feat")
-	f2, _ := issue.NewFacet("kind", "fix")
-	fs := issue.NewFacetSet().Set(f1)
+	f1, _ := issue.NewDimension("kind", "feat")
+	f2, _ := issue.NewDimension("kind", "fix")
+	fs := issue.NewDimensionSet().Set(f1)
 
 	// When
 	fs = fs.Set(f2)
@@ -135,16 +135,16 @@ func TestFacetSet_SetOverwrites(t *testing.T) {
 		t.Errorf("expected overwritten value fix, got %s", v)
 	}
 	if fs.Len() != 1 {
-		t.Errorf("expected 1 facet, got %d", fs.Len())
+		t.Errorf("expected 1 dimension, got %d", fs.Len())
 	}
 }
 
-func TestFacetSet_Remove(t *testing.T) {
+func TestDimensionSet_Remove(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f, _ := issue.NewFacet("kind", "feat")
-	fs := issue.NewFacetSet().Set(f)
+	f, _ := issue.NewDimension("kind", "feat")
+	fs := issue.NewDimensionSet().Set(f)
 
 	// When
 	fs = fs.Remove("kind")
@@ -155,15 +155,15 @@ func TestFacetSet_Remove(t *testing.T) {
 	}
 	_, ok := fs.Get("kind")
 	if ok {
-		t.Error("expected facet to not exist after remove")
+		t.Error("expected dimension to not exist after remove")
 	}
 }
 
-func TestFacetSet_RemoveNonexistent_NoOp(t *testing.T) {
+func TestDimensionSet_RemoveNonexistent_NoOp(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	fs := issue.NewFacetSet()
+	fs := issue.NewDimensionSet()
 
 	// When
 	fs2 := fs.Remove("nonexistent")
@@ -174,46 +174,46 @@ func TestFacetSet_RemoveNonexistent_NoOp(t *testing.T) {
 	}
 }
 
-func TestFacetSet_Immutability(t *testing.T) {
+func TestDimensionSet_Immutability(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := issue.NewFacet("kind", "feat")
-	original := issue.NewFacetSet().Set(f1)
+	f1, _ := issue.NewDimension("kind", "feat")
+	original := issue.NewDimensionSet().Set(f1)
 
 	// When — modify the "copy"
-	f2, _ := issue.NewFacet("priority", "high")
+	f2, _ := issue.NewDimension("priority", "high")
 	_ = original.Set(f2)
 
 	// Then — original is unchanged
 	if original.Len() != 1 {
-		t.Errorf("expected original to have 1 facet, got %d", original.Len())
+		t.Errorf("expected original to have 1 dimension, got %d", original.Len())
 	}
 }
 
-func TestFacetSetFrom_BuildsFromSlice(t *testing.T) {
+func TestDimensionSetFrom_BuildsFromSlice(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := issue.NewFacet("kind", "feat")
-	f2, _ := issue.NewFacet("area", "backend")
+	f1, _ := issue.NewDimension("kind", "feat")
+	f2, _ := issue.NewDimension("area", "backend")
 
 	// When
-	fs := issue.FacetSetFrom([]issue.Facet{f1, f2})
+	fs := issue.DimensionSetFrom([]issue.Dimension{f1, f2})
 
 	// Then
 	if fs.Len() != 2 {
-		t.Errorf("expected 2 facets, got %d", fs.Len())
+		t.Errorf("expected 2 dimensions, got %d", fs.Len())
 	}
 }
 
-func TestFacetSet_All_IteratesAllFacets(t *testing.T) {
+func TestDimensionSet_All_IteratesAllDimensions(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := issue.NewFacet("kind", "feat")
-	f2, _ := issue.NewFacet("area", "backend")
-	fs := issue.NewFacetSet().Set(f1).Set(f2)
+	f1, _ := issue.NewDimension("kind", "feat")
+	f2, _ := issue.NewDimension("area", "backend")
+	fs := issue.NewDimensionSet().Set(f1).Set(f2)
 
 	// When
 	count := 0

@@ -20,7 +20,7 @@ type CreateIssueInput struct {
 	AcceptanceCriteria string
 	Priority           issue.Priority
 	ParentID           issue.ID
-	Facets             []issue.Facet
+	Dimensions         []issue.Dimension
 	Relationships      []RelationshipInput
 	Author             identity.Author
 	Claim              bool
@@ -57,11 +57,11 @@ type ClaimOutput struct {
 
 // ClaimNextReadyInput holds the parameters for claiming the next ready issue.
 type ClaimNextReadyInput struct {
-	Author         identity.Author
-	Role           issue.Role
-	FacetFilters   []port.FacetFilter
-	StealIfNeeded  bool
-	StaleThreshold time.Duration
+	Author           identity.Author
+	Role             issue.Role
+	DimensionFilters []port.DimensionFilter
+	StealIfNeeded    bool
+	StaleThreshold   time.Duration
 }
 
 // UpdateIssueInput holds the parameters for updating a claimed issue.
@@ -73,8 +73,8 @@ type UpdateIssueInput struct {
 	AcceptanceCriteria *string
 	Priority           *issue.Priority
 	ParentID           *issue.ID
-	FacetSet           []issue.Facet
-	FacetRemove        []string
+	DimensionSet       []issue.Dimension
+	DimensionRemove    []string
 	RelationshipAdd    []RelationshipInput
 	RelationshipRemove []RelationshipInput
 	NoteBody           string
@@ -89,8 +89,8 @@ type OneShotUpdateInput struct {
 	AcceptanceCriteria *string
 	Priority           *issue.Priority
 	ParentID           *issue.ID
-	FacetSet           []issue.Facet
-	FacetRemove        []string
+	DimensionSet       []issue.Dimension
+	DimensionRemove    []string
 }
 
 // TransitionInput holds the parameters for a state transition.

@@ -180,16 +180,16 @@ func TestE2E_CreateFromJSON_MissingRequiredFields_Fails(t *testing.T) {
 	}
 }
 
-func TestE2E_CreateFromJSON_FacetsMerge(t *testing.T) {
+func TestE2E_CreateFromJSON_DimensionsMerge(t *testing.T) {
 	// Given
 	dir := initDB(t, "TEST")
 
-	jsonInput := `{"role":"task","title":"Facet merge test","facets":{"kind":"bug","area":"auth"}}`
+	jsonInput := `{"role":"task","title":"Dimension merge test","dimensions":{"kind":"bug","area":"auth"}}`
 
-	// When: --facet flag overrides kind but area comes from JSON.
+	// When: --dimension flag overrides kind but area comes from JSON.
 	stdout, stderr, code := runNP(t, dir, "create",
 		"--from-json", jsonInput,
-		"--facet", "kind:feature",
+		"--dimension", "kind:feature",
 		"--author", "e2e-agent",
 		"--claim",
 		"--json",
@@ -202,12 +202,12 @@ func TestE2E_CreateFromJSON_FacetsMerge(t *testing.T) {
 	created := parseJSON(t, stdout)
 	createdID, _ := created["id"].(string)
 
-	// Verify facets via show.
+	// Verify dimensions via show.
 	showStdout, _, _ := runNP(t, dir, "show", createdID, "--json")
-	// show --json doesn't include facets, so we check via list with --facet filter.
+	// show --json doesn't include dimensions, so we check via list with --dimension filter.
 	// Verify kind:feature (flag wins over JSON's kind:bug).
 	listStdout, _, listCode := runNP(t, dir, "list",
-		"--facet", "kind:feature",
+		"--dimension", "kind:feature",
 		"--include-closed",
 		"--json",
 	)
@@ -222,7 +222,7 @@ func TestE2E_CreateFromJSON_FacetsMerge(t *testing.T) {
 
 	// Verify area:auth (from JSON, no conflict).
 	listStdout2, _, _ := runNP(t, dir, "list",
-		"--facet", "area:auth",
+		"--dimension", "area:auth",
 		"--include-closed",
 		"--json",
 	)

@@ -62,9 +62,9 @@ Define `Role` as `Epic` or `Task`. Immutable after creation. Include parsing and
 - **Depends on:** nothing
 - **Package:** `internal/domain/issue`
 
-### 1.6 Facet Value Object
+### 1.6 Dimension Value Object
 
-Define `Facet` (key–value pair). Key: 1–64 bytes, ASCII printable (0x21–0x7E), no whitespace, at least one alphanumeric. Value: 1–256 bytes, UTF-8, no whitespace, at least one alphanumeric. Key uniqueness is enforced at the collection level. Include a `FacetSet` collection type.
+Define `Dimension` (key–value pair). Key: 1–64 bytes, ASCII printable (0x21–0x7E), no whitespace, at least one alphanumeric. Value: 1–256 bytes, UTF-8, no whitespace, at least one alphanumeric. Key uniqueness is enforced at the collection level. Include a `DimensionSet` collection type.
 
 - **Depends on:** nothing
 - **Package:** `internal/domain/issue`
@@ -89,7 +89,7 @@ Note: as with tasks, `deleted` is terminal but separate from the state machine. 
 
 ### 1.9 Issue Entity — Core Fields
 
-Define the `Issue` struct carrying all common fields from §4.1: ID, role, title, description, acceptance criteria, priority, state, parent reference, facets, created-at, idempotency key. All fields are immutable after construction; "mutations" return new `Issue` values. Include factory functions `NewTask` and `NewEpic` with required-field validation (title must contain at least one alphanumeric character).
+Define the `Issue` struct carrying all common fields from §4.1: ID, role, title, description, acceptance criteria, priority, state, parent reference, dimensions, created-at, idempotency key. All fields are immutable after construction; "mutations" return new `Issue` values. Include factory functions `NewTask` and `NewEpic` with required-field validation (title must contain at least one alphanumeric character).
 
 **Revision** is a derived property — computed as `history entry count − 1` per §4.1. It is not stored on the Issue struct. It is computed at read time from the history.
 
@@ -265,7 +265,7 @@ Implement claiming: validate issue is claimable (not terminal, not already claim
 
 ### 3.5 Update Issue Service
 
-Implement claimed update: verify claim ID matches, apply field changes (title, description, acceptance criteria, priority, parent, facets), validate parent constraints including cycle detection, produce `updated` history entry. Update claim's last-activity.
+Implement claimed update: verify claim ID matches, apply field changes (title, description, acceptance criteria, priority, parent, dimensions), validate parent constraints including cycle detection, produce `updated` history entry. Update claim's last-activity.
 
 When the parent is changed or removed, recalculate the **old** parent's epic completion status (per §4.1.1).
 
@@ -320,9 +320,9 @@ Implement relationship add/remove per §8.4: no claim required, requires explici
 
 ### 3.12 Show / List / Search Issue Services
 
-Implement read operations: show (full issue state including derived readiness, epic completion, revision, and author — the latter two derived from history), list (with filters: role, state, ready predicate, parent, facet; ordering: priority, created, modified; keyset pagination), search (FTS on title/description/acceptance criteria, optionally notes).
+Implement read operations: show (full issue state including derived readiness, epic completion, revision, and author — the latter two derived from history), list (with filters: role, state, ready predicate, parent, dimension; ordering: priority, created, modified; keyset pagination), search (FTS on title/description/acceptance criteria, optionally notes).
 
-Facet filtering supports exact key–value match (`key:value`), wildcard (`key:*`), and negative matching (e.g., exclude issues with a given facet value).
+Dimension filtering supports exact key–value match (`key:value`), wildcard (`key:*`), and negative matching (e.g., exclude issues with a given dimension value).
 
 - **Depends on:** 3.1, 3.3
 - **Package:** `internal/app/service`
@@ -363,14 +363,14 @@ Implement `.np/` directory walk from §3.3: start at cwd, walk up to filesystem 
 
 ### 4.2 SQLite Schema and Migrations
 
-Design and implement the SQLite schema: issues (`WITHOUT ROWID`), notes, claims, relationships, history, facets, FTS virtual tables for search, prefix storage. Include initialization (create `.np/` dir + database + schema).
+Design and implement the SQLite schema: issues (`WITHOUT ROWID`), notes, claims, relationships, history, dimensions, FTS virtual tables for search, prefix storage. Include initialization (create `.np/` dir + database + schema).
 
 - **Depends on:** 2.1, 4.1
 - **Package:** `internal/storage/sqlite`
 
 ### 4.3 SQLite Repository — Issue CRUD
 
-Implement create, get-by-ID, update, soft-delete, list (with all filters including facet negative matching and keyset pagination), search (FTS).
+Implement create, get-by-ID, update, soft-delete, list (with all filters including dimension negative matching and keyset pagination), search (FTS).
 
 - **Depends on:** 4.2
 - **Package:** `internal/storage/sqlite`
@@ -398,7 +398,7 @@ Implement relationship create-if-not-exists, delete-if-exists, list-by-issue. Hi
 
 ### 4.7 SQLite Repository — GC
 
-Implement physical removal of deleted (and optionally closed) data, including related notes, history, relationships, facets, and FTS entries. Run `VACUUM` after.
+Implement physical removal of deleted (and optionally closed) data, including related notes, history, relationships, dimensions, and FTS entries. Run `VACUUM` after.
 
 - **Depends on:** 4.2
 - **Package:** `internal/storage/sqlite`
@@ -453,7 +453,7 @@ CLI adapter for agent instructions output.
 
 ### 5.6 `np create` Command
 
-CLI adapter for issue creation. Flags: `--title`, `--description`, `--acceptance-criteria`, `--priority`, `--role`, `--parent`, `--facet` (repeatable key=value), `--relationship` (repeatable type:id), `--claim`, `--author`, `--idempotency-key`.
+CLI adapter for issue creation. Flags: `--title`, `--description`, `--acceptance-criteria`, `--priority`, `--role`, `--parent`, `--dimension` (repeatable key=value), `--relationship` (repeatable type:id), `--claim`, `--author`, `--idempotency-key`.
 
 - **Depends on:** 3.3, 5.1, 5.2
 - **Package:** `internal/cmd/create`
@@ -467,14 +467,14 @@ CLI adapter for `ClaimByID`. Flags: `--steal`, `--author`, `--stale-threshold`.
 
 ### 5.8 `np claim ready` Subcommand
 
-CLI adapter for `ClaimNextReady`. Flags: `--facet` (filter), `--role` (filter), `--steal-if-needed`, `--author`, `--stale-threshold`.
+CLI adapter for `ClaimNextReady`. Flags: `--dimension` (filter), `--role` (filter), `--steal-if-needed`, `--author`, `--stale-threshold`.
 
 - **Depends on:** 3.4, 5.1, 5.2
 - **Package:** `internal/cmd/claim`
 
 ### 5.9 `np update` Command
 
-CLI adapter for claimed update. Flags for each mutable field, `--claim` required, `--facet-set`, `--facet-remove`, `--relationship-add`, `--relationship-remove`, `--note`.
+CLI adapter for claimed update. Flags for each mutable field, `--claim` required, `--dimension-set`, `--dimension-remove`, `--relationship-add`, `--relationship-remove`, `--note`.
 
 - **Depends on:** 3.5, 5.1, 5.2
 - **Package:** `internal/cmd/update`
@@ -516,14 +516,14 @@ CLI adapter for ungated relationship management per §8.4. Subcommands or flags 
 
 ### 5.15 `np show` Command
 
-CLI adapter for issue detail view. Positional arg: issue ID. Displays all fields, facets, relationships, children, derived properties (readiness, completion, revision, author).
+CLI adapter for issue detail view. Positional arg: issue ID. Displays all fields, dimensions, relationships, children, derived properties (readiness, completion, revision, author).
 
 - **Depends on:** 3.12, 5.1, 5.2
 - **Package:** `internal/cmd/show`
 
 ### 5.16 `np list` Command
 
-CLI adapter for issue listing. Flags for all filters (role, state, ready, parent, facet including negative matching) and ordering. Keyset pagination flags (`--after`, `--page-size`). Optional `--timestamps` flag to include created/modified timestamps in output.
+CLI adapter for issue listing. Flags for all filters (role, state, ready, parent, dimension including negative matching) and ordering. Keyset pagination flags (`--after`, `--page-size`). Optional `--timestamps` flag to include created/modified timestamps in output.
 
 - **Depends on:** 3.12, 5.1, 5.2
 - **Package:** `internal/cmd/list`

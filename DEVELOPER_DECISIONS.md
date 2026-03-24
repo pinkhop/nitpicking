@@ -20,11 +20,11 @@
 
 ---
 
-## DD-003: FacetSet uses value semantics (copy-on-write)
+## DD-003: DimensionSet uses value semantics (copy-on-write)
 
-**Decision:** FacetSet is an immutable value type. All mutation methods (Set, Remove) return a new FacetSet with a cloned underlying map. The Issue type stores a FacetSet by value.
+**Decision:** DimensionSet is an immutable value type. All mutation methods (Set, Remove) return a new DimensionSet with a cloned underlying map. The Issue type stores a DimensionSet by value.
 
-**Why:** The CLAUDE.md coding standards require immutable structures for concurrent access. Copy-on-write maps are simple and correct, and facet sets are small (typically under 10 entries).
+**Why:** The CLAUDE.md coding standards require immutable structures for concurrent access. Copy-on-write maps are simple and correct, and dimension sets are small (typically under 10 entries).
 
 ---
 

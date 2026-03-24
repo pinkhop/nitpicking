@@ -13,13 +13,13 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project.
 2. [Motivation: Deficiencies of Beads](#2-motivation-deficiencies-of-beads)
 3. [Issue Model](#3-issue-model)
    - 3.1 [Issue Types](#31-issue-types)
-   - 3.2 [Labels (Convention on Facets)](#32-labels-convention-on-facets)
+   - 3.2 [Labels (Convention on Dimensions)](#32-labels-convention-on-dimensions)
    - 3.3 [Common Fields](#33-common-fields)
    - 3.4 [States](#34-states)
    - 3.5 [Relationships](#35-relationships)
    - 3.6 [Notes](#36-notes)
    - 3.7 [Issue ID Format](#37-issue-id-format)
-   - 3.8 [Facets](#38-facets)
+   - 3.8 [Dimensions](#38-dimensions)
 4. [Issue Lifecycle](#4-issue-lifecycle)
    - 4.1 [Claiming & Updating](#41-claiming--updating)
    - 4.2 [Epic Completion Derivation](#42-epic-completion-derivation)
@@ -96,10 +96,10 @@ project — or its parent epic — closer to completion.
 - Optionally has an epic as its parent.
 - **Cannot** have child issues of its own (leaf node only).
 
-### 3.2 Labels (Convention on Facets)
+### 3.2 Labels (Convention on Dimensions)
 
-Labels are not a first-class field — they are a **convention** using facets. The
-recommended facet key is `kind` (e.g., `kind:feat`, `kind:fix`). This applies to
+Labels are not a first-class field — they are a **convention** using dimensions. The
+recommended dimension key is `kind` (e.g., `kind:feat`, `kind:fix`). This applies to
 any issue, not just epics.
 
 Users are free to define whatever label vocabulary fits their workflow — corporate Jira
@@ -121,7 +121,7 @@ developers already know these types and their boundaries:
 | `ci`       | Changes to CI/CD configuration or automation. |
 | `chore`    | Maintenance and housekeeping that doesn't fit other categories. |
 
-These are suggestions, not enforced values. The system does not validate facet values.
+These are suggestions, not enforced values. The system does not validate dimension values.
 
 ### 3.3 Common Fields
 
@@ -136,7 +136,7 @@ All issues — regardless of type — carry these fields:
 | Priority            | Yes      | `P0`–`P4`. Default: `P2`. Lower number = higher urgency. Changing priority requires claiming. |
 | Revision            | Yes      | Integer; derived from history entry count (`revision = history count − 1`). Starts at `0` for a newly created issue. See [5](#5-history--auditability). |
 | State               | Yes      | See [3.4](#34-states). Tasks start as `open`; epics start as `active`. |
-| Facets              | —        | Zero or more key-value pairs. See [3.8](#38-facets). |
+| Dimensions              | —        | Zero or more key-value pairs. See [3.8](#38-dimensions). |
 | Notes               | —        | Zero or more. See [3.6](#36-notes). |
 | Relationships       | —        | Zero or more. See [3.5](#35-relationships). |
 
@@ -253,36 +253,36 @@ The prefix **must be specified** by the user at database initialization. There i
 auto-generation. This keeps initialization explicit and avoids heuristic edge cases
 (short directory names, profanity filtering, collisions with other databases).
 
-### 3.8 Facets
+### 3.8 Dimensions
 
-Facets are key-value pairs on any issue. They are the primary mechanism for
+Dimensions are key-value pairs on any issue. They are the primary mechanism for
 **filtering** — particularly for coordinating agents that work in different scopes under
-a shared database. The name "facets" is deliberate: it implies a small number of
+a shared database. The name "dimensions" is deliberate: it implies a small number of
 meaningful dimensions for filtering and classification, not a dumping ground for
 arbitrary metadata.
 
 - Keys and values are short strings. No schema enforcement — any key is valid.
-- An issue can have multiple facets. Keys are unique per issue (setting a key that
+- An issue can have multiple dimensions. Keys are unique per issue (setting a key that
   already exists overwrites the previous value).
-- Facets require **claiming** to add, modify, or remove (same as other issue fields).
-- Facets are queryable: `np claim --ready --filter=repo:auth-service`,
+- Dimensions require **claiming** to add, modify, or remove (same as other issue fields).
+- Dimensions are queryable: `np claim --ready --filter=repo:auth-service`,
   `np list --filter=lang:go`, etc. Exact filter syntax is a CLI design decision (deferred).
 
 #### Motivating Use Case
 
 A project database lives in a parent directory containing multiple repos. One agent
-operates per repo. Each repo's tasks are faceted with `repo:<name>`. An agent claims
+operates per repo. Each repo's tasks are dimensioned with `repo:<name>`. An agent claims
 work by filtering for its repo: `np claim --ready --filter=repo:auth-service`. This
 enables parallel agents under one database without an orchestration layer — each agent
-self-selects relevant work via facet filters.
+self-selects relevant work via dimension filters.
 
 #### Design Notes
 
 - No well-known keys are defined. All keys are free-form. Conventions will emerge from
   usage; premature standardization risks encoding the wrong abstractions.
-- Facets are not a replacement for first-class fields (state, priority, labels). If
+- Dimensions are not a replacement for first-class fields (state, priority, labels). If
   something has defined semantics and affects the lifecycle or readiness model, it
-  belongs in the issue model, not in facets.
+  belongs in the issue model, not in dimensions.
 
 ---
 
@@ -298,7 +298,7 @@ self-selects relevant work via facet filters.
   - **Relationships** — adding a relationship between two issues should not require
     claiming either issue.
 - `closed` and `deleted` issues **cannot be claimed**.
-- For quick updates to unclaimed issues (setting facets, fixing a title, etc.), the CLI
+- For quick updates to unclaimed issues (setting dimensions, fixing a title, etc.), the CLI
   should support a one-shot claim → update → release as a single command per issue.
 
 #### Claim IDs
@@ -611,7 +611,7 @@ purpose.
 #### Create
 
 Create an issue. All properties on the issue may be set at creation: title, description,
-acceptance criteria, priority, type (task or epic), parent epic, facets, and relationships.
+acceptance criteria, priority, type (task or epic), parent epic, dimensions, and relationships.
 The caller may optionally have the issue start as **claimed** by them, which returns a
 claim ID (see [4.1](#41-claiming--updating)).
 
@@ -633,7 +633,7 @@ Claim a specific issue by its ID. Returns a claim ID.
 #### Claim Next Ready
 
 Claim the highest-priority unclaimed ready issue (lowest `P` number first; ties broken
-by earliest creation time). Filterable by facet. Returns the claimed issue and a
+by earliest creation time). Filterable by dimension. Returns the claimed issue and a
 claim ID.
 
 - Variant: if no ready issues are available, optionally **steal** the highest-priority
@@ -641,7 +641,7 @@ claim ID.
 
 #### Update
 
-Update one or more properties, facets (full CRUD), relationships (create/delete), and/or
+Update one or more properties, dimensions (full CRUD), relationships (create/delete), and/or
 parent assignment on a claimed issue. Optionally add a note as part of the same
 operation. Requires the claim ID. All changes are applied as a **single atomic mutation**.
 
@@ -664,7 +664,7 @@ Deleting an epic **recursively deletes** all its children.
 
 #### Show
 
-Display the full current state of an issue: all fields, facets, relationships, parent,
+Display the full current state of an issue: all fields, dimensions, relationships, parent,
 children (for epics), and derived properties (readiness, completion status). Notes are
 **excluded** — they have their own paginated listing.
 
@@ -674,15 +674,15 @@ List issues. Displays high-level information by default: ID, type, state, priori
 title. Optionally include creation and/or modification timestamps.
 
 - **Filterable** by state, or by the computed "ready" predicate (see [4.3](#43-readiness)).
-- **Filterable** by facet. `key:*` matches all issues with that key regardless of value.
-  Negative facet matching (exclude issues with a facet) may be supported.
+- **Filterable** by dimension. `key:*` matches all issues with that key regardless of value.
+  Negative dimension matching (exclude issues with a dimension) may be supported.
 - **Orderable** by priority, creation time, modification time, or other criteria.
 - **Paginated** (see [7.0](#70-cross-cutting-concerns)).
 
 #### Search
 
 Search issues using full-text search on title, description, and acceptance criteria.
-Optionally include notes in the FTS scope. Also filterable by facet (including `key:*`
+Optionally include notes in the FTS scope. Also filterable by dimension (including `key:*`
 and possibly negative matching).
 
 - Same high-level display as **List**.
@@ -717,7 +717,7 @@ Search notes on a specific issue using full-text search.
 Search all notes across all issues using full-text search.
 
 - **Filterable** by author, created-after date-time, created-after a specific note ID,
-  issue facets, and issue state.
+  issue dimensions, and issue state.
 - **Orderable** and **paginated**.
 
 ### 7.4 History Operations
@@ -914,13 +914,13 @@ children are deferred, the epic is incomplete and likely should itself be marked
 
 ### Metadata / Key-Value Pairs
 
-11. ~~**Structured metadata**~~ — RESOLVED. Free-form key-value facets are a first-class feature. See [3.8](#38-facets).
+11. ~~**Structured metadata**~~ — RESOLVED. Free-form key-value dimensions are a first-class feature. See [3.8](#38-dimensions).
 12. ~~**Well-known keys**~~ — RESOLVED. No well-known keys. All keys are free-form; conventions emerge from usage.
 
 ### Labels
 
-13. ~~**Additional epic labels**~~ — RESOLVED. Labels are now a convention on facets (`kind:<value>`), not a first-class field. Users define their own vocabulary. See [3.2](#32-labels-convention-on-facets).
-14. ~~**Labels on tasks**~~ — RESOLVED. Facets apply to any issue, so labels (via the `kind` facet) work on both epics and tasks.
+13. ~~**Additional epic labels**~~ — RESOLVED. Labels are now a convention on dimensions (`kind:<value>`), not a first-class field. Users define their own vocabulary. See [3.2](#32-labels-convention-on-dimensions).
+14. ~~**Labels on tasks**~~ — RESOLVED. Dimensions apply to any issue, so labels (via the `kind` dimension) work on both epics and tasks.
 
 ### Architecture & Ports
 

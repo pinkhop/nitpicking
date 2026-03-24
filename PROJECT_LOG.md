@@ -17,8 +17,8 @@
   - P0–P4 enum, ParsePriority, default P2, ordering
 - [x] **1.5** Issue Role Enumeration — `internal/domain/issue/role.go`
   - RoleTask, RoleEpic, ParseRole
-- [x] **1.6** Facet Value Object — `internal/domain/issue/facet.go`
-  - Key validation (ASCII printable, 1–64 bytes), value validation (UTF-8, 1–256 bytes), FacetSet (immutable, copy-on-write)
+- [x] **1.6** Dimension Value Object — `internal/domain/issue/dimension.go`
+  - Key validation (ASCII printable, 1–64 bytes), value validation (UTF-8, 1–256 bytes), DimensionSet (immutable, copy-on-write)
 - [x] **1.7** Task State Machine — `internal/domain/issue/state.go`
   - States: open, claimed, closed, deferred, waiting; TransitionTask with legal/illegal transition validation
 - [x] **1.8** Epic State Machine — `internal/domain/issue/state.go`
@@ -72,7 +72,7 @@
 - [x] **3.2** Initialize Service
 - [x] **3.3** Create Issue Service — with idempotency key, optional claim-at-creation, relationships
 - [x] **3.4** Claim Services — ClaimByID with steal support, ClaimNextReady with steal fallback
-- [x] **3.5** Update Issue Service — field updates, facet changes, optional note in same operation
+- [x] **3.5** Update Issue Service — field updates, dimension changes, optional note in same operation
 - [x] **3.6** One-Shot Update Service — atomic claim→update→release
 - [x] **3.7** State Transition Service — release, close, defer, wait
 - [x] **3.8** Extend Stale Threshold Service
@@ -92,7 +92,7 @@
   - Walk-up search from cwd for .np/ directory; permission errors silently skipped
   - InitDatabaseDir creates .np/ directory
 - [x] **4.2** SQLite Schema — `internal/storage/sqlite/schema.go`
-  - WITHOUT ROWID tables for issues, facets, claims, relationships
+  - WITHOUT ROWID tables for issues, dimensions, claims, relationships
   - AUTOINCREMENT for notes and history entries
   - FTS5 virtual tables for issues and notes with sync triggers
   - Indexes on parent_id, state, priority+created_at, idempotency_key
@@ -114,7 +114,7 @@
 - [x] **5.5** `np agent prime` — prints Markdown workflow instructions
 - [x] **5.6** `np create` — creates issues with all field flags, optional claim, idempotency key
 - [x] **5.7** `np claim id <ISSUE-ID>` — claims an issue with optional steal
-- [x] **5.8** `np claim ready` — claims highest-priority ready issue with role/facet filters
+- [x] **5.8** `np claim ready` — claims highest-priority ready issue with role/dimension filters
 - [x] **5.9** `np update <ISSUE-ID>` — updates claimed issue fields
 - [x] **5.10** `np edit <ISSUE-ID>` — one-shot claim→update→release
 - [x] **5.11** `np release/close/defer/wait` — state transitions

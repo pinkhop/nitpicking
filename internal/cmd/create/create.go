@@ -92,8 +92,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &parent,
 			},
 			&cli.StringSliceFlag{
-				Name:  "facet",
-				Usage: "Facet in key:value format (repeatable)",
+				Name:  "dimension",
+				Usage: "Dimension in key:value format (repeatable)",
 			},
 			&cli.BoolFlag{
 				Name:        "claim",
@@ -173,14 +173,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			// Parse facets: three-way merge of env, JSON, and flags.
+			// Parse dimensions: three-way merge of env, JSON, and flags.
 			// Precedence: flags > JSON > env. Different keys are merged;
 			// same key uses the highest-precedence source.
-			flagFacets := cmd.StringSlice("facet")
-			envFacets := envFacetStrings(os.Getenv("NP_FACETS"))
-			jsonFacets := jsonFacetsToStrings(tj.Facets)
-			mergedFacets := mergeFacetsFromJSON(envFacets, jsonFacets, flagFacets)
-			parsedFacets, err := parseFacets(mergedFacets)
+			flagDimensions := cmd.StringSlice("dimension")
+			envDimensions := envDimensionStrings(os.Getenv("NP_DIMENSIONS"))
+			jsonDimensions := jsonDimensionsToStrings(tj.Dimensions)
+			mergedDimensions := mergeDimensionsFromJSON(envDimensions, jsonDimensions, flagDimensions)
+			parsedDimensions, err := parseDimensions(mergedDimensions)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
@@ -216,7 +216,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				AcceptanceCriteria: acceptanceCriteria,
 				Priority:           parsedPriority,
 				ParentID:           parentID,
-				Facets:             parsedFacets,
+				Dimensions:         parsedDimensions,
 				Author:             parsedAuthor,
 				Claim:              claim,
 				IdempotencyKey:     idempotencyKey,
@@ -262,32 +262,32 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// envFacetStrings splits the NP_FACETS env var (space-separated key:value
-// pairs) into individual facet strings.
-func envFacetStrings(envValue string) []string {
+// envDimensionStrings splits the NP_DIMENSIONS env var (space-separated key:value
+// pairs) into individual dimension strings.
+func envDimensionStrings(envValue string) []string {
 	if envValue == "" {
 		return nil
 	}
 	return strings.Fields(envValue)
 }
 
-func parseFacets(raw []string) ([]issue.Facet, error) {
+func parseDimensions(raw []string) ([]issue.Dimension, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
 
-	facets := make([]issue.Facet, 0, len(raw))
+	dimensions := make([]issue.Dimension, 0, len(raw))
 	for _, s := range raw {
 		key, value, ok := strings.Cut(s, ":")
 		if !ok {
-			return nil, fmt.Errorf("invalid facet %q: must be in key:value format", s)
+			return nil, fmt.Errorf("invalid dimension %q: must be in key:value format", s)
 		}
-		f, err := issue.NewFacet(key, value)
+		f, err := issue.NewDimension(key, value)
 		if err != nil {
-			return nil, fmt.Errorf("invalid facet %q: %w", s, err)
+			return nil, fmt.Errorf("invalid dimension %q: %w", s, err)
 		}
-		facets = append(facets, f)
+		dimensions = append(dimensions, f)
 	}
 
-	return facets, nil
+	return dimensions, nil
 }

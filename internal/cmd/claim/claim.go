@@ -156,8 +156,8 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &role,
 			},
 			&cli.StringSliceFlag{
-				Name:  "facet",
-				Usage: "Facet filter in key:value format (repeatable)",
+				Name:  "dimension",
+				Usage: "Dimension filter in key:value format (repeatable)",
 			},
 			&cli.BoolFlag{
 				Name:        "steal-if-needed",
@@ -185,9 +185,9 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			// Parse facet filters.
-			rawFacets := cmd.StringSlice("facet")
-			facetFilters, err := parseFacetFilters(rawFacets)
+			// Parse dimension filters.
+			rawDimensions := cmd.StringSlice("dimension")
+			dimensionFilters, err := parseDimensionFilters(rawDimensions)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
@@ -201,11 +201,11 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			input := service.ClaimNextReadyInput{
-				Author:         parsedAuthor,
-				Role:           parsedRole,
-				FacetFilters:   facetFilters,
-				StealIfNeeded:  stealIfNeeded,
-				StaleThreshold: threshold,
+				Author:           parsedAuthor,
+				Role:             parsedRole,
+				DimensionFilters: dimensionFilters,
+				StealIfNeeded:    stealIfNeeded,
+				StaleThreshold:   threshold,
 			}
 
 			svc, err := cmdutil.NewTracker(f)
@@ -249,20 +249,20 @@ func writeClaimResult(f *cmdutil.Factory, jsonOutput bool, result service.ClaimO
 	return err
 }
 
-// parseFacetFilters converts a slice of "key:value" strings into port.FacetFilter
+// parseDimensionFilters converts a slice of "key:value" strings into port.DimensionFilter
 // values. A value of "*" is treated as a wildcard (match any value for that key).
-func parseFacetFilters(raw []string) ([]port.FacetFilter, error) {
+func parseDimensionFilters(raw []string) ([]port.DimensionFilter, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
 
-	filters := make([]port.FacetFilter, 0, len(raw))
+	filters := make([]port.DimensionFilter, 0, len(raw))
 	for _, s := range raw {
 		key, value, ok := strings.Cut(s, ":")
 		if !ok {
-			return nil, fmt.Errorf("invalid facet filter %q: must be in key:value format", s)
+			return nil, fmt.Errorf("invalid dimension filter %q: must be in key:value format", s)
 		}
-		ff := port.FacetFilter{Key: key}
+		ff := port.DimensionFilter{Key: key}
 		if value != "*" {
 			ff.Value = value
 		}

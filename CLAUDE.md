@@ -89,7 +89,7 @@ Every mutation requires an `--author` flag identifying who is acting. Pick a sta
 ```bash
 np claim ready --author <your-name>   # claim the highest-priority ready issue
 np list --ready                       # browse all ready issues without claiming
-np list --ready --facet kind:fix      # filter ready issues by facet
+np list --ready --dimension kind:fix      # filter ready issues by dimension
 np list --include-closed              # include closed issues (hidden by default)
 np list --state closed                # show only closed issues
 np search "login timeout"             # full-text search across titles and descriptions
@@ -116,7 +116,7 @@ Persist the claim ID for the duration of your work on that issue. If you lose it
 np update <ISSUE-ID> --claim <CLAIM-ID> --title "Revised title"
 np update <ISSUE-ID> --claim <CLAIM-ID> --description "More detail"
 np update <ISSUE-ID> --claim <CLAIM-ID> --priority 1
-np update <ISSUE-ID> --claim <CLAIM-ID> --facet kind:fix
+np update <ISSUE-ID> --claim <CLAIM-ID> --dimension kind:fix
 ```
 
 For a quick one-shot edit that does not require holding a claim, use `np edit`:
@@ -170,7 +170,7 @@ np create --from-json '{"role":"task","title":"Fix bug","priority":"P0"}' --auth
 np show <ISSUE-ID> --json | np create --from-json - --author <your-name>   # clone an issue
 ```
 
-Precedence: explicit flags > JSON values > env vars. Facets with different keys from all sources are merged; for the same key, the higher-precedence source wins.
+Precedence: explicit flags > JSON values > env vars. Dimensions with different keys from all sources are merged; for the same key, the higher-precedence source wins.
 
 ## Priorities
 

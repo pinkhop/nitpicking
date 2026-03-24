@@ -639,8 +639,8 @@ func (r *Repository) matchesFilter(t issue.Issue, f port.IssueFilter) bool {
 			return false
 		}
 	}
-	for _, ff := range f.FacetFilters {
-		val, exists := t.Facets().Get(ff.Key)
+	for _, ff := range f.DimensionFilters {
+		val, exists := t.Dimensions().Get(ff.Key)
 		if ff.Negate {
 			if ff.Value == "" && exists {
 				return false

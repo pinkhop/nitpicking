@@ -17,7 +17,7 @@ type issueJSON struct {
 	AcceptanceCriteria string            `json:"acceptance_criteria"`
 	Priority           string            `json:"priority"`
 	ParentID           string            `json:"parent_id"`
-	Facets             map[string]string `json:"facets"`
+	Dimensions         map[string]string `json:"dimensions"`
 }
 
 // parseIssueJSON unmarshals a JSON byte slice into an issueJSON struct.
@@ -43,19 +43,19 @@ func readJSONSource(value string, stdin io.Reader) ([]byte, error) {
 	return []byte(value), nil
 }
 
-// mergeFacetsFromJSON combines facets from JSON, env var, and flags. Precedence
-// (highest to lowest): flag facets, JSON facets, env facets. Facets with
+// mergeDimensionsFromJSON combines dimensions from JSON, env var, and flags. Precedence
+// (highest to lowest): flag dimensions, JSON dimensions, env dimensions. Dimensions with
 // different keys from all sources are merged; for the same key, the
 // higher-precedence source wins.
-func mergeFacetsFromJSON(envFacets, jsonFacets, flagFacets []string) []string {
+func mergeDimensionsFromJSON(envDimensions, jsonDimensions, flagDimensions []string) []string {
 	// Build a map in precedence order: env (lowest), then JSON, then flags
 	// (highest). Later entries overwrite earlier ones for the same key.
 	seen := make(map[string]string)
 	order := make([]string, 0)
 
-	addFacets := func(facets []string) {
-		for _, f := range facets {
-			key, _, ok := cutFacet(f)
+	addDimensions := func(dimensions []string) {
+		for _, f := range dimensions {
+			key, _, ok := cutDimension(f)
 			if !ok {
 				continue
 			}
@@ -66,9 +66,9 @@ func mergeFacetsFromJSON(envFacets, jsonFacets, flagFacets []string) []string {
 		}
 	}
 
-	addFacets(envFacets)
-	addFacets(jsonFacets)
-	addFacets(flagFacets)
+	addDimensions(envDimensions)
+	addDimensions(jsonDimensions)
+	addDimensions(flagDimensions)
 
 	result := make([]string, 0, len(seen))
 	for _, key := range order {
@@ -77,8 +77,8 @@ func mergeFacetsFromJSON(envFacets, jsonFacets, flagFacets []string) []string {
 	return result
 }
 
-// cutFacet splits a "key:value" string into key and the full string.
-func cutFacet(s string) (key string, value string, ok bool) {
+// cutDimension splits a "key:value" string into key and the full string.
+func cutDimension(s string) (key string, value string, ok bool) {
 	for i := range len(s) {
 		if s[i] == ':' {
 			return s[:i], s[i+1:], true
@@ -87,13 +87,13 @@ func cutFacet(s string) (key string, value string, ok bool) {
 	return "", "", false
 }
 
-// jsonFacetsToStrings converts a map of facets into "key:value" string format.
-func jsonFacetsToStrings(facets map[string]string) []string {
-	if len(facets) == 0 {
+// jsonDimensionsToStrings converts a map of dimensions into "key:value" string format.
+func jsonDimensionsToStrings(dimensions map[string]string) []string {
+	if len(dimensions) == 0 {
 		return nil
 	}
-	result := make([]string, 0, len(facets))
-	for k, v := range facets {
+	result := make([]string, 0, len(dimensions))
+	for k, v := range dimensions {
 		result = append(result, k+":"+v)
 	}
 	return result

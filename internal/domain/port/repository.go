@@ -69,8 +69,8 @@ type IssueFilter struct {
 	DescendantsOf issue.ID
 	// AncestorsOf filters to the parent chain of an issue (up to the root).
 	AncestorsOf issue.ID
-	// FacetFilters specifies facet-based filters.
-	FacetFilters []FacetFilter
+	// DimensionFilters specifies dimension-based filters.
+	DimensionFilters []DimensionFilter
 	// ExcludeClosed hides closed issues from results when true. Ignored when
 	// States explicitly includes StateClosed — an explicit state filter
 	// represents intentional user selection and takes precedence.
@@ -79,13 +79,13 @@ type IssueFilter struct {
 	IncludeDeleted bool
 }
 
-// FacetFilter specifies a single facet-based filter criterion.
-type FacetFilter struct {
-	// Key is the facet key to match.
+// DimensionFilter specifies a single dimension-based filter criterion.
+type DimensionFilter struct {
+	// Key is the dimension key to match.
 	Key string
-	// Value is the facet value to match. Empty for wildcard ("key:*").
+	// Value is the dimension value to match. Empty for wildcard ("key:*").
 	Value string
-	// Negate inverts the filter — exclude issues matching this facet.
+	// Negate inverts the filter — exclude issues matching this dimension.
 	Negate bool
 }
 

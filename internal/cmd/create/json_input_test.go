@@ -18,7 +18,7 @@ func TestParseIssueJSON_ValidFullInput(t *testing.T) {
 		"acceptance_criteria": "Login works",
 		"priority": "P0",
 		"parent_id": "NP-abc12",
-		"facets": {"kind": "bug", "area": "auth"}
+		"dimensions": {"kind": "bug", "area": "auth"}
 	}`)
 
 	// When
@@ -45,8 +45,8 @@ func TestParseIssueJSON_ValidFullInput(t *testing.T) {
 	if tj.ParentID != "NP-abc12" {
 		t.Errorf("parent_id: got %q, want %q", tj.ParentID, "NP-abc12")
 	}
-	if tj.Facets["kind"] != "bug" || tj.Facets["area"] != "auth" {
-		t.Errorf("facets: got %v, want kind:bug area:auth", tj.Facets)
+	if tj.Dimensions["kind"] != "bug" || tj.Dimensions["area"] != "auth" {
+		t.Errorf("dimensions: got %v, want kind:bug area:auth", tj.Dimensions)
 	}
 }
 
@@ -118,8 +118,8 @@ func TestParseIssueJSON_MinimalInput(t *testing.T) {
 	if tj.Description != "" {
 		t.Errorf("description: got %q, want empty", tj.Description)
 	}
-	if tj.Facets != nil {
-		t.Errorf("facets: got %v, want nil", tj.Facets)
+	if tj.Dimensions != nil {
+		t.Errorf("dimensions: got %v, want nil", tj.Dimensions)
 	}
 }
 
@@ -177,98 +177,98 @@ func TestReadJSONSource_StdinError(t *testing.T) {
 	}
 }
 
-func TestMergeFacetsFromJSON_AllSourcesMerged(t *testing.T) {
+func TestMergeDimensionsFromJSON_AllSourcesMerged(t *testing.T) {
 	t.Parallel()
 
-	// Given: facets from env, JSON, and flags with distinct keys.
-	envFacets := []string{"env-key:env-val"}
-	jsonFacets := []string{"json-key:json-val"}
-	flagFacets := []string{"flag-key:flag-val"}
+	// Given: dimensions from env, JSON, and flags with distinct keys.
+	envDimensions := []string{"env-key:env-val"}
+	jsonDimensions := []string{"json-key:json-val"}
+	flagDimensions := []string{"flag-key:flag-val"}
 
 	// When
-	result := mergeFacetsFromJSON(envFacets, jsonFacets, flagFacets)
+	result := mergeDimensionsFromJSON(envDimensions, jsonDimensions, flagDimensions)
 
 	// Then: all three appear.
 	if len(result) != 3 {
-		t.Fatalf("expected 3 facets, got %d: %v", len(result), result)
+		t.Fatalf("expected 3 dimensions, got %d: %v", len(result), result)
 	}
 	if !slices.Contains(result, "env-key:env-val") {
-		t.Errorf("missing env facet in %v", result)
+		t.Errorf("missing env dimension in %v", result)
 	}
 	if !slices.Contains(result, "json-key:json-val") {
-		t.Errorf("missing json facet in %v", result)
+		t.Errorf("missing json dimension in %v", result)
 	}
 	if !slices.Contains(result, "flag-key:flag-val") {
-		t.Errorf("missing flag facet in %v", result)
+		t.Errorf("missing flag dimension in %v", result)
 	}
 }
 
-func TestMergeFacetsFromJSON_FlagOverridesJSON(t *testing.T) {
+func TestMergeDimensionsFromJSON_FlagOverridesJSON(t *testing.T) {
 	t.Parallel()
 
 	// Given: same key in JSON and flags.
-	jsonFacets := []string{"kind:bug"}
-	flagFacets := []string{"kind:feature"}
+	jsonDimensions := []string{"kind:bug"}
+	flagDimensions := []string{"kind:feature"}
 
 	// When
-	result := mergeFacetsFromJSON(nil, jsonFacets, flagFacets)
+	result := mergeDimensionsFromJSON(nil, jsonDimensions, flagDimensions)
 
 	// Then: flag wins.
 	if len(result) != 1 {
-		t.Fatalf("expected 1 facet, got %d: %v", len(result), result)
+		t.Fatalf("expected 1 dimension, got %d: %v", len(result), result)
 	}
 	if result[0] != "kind:feature" {
 		t.Errorf("expected kind:feature, got %q", result[0])
 	}
 }
 
-func TestMergeFacetsFromJSON_JSONOverridesEnv(t *testing.T) {
+func TestMergeDimensionsFromJSON_JSONOverridesEnv(t *testing.T) {
 	t.Parallel()
 
 	// Given: same key in env and JSON.
-	envFacets := []string{"kind:bug"}
-	jsonFacets := []string{"kind:feature"}
+	envDimensions := []string{"kind:bug"}
+	jsonDimensions := []string{"kind:feature"}
 
 	// When
-	result := mergeFacetsFromJSON(envFacets, jsonFacets, nil)
+	result := mergeDimensionsFromJSON(envDimensions, jsonDimensions, nil)
 
 	// Then: JSON wins.
 	if len(result) != 1 {
-		t.Fatalf("expected 1 facet, got %d: %v", len(result), result)
+		t.Fatalf("expected 1 dimension, got %d: %v", len(result), result)
 	}
 	if result[0] != "kind:feature" {
 		t.Errorf("expected kind:feature, got %q", result[0])
 	}
 }
 
-func TestMergeFacetsFromJSON_FlagOverridesEnv(t *testing.T) {
+func TestMergeDimensionsFromJSON_FlagOverridesEnv(t *testing.T) {
 	t.Parallel()
 
 	// Given: same key across all three sources.
-	envFacets := []string{"kind:env"}
-	jsonFacets := []string{"kind:json"}
-	flagFacets := []string{"kind:flag"}
+	envDimensions := []string{"kind:env"}
+	jsonDimensions := []string{"kind:json"}
+	flagDimensions := []string{"kind:flag"}
 
 	// When
-	result := mergeFacetsFromJSON(envFacets, jsonFacets, flagFacets)
+	result := mergeDimensionsFromJSON(envDimensions, jsonDimensions, flagDimensions)
 
 	// Then: flag wins over all.
 	if len(result) != 1 {
-		t.Fatalf("expected 1 facet, got %d: %v", len(result), result)
+		t.Fatalf("expected 1 dimension, got %d: %v", len(result), result)
 	}
 	if result[0] != "kind:flag" {
 		t.Errorf("expected kind:flag, got %q", result[0])
 	}
 }
 
-func TestJsonFacetsToStrings_ConvertsFacetMap(t *testing.T) {
+func TestJsonDimensionsToStrings_ConvertsDimensionMap(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	facets := map[string]string{"kind": "bug", "area": "auth"}
+	dimensions := map[string]string{"kind": "bug", "area": "auth"}
 
 	// When
-	result := jsonFacetsToStrings(facets)
+	result := jsonDimensionsToStrings(dimensions)
 
 	// Then
 	if len(result) != 2 {
@@ -283,11 +283,11 @@ func TestJsonFacetsToStrings_ConvertsFacetMap(t *testing.T) {
 	}
 }
 
-func TestJsonFacetsToStrings_NilMap_ReturnsNil(t *testing.T) {
+func TestJsonDimensionsToStrings_NilMap_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := jsonFacetsToStrings(nil)
+	result := jsonDimensionsToStrings(nil)
 
 	// Then
 	if result != nil {

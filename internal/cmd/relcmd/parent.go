@@ -103,25 +103,16 @@ func newDetachCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newChildrenCmd constructs "rel parent children" which lists direct children
-// of an epic.
+// newChildrenCmd constructs "rel parent children <ID>" which lists direct
+// children of an issue.
 func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
-	var (
-		jsonOutput bool
-		issueArg   string
-	)
+	var jsonOutput bool
 
 	return &cli.Command{
-		Name:  "children",
-		Usage: "List direct children of an issue",
+		Name:      "children",
+		Usage:     "List direct children of an issue",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "issue",
-				Aliases:     []string{"i"},
-				Usage:       "Parent issue ID (required)",
-				Required:    true,
-				Destination: &issueArg,
-			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -130,13 +121,18 @@ func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			rawID := cmd.Args().Get(0)
+			if rawID == "" {
+				return cmdutil.FlagErrorf("issue ID argument is required")
+			}
+
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			issueID, err := resolver.Resolve(ctx, issueArg)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}

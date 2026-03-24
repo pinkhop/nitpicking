@@ -12,6 +12,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain/graph"
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
+	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
 // graphOutput is the JSON representation of the graph command result.
@@ -23,8 +24,9 @@ type graphOutput struct {
 // representation of all issues and their relationships.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
-		jsonOutput bool
-		outputFile string
+		jsonOutput    bool
+		outputFile    string
+		includeClosed bool
 	)
 
 	return &cli.Command{
@@ -42,6 +44,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Usage:       "Write DOT output to a file instead of stdout",
 				Destination: &outputFile,
 			},
+			&cli.BoolFlag{
+				Name:        "include-closed",
+				Usage:       "Include closed issues in the graph (hidden by default)",
+				Destination: &includeClosed,
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			svc, err := cmdutil.NewTracker(f)
@@ -54,9 +61,26 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return fmt.Errorf("fetching graph data: %w", err)
 			}
 
+			// Filter closed issues unless --include-closed is set.
+			visibleNodes := data.Nodes
+			if !includeClosed {
+				visibleNodes = make([]port.IssueListItem, 0, len(data.Nodes))
+				for _, item := range data.Nodes {
+					if item.State != issue.StateClosed {
+						visibleNodes = append(visibleNodes, item)
+					}
+				}
+			}
+
+			// Build a set of visible node IDs for edge filtering.
+			visibleSet := make(map[string]bool, len(visibleNodes))
+			for _, item := range visibleNodes {
+				visibleSet[item.ID.String()] = true
+			}
+
 			// Convert service output to graph renderer input.
-			nodes := make([]graph.Node, 0, len(data.Nodes))
-			for _, item := range data.Nodes {
+			nodes := make([]graph.Node, 0, len(visibleNodes))
+			for _, item := range visibleNodes {
 				nodes = append(nodes, graph.Node{
 					ID:       item.ID,
 					Role:     item.Role,
@@ -69,7 +93,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			edges := make([]graph.Edge, 0, len(data.Relationships))
 			for _, rel := range data.Relationships {
 				// Only include blocked_by and cites (not their inverses) to
-				// avoid duplicate edges.
+				// avoid duplicate edges. Also skip edges where either endpoint
+				// is not in the visible set (filtered out by --include-closed).
+				if !visibleSet[rel.SourceID().String()] || !visibleSet[rel.TargetID().String()] {
+					continue
+				}
 				if rel.Type() == issue.RelBlockedBy || rel.Type() == issue.RelCites {
 					edges = append(edges, graph.Edge{
 						SourceID: rel.SourceID(),

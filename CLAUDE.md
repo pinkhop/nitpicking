@@ -270,6 +270,18 @@ np issue note <ID> --author <name> --body "Note text"  # add a comment (alias: c
 np issue orphans                                       # list issues with no parent epic
 ```
 
+## Admin Commands
+
+The `admin` command groups maintenance operations:
+
+```bash
+np admin doctor                        # detect cycles, deadlocks, stale claims
+np admin gc --confirm                  # garbage-collect deleted issues
+np admin gc --confirm --include-closed # also remove closed issues
+np admin reset --confirm               # delete .np/ database (destructive)
+np admin upgrade                       # check for schema upgrades
+```
+
 ## Diagnostics
 
 ```bash

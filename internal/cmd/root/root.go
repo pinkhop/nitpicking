@@ -8,6 +8,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/pinkhop/nitpicking/internal/cmd/admincmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/agent"
 	"github.com/pinkhop/nitpicking/internal/cmd/blocked"
 	"github.com/pinkhop/nitpicking/internal/cmd/claim"
@@ -133,6 +134,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				dimensioncmd.NewCmd(f),
 			}},
 			{"Maintenance", []*cli.Command{
+				admincmd.NewCmd(f),
 				graphcmd.NewCmd(f),
 				doctor.NewCmd(f),
 				gc.NewCmd(f),

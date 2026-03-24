@@ -922,7 +922,7 @@ func (s *serviceImpl) validateParent(ctx context.Context, uow port.UnitOfWork, c
 	if err != nil {
 		return fmt.Errorf("parent %s: %w", parentID, err)
 	}
-	if err := issue.ValidateParent(childID, parentID, parent.Role(), parent.IsDeleted()); err != nil {
+	if err := issue.ValidateParent(childID, parentID, parent.IsDeleted()); err != nil {
 		return err
 	}
 	return issue.ValidateNoCycle(childID, parentID, func(id issue.ID) (issue.ID, error) {

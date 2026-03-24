@@ -16,22 +16,25 @@ func TestValidateParent_ValidEpicParent_Succeeds(t *testing.T) {
 	parentID := mustID(t)
 
 	// When
-	err := issue.ValidateParent(childID, parentID, issue.RoleEpic, false)
+	err := issue.ValidateParent(childID, parentID, false)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestValidateParent_TaskParent_Fails(t *testing.T) {
+func TestValidateParent_TaskParent_Succeeds(t *testing.T) {
 	t.Parallel()
 
-	// When
-	err := issue.ValidateParent(mustID(t), mustID(t), issue.RoleTask, false)
+	// Given
+	childID := mustID(t)
+	parentID := mustID(t)
 
+	// When
+	err := issue.ValidateParent(childID, parentID, false)
 	// Then
-	if err == nil {
-		t.Fatal("expected error for task parent")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -42,7 +45,7 @@ func TestValidateParent_SelfParent_Fails(t *testing.T) {
 	id := mustID(t)
 
 	// When
-	err := issue.ValidateParent(id, id, issue.RoleEpic, false)
+	err := issue.ValidateParent(id, id, false)
 
 	// Then
 	if !errors.Is(err, domain.ErrCycleDetected) {
@@ -54,7 +57,7 @@ func TestValidateParent_DeletedParent_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	err := issue.ValidateParent(mustID(t), mustID(t), issue.RoleEpic, true)
+	err := issue.ValidateParent(mustID(t), mustID(t), true)
 
 	// Then
 	if !errors.Is(err, domain.ErrDeletedIssue) {

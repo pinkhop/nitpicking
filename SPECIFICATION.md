@@ -121,7 +121,7 @@ There are exactly two issue types, referred to as **roles**: **Epic** and **Task
 
 An issue that organizes other issues. Its completion is derived from its children.
 
-- Optionally has an epic as its parent (nesting is allowed).
+- Optionally has a parent issue (nesting is allowed).
 - Cannot be directly completed — completion is derived (see [6.2](#62-epic-completion-derivation)).
 - Has three directly settable planning states: `active`, `deferred`, `waiting` (see [5.2](#52-epic-states)).
 - Claimable — an epic must be claimed to edit its metadata or decompose it into children.
@@ -130,7 +130,7 @@ An issue that organizes other issues. Its completion is derived from its childre
 
 The actionable work unit.
 
-- Optionally has an epic as its parent.
+- Optionally has a parent issue.
 - Cannot have child issues (leaf node only).
 
 #### Common Fields
@@ -147,7 +147,7 @@ All issues carry these fields regardless of role:
 | Priority            | Yes      | Yes     | `P0`–`P4`. Default: `P2`. Lower number = higher urgency. Changing requires claiming. |
 | State               | Yes      | Yes     | See [5](#5-state-machines). Tasks start as `open`; epics start as `active`. |
 | Revision            | Yes      | No      | Integer; derived from history entry count (`revision = history count − 1`). Starts at `0`. |
-| Parent              | No       | Yes     | Reference to a parent epic. Tasks and epics may have a parent epic. See [4.1.1](#411-parent-constraints). |
+| Parent              | No       | Yes     | Reference to a parent issue. Any issue may have any other issue as its parent. See [4.1.1](#411-parent-constraints). |
 | Dimensions              | —        | Yes     | Zero or more key–value pairs. See [4.6](#46-dimension). |
 | Notes               | —        | —       | Zero or more. See [4.2](#42-note). Managed separately. |
 | Relationships       | —        | —       | Zero or more. See [4.3](#43-relationship). |
@@ -158,7 +158,7 @@ All mutable fields (except notes and relationships) require claiming to modify.
 
 #### 4.1.1 Parent Constraints
 
-- Only an epic can be a parent. Setting a task as a parent is invalid.
+- Any issue role (task or epic) can be a parent of any other issue role.
 - An issue cannot be its own parent.
 - Assigning a parent must not create a cycle — e.g., epic A cannot be the parent of epic B if B is already an ancestor of A.
 - A deleted issue cannot be assigned as a parent.
@@ -459,7 +459,7 @@ The instructions must be brief — enough to get an agent started with pointers 
 
 #### Create
 
-Create an issue. Settable at creation: title, description, acceptance criteria, priority, role (task or epic), parent epic, dimensions, and relationships.
+Create an issue. Settable at creation: title, description, acceptance criteria, priority, role (task or epic), parent issue, dimensions, and relationships.
 
 - Optionally start as claimed (returns a claim ID).
 - Optional **idempotency key**: if an issue with the same key exists, return the existing issue instead.
@@ -518,7 +518,7 @@ Display the full current state of an issue: all fields, dimensions, relationship
 
 List issues with high-level information: ID, role, state, priority, title. Optionally include timestamps.
 
-- Filterable by: role (epic or task), state, the computed "ready" predicate, parent epic, dimension (`key:value` exact match, `key:*` wildcard, optionally negative matching).
+- Filterable by: role (epic or task), state, the computed "ready" predicate, parent issue, dimension (`key:value` exact match, `key:*` wildcard, optionally negative matching).
 - Orderable by: priority, creation time, modification time.
 - Paginated.
 

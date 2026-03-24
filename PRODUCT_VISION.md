@@ -79,7 +79,7 @@ There are exactly two issue types (referred to as "roles"):
 
 An issue that organizes other issues. Its completion derives from its children.
 
-- Optionally has an epic as its parent (nesting is allowed).
+- Optionally has a parent issue (nesting is allowed).
 - **Cannot** be directly completed — completion is derived from children
   (see [4.2](#42-epic-completion-derivation)).
 - Has three directly settable **planning states**: `active`, `deferred`, `waiting`
@@ -93,7 +93,7 @@ An issue that organizes other issues. Its completion derives from its children.
 The actionable work. Describes a step or sequence of steps that progresses the
 project — or its parent epic — closer to completion.
 
-- Optionally has an epic as its parent.
+- Optionally has a parent issue.
 - **Cannot** have child issues of its own (leaf node only).
 
 ### 3.2 Labels (Convention on Dimensions)
@@ -611,7 +611,7 @@ purpose.
 #### Create
 
 Create an issue. All properties on the issue may be set at creation: title, description,
-acceptance criteria, priority, type (task or epic), parent epic, dimensions, and relationships.
+acceptance criteria, priority, type (task or epic), parent issue, dimensions, and relationships.
 The caller may optionally have the issue start as **claimed** by them, which returns a
 claim ID (see [4.1](#41-claiming--updating)).
 

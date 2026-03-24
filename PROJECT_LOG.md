@@ -26,7 +26,7 @@
 - [x] **1.9** Issue Entity — `internal/domain/issue/issue.go`
   - Immutable value type with all common fields; NewTask/NewEpic constructors; With* mutation methods returning new values
 - [x] **1.10** Parent Constraints — `internal/domain/issue/parent.go`
-  - ValidateParent (only epics, no self, no deleted); ValidateNoCycle with ancestor lookup callback
+  - ValidateParent (any role as parent, no self, no deleted); ValidateNoCycle with ancestor lookup callback
 - [x] **1.11** Note Entity — `internal/domain/note/note.go`
   - Immutable note with sequential ID, display ID (note-N), body validation
 - [x] **1.12** Relationship Value Object — `internal/domain/issue/relationship.go`

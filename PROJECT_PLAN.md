@@ -100,7 +100,7 @@ Define the `Issue` struct carrying all common fields from §4.1: ID, role, title
 
 ### 1.10 Parent Constraints
 
-Implement parent validation rules from §4.1.1: only epics can be parents; an issue cannot be its own parent; deleted issues cannot be parents. Cycle detection (A cannot parent B if B is an ancestor of A) is defined as a pure function taking an ancestry-lookup callback — no persistence dependency.
+Implement parent validation rules from §4.1.1: any issue role can be a parent; an issue cannot be its own parent; deleted issues cannot be parents. Cycle detection (A cannot parent B if B is an ancestor of A) is defined as a pure function taking an ancestry-lookup callback — no persistence dependency.
 
 - **Depends on:** 1.9
 - **Package:** `internal/domain/issue`

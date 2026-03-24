@@ -6,19 +6,15 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain"
 )
 
-// ValidateParent checks parent assignment constraints from §4.1.1:
-//   - Only an epic can be a parent.
+// ValidateParent checks parent assignment constraints:
 //   - An issue cannot be its own parent.
 //   - A deleted issue cannot be assigned as a parent.
 //
-// The parentRole and parentDeleted parameters describe the proposed parent
-// issue. Cycle detection is handled separately by ValidateNoCycle.
-func ValidateParent(childID, parentID ID, parentRole Role, parentDeleted bool) error {
+// Any issue role (task or epic) may be a parent of any other issue role.
+// Cycle detection is handled separately by ValidateNoCycle.
+func ValidateParent(childID, parentID ID, parentDeleted bool) error {
 	if childID == parentID {
 		return fmt.Errorf("issue cannot be its own parent: %w", domain.ErrCycleDetected)
-	}
-	if parentRole != RoleEpic {
-		return fmt.Errorf("only epics can be parents, got %s: %w", parentRole, domain.ErrIllegalTransition)
 	}
 	if parentDeleted {
 		return fmt.Errorf("cannot assign deleted issue as parent: %w", domain.ErrDeletedIssue)

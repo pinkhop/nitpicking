@@ -38,6 +38,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:        "claim",
+				Sources:     cli.EnvVars("NP_CLAIM"),
 				Usage:       "Active claim ID for the ticket",
 				Required:    true,
 				Destination: &claimID,

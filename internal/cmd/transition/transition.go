@@ -38,6 +38,7 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 			},
 			&cli.StringFlag{
 				Name:        "claim",
+				Sources:     cli.EnvVars("NP_CLAIM"),
 				Usage:       "Active claim ID for the ticket",
 				Required:    true,
 				Destination: &claimID,

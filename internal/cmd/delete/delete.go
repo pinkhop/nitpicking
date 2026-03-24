@@ -16,7 +16,7 @@ type deleteOutput struct {
 	Deleted  bool   `json:"deleted"`
 }
 
-// NewCmd constructs the "delete" command, which soft-deletes a claimed ticket.
+// NewCmd constructs the "delete" command, which deletes a claimed ticket.
 // The --confirm flag is required to prevent accidental deletions.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
@@ -27,7 +27,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "delete",
-		Usage:     "Soft-delete a claimed ticket",
+		Usage:     "Delete a claimed ticket",
 		ArgsUsage: "<TICKET-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{

@@ -732,3 +732,73 @@ func TestE2E_BlockedByRelationship_ReadinessGating(t *testing.T) {
 		t.Error("blocked issue should be ready after blocker is closed")
 	}
 }
+
+// TestE2E_ClosedEpic_NotEligibleForClosure is a regression test for NP-vbxge.
+// A closed epic with all children closed must NOT be reported as eligible for
+// closure by either "epic status" or "epic close-eligible".
+func TestE2E_ClosedEpic_NotEligibleForClosure(t *testing.T) {
+	// Given — an epic with one child, both closed.
+	dir := initDB(t, "WF")
+	author := "epic-regression"
+
+	epicStdout, _, code := runNP(t, dir, "create",
+		"--role", "epic", "--title", "Parent epic",
+		"--author", author, "--json")
+	if code != 0 {
+		t.Fatalf("create epic failed")
+	}
+	epicResult := parseJSON(t, epicStdout)
+	epicID := epicResult["id"].(string)
+
+	childStdout, _, code := runNP(t, dir, "create",
+		"--role", "task", "--title", "Child task",
+		"--author", author, "--parent", epicID, "--claim", "--json")
+	if code != 0 {
+		t.Fatalf("create child failed")
+	}
+	childResult := parseJSON(t, childStdout)
+	childID := childResult["id"].(string)
+	childClaimID := childResult["claim_id"].(string)
+
+	// Close the child.
+	_, _, code = runNP(t, dir, "done", childID,
+		"--claim", childClaimID, "--author", author, "--reason", "done")
+	if code != 0 {
+		t.Fatalf("close child failed")
+	}
+
+	// Close the epic via close-eligible.
+	_, _, code = runNP(t, dir, "epic", "close-eligible", "--author", author)
+	if code != 0 {
+		t.Fatalf("close-eligible failed")
+	}
+
+	// When — check if the closed epic is reported as eligible.
+	statusStdout, _, code := runNP(t, dir, "epic", "status", epicID, "--json")
+	if code != 0 {
+		t.Fatalf("epic status failed")
+	}
+	statusResult := parseJSON(t, statusStdout)
+	epics := statusResult["epics"].([]any)
+	if len(epics) != 1 {
+		t.Fatalf("expected 1 epic in status output, got %d", len(epics))
+	}
+	epicStatus := epics[0].(map[string]any)
+
+	// Then — the closed epic should NOT be eligible for closure.
+	if epicStatus["eligible_for_closure"] == true {
+		t.Error("closed epic should not be reported as eligible for closure")
+	}
+
+	// And close-eligible should not list it.
+	ceStdout, _, code := runNP(t, dir, "epic", "close-eligible",
+		"--author", author, "--json")
+	if code != 0 {
+		t.Fatalf("close-eligible failed")
+	}
+	ceResult := parseJSON(t, ceStdout)
+	closedCount := int(ceResult["closed"].(float64))
+	if closedCount != 0 {
+		t.Errorf("expected 0 closed epics, got %d", closedCount)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/urfave/cli/v3"
@@ -180,9 +181,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return nil
 			}
 
+			tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 			for _, item := range result.Items {
 				if timestamps {
-					_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  %s  %s\n",
+					_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
 						cs.Bold(item.ID.String()),
 						cs.Dim(item.Role.String()),
 						item.State.String(),
@@ -190,7 +192,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 						cs.Dim(item.CreatedAt.Format(time.DateTime)),
 						item.Title)
 				} else {
-					_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  %s\n",
+					_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 						cs.Bold(item.ID.String()),
 						cs.Dim(item.Role.String()),
 						item.State.String(),
@@ -198,6 +200,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 						item.Title)
 				}
 			}
+			_ = tw.Flush()
 
 			shown := len(result.Items)
 			if shown < result.TotalCount {

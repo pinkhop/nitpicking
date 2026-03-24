@@ -55,6 +55,28 @@ func TestRenderDOT_SingleNode_RendersWithColorAndLabel(t *testing.T) {
 	}
 }
 
+func TestRenderDOT_NodeLabel_UsesBackslashNForLineBreaks(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	nodes := []graph.Node{
+		{ID: mustID(t, "NP-a3bxr"), Role: issue.RoleTask, State: issue.StateOpen, Title: "Fix login bug"},
+	}
+
+	// When
+	result := graph.RenderDOT(nodes, nil)
+
+	// Then: DOT labels should use \n (backslash-n) for line breaks,
+	// not \\n (double-escaped).
+	if strings.Contains(result, `\\n`) {
+		t.Errorf("label contains literal \\\\n instead of \\n:\n%s", result)
+	}
+	// The label should contain \n for line breaks in DOT format.
+	if !strings.Contains(result, `\n`) {
+		t.Errorf("label should contain \\n for DOT line breaks:\n%s", result)
+	}
+}
+
 func TestRenderDOT_StateColors_MatchExpected(t *testing.T) {
 	t.Parallel()
 

@@ -148,7 +148,7 @@ func writeNode(b *strings.Builder, n Node, indent string) {
 		title = title[:37] + "..."
 	}
 
-	label := fmt.Sprintf("%s\\n[%s] %s\\n%s",
+	label := fmt.Sprintf("%s\n[%s] %s\n%s",
 		n.ID.String(), n.Role.String(), n.State.String(), title)
 
 	fmt.Fprintf(b, "%s%q [label=%q, fillcolor=%q];\n",

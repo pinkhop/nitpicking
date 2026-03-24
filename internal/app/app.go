@@ -128,6 +128,9 @@ func newFactory(appName, appVersion string) *cmdutil.Factory {
 
 	// Phase 3: Store — the SQLite database connection, constructed lazily.
 	// Database discovery runs once on first access; the Store is memoized.
+	// When an existing database is found, Open is used (no DDL). When no
+	// database exists, Create is used to apply the schema — this only
+	// happens during "np init".
 	var store *sqlite.Store
 	f.Store = func() (*sqlite.Store, error) {
 		if store != nil {
@@ -137,12 +140,18 @@ func newFactory(appName, appVersion string) *cmdutil.Factory {
 		cwd, _ := os.Getwd()
 		dbPath, err := sqlite.DiscoverDatabase(cwd)
 		if err != nil {
-			// No database found — create the .np/ directory so that
-			// init can populate it.
+			// No database found — create the .np/ directory and a new
+			// database with schema so that init can populate it.
 			dbPath, err = sqlite.InitDatabaseDir(cwd)
 			if err != nil {
 				return nil, err
 			}
+
+			store, err = sqlite.Create(dbPath)
+			if err != nil {
+				return nil, err
+			}
+			return store, nil
 		}
 
 		store, err = sqlite.Open(dbPath)

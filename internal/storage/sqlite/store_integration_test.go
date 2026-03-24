@@ -19,7 +19,7 @@ func setupIntegrationService(t *testing.T) service.Service {
 	t.Helper()
 
 	dbPath := t.TempDir() + "/test.db"
-	store, err := sqlite.Open(dbPath)
+	store, err := sqlite.Create(dbPath)
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}

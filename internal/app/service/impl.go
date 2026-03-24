@@ -203,93 +203,106 @@ func (s *serviceImpl) ClaimByID(ctx context.Context, input ClaimInput) (ClaimOut
 	var output ClaimOutput
 
 	err := s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
-		now := time.Now()
-
-		t, err := uow.Tickets().GetTicket(ctx, input.TicketID, true)
+		result, err := s.claimWithinTx(ctx, uow, input)
 		if err != nil {
 			return err
 		}
-
-		// Build claim status.
-		activeClaim, err := uow.Claims().GetClaimByTicket(ctx, input.TicketID)
-		if err != nil && err != domain.ErrNotFound {
-			return err
-		}
-
-		status := claim.TicketClaimStatus{
-			State:       t.State(),
-			IsDeleted:   t.IsDeleted(),
-			ActiveClaim: activeClaim,
-		}
-
-		if err := claim.ValidateClaim(status, input.AllowSteal, now); err != nil {
-			return err
-		}
-
-		// Steal if needed.
-		if activeClaim.ID() != "" {
-			output.Stolen = true
-			previousHolder := activeClaim.Author().String()
-
-			// Invalidate old claim.
-			if err := uow.Claims().InvalidateClaim(ctx, activeClaim.ID()); err != nil {
-				return err
-			}
-
-			// Add steal note.
-			stealNote, err := note.NewNote(note.NewNoteParams{
-				TicketID:  input.TicketID,
-				Author:    input.Author,
-				CreatedAt: now,
-				Body:      claim.StealNote(previousHolder),
-			})
-			if err != nil {
-				return err
-			}
-			if _, err := uow.Notes().CreateNote(ctx, stealNote); err != nil {
-				return err
-			}
-		}
-
-		// Create new claim.
-		c, err := claim.NewClaim(claim.NewClaimParams{
-			TicketID:       input.TicketID,
-			Author:         input.Author,
-			StaleThreshold: input.StaleThreshold,
-			Now:            now,
-		})
-		if err != nil {
-			return err
-		}
-
-		// Update ticket state to claimed.
-		t = t.WithState(ticket.StateClaimed)
-		if err := uow.Tickets().UpdateTicket(ctx, t); err != nil {
-			return err
-		}
-		if err := uow.Claims().CreateClaim(ctx, c); err != nil {
-			return err
-		}
-
-		// Record claim history.
-		revision, _ := uow.History().CountHistory(ctx, input.TicketID)
-		_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-			TicketID:  input.TicketID,
-			Revision:  revision,
-			Author:    input.Author,
-			Timestamp: now,
-			EventType: history.EventClaimed,
-		}))
-		if err != nil {
-			return err
-		}
-
-		output.ClaimID = c.ID()
-		output.TicketID = input.TicketID
+		output = result
 		return nil
 	})
 
 	return output, err
+}
+
+// claimWithinTx performs the claim logic using an already-open UnitOfWork.
+// Both ClaimByID and ClaimNextReady delegate here so that ClaimNextReady
+// can list tickets and claim within a single transaction rather than nesting.
+func (s *serviceImpl) claimWithinTx(ctx context.Context, uow port.UnitOfWork, input ClaimInput) (ClaimOutput, error) {
+	var output ClaimOutput
+	now := time.Now()
+
+	t, err := uow.Tickets().GetTicket(ctx, input.TicketID, true)
+	if err != nil {
+		return output, err
+	}
+
+	// Build claim status.
+	activeClaim, err := uow.Claims().GetClaimByTicket(ctx, input.TicketID)
+	if err != nil && err != domain.ErrNotFound {
+		return output, err
+	}
+
+	status := claim.TicketClaimStatus{
+		State:       t.State(),
+		IsDeleted:   t.IsDeleted(),
+		ActiveClaim: activeClaim,
+	}
+
+	if err := claim.ValidateClaim(status, input.AllowSteal, now); err != nil {
+		return output, err
+	}
+
+	// Steal if needed.
+	if activeClaim.ID() != "" {
+		output.Stolen = true
+		previousHolder := activeClaim.Author().String()
+
+		// Invalidate old claim.
+		if err := uow.Claims().InvalidateClaim(ctx, activeClaim.ID()); err != nil {
+			return output, err
+		}
+
+		// Add steal note.
+		stealNote, err := note.NewNote(note.NewNoteParams{
+			TicketID:  input.TicketID,
+			Author:    input.Author,
+			CreatedAt: now,
+			Body:      claim.StealNote(previousHolder),
+		})
+		if err != nil {
+			return output, err
+		}
+		if _, err := uow.Notes().CreateNote(ctx, stealNote); err != nil {
+			return output, err
+		}
+	}
+
+	// Create new claim.
+	c, err := claim.NewClaim(claim.NewClaimParams{
+		TicketID:       input.TicketID,
+		Author:         input.Author,
+		StaleThreshold: input.StaleThreshold,
+		Now:            now,
+	})
+	if err != nil {
+		return output, err
+	}
+
+	// Update ticket state to claimed.
+	t = t.WithState(ticket.StateClaimed)
+	if err := uow.Tickets().UpdateTicket(ctx, t); err != nil {
+		return output, err
+	}
+	if err := uow.Claims().CreateClaim(ctx, c); err != nil {
+		return output, err
+	}
+
+	// Record claim history.
+	revision, _ := uow.History().CountHistory(ctx, input.TicketID)
+	_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
+		TicketID:  input.TicketID,
+		Revision:  revision,
+		Author:    input.Author,
+		Timestamp: now,
+		EventType: history.EventClaimed,
+	}))
+	if err != nil {
+		return output, err
+	}
+
+	output.ClaimID = c.ID()
+	output.TicketID = input.TicketID
+	return output, nil
 }
 
 func (s *serviceImpl) ClaimNextReady(ctx context.Context, input ClaimNextReadyInput) (ClaimOutput, error) {
@@ -308,7 +321,7 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input ClaimNextReadyIn
 		}
 
 		if len(items) > 0 {
-			result, err := s.ClaimByID(ctx, ClaimInput{
+			result, err := s.claimWithinTx(ctx, uow, ClaimInput{
 				TicketID:       items[0].ID,
 				Author:         input.Author,
 				StaleThreshold: input.StaleThreshold,
@@ -335,7 +348,7 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input ClaimNextReadyIn
 		}
 
 		// Steal the highest-priority stale ticket.
-		result, err := s.ClaimByID(ctx, ClaimInput{
+		result, err := s.claimWithinTx(ctx, uow, ClaimInput{
 			TicketID:       staleClaims[0].TicketID(),
 			Author:         input.Author,
 			AllowSteal:     true,
@@ -355,8 +368,8 @@ func (s *serviceImpl) OneShotUpdate(ctx context.Context, input OneShotUpdateInpu
 	return s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		now := time.Now()
 
-		// Claim.
-		claimResult, err := s.ClaimByID(ctx, ClaimInput{
+		// Claim within the existing transaction.
+		claimResult, err := s.claimWithinTx(ctx, uow, ClaimInput{
 			TicketID: input.TicketID,
 			Author:   input.Author,
 		})

@@ -15,14 +15,16 @@ func TestAgentInstructions_ContainsCoreWorkflowSections(t *testing.T) {
 
 	// Then
 	required := []string{
-		"np claim",
+		"np next",
 		"np update",
 		"np close",
 		"np release",
-		"claim ID",
-		"np --help",
-		"np next",
+		"claim",
+		"np create",
+		"np note",
 		"exclusive",
+		"np wait",
+		"np search",
 	}
 
 	for _, keyword := range required {

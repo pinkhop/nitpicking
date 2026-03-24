@@ -242,6 +242,17 @@ Extend your own claim's threshold if you need more time:
 np extend <ISSUE-ID> --claim <CLAIM-ID> --threshold 4h
 ```
 
+## Epic Subcommand Group
+
+The `epic` command provides epic-specific operations:
+
+```bash
+np epic status                         # completion breakdown for all open epics
+np epic status --issue <EPIC-ID>       # status for a specific epic
+np epic status --eligible-only         # show only epics ready to close
+np epic status --json                  # structured JSON output
+```
+
 ## Dimension Subcommand Group
 
 The `dimension` (alias: `dim`) command manages key-value metadata on issues:

@@ -19,6 +19,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/doctor"
 	"github.com/pinkhop/nitpicking/internal/cmd/done"
 	"github.com/pinkhop/nitpicking/internal/cmd/edit"
+	"github.com/pinkhop/nitpicking/internal/cmd/epiccmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/extend"
 	"github.com/pinkhop/nitpicking/internal/cmd/gc"
 	"github.com/pinkhop/nitpicking/internal/cmd/graphcmd"
@@ -106,6 +107,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			}},
 			{"Issue Lifecycle", []*cli.Command{
 				issuecmd.NewCmd(f),
+				epiccmd.NewCmd(f),
 				create.NewCmd(f),
 				claim.NewCmd(f),
 				update.NewCmd(f),

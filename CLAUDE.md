@@ -207,6 +207,7 @@ np rel add <A> parent_of <B> --claim <CLAIM-ID> --author <name>          # set B
 np rel add <A> child_of <B> --claim <CLAIM-ID> --author <name>           # set A's parent to B (claim on A)
 np rel blocks unblock <A> <B> --author <name>                             # remove blocking between A and B (either direction)
 np rel blocks list --issue <ID>                                           # list blocking rels
+np rel cites uncite <A> <B> --author <name>                               # remove citation between A and B (either direction)
 np rel cites list --issue <ID>                                            # list citations
 np rel parent detach --issue <ID> --claim <CLAIM-ID>                      # remove parent
 np rel parent children --issue <ID>                                       # list children

@@ -41,6 +41,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		order        string
 		includeNotes bool
 		pageSize     int
+		timestamps   bool
 	)
 
 	return &cli.Command{
@@ -78,6 +79,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "include-notes",
 				Usage:       "Include note text in the search",
 				Destination: &includeNotes,
+			},
+			&cli.BoolFlag{
+				Name:        "timestamps",
+				Usage:       "Include created_at timestamp in text output",
+				Destination: &timestamps,
 			},
 			&cli.IntFlag{
 				Name:        "page-size",
@@ -175,12 +181,22 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			for _, item := range result.Items {
-				_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  %s\n",
-					cs.Bold(item.ID.String()),
-					cs.Dim(item.Role.String()),
-					item.State.String(),
-					cs.Yellow(item.Priority.String()),
-					item.Title)
+				if timestamps {
+					_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  %s  %s\n",
+						cs.Bold(item.ID.String()),
+						cs.Dim(item.Role.String()),
+						item.State.String(),
+						cs.Yellow(item.Priority.String()),
+						cs.Dim(item.CreatedAt.Format(time.DateTime)),
+						item.Title)
+				} else {
+					_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  %s\n",
+						cs.Bold(item.ID.String()),
+						cs.Dim(item.Role.String()),
+						item.State.String(),
+						cs.Yellow(item.Priority.String()),
+						item.Title)
+				}
 			}
 
 			_, _ = fmt.Fprintf(w, "\n%s total\n", cs.Dim(fmt.Sprintf("%d", result.TotalCount)))

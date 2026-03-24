@@ -188,16 +188,10 @@ Precedence: explicit flags > JSON values > env vars. Dimensions with different k
 
 Relationships do **not** require claiming.
 
-```bash
-np relate add <ISSUE-ID> blocked_by <BLOCKER-ID> --author <your-name>
-np relate add <ISSUE-ID> cites <REFERENCE-ID> --author <your-name>
-np relate remove <ISSUE-ID> blocked_by <BLOCKER-ID> --author <your-name>
-```
-
 - `blocked_by` / `blocks` — the issue cannot progress until the blocker is closed.
 - `cites` / `cited_by` — informational reference; does not block.
 
-The `rel` command (alias: `r`) provides a structured namespace for relationships:
+The `rel` command (alias: `r`) manages relationships between issues:
 
 ```bash
 np rel add <A> <rel> <B> --author <name>                                  # add any relationship
@@ -207,9 +201,9 @@ np rel add <A> cites <B> --author <name>                                  # A ci
 np rel add <A> parent_of <B> --claim <CLAIM-ID> --author <name>          # set B's parent to A (claim on B)
 np rel add <A> child_of <B> --claim <CLAIM-ID> --author <name>           # set A's parent to B (claim on A)
 np rel blocks unblock <A> <B> --author <name>                             # remove blocking between A and B (either direction)
-np rel blocks list --issue <ID>                                           # list blocking rels
+np rel blocks list <ID>                                                   # list blocking rels
 np rel cites uncite <A> <B> --author <name>                               # remove citation between A and B (either direction)
-np rel cites list --issue <ID>                                            # list citations
+np rel cites list <ID>                                                    # list citations
 np rel parent detach <A> <B> --author <name>                              # detach parent-child (order-independent, no claim needed)
 np rel parent children <ID>                                               # list children
 np rel parent tree <ID>                                                   # show descendant tree
@@ -282,6 +276,7 @@ np issue release <ID> --claim <CLAIM-ID>               # release claim without c
 np issue reopen <ID> --author <name>                   # reopen a closed issue
 np issue undefer <ID> --author <name>                  # restore a deferred issue
 np issue defer <ID> --claim <CLAIM-ID>                 # defer a claimed issue
+np issue defer <ID> --claim <CLAIM-ID> --until 2026-04-01  # defer with revisit date
 np issue delete <ID> --claim <CLAIM-ID> --confirm      # delete a claimed issue
 np issue history <ID>                                  # audit trail of all changes
 np issue note <ID> --author <name> --body "Note text"  # add a comment (alias: comment)
@@ -296,6 +291,8 @@ The `admin` command groups maintenance operations:
 np admin doctor                        # detect cycles, deadlocks, stale claims
 np admin gc --confirm                  # garbage-collect deleted issues
 np admin gc --confirm --include-closed # also remove closed issues
+np admin graph                         # generate Graphviz DOT of all issues and relationships
+np admin graph -o issues.dot           # write to file instead of stdout
 np admin reset --confirm               # delete .np/ database (destructive)
 np admin upgrade                       # check for schema upgrades
 ```
@@ -303,11 +300,13 @@ np admin upgrade                       # check for schema upgrades
 ## Diagnostics
 
 ```bash
-np doctor       # detect cycles, deadlocks, stale claims, epics needing decomposition
+np admin doctor # detect cycles, deadlocks, stale claims, epics needing decomposition
 np show <ID>    # full issue detail including readiness, relationships, completion
 np issue history <ID> # audit trail of all changes
 np admin graph                         # generate Graphviz DOT of all issues and relationships
 np admin graph -o issues.dot           # write to file instead of stdout
+np where                               # print the .np/ directory path
+np completion <shell>                  # output shell completion script (bash, zsh, fish)
 ```
 
 ## Exit Codes

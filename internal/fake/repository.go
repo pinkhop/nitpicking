@@ -893,6 +893,7 @@ func (r *Repository) issueToListItem(t issue.Issue) port.IssueListItem {
 		CreatedAt: t.CreatedAt(),
 		UpdatedAt: updatedAt,
 		IsDeleted: t.IsDeleted(),
+		IsBlocked: r.isIssueBlocked(t),
 	}
 }
 

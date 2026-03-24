@@ -36,6 +36,10 @@ type IssueListItem struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	IsDeleted bool
+	// IsBlocked is true when the issue has at least one unresolved
+	// blocked_by relationship. This is a computed display concern —
+	// the underlying state machine does not change.
+	IsBlocked bool
 }
 
 // IssueFilter defines filtering criteria for issue list and search.

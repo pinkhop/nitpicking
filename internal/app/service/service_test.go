@@ -992,6 +992,108 @@ func TestCloseIssue_WithAllChildrenClosed_Succeeds(t *testing.T) {
 	}
 }
 
+// --- IsBlocked in list output ---
+
+func TestListIssues_BlockedIssue_HasIsBlockedTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — task A is blocked by open task B.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "blocked-test")
+
+	blockerOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Blocker", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+	blockedOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Blocked", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+	err = svc.AddRelationship(ctx, blockedOut.Issue.ID(), service.RelationshipInput{
+		Type: issue.RelBlockedBy, TargetID: blockerOut.Issue.ID(),
+	}, author)
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+
+	// When — list all issues.
+	result, err := svc.ListIssues(ctx, service.ListIssuesInput{
+		Filter: port.IssueFilter{ExcludeClosed: true},
+		Limit:  -1,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Then — the blocked issue should have IsBlocked true.
+	for _, item := range result.Items {
+		if item.ID == blockedOut.Issue.ID() {
+			if !item.IsBlocked {
+				t.Error("expected IsBlocked=true for blocked issue")
+			}
+		} else if item.ID == blockerOut.Issue.ID() {
+			if item.IsBlocked {
+				t.Error("expected IsBlocked=false for non-blocked issue")
+			}
+		}
+	}
+}
+
+func TestListIssues_ResolvedBlocker_HasIsBlockedFalse(t *testing.T) {
+	t.Parallel()
+
+	// Given — task A was blocked by task B, but B is now closed.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "blocked-test")
+
+	blockerOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Blocker", Author: author, Claim: true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+	blockedOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Was blocked", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+	err = svc.AddRelationship(ctx, blockedOut.Issue.ID(), service.RelationshipInput{
+		Type: issue.RelBlockedBy, TargetID: blockerOut.Issue.ID(),
+	}, author)
+	if err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: blockerOut.Issue.ID(), ClaimID: blockerOut.ClaimID, Action: service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close blocker: %v", err)
+	}
+
+	// When — list non-closed issues.
+	result, err := svc.ListIssues(ctx, service.ListIssuesInput{
+		Filter: port.IssueFilter{ExcludeClosed: true},
+		Limit:  -1,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Then — the previously-blocked issue should have IsBlocked false.
+	for _, item := range result.Items {
+		if item.ID == blockedOut.Issue.ID() && item.IsBlocked {
+			t.Error("expected IsBlocked=false when blocker is closed")
+		}
+	}
+}
+
 // --- Symmetric refs relationships ---
 
 func TestAddRelationship_Refs_AppearsInBothDirections(t *testing.T) {

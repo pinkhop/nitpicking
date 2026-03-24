@@ -326,7 +326,11 @@ func (r *issueRepo) ListIssues(_ context.Context, filter port.IssueFilter, order
 	if limit < 0 {
 		fetchLimit = -1 // unlimited
 	}
-	query := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM issues t ` + where + orderClause
+	query := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id,
+		EXISTS(SELECT 1 FROM relationships r JOIN issues b ON r.target_id = b.issue_id
+			WHERE r.source_id = t.issue_id AND r.rel_type = 'blocked_by'
+			AND b.state != 'closed' AND b.deleted = 0) AS is_blocked
+		FROM issues t ` + where + orderClause
 	if fetchLimit > 0 {
 		query += ` LIMIT ?`
 		args = append(args, fetchLimit)
@@ -347,6 +351,7 @@ func (r *issueRepo) ListIssues(_ context.Context, filter port.IssueFilter, order
 				ID: id, Role: role, State: state, Priority: priority,
 				Title: stmt.ColumnText(4), ParentID: parentID, CreatedAt: createdAt,
 				IsDeleted: stmt.ColumnInt(6) != 0,
+				IsBlocked: stmt.ColumnInt(8) != 0,
 			})
 			return nil
 		},
@@ -374,7 +379,11 @@ func (r *issueRepo) SearchIssues(_ context.Context, query string, filter port.Is
 	if limit < 0 {
 		fetchLimit = -1
 	}
-	selectQuery := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM issues t ` + where + ftsWhere + orderClause
+	selectQuery := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id,
+		EXISTS(SELECT 1 FROM relationships r JOIN issues b ON r.target_id = b.issue_id
+			WHERE r.source_id = t.issue_id AND r.rel_type = 'blocked_by'
+			AND b.state != 'closed' AND b.deleted = 0) AS is_blocked
+		FROM issues t ` + where + ftsWhere + orderClause
 	if fetchLimit > 0 {
 		selectQuery += ` LIMIT ?`
 		args = append(args, fetchLimit)
@@ -395,6 +404,7 @@ func (r *issueRepo) SearchIssues(_ context.Context, query string, filter port.Is
 				ID: id, Role: role, State: state, Priority: priority,
 				Title: stmt.ColumnText(4), ParentID: parentID, CreatedAt: createdAt,
 				IsDeleted: stmt.ColumnInt(6) != 0,
+				IsBlocked: stmt.ColumnInt(8) != 0,
 			})
 			return nil
 		},

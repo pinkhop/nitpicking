@@ -172,6 +172,10 @@ type IssueRepository interface {
 	// collision detection during ID generation).
 	IssueIDExists(ctx context.Context, id issue.ID) (bool, error)
 
+	// ListDistinctDimensions returns all unique dimension key-value pairs
+	// across non-deleted issues.
+	ListDistinctDimensions(ctx context.Context) ([]issue.Dimension, error)
+
 	// GetIssueByIdempotencyKey retrieves an issue by its idempotency key.
 	// Returns domain.ErrNotFound if no issue exists with that key.
 	GetIssueByIdempotencyKey(ctx context.Context, key string) (issue.Issue, error)

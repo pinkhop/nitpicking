@@ -546,6 +546,29 @@ func (r *issueRepo) IssueIDExists(_ context.Context, id issue.ID) (bool, error) 
 	return count > 0, nil
 }
 
+func (r *issueRepo) ListDistinctDimensions(_ context.Context) ([]issue.Dimension, error) {
+	var dims []issue.Dimension
+	err := sqlitex.Execute(r.conn,
+		`SELECT DISTINCT d.key, d.value FROM dimensions d
+		 JOIN issues t ON d.issue_id = t.issue_id
+		 WHERE t.deleted = 0
+		 ORDER BY d.key, d.value`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				dim, err := issue.NewDimension(stmt.ColumnText(0), stmt.ColumnText(1))
+				if err != nil {
+					return err
+				}
+				dims = append(dims, dim)
+				return nil
+			},
+		})
+	if err != nil {
+		return nil, &domain.DatabaseError{Op: "list distinct dimensions", Err: err}
+	}
+	return dims, nil
+}
+
 func (r *issueRepo) GetIssueByIdempotencyKey(_ context.Context, key string) (issue.Issue, error) {
 	t, err := scanIssueRow(r.conn,
 		`SELECT issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted FROM issues WHERE idempotency_key = ?`, key)

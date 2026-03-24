@@ -228,6 +228,28 @@ func (r *Repository) IssueIDExists(_ context.Context, id issue.ID) (bool, error)
 	return exists, nil
 }
 
+func (r *Repository) ListDistinctDimensions(_ context.Context) ([]issue.Dimension, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	seen := make(map[string]bool)
+	var dims []issue.Dimension
+	for _, t := range r.issues {
+		if t.IsDeleted() {
+			continue
+		}
+		for k, v := range t.Dimensions().All() {
+			key := k + ":" + v
+			if !seen[key] {
+				seen[key] = true
+				dim, _ := issue.NewDimension(k, v)
+				dims = append(dims, dim)
+			}
+		}
+	}
+	return dims, nil
+}
+
 func (r *Repository) GetIssueByIdempotencyKey(_ context.Context, key string) (issue.Issue, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

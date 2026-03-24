@@ -62,6 +62,12 @@ type Service interface {
 	// SearchIssues performs full-text search on issues.
 	SearchIssues(ctx context.Context, input SearchIssuesInput) (ListIssuesOutput, error)
 
+	// --- Dimension Operations ---
+
+	// ListDistinctDimensions returns all unique dimension key-value pairs
+	// across non-deleted issues.
+	ListDistinctDimensions(ctx context.Context) ([]issue.Dimension, error)
+
 	// --- Relationship Operations ---
 
 	// AddRelationship adds a relationship between two issues.

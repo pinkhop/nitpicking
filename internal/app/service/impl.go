@@ -658,6 +658,18 @@ func (s *serviceImpl) SearchIssues(ctx context.Context, input SearchIssuesInput)
 	return output, err
 }
 
+// --- Dimension Operations ---
+
+func (s *serviceImpl) ListDistinctDimensions(ctx context.Context) ([]issue.Dimension, error) {
+	var dims []issue.Dimension
+	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
+		var queryErr error
+		dims, queryErr = uow.Issues().ListDistinctDimensions(ctx)
+		return queryErr
+	})
+	return dims, err
+}
+
 // --- Relationship Operations ---
 
 func (s *serviceImpl) AddRelationship(ctx context.Context, sourceID issue.ID, ri RelationshipInput, author identity.Author) error {

@@ -14,6 +14,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/comment"
 	"github.com/pinkhop/nitpicking/internal/cmd/create"
 	cmddelete "github.com/pinkhop/nitpicking/internal/cmd/delete"
+	"github.com/pinkhop/nitpicking/internal/cmd/dimensioncmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/doctor"
 	"github.com/pinkhop/nitpicking/internal/cmd/done"
 	"github.com/pinkhop/nitpicking/internal/cmd/edit"
@@ -129,6 +130,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				relcmd.NewCmd(f),
 				relate.NewCmd(f),
 				comment.NewCmd(f),
+				dimensioncmd.NewCmd(f),
 			}},
 			{"Maintenance", []*cli.Command{
 				graphcmd.NewCmd(f),

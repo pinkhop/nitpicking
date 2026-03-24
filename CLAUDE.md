@@ -242,6 +242,18 @@ Extend your own claim's threshold if you need more time:
 np extend <ISSUE-ID> --claim <CLAIM-ID> --threshold 4h
 ```
 
+## Dimension Subcommand Group
+
+The `dimension` (alias: `dim`) command manages key-value metadata on issues:
+
+```bash
+np dimension add --issue <ID> --claim <CLAIM-ID> --key kind --value bug     # set dimension
+np dimension remove --issue <ID> --claim <CLAIM-ID> --key kind              # remove dimension
+np dimension list --issue <ID>                                               # list for issue
+np dimension list-all                                                        # all unique dims
+np dimension propagate --issue <ID> --author <name> --key kind              # propagate to descendants
+```
+
 ## Issue Subcommand Group
 
 The `issue` (alias: `i`) command groups issue management operations under a single namespace:

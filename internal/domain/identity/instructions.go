@@ -50,7 +50,17 @@ np create --role task --title "Subtask B" --author <your-name> --parent <EPIC-ID
 
 Use ` + "`--parent`" + ` to attach children to the epic. For large epics, decompose into sub-epics and leave further planning to a future implementor. Add ` + "`blocked_by`" + ` relationships between children to indicate required ordering.
 
-### 3. Transition state when done
+### 3. Document your work with notes
+
+**Before transitioning state, add a note to the ticket.** Notes record context that the code and commit history cannot capture — your reasoning, trade-offs considered, dead ends explored, or anything a future reader would find useful.
+
+` + "```" + `
+np note add --ticket <TICKET-ID> --body "Approach taken: ..." --author <your-name>
+` + "```" + `
+
+Notes do not require claiming and can be added to any ticket, including closed ones.
+
+### 4. Transition state when done
 
 **You MUST transition state when you are done.** Abandoned claims block other agents.
 
@@ -59,16 +69,6 @@ Use ` + "`--parent`" + ` to attach children to the epic. For large epics, decomp
 | ` + "`np state close <ID> --claim <CID>`" + ` | Task is complete (terminal — cannot reopen) |
 | ` + "`np release <ID> --claim <CID>`" + ` | Epic has been decomposed; or task cannot be completed now |
 | ` + "`np state wait <ID> --claim <CID>`" + ` | Blocked on a human or stakeholder decision |
-
-### 4. Leave notes about your work
-
-Notes do not require claiming and can be added to any ticket, including closed ones.
-
-` + "```" + `
-np note add <TICKET-ID> --body "Approach taken: ..." --author <your-name>
-` + "```" + `
-
-Add notes about: your approach, opinions that influenced decisions, interesting findings, or anything a future reader would find useful.
 
 ## Handling Incidentals
 
@@ -98,6 +98,7 @@ np history <ID> # audit trail of all changes
 ## Key Rules
 
 - **Use ` + "`np claim ready`" + ` to find work.** Do not browse and cherry-pick tickets.
+- **Document your work.** Add a note before transitioning state — capture reasoning, trade-offs, and findings.
 - **Always transition state when done.** Close, release, or wait — never abandon a claim.
 - **Close is terminal.** Closed tasks cannot be reopened or modified (notes can still be added).
 - **Epics are never closed directly.** They complete when all children resolve.

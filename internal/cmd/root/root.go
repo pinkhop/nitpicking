@@ -16,7 +16,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/completion"
 	"github.com/pinkhop/nitpicking/internal/cmd/create"
 	"github.com/pinkhop/nitpicking/internal/cmd/dimensioncmd"
-	"github.com/pinkhop/nitpicking/internal/cmd/doctor"
 	"github.com/pinkhop/nitpicking/internal/cmd/done"
 	"github.com/pinkhop/nitpicking/internal/cmd/epiccmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/gc"
@@ -128,7 +127,6 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 	deprecated := []*cli.Command{
 		claim.NewCmd(f),
 		historyview.NewCmd(f),
-		doctor.NewCmd(f),
 		gc.NewCmd(f),
 	}
 	for _, cmd := range deprecated {

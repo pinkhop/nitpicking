@@ -649,7 +649,7 @@ func TestE2E_DoctorDiagnostics(t *testing.T) {
 	createTask(t, dir, "Healthy task B", author)
 
 	// When — run doctor diagnostics.
-	_, stderr, code := runNP(t, dir, "doctor", "--json")
+	_, stderr, code := runNP(t, dir, "admin", "doctor", "--json")
 
 	// Then — doctor should succeed on a healthy database.
 	if code != 0 {

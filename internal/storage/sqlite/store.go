@@ -1126,6 +1126,19 @@ func buildTicketWhere(filter port.TicketFilter) (string, []any) {
 		args = append(args, filter.ParentID.String())
 	}
 
+	if !filter.DescendantsOf.IsZero() {
+		// Recursive CTE walks the parent_id chain to find all descendants.
+		conditions = append(conditions, `t.ticket_id IN (
+			WITH RECURSIVE desc(tid) AS (
+				SELECT ticket_id FROM tickets WHERE parent_id = ?
+				UNION ALL
+				SELECT c.ticket_id FROM tickets c JOIN desc d ON c.parent_id = d.tid
+			)
+			SELECT tid FROM desc
+		)`)
+		args = append(args, filter.DescendantsOf.String())
+	}
+
 	for _, ff := range filter.FacetFilters {
 		if ff.Negate {
 			if ff.Value == "" {

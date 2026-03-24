@@ -35,14 +35,15 @@ type listOutput struct {
 // paginated list of tickets.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
-		jsonOutput bool
-		role       string
-		state      string
-		ready      bool
-		parent     string
-		order      string
-		pageSize   int
-		timestamps bool
+		jsonOutput    bool
+		role          string
+		state         string
+		ready         bool
+		parent        string
+		descendantsOf string
+		order         string
+		pageSize      int
+		timestamps    bool
 	)
 
 	return &cli.Command{
@@ -76,6 +77,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Name:        "parent",
 				Usage:       "Filter by parent epic ID",
 				Destination: &parent,
+			},
+			&cli.StringFlag{
+				Name:        "descendants-of",
+				Usage:       "Recursively list all descendants of the given ticket ID",
+				Destination: &descendantsOf,
 			},
 			&cli.StringSliceFlag{
 				Name:  "facet",
@@ -124,6 +130,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					return cmdutil.FlagErrorf("invalid parent ID: %s", err)
 				}
 				filter.ParentID = parentID
+			}
+
+			if descendantsOf != "" {
+				descID, err := ticket.ParseID(descendantsOf)
+				if err != nil {
+					return cmdutil.FlagErrorf("invalid descendants-of ID: %s", err)
+				}
+				filter.DescendantsOf = descID
 			}
 
 			// Parse facet filters.

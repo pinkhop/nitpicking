@@ -635,6 +635,11 @@ func (r *Repository) matchesFilter(t ticket.Ticket, f port.TicketFilter) bool {
 	if !f.ParentID.IsZero() && t.ParentID() != f.ParentID {
 		return false
 	}
+	if !f.DescendantsOf.IsZero() {
+		if !r.isDescendantOf(t.ID(), f.DescendantsOf) {
+			return false
+		}
+	}
 	if f.Ready {
 		if !r.isTicketReady(t) {
 			return false
@@ -713,6 +718,26 @@ func (r *Repository) getAncestorStatusesInternal(id ticket.ID) []ticket.Ancestor
 		current = parentID
 	}
 	return ancestors
+}
+
+func (r *Repository) isDescendantOf(id ticket.ID, ancestorID ticket.ID) bool {
+	current := id
+	visited := make(map[string]bool)
+	for {
+		t, ok := r.tickets[current.String()]
+		if !ok {
+			return false
+		}
+		parentID := t.ParentID()
+		if parentID.IsZero() || visited[parentID.String()] {
+			return false
+		}
+		if parentID == ancestorID {
+			return true
+		}
+		visited[parentID.String()] = true
+		current = parentID
+	}
 }
 
 func (r *Repository) hasChildrenInternal(epicID ticket.ID) bool {

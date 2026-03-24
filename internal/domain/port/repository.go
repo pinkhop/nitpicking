@@ -64,6 +64,8 @@ type TicketFilter struct {
 	Ready bool
 	// ParentID filters to children of a specific epic.
 	ParentID ticket.ID
+	// DescendantsOf recursively filters to all descendants of a ticket.
+	DescendantsOf ticket.ID
 	// FacetFilters specifies facet-based filters.
 	FacetFilters []FacetFilter
 	// IncludeDeleted includes soft-deleted tickets when true.

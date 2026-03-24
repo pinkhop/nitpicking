@@ -116,7 +116,7 @@ Persist the claim ID for the duration of your work on that ticket. If you lose i
 np update <TICKET-ID> --claim <CLAIM-ID> --title "Revised title"
 np update <TICKET-ID> --claim <CLAIM-ID> --description "More detail"
 np update <TICKET-ID> --claim <CLAIM-ID> --priority 1
-np update <TICKET-ID> --claim <CLAIM-ID> --facet-set kind:fix
+np update <TICKET-ID> --claim <CLAIM-ID> --facet kind:fix
 ```
 
 For a quick one-shot edit that does not require holding a claim, use `np edit`:

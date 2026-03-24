@@ -78,7 +78,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &parent,
 			},
 			&cli.StringSliceFlag{
-				Name:  "facet-set",
+				Name:  "facet",
 				Usage: "Set a facet in key:value format (repeatable)",
 			},
 			&cli.StringSliceFlag{
@@ -146,7 +146,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			// Parse facet-set values.
-			rawFacetSet := cmd.StringSlice("facet-set")
+			rawFacetSet := cmd.StringSlice("facet")
 			for _, s := range rawFacetSet {
 				key, value, ok := strings.Cut(s, ":")
 				if !ok {

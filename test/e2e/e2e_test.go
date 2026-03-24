@@ -133,12 +133,12 @@ func TestE2E_AgentName(t *testing.T) {
 	// Given
 	dir := t.TempDir()
 
-	// When — agent-name doesn't need a database
-	stdout, _, code := runNP(t, dir, "agent-name")
+	// When — "agent name" doesn't need a database.
+	stdout, _, code := runNP(t, dir, "agent", "name")
 
 	// Then
 	if code != 0 {
-		t.Fatalf("agent-name failed with exit code %d", code)
+		t.Fatalf("agent name failed with exit code %d", code)
 	}
 	parts := strings.Split(strings.TrimSpace(stdout), "-")
 	if len(parts) != 3 {

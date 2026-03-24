@@ -110,8 +110,8 @@
 - [x] **5.1** Exit Code Mapping — updated `exit_codes.go` to match §9: 0 OK, 1 error, 2 not found, 3 claim conflict, 4 validation, 5 database
 - [x] **5.2** JSON Output Infrastructure — `cmdutil.WriteJSON` for structured JSON output
 - [x] **5.3** `np init <PREFIX>` — creates .np/ directory and database
-- [x] **5.4** `np agent-name` — generates Docker-style random agent name
-- [x] **5.5** `np agent-instructions` — prints Markdown workflow instructions
+- [x] **5.4** `np agent name` — generates Docker-style random agent name
+- [x] **5.5** `np agent prime` — prints Markdown workflow instructions
 - [x] **5.6** `np create` — creates tickets with all field flags, optional claim, idempotency key
 - [x] **5.7** `np claim <TICKET-ID>` — claims a ticket with optional steal
 - [x] **5.8** `np next` — claims highest-priority ready ticket with role/facet filters

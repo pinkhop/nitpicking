@@ -13,7 +13,7 @@ np is local-only — no network, no remote sync, no background daemons. It store
 
 ## Choosing an Author Name
 
-Every mutation requires an ` + "`--author`" + ` flag identifying who is acting. Pick a stable name and reuse it for your entire session. Generate one with ` + "`np agent-name`" + ` if you need a fresh identifier.
+Every mutation requires an ` + "`--author`" + ` flag identifying who is acting. Pick a stable name and reuse it for your entire session. Generate one with ` + "`np agent name`" + ` if you need a fresh identifier.
 
 ## Ticket Types
 

@@ -437,19 +437,19 @@ CLI adapter for §8.2 Initialize: `np init <PREFIX>`. Creates `.np/` directory a
 - **Depends on:** 3.2, 4.2, 5.1, 5.2
 - **Package:** `internal/cmd/init`
 
-### 5.4 `np agent-name` Command
+### 5.4 `np agent name` Command
 
 CLI adapter for agent name generation.
 
 - **Depends on:** 1.20, 5.2
-- **Package:** `internal/cmd/agentname`
+- **Package:** `internal/cmd/agent`
 
-### 5.5 `np agent-instructions` Command
+### 5.5 `np agent prime` Command
 
 CLI adapter for agent instructions output.
 
 - **Depends on:** 1.21, 5.2
-- **Package:** `internal/cmd/agentinstructions`
+- **Package:** `internal/cmd/agent`
 
 ### 5.6 `np create` Command
 
@@ -565,7 +565,7 @@ CLI adapter for garbage collection. Flags: `--deleted-only` (default), `--includ
 
 ### 5.22 Register All Commands
 
-Wire all subcommands into the root command. Update `NewRootCmd` to register the full command tree. Add database-discovery to the root `Before` hook (commands that need the database get it from context; `init` and `agent-name` skip it).
+Wire all subcommands into the root command. Update `NewRootCmd` to register the full command tree. Add database-discovery to the root `Before` hook (commands that need the database get it from context; `init` and `agent` skip it).
 
 - **Depends on:** 5.3–5.21, 4.1
 - **Package:** `internal/cmd/root`

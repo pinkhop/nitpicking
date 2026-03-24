@@ -11,8 +11,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/pinkhop/nitpicking/internal/cmd/agentinstructions"
-	"github.com/pinkhop/nitpicking/internal/cmd/agentname"
+	"github.com/pinkhop/nitpicking/internal/cmd/agent"
 	"github.com/pinkhop/nitpicking/internal/cmd/claim"
 	"github.com/pinkhop/nitpicking/internal/cmd/create"
 	cmddelete "github.com/pinkhop/nitpicking/internal/cmd/delete"
@@ -170,8 +169,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			// Global operations — do not require database discovery.
 			version.NewCmd(f),
 			cmdinit.NewCmd(f),
-			agentname.NewCmd(f),
-			agentinstructions.NewCmd(f),
+			agent.NewCmd(f),
 
 			// Ticket lifecycle.
 			create.NewCmd(f),

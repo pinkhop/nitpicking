@@ -92,6 +92,19 @@ func TestPriority_IsHigherThan(t *testing.T) {
 	}
 }
 
+func TestPriority_ZeroValue_IsNotAValidPriority(t *testing.T) {
+	t.Parallel()
+
+	// The zero value of Priority must not coincide with any named priority
+	// constant so that constructors can distinguish "not set" from "P0".
+	var zero ticket.Priority
+	for p := ticket.P0; p <= ticket.P4; p++ {
+		if zero == p {
+			t.Errorf("zero value of Priority (%d) collides with %s", int(zero), p)
+		}
+	}
+}
+
 func TestDefaultPriority_IsP2(t *testing.T) {
 	t.Parallel()
 

@@ -8,7 +8,9 @@ type Priority int
 
 const (
 	// P0 is the highest urgency — critical, drop-everything priority.
-	P0 Priority = iota
+	// The enum starts at iota+1 so that the zero value of Priority is not a
+	// valid priority, allowing constructors to distinguish "not set" from P0.
+	P0 Priority = iota + 1
 
 	// P1 is high urgency — should be addressed soon.
 	P1
@@ -27,7 +29,15 @@ const (
 const DefaultPriority = P2
 
 // priorityStrings maps each Priority to its canonical string representation.
-var priorityStrings = [...]string{"P0", "P1", "P2", "P3", "P4"}
+// Indexed by Priority value directly; index 0 is unused because the zero
+// value is reserved as the "unset" sentinel.
+var priorityStrings = [...]string{
+	P0: "P0",
+	P1: "P1",
+	P2: "P2",
+	P3: "P3",
+	P4: "P4",
+}
 
 // String returns the canonical string representation (e.g., "P2").
 func (p Priority) String() string {
@@ -40,9 +50,9 @@ func (p Priority) String() string {
 // ParsePriority parses a priority string (e.g., "P0", "P2") into a Priority.
 // Parsing is case-sensitive — "p0" is not valid.
 func ParsePriority(s string) (Priority, error) {
-	for i, ps := range priorityStrings {
-		if s == ps {
-			return Priority(i), nil
+	for p := P0; p <= P4; p++ {
+		if s == priorityStrings[p] {
+			return p, nil
 		}
 	}
 	return 0, fmt.Errorf("invalid priority %q: must be P0–P4", s)

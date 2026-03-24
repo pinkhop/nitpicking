@@ -135,6 +135,48 @@ func TestNewTask_ZeroID_Fails(t *testing.T) {
 	}
 }
 
+func TestNewTask_ExplicitP0_PreservesP0(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	id := mustID(t)
+
+	// When
+	tk, err := ticket.NewTask(ticket.NewTaskParams{
+		ID:       id,
+		Title:    "Critical security fix",
+		Priority: ticket.P0,
+	})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tk.Priority() != ticket.P0 {
+		t.Errorf("expected P0, got %s", tk.Priority())
+	}
+}
+
+func TestNewEpic_ExplicitP0_PreservesP0(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	id := mustID(t)
+
+	// When
+	tk, err := ticket.NewEpic(ticket.NewEpicParams{
+		ID:       id,
+		Title:    "Critical epic",
+		Priority: ticket.P0,
+	})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tk.Priority() != ticket.P0 {
+		t.Errorf("expected P0, got %s", tk.Priority())
+	}
+}
+
 func TestTicket_WithTitle_ReturnsNewTicket(t *testing.T) {
 	t.Parallel()
 

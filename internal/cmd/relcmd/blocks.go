@@ -15,12 +15,16 @@ import (
 // newBlocksCmd constructs the "rel blocks" parent command with add, remove,
 // and list subcommands for managing blocking relationships.
 func newBlocksCmd(f *cmdutil.Factory) *cli.Command {
+	removeCmd := newRelRemoveCmd(f, "blocks", issue.RelBlockedBy)
+	removeCmd.Hidden = true
+
 	return &cli.Command{
 		Name:  "blocks",
 		Usage: "Manage blocking relationships",
 		Commands: []*cli.Command{
 			newRelAddCmd(f, "blocks", issue.RelBlockedBy),
-			newRelRemoveCmd(f, "blocks", issue.RelBlockedBy),
+			newUnblockCmd(f),
+			removeCmd,
 			newRelTypeListCmd(f, "blocks", issue.RelBlockedBy, issue.RelBlocks),
 		},
 	}

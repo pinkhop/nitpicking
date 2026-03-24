@@ -15,10 +15,11 @@ import (
 
 // findingOutput is the JSON representation of a single diagnostic finding.
 type findingOutput struct {
-	Category string   `json:"category"`
-	Severity string   `json:"severity"`
-	Message  string   `json:"message"`
-	IssueIDs []string `json:"issue_ids,omitzero"`
+	Category   string   `json:"category"`
+	Severity   string   `json:"severity"`
+	Message    string   `json:"message"`
+	IssueIDs   []string `json:"issue_ids,omitzero"`
+	Suggestion string   `json:"suggestion,omitzero"`
 }
 
 // doctorOutput is the JSON representation of the doctor command result.
@@ -65,10 +66,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 				for _, finding := range result.Findings {
 					out.Findings = append(out.Findings, findingOutput{
-						Category: finding.Category,
-						Severity: finding.Severity,
-						Message:  finding.Message,
-						IssueIDs: finding.IssueIDs,
+						Category:   finding.Category,
+						Severity:   finding.Severity,
+						Message:    finding.Message,
+						IssueIDs:   finding.IssueIDs,
+						Suggestion: finding.Suggestion,
 					})
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)
@@ -92,6 +94,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				if len(finding.IssueIDs) > 0 {
 					_, _ = fmt.Fprintf(w, "  Affected issues: %s\n",
 						strings.Join(finding.IssueIDs, ", "))
+				}
+				if finding.Suggestion != "" {
+					_, _ = fmt.Fprintf(w, "  Suggestion: %s\n", finding.Suggestion)
 				}
 			}
 

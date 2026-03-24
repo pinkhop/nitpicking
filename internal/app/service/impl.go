@@ -914,10 +914,151 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 			})
 		}
 
+		// Check for no-ready-issues condition.
+		readinessFindings, readErr := s.checkReadiness(ctx, uow)
+		if readErr != nil {
+			return readErr
+		}
+		output.Findings = append(output.Findings, readinessFindings...)
+
 		return nil
 	})
 
 	return output, err
+}
+
+// checkReadiness detects when no issues are ready for work and analyzes the
+// causes. It produces actionable findings when blocked or deferred issues
+// prevent any work from being picked up.
+func (s *serviceImpl) checkReadiness(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
+	// Check whether any ready issues exist.
+	readyItems, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
+		Ready:         true,
+		ExcludeClosed: true,
+	}, port.OrderByPriority, 1)
+	if err != nil {
+		return nil, fmt.Errorf("listing ready issues: %w", err)
+	}
+	if len(readyItems) > 0 {
+		return nil, nil
+	}
+
+	// Check whether any non-closed issues exist at all.
+	allItems, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
+		ExcludeClosed: true,
+	}, port.OrderByPriority, -1)
+	if err != nil {
+		return nil, fmt.Errorf("listing all issues: %w", err)
+	}
+	if len(allItems) == 0 {
+		return nil, nil
+	}
+
+	var findings []DoctorFinding
+
+	// Identify blocked issues and analyze their blockers.
+	blockedItems, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
+		Blocked:       true,
+		ExcludeClosed: true,
+	}, port.OrderByPriority, -1)
+	if err != nil {
+		return nil, fmt.Errorf("listing blocked issues: %w", err)
+	}
+
+	// Track close-eligible epics and deferred blockers to deduplicate findings.
+	closeEligibleEpics := make(map[string]bool)
+	deferredBlockers := make(map[string]bool)
+
+	for _, blocked := range blockedItems {
+		rels, relErr := uow.Relationships().ListRelationships(ctx, blocked.ID)
+		if relErr != nil {
+			return nil, fmt.Errorf("listing relationships for %s: %w", blocked.ID, relErr)
+		}
+
+		for _, rel := range rels {
+			if rel.Type() != issue.RelBlockedBy || rel.SourceID() != blocked.ID {
+				continue
+			}
+			targetID := rel.TargetID()
+
+			blocker, getErr := uow.Issues().GetIssue(ctx, targetID, false)
+			if getErr != nil {
+				continue // blocker deleted or not found — already resolved
+			}
+
+			if blocker.State() == issue.StateClosed {
+				continue
+			}
+
+			// Check if the blocker is deferred.
+			if blocker.State() == issue.StateDeferred && !deferredBlockers[targetID.String()] {
+				deferredBlockers[targetID.String()] = true
+			}
+
+			// Check if the blocker is a close-eligible epic.
+			if blocker.IsEpic() && !closeEligibleEpics[targetID.String()] {
+				children, childErr := uow.Issues().GetChildStatuses(ctx, targetID)
+				if childErr != nil {
+					continue
+				}
+				if isCloseEligible(children) {
+					closeEligibleEpics[targetID.String()] = true
+				}
+			}
+		}
+	}
+
+	// Emit findings for close-eligible epic blockers.
+	for epicID := range closeEligibleEpics {
+		findings = append(findings, DoctorFinding{
+			Category:   "close_eligible_blocker",
+			Severity:   "warning",
+			Message:    fmt.Sprintf("Epic %s has all children closed but is still open, blocking other issues.", epicID),
+			IssueIDs:   []string{epicID},
+			Suggestion: "Run 'np epic close-eligible --author <name>' to batch-close fully resolved epics.",
+		})
+	}
+
+	// Emit findings for deferred blockers.
+	for blockerID := range deferredBlockers {
+		findings = append(findings, DoctorFinding{
+			Category:   "deferred_blocker",
+			Severity:   "warning",
+			Message:    fmt.Sprintf("Issue %s is deferred and blocking other issues.", blockerID),
+			IssueIDs:   []string{blockerID},
+			Suggestion: fmt.Sprintf("Run 'np issue undefer %s --author <name>' to restore it.", blockerID),
+		})
+	}
+
+	// Emit the summary finding if there are blocked issues.
+	if len(blockedItems) > 0 {
+		blockedIDs := make([]string, 0, len(blockedItems))
+		for _, item := range blockedItems {
+			blockedIDs = append(blockedIDs, item.ID.String())
+		}
+		findings = append(findings, DoctorFinding{
+			Category: "no_ready_issues",
+			Severity: "warning",
+			Message:  fmt.Sprintf("No issues are ready for work. %d issues are blocked.", len(blockedItems)),
+			IssueIDs: blockedIDs,
+		})
+	}
+
+	return findings, nil
+}
+
+// isCloseEligible reports whether an epic's children are all closed, making
+// the epic eligible for closure. An epic with no children is not eligible.
+func isCloseEligible(children []issue.ChildStatus) bool {
+	if len(children) == 0 {
+		return false
+	}
+	for _, c := range children {
+		if c.State != issue.StateClosed {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *serviceImpl) GC(ctx context.Context, input GCInput) (GCOutput, error) {

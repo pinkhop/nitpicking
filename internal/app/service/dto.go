@@ -218,6 +218,9 @@ type DoctorFinding struct {
 	Message string
 	// IssueIDs lists affected issues.
 	IssueIDs []string
+	// Suggestion provides an actionable remediation command or step.
+	// Empty when no specific action is recommended.
+	Suggestion string
 }
 
 // DoctorOutput holds the results of the doctor diagnostic.

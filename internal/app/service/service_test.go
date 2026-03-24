@@ -3,6 +3,8 @@ package service_test
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -988,4 +990,290 @@ func TestCloseIssue_WithAllChildrenClosed_Succeeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+// --- Doctor: no-ready-issues analysis ---
+
+func TestDoctor_NoIssues_NoReadinessFinding(t *testing.T) {
+	t.Parallel()
+
+	// Given — an empty database with no issues.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — no "no_ready_issues" finding should appear.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if findingByCategory(result.Findings, "no_ready_issues") != nil {
+		t.Error("expected no 'no_ready_issues' finding when database is empty")
+	}
+}
+
+func TestDoctor_ReadyIssuesExist_NoReadinessFinding(t *testing.T) {
+	t.Parallel()
+
+	// Given — a database with a ready task.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	_, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "A ready task",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create task: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if findingByCategory(result.Findings, "no_ready_issues") != nil {
+		t.Error("expected no 'no_ready_issues' finding when ready issues exist")
+	}
+}
+
+func TestDoctor_AllClosed_NoReadinessFinding(t *testing.T) {
+	t.Parallel()
+
+	// Given — a database where all issues are closed.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	out, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "Closable task",
+		Author: author,
+		Claim:  true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create task: %v", err)
+	}
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: out.Issue.ID(),
+		ClaimID: out.ClaimID,
+		Action:  service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close task: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if findingByCategory(result.Findings, "no_ready_issues") != nil {
+		t.Error("expected no 'no_ready_issues' finding when all issues are closed")
+	}
+}
+
+func TestDoctor_BlockedByOpenTask_ReportsNoReady(t *testing.T) {
+	t.Parallel()
+
+	// Given — task A is blocked by open task B; no ready issues.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	blockerOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "Blocker task",
+		Author: author,
+		Claim:  true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create blocker: %v", err)
+	}
+
+	blockedOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "Blocked task",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create blocked: %v", err)
+	}
+
+	err = svc.AddRelationship(ctx, blockedOut.Issue.ID(), service.RelationshipInput{
+		Type:     issue.RelBlockedBy,
+		TargetID: blockerOut.Issue.ID(),
+	}, author)
+	if err != nil {
+		t.Fatalf("precondition: add blocked_by: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — should report no_ready_issues with the blocked issue listed.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "no_ready_issues")
+	if finding == nil {
+		t.Fatal("expected 'no_ready_issues' finding")
+	}
+	if finding.Severity != "warning" {
+		t.Errorf("expected severity 'warning', got %q", finding.Severity)
+	}
+	if !slices.Contains(finding.IssueIDs, blockedOut.Issue.ID().String()) {
+		t.Errorf("expected blocked issue %s in IssueIDs, got %v",
+			blockedOut.Issue.ID(), finding.IssueIDs)
+	}
+}
+
+func TestDoctor_BlockedByCloseEligibleEpic_SuggestsCloseEligible(t *testing.T) {
+	t.Parallel()
+
+	// Given — task A is blocked by epic B whose only child C is closed.
+	// Epic B is close-eligible, so closing it would unblock task A.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	epicOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleEpic,
+		Title:  "Close-eligible epic",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create epic: %v", err)
+	}
+
+	childOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:     issue.RoleTask,
+		Title:    "Epic child",
+		Author:   author,
+		ParentID: epicOut.Issue.ID(),
+		Claim:    true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create child: %v", err)
+	}
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: childOut.Issue.ID(),
+		ClaimID: childOut.ClaimID,
+		Action:  service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close child: %v", err)
+	}
+
+	blockedOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "Blocked by epic",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create blocked task: %v", err)
+	}
+
+	err = svc.AddRelationship(ctx, blockedOut.Issue.ID(), service.RelationshipInput{
+		Type:     issue.RelBlockedBy,
+		TargetID: epicOut.Issue.ID(),
+	}, author)
+	if err != nil {
+		t.Fatalf("precondition: add blocked_by: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — should suggest running epic close-eligible.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "close_eligible_blocker")
+	if finding == nil {
+		t.Fatal("expected 'close_eligible_blocker' finding")
+	}
+	if !strings.Contains(finding.Suggestion, "epic close-eligible") {
+		t.Errorf("expected suggestion to mention 'epic close-eligible', got %q",
+			finding.Suggestion)
+	}
+	if !slices.Contains(finding.IssueIDs, epicOut.Issue.ID().String()) {
+		t.Errorf("expected epic %s in IssueIDs, got %v",
+			epicOut.Issue.ID(), finding.IssueIDs)
+	}
+}
+
+func TestDoctor_DeferredIssueBlocking_SuggestsUndefer(t *testing.T) {
+	t.Parallel()
+
+	// Given — task A is blocked by deferred task B.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	blockerOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "Deferred blocker",
+		Author: author,
+		Claim:  true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create blocker: %v", err)
+	}
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: blockerOut.Issue.ID(),
+		ClaimID: blockerOut.ClaimID,
+		Action:  service.ActionDefer,
+	})
+	if err != nil {
+		t.Fatalf("precondition: defer blocker: %v", err)
+	}
+
+	blockedOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "Blocked by deferred",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create blocked: %v", err)
+	}
+
+	err = svc.AddRelationship(ctx, blockedOut.Issue.ID(), service.RelationshipInput{
+		Type:     issue.RelBlockedBy,
+		TargetID: blockerOut.Issue.ID(),
+	}, author)
+	if err != nil {
+		t.Fatalf("precondition: add blocked_by: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — should suggest undefer.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "deferred_blocker")
+	if finding == nil {
+		t.Fatal("expected 'deferred_blocker' finding")
+	}
+	if !strings.Contains(finding.Suggestion, "issue undefer") {
+		t.Errorf("expected suggestion to mention 'issue undefer', got %q",
+			finding.Suggestion)
+	}
+	if !slices.Contains(finding.IssueIDs, blockerOut.Issue.ID().String()) {
+		t.Errorf("expected deferred blocker %s in IssueIDs, got %v",
+			blockerOut.Issue.ID(), finding.IssueIDs)
+	}
+}
+
+// findingByCategory returns the first finding with the given category, or nil.
+func findingByCategory(findings []service.DoctorFinding, category string) *service.DoctorFinding {
+	for i := range findings {
+		if findings[i].Category == category {
+			return &findings[i]
+		}
+	}
+	return nil
 }

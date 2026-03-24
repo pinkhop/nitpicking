@@ -22,7 +22,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "init",
-		Usage:     "Initialize a new nitpicking database in the current directory",
+		Usage:     "Initialize a new nitpicking project rooted at the current directory",
 		ArgsUsage: "<PREFIX>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{

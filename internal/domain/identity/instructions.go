@@ -56,9 +56,9 @@ Use ` + "`--parent`" + ` to attach children to the epic. For large epics, decomp
 
 | Transition | When to use |
 |------------|-------------|
-| ` + "`np close <ID> --claim <CID>`" + ` | Task is complete (terminal — cannot reopen) |
+| ` + "`np state close <ID> --claim <CID>`" + ` | Task is complete (terminal — cannot reopen) |
 | ` + "`np release <ID> --claim <CID>`" + ` | Epic has been decomposed; or task cannot be completed now |
-| ` + "`np wait <ID> --claim <CID>`" + ` | Blocked on a human or stakeholder decision |
+| ` + "`np state wait <ID> --claim <CID>`" + ` | Blocked on a human or stakeholder decision |
 
 ### 4. Leave notes about your work
 

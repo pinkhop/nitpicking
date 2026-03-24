@@ -75,9 +75,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 
 			// State transitions.
 			transition.NewReleaseCmd(f),
-			transition.NewCloseCmd(f),
-			transition.NewDeferCmd(f),
-			transition.NewWaitCmd(f),
+			transition.NewStateCmd(f),
 
 			// Queries.
 			show.NewCmd(f),

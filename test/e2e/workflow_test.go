@@ -121,7 +121,7 @@ func TestE2E_TaskLifecycle_CreateClaimUpdateClose(t *testing.T) {
 		t.Fatalf("note add failed (exit %d): %s", code, stderr)
 	}
 
-	closeStdout, stderr, code := runNP(t, dir, "close", taskID,
+	closeStdout, stderr, code := runNP(t, dir, "state", "close", taskID,
 		"--claim", claimID,
 		"--json",
 	)
@@ -170,7 +170,7 @@ func TestE2E_TaskLifecycle_ClaimReleaseReclaimClose(t *testing.T) {
 
 	claim2 := claimTicket(t, dir, taskID, agent2)
 
-	_, stderr, code = runNP(t, dir, "close", taskID,
+	_, stderr, code = runNP(t, dir, "state", "close", taskID,
 		"--claim", claim2,
 		"--json",
 	)
@@ -204,7 +204,7 @@ func TestE2E_TaskLifecycle_DeferAndWait(t *testing.T) {
 
 	// When — defer one task and mark the other as waiting.
 	deferClaim := claimTicket(t, dir, deferID, author)
-	_, stderr, code := runNP(t, dir, "defer", deferID,
+	_, stderr, code := runNP(t, dir, "state", "defer", deferID,
 		"--claim", deferClaim,
 		"--json",
 	)
@@ -213,7 +213,7 @@ func TestE2E_TaskLifecycle_DeferAndWait(t *testing.T) {
 	}
 
 	waitClaim := claimTicket(t, dir, waitID, author)
-	_, stderr, code = runNP(t, dir, "wait", waitID,
+	_, stderr, code = runNP(t, dir, "state", "wait", waitID,
 		"--claim", waitClaim,
 		"--json",
 	)
@@ -254,7 +254,7 @@ func TestE2E_EpicWithChildren_DerivedCompletion(t *testing.T) {
 
 	// When — close the first child; the epic should not yet be complete.
 	claim1 := claimTicket(t, dir, child1, author)
-	_, stderr, code = runNP(t, dir, "close", child1,
+	_, stderr, code = runNP(t, dir, "state", "close", child1,
 		"--claim", claim1,
 		"--json",
 	)
@@ -269,7 +269,7 @@ func TestE2E_EpicWithChildren_DerivedCompletion(t *testing.T) {
 
 	// Close the second child — the epic should now be complete.
 	claim2 := claimTicket(t, dir, child2, author)
-	_, stderr, code = runNP(t, dir, "close", child2,
+	_, stderr, code = runNP(t, dir, "state", "close", child2,
 		"--claim", claim2,
 		"--json",
 	)
@@ -343,7 +343,7 @@ func TestE2E_NotesOnClosedTicket(t *testing.T) {
 	taskID := createTask(t, dir, "Closed task", author)
 	claimID := claimTicket(t, dir, taskID, author)
 
-	_, stderr, code := runNP(t, dir, "close", taskID,
+	_, stderr, code := runNP(t, dir, "state", "close", taskID,
 		"--claim", claimID,
 		"--json",
 	)
@@ -469,7 +469,7 @@ func TestE2E_CreateClaimWithFlag(t *testing.T) {
 	}
 
 	// Clean up — close the ticket so the claim is released.
-	_, stderr, code = runNP(t, dir, "close", taskID,
+	_, stderr, code = runNP(t, dir, "state", "close", taskID,
 		"--claim", claimID,
 		"--json",
 	)
@@ -498,7 +498,7 @@ func TestE2E_HistoryAuditTrail(t *testing.T) {
 	)
 
 	claim2 := claimTicket(t, dir, taskID, author)
-	_, _, _ = runNP(t, dir, "close", taskID,
+	_, _, _ = runNP(t, dir, "state", "close", taskID,
 		"--claim", claim2,
 		"--json",
 	)
@@ -704,7 +704,7 @@ func TestE2E_BlockedByRelationship_ReadinessGating(t *testing.T) {
 	blockedBefore := showTicket(t, dir, blockedID)
 
 	blockerClaim := claimTicket(t, dir, blockerID, author)
-	_, stderr, code = runNP(t, dir, "close", blockerID,
+	_, stderr, code = runNP(t, dir, "state", "close", blockerID,
 		"--claim", blockerClaim,
 		"--json",
 	)

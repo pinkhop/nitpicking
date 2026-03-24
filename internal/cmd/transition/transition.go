@@ -86,28 +86,25 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 	}
 }
 
+// NewStateCmd constructs the "state" parent command with close, defer, and
+// wait subcommands for terminal and special state transitions.
+func NewStateCmd(f *cmdutil.Factory) *cli.Command {
+	return &cli.Command{
+		Name:  "state",
+		Usage: "Transition ticket state (close, defer, wait)",
+		Commands: []*cli.Command{
+			newTransitionCmd(f, "close", "Close a claimed task", service.ActionClose),
+			newTransitionCmd(f, "defer", "Defer a claimed ticket", service.ActionDefer),
+			newTransitionCmd(f, "wait", "Mark a claimed ticket as waiting", service.ActionWait),
+		},
+	}
+}
+
 // NewReleaseCmd constructs the "release" command, which returns a claimed
-// ticket to its default unclaimed state.
+// ticket to its default unclaimed state. Release stays at the root level
+// because it is the most common transition — returning to a working state.
 func NewReleaseCmd(f *cmdutil.Factory) *cli.Command {
 	return newTransitionCmd(f, "release", "Release a claimed ticket", service.ActionRelease)
-}
-
-// NewCloseCmd constructs the "close" command, which marks a claimed task as
-// complete. This is a terminal state.
-func NewCloseCmd(f *cmdutil.Factory) *cli.Command {
-	return newTransitionCmd(f, "close", "Close a claimed task", service.ActionClose)
-}
-
-// NewDeferCmd constructs the "defer" command, which shelves a claimed ticket
-// for later work.
-func NewDeferCmd(f *cmdutil.Factory) *cli.Command {
-	return newTransitionCmd(f, "defer", "Defer a claimed ticket", service.ActionDefer)
-}
-
-// NewWaitCmd constructs the "wait" command, which marks a claimed ticket as
-// externally blocked.
-func NewWaitCmd(f *cmdutil.Factory) *cli.Command {
-	return newTransitionCmd(f, "wait", "Mark a claimed ticket as waiting", service.ActionWait)
 }
 
 // pastTense returns a human-readable past-tense label for each transition

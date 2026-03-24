@@ -126,10 +126,10 @@ np edit <TICKET-ID> --author <your-name> --title "Quick fix"
 Every transition requires the claim ID and ends the claim.
 
 ```bash
-np close   <TICKET-ID> --claim <CLAIM-ID>   # complete the task (terminal — cannot reopen)
+np state close <TICKET-ID> --claim <CLAIM-ID>   # complete the task (terminal — cannot reopen)
 np release <TICKET-ID> --claim <CLAIM-ID>   # return to open/active without completing
-np defer   <TICKET-ID> --claim <CLAIM-ID>   # shelve for later
-np wait    <TICKET-ID> --claim <CLAIM-ID>   # blocked on an external dependency
+np state defer <TICKET-ID> --claim <CLAIM-ID>   # shelve for later
+np state wait  <TICKET-ID> --claim <CLAIM-ID>   # blocked on an external dependency
 ```
 
 **Always transition state when you are done.** Abandoned claims block other agents until the stale threshold expires.

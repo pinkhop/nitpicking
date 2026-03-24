@@ -1,7 +1,7 @@
 # np Welcome Command — Proposed Content
 
-This document contains the terminal output and file modifications that humans see
-when running `np welcome`. This is the human-facing setup guide, not the agent-facing
+This document contains the terminal output that humans see when running
+`np welcome`. This is the human-facing setup guide, not the agent-facing
 workflow instructions (which live in `np agent prime`).
 
 ---
@@ -16,174 +16,138 @@ workflow instructions (which live in `np agent prime`).
 
 ## `np welcome` — Terminal output
 
-`np welcome` walks a human through first-time project setup. It detects what has
-already been done and skips completed steps. Formatting markers are indicated with
-`[bold]` and `[accent]` below.
+`np welcome` displays the full setup guide every time it is run. Each step has a
+checkbox that reflects the current project state: `[green ✓]` for complete, `[ ]`
+for not yet done. The guide is always shown in full regardless of status — np does
+not gate steps or enforce ordering. Formatting markers are indicated with `[bold]`
+and `[accent]` below.
 
-### Fresh project (no `.np/` directory)
+### Example: partially configured project
 
 ```
-[bold]Welcome to np — the local-only issue tracker for AI agent workflows.[/bold]
+[bold]np — local-only issue tracker for AI agent workflows[/bold]
 
-Let's set up your project. This takes about 30 seconds.
+[bold]Setup[/bold]
 
-[bold]Step 1: Initialize the database[/bold]
+  - [green ✓] Initialize database                     np init <PREFIX>
+  - [ ] Exclude .np/ from version control              add .np/ to .gitignore
+  - [ ] Tell your AI agent how to use np               paste np agent prime output
+  - [ ] Choose an author name for yourself              np agent name or pick your own
 
-  np needs a ticket prefix — a short tag that appears in all ticket IDs
-  (e.g., prefix "NP" produces tickets like NP-a3bxr).
+[bold]Initialize database[/bold]
 
-  Choose something short and project-specific. Convention: 2–4 uppercase letters.
+  Ticket IDs use a project prefix (e.g., prefix "NP" produces NP-a3bxr).
+  Choose something short and project-specific — convention is 2–4 uppercase letters.
 
-  Run:
     [accent]np init <PREFIX>[/accent]
 
-  Example:
-    [accent]np init NP[/accent]
-```
+  [dim]Current: initialized with prefix NP[/dim]
 
-After `np init` succeeds, `np welcome` continues (or the user re-runs `np welcome`):
+[bold]Add .np/ to .gitignore[/bold]
 
-### Database exists, `.gitignore` not configured
-
-```
-[bold]Step 2: Add .np/ to .gitignore[/bold]
-
-  np stores its database locally — it should not be committed to version control.
+  np stores its database locally in .np/ — you probably don't want to commit it.
   Add this line to your .gitignore:
 
     [accent].np/[/accent]
 
   Or run:
     [accent]echo '.np/' >> .gitignore[/accent]
-```
 
-### Database exists, `.gitignore` configured
-
-```
-[bold]Step 3: Tell your AI agent about np[/bold]
+[bold]Add agent instructions to your project[/bold]
 
   np works best when your AI agent knows it exists. Run:
 
     [accent]np agent prime[/accent]
 
-  This prints Markdown instructions your agent can follow. Paste the output into
-  your agent's instruction file:
+  This prints Markdown workflow instructions. Paste the output into your agent's
+  instruction file:
 
     • [accent]CLAUDE.md[/accent]   — for Claude Code
     • [accent]AGENTS.md[/accent]   — for GitHub Copilot and other agents
     • [accent].github/copilot-instructions.md[/accent] — Copilot alternate location
 
-  Alternatively, tell your agent to run [accent]np agent prime[/accent] itself at the
-  start of each session. No hooks or integrations required — np is just a CLI.
+  Or tell your agent to run [accent]np agent prime[/accent] at the start of each session.
+  No hooks or integrations required — np is just a CLI.
 
-[bold]Step 4: Pick an author name[/bold]
+[bold]Pick an author name[/bold]
 
-  Every np command that changes data requires an [accent]--author[/accent] flag. You can use
-  any stable identifier (your name, handle, etc.), or generate one:
+  Every np command that changes data requires an [accent]--author[/accent] flag. Use any
+  stable identifier (your name, handle, etc.), or generate one:
 
     [accent]np agent name[/accent]
 
   Agents should generate their own name at session start. Humans can use whatever
   they like — consistency across a session is what matters.
 
-[bold]You're all set.[/bold]
+[bold]Quick reference[/bold]
 
-  Quick reference:
     [accent]np create --role task --title "..." --author <name>[/accent]  Create a ticket
     [accent]np list --ready[/accent]                                      Find available work
     [accent]np claim ready --author <name>[/accent]                       Claim next ready ticket
-    [accent]np close <ID> --claim <CLAIM-ID>[/accent]                  Complete a task
+    [accent]np state close <ID> --claim <CLAIM-ID>[/accent]               Complete a task
     [accent]np doctor[/accent]                                            Run diagnostics
-
-  For the full command reference, run:
-    [accent]np help[/accent]
-
-  For agent workflow instructions:
-    [accent]np agent prime[/accent]
+    [accent]np help[/accent]                                              Full command reference
+    [accent]np agent prime[/accent]                                       Agent workflow instructions
 ```
 
-### Already set up (database exists, `.gitignore` has `.np/`)
+### Example: fully configured project
 
-If `np welcome` is re-run after setup is complete:
+The same output, but all checkboxes are checked:
 
 ```
-[bold]np is already configured for this project.[/bold]
+[bold]Setup[/bold]
 
-  Database:   .np/ (prefix: NP)
-  .gitignore: ✓ .np/ excluded
-
-  Useful commands:
-    [accent]np agent prime[/accent]   — Print agent workflow instructions
-    [accent]np agent name[/accent]    — Generate an author name
-    [accent]np doctor[/accent]        — Run diagnostics
-    [accent]np help[/accent]          — Full command reference
+  - [green ✓] Initialize database                     np init <PREFIX>
+  - [green ✓] Exclude .np/ from version control        add .np/ to .gitignore
+  - [green ✓] Tell your AI agent how to use np         paste np agent prime output
+  - [green ✓] Choose an author name for yourself       np agent name or pick your own
 ```
+
+The rest of the output is identical. The full guide is always shown — it doubles
+as a reference card the user can return to any time.
+
+### Example: no database yet
+
+All checkboxes are unchecked. The "Current: ..." status line under "Initialize
+database" is omitted.
 
 ---
 
 ## `np welcome` — What it does
 
 `np welcome` is **read-only** — it does not modify any files or create the database.
-It inspects the current state and tells the user what to do next. This avoids
-surprising side effects and keeps the human in control.
+It inspects the current state, marks completed steps, and shows the full guide.
 
 ### Detection logic
 
-| Check | How |
-|-------|-----|
-| Database exists | Look for `.np/` directory (same discovery walk as all np commands) |
-| `.gitignore` configured | Check if `.gitignore` exists and contains a line matching `.np/` or `.np` |
-| Prefix | Read from database metadata (if database exists) |
+| Check | How | Checkmark when |
+|-------|-----|----------------|
+| Database initialized | Look for `.np/` directory (same discovery walk as all np commands) | `.np/` directory found |
+| `.gitignore` configured | Check if `.gitignore` exists and contains a line matching `.np/` or `.np` | Match found |
+| Agent instructions | Check if `CLAUDE.md`, `AGENTS.md`, or `.github/copilot-instructions.md` contains `np` references | Any file mentions np workflow |
+| Author name | Not automatically detectable | Always unchecked (informational step) |
 
-### State machine
-
-```
-                    ┌─────────────┐
-                    │  No .np/    │──→ Show Step 1 (init)
-                    └─────────────┘
-                          │
-                     np init runs
-                          │
-                          ▼
-                    ┌─────────────┐
-                    │  .np/ exists│
-                    │  no ignore  │──→ Show Step 2 (gitignore)
-                    └─────────────┘
-                          │
-                   user adds ignore
-                          │
-                          ▼
-                    ┌─────────────┐
-                    │  .np/ exists│
-                    │  ignored    │──→ Show Steps 3–4 (agent + author)
-                    └─────────────┘
-                          │
-                     setup complete
-                          │
-                          ▼
-                    ┌─────────────┐
-                    │  All done   │──→ Show "already configured" summary
-                    └─────────────┘
-```
-
-The command always shows from the first incomplete step through the end. A user who
-runs `np welcome` after `np init` but before updating `.gitignore` sees Steps 2–4.
+The "author name" step is always shown unchecked because there is no persistent
+author configuration — it is a per-command flag. This step exists for orientation,
+not for status tracking.
 
 ---
 
 ## Design rationale
 
-### Why not auto-create the database?
+### Why show everything every time?
 
-`np init` requires a prefix argument — a deliberate human choice. `welcome` could
-prompt for it interactively, but np avoids interactive prompts in favor of explicit
-CLI invocations. This keeps the tool scriptable and predictable.
+np is non-opinionated about setup order and does not enforce prerequisites. A
+developer who wants to commit `.np/` to version control can do so — np does not
+second-guess that decision. Showing the full guide with status indicators gives
+the user a clear picture without imposing a workflow.
 
-### Why not auto-modify `.gitignore`?
+### Why read-only?
 
-Modifying tracked files without explicit consent violates np's "non-invasive"
-principle. The user may have a global gitignore, a different ignore strategy, or
-simply want to know what is happening before it happens.
+Modifying files without explicit consent violates np's "non-invasive" principle.
+The user may have a global gitignore, a different agent instruction strategy, or
+simply want to understand what is happening before acting. `np welcome` observes
+and recommends; the user executes.
 
 ### Why not install hooks or write to CLAUDE.md?
 
@@ -210,7 +174,7 @@ drift.
 
 `welcome` is not a substitute for documentation. It covers only:
 
-1. One-time project setup (init, gitignore, agent instructions)
+1. Project setup (init, gitignore, agent instructions, author identity)
 2. A quick-reference cheat sheet
 3. Pointers to deeper resources (`np help`, `np agent prime`)
 

@@ -163,7 +163,7 @@ func TestE2E_ClaimStealing_StolenClaimAllowsFullLifecycle(t *testing.T) {
 		t.Fatalf("update after steal failed (exit %d): %s", code, stderr)
 	}
 
-	_, stderr, code = runNP(t, dir, "close", ticketID,
+	_, stderr, code = runNP(t, dir, "state", "close", ticketID,
 		"--claim", claimB,
 		"--json",
 	)

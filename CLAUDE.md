@@ -140,7 +140,8 @@ np done <ISSUE-ID> --claim <CLAIM-ID> --author <your-name> --reason "Completed: 
 For other transitions, use the explicit commands:
 
 ```bash
-np issue reopen <ISSUE-ID> --author <your-name>     # reopen a closed or deferred issue
+np issue reopen <ISSUE-ID> --author <your-name>     # reopen a closed issue
+np issue undefer <ISSUE-ID> --author <your-name>    # restore a deferred issue
 np issue defer <ISSUE-ID> --claim <CLAIM-ID>         # shelve for later
 np issue close <ISSUE-ID> --claim <CLAIM-ID> --author <your-name> --reason "Done."  # close with reason
 ```
@@ -278,7 +279,8 @@ np issue update <ID> --claim <CLAIM-ID> --title "New"  # update a claimed issue
 np issue edit <ID> --author <name> --title "Quick fix" # one-shot claim→update→release
 np issue close <ID> --claim <CLAIM-ID> --author <name> --reason "Done."  # close with reason
 np issue release <ID> --claim <CLAIM-ID>               # release claim without closing
-np issue reopen <ID> --author <name>                   # reopen a deferred issue (alias: undefer)
+np issue reopen <ID> --author <name>                   # reopen a closed issue
+np issue undefer <ID> --author <name>                  # restore a deferred issue
 np issue defer <ID> --claim <CLAIM-ID>                 # defer a claimed issue
 np issue delete <ID> --claim <CLAIM-ID> --confirm      # delete a claimed issue
 np issue note <ID> --author <name> --body "Note text"  # add a comment (alias: comment)
@@ -329,6 +331,6 @@ Append `--json` to any command for structured, machine-readable output. JSON is 
 - **Claim before mutating.** Field updates and state transitions are gated by claiming.
 - **Document your work.** Add a comment before transitioning state — capture reasoning, trade-offs, and findings.
 - **Always transition state when done.** Do not abandon claims — release, close, or defer.
-- **Closed issues can be reopened.** Claim a closed issue and release it to reopen, or use `np issue reopen`.
+- **Closed issues can be reopened.** Use `np issue reopen`. Deferred issues can be restored with `np issue undefer`.
 - **Epics are never closed directly.** An epic is complete when all its children are resolved.
 - **Use `np` exclusively.** Do not track work outside of `np`.

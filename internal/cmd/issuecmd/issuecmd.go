@@ -46,6 +46,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			newCloseCmd(f),
 			newReleaseCmd(f),
 			newReopenCmd(f),
+			newUndeferCmd(f),
 			newDeferCmd(f),
 			cmddelete.NewCmd(f),
 			newNoteCmd(f),
@@ -133,9 +134,8 @@ func newCloseCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newReopenCmd constructs the "issue reopen" subcommand (aliased as
-// "undefer"), which transitions closed or deferred issues back to open.
-// Supports multiple issue IDs in one invocation.
+// newReopenCmd constructs the "issue reopen" subcommand, which transitions
+// closed issues back to open. Supports multiple issue IDs in one invocation.
 func newReopenCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
@@ -144,8 +144,7 @@ func newReopenCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "reopen",
-		Aliases:   []string{"undefer"},
-		Usage:     "Reopen closed or deferred issues (transition back to open)",
+		Usage:     "Reopen closed issues (transition back to open)",
 		ArgsUsage: "<ISSUE-ID> [ISSUE-ID...]",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -198,6 +197,76 @@ func newReopenCmd(f *cmdutil.Factory) *cli.Command {
 				if reopenErr != nil {
 					lastErr = reopenErr
 					_, _ = fmt.Fprintf(f.IOStreams.ErrOut, "Error reopening %s: %v\n", issueID, reopenErr)
+				}
+			}
+			return lastErr
+		},
+	}
+}
+
+// newUndeferCmd constructs the "issue undefer" subcommand, which transitions
+// deferred issues back to open. Supports multiple issue IDs in one invocation.
+func newUndeferCmd(f *cmdutil.Factory) *cli.Command {
+	var (
+		jsonOutput bool
+		author     string
+	)
+
+	return &cli.Command{
+		Name:      "undefer",
+		Usage:     "Restore deferred issues (transition back to open)",
+		ArgsUsage: "<ISSUE-ID> [ISSUE-ID...]",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "author",
+				Aliases:     []string{"a"},
+				Sources:     cli.EnvVars("NP_AUTHOR"),
+				Usage:       "Author name (required)",
+				Required:    true,
+				Destination: &author,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
+			},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			if cmd.NArg() == 0 {
+				return cmdutil.FlagErrorf("at least one issue ID argument is required")
+			}
+
+			parsedAuthor, err := identity.NewAuthor(author)
+			if err != nil {
+				return cmdutil.FlagErrorf("invalid author: %s", err)
+			}
+
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			var lastErr error
+			for i := range cmd.NArg() {
+				rawID := cmd.Args().Get(i)
+				issueID, resolveErr := resolver.Resolve(ctx, rawID)
+				if resolveErr != nil {
+					lastErr = fmt.Errorf("invalid issue ID %q: %w", rawID, resolveErr)
+					_, _ = fmt.Fprintf(f.IOStreams.ErrOut, "Error: %v\n", lastErr)
+					continue
+				}
+				reopenErr := Reopen(ctx, ReopenInput{
+					Service: svc,
+					IssueID: issueID,
+					Author:  parsedAuthor,
+					JSON:    jsonOutput,
+					WriteTo: f.IOStreams.Out,
+				})
+				if reopenErr != nil {
+					lastErr = reopenErr
+					_, _ = fmt.Fprintf(f.IOStreams.ErrOut, "Error undeferring %s: %v\n", issueID, reopenErr)
 				}
 			}
 			return lastErr

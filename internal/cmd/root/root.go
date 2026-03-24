@@ -20,7 +20,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/done"
 	"github.com/pinkhop/nitpicking/internal/cmd/epiccmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/gc"
-	"github.com/pinkhop/nitpicking/internal/cmd/graphcmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/historyview"
 	cmdinit "github.com/pinkhop/nitpicking/internal/cmd/init"
 	"github.com/pinkhop/nitpicking/internal/cmd/issuecmd"
@@ -126,7 +125,6 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			}},
 			{"Maintenance", []*cli.Command{
 				admincmd.NewCmd(f),
-				graphcmd.NewCmd(f),
 				where.NewCmd(f),
 			}},
 		}),

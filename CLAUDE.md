@@ -305,8 +305,8 @@ np admin upgrade                       # check for schema upgrades
 np doctor       # detect cycles, deadlocks, stale claims, epics needing decomposition
 np show <ID>    # full issue detail including readiness, relationships, completion
 np history <ID> # audit trail of all changes
-np graph        # generate Graphviz DOT of all issues and relationships
-np graph -o issues.dot   # write to file instead of stdout
+np admin graph                         # generate Graphviz DOT of all issues and relationships
+np admin graph -o issues.dot           # write to file instead of stdout
 ```
 
 ## Exit Codes

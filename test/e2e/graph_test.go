@@ -16,7 +16,7 @@ func TestE2E_Graph_OutputContainsDOTStructure(t *testing.T) {
 	createTask(t, dir, "Task Beta", "e2e-agent")
 
 	// When
-	stdout, stderr, code := runNP(t, dir, "graph")
+	stdout, stderr, code := runNP(t, dir, "admin", "graph")
 
 	// Then
 	if code != 0 {
@@ -39,7 +39,7 @@ func TestE2E_Graph_JSON_WrapsInJSONField(t *testing.T) {
 	createTask(t, dir, "JSON test", "e2e-agent")
 
 	// When
-	stdout, stderr, code := runNP(t, dir, "graph", "--json")
+	stdout, stderr, code := runNP(t, dir, "admin", "graph", "--json")
 
 	// Then
 	if code != 0 {
@@ -62,7 +62,7 @@ func TestE2E_Graph_OutputFile_WritesToFile(t *testing.T) {
 	outFile := filepath.Join(dir, "issues.dot")
 
 	// When
-	_, stderr, code := runNP(t, dir, "graph", "--output", outFile)
+	_, stderr, code := runNP(t, dir, "admin", "graph", "--output", outFile)
 
 	// Then
 	if code != 0 {
@@ -94,7 +94,7 @@ func TestE2E_Graph_RelationshipsRendered(t *testing.T) {
 	}
 
 	// When
-	stdout, _, graphCode := runNP(t, dir, "graph")
+	stdout, _, graphCode := runNP(t, dir, "admin", "graph")
 
 	// Then
 	if graphCode != 0 {

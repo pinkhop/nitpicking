@@ -12,6 +12,7 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/cmd/doctor"
 	"github.com/pinkhop/nitpicking/internal/cmd/gc"
+	"github.com/pinkhop/nitpicking/internal/cmd/graphcmd"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/storage/sqlite"
 )
@@ -24,6 +25,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Commands: []*cli.Command{
 			doctor.NewCmd(f),
 			gc.NewCmd(f),
+			graphcmd.NewCmd(f),
 			newResetCmd(f),
 			newUpgradeCmd(f),
 		},

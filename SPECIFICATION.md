@@ -162,6 +162,7 @@ All mutable fields (except notes and relationships) require claiming to modify.
 - An issue cannot be its own parent.
 - Assigning a parent must not create a cycle — e.g., epic A cannot be the parent of epic B if B is already an ancestor of A.
 - A deleted issue cannot be assigned as a parent.
+- Hierarchy depth is limited to 3 levels. A root issue is level 1, its child is level 2, and its grandchild is level 3. Attempts to create a 4th level are rejected with a validation error.
 - Changing or removing a parent recalculates the old parent's completion status (see [6.2](#62-epic-completion-derivation)).
 
 ### 4.2 Note

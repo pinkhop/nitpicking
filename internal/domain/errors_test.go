@@ -230,6 +230,7 @@ func TestSentinelErrors_MatchWhenWrapped(t *testing.T) {
 		{"ErrCycleDetected", domain.ErrCycleDetected},
 		{"ErrDeletedIssue", domain.ErrDeletedIssue},
 		{"ErrTerminalState", domain.ErrTerminalState},
+		{"ErrDepthExceeded", domain.ErrDepthExceeded},
 	}
 
 	for _, tc := range cases {

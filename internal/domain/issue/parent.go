@@ -22,6 +22,38 @@ func ValidateParent(childID, parentID ID, parentDeleted bool) error {
 	return nil
 }
 
+// MaxDepth is the maximum number of levels allowed in the issue hierarchy.
+// A root issue is level 1, its child is level 2, its grandchild is level 3.
+const MaxDepth = 3
+
+// ValidateDepth checks that assigning a child under proposedParent would not
+// exceed [MaxDepth] levels. It walks the ancestor chain of proposedParent to
+// determine how deep it sits, then verifies room for one more level.
+func ValidateDepth(proposedParent ID, lookup AncestorLookup) error {
+	// The proposed parent is at depth >= 1. Walk up to count its ancestors.
+	depth := 1 // proposedParent itself
+	current := proposedParent
+
+	for {
+		parentID, err := lookup(current)
+		if err != nil {
+			return fmt.Errorf("looking up ancestor of %s: %w", current, err)
+		}
+		if parentID.IsZero() {
+			break
+		}
+		depth++
+		current = parentID
+	}
+
+	// The child would be at depth+1. If that exceeds MaxDepth, reject.
+	if depth+1 > MaxDepth {
+		return fmt.Errorf("child would be at level %d, maximum is %d: %w",
+			depth+1, MaxDepth, domain.ErrDepthExceeded)
+	}
+	return nil
+}
+
 // AncestorLookup is a callback that returns the parent ID of a given issue.
 // It returns a zero ID if the issue has no parent. An error indicates a
 // lookup failure.

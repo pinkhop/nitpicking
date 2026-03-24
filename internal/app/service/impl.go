@@ -925,9 +925,13 @@ func (s *serviceImpl) validateParent(ctx context.Context, uow port.UnitOfWork, c
 	if err := issue.ValidateParent(childID, parentID, parent.IsDeleted()); err != nil {
 		return err
 	}
-	return issue.ValidateNoCycle(childID, parentID, func(id issue.ID) (issue.ID, error) {
+	ancestorLookup := func(id issue.ID) (issue.ID, error) {
 		return uow.Issues().GetParentID(ctx, id)
-	})
+	}
+	if err := issue.ValidateNoCycle(childID, parentID, ancestorLookup); err != nil {
+		return err
+	}
+	return issue.ValidateDepth(parentID, ancestorLookup)
 }
 
 func (s *serviceImpl) releaseIssue(ctx context.Context, uow port.UnitOfWork, issueID issue.ID, claimID string, author identity.Author, now time.Time) error {

@@ -28,6 +28,10 @@ var (
 	// ErrTerminalState indicates an operation was attempted on an issue in a
 	// terminal state (closed or deleted) that forbids further mutations.
 	ErrTerminalState = errors.New("issue is in a terminal state")
+
+	// ErrDepthExceeded indicates a parent assignment would exceed the maximum
+	// hierarchy depth (3 levels).
+	ErrDepthExceeded = errors.New("hierarchy depth exceeded")
 )
 
 // ValidationError carries structured detail about which fields failed

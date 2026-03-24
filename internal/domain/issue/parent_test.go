@@ -138,3 +138,90 @@ func TestValidateNoCycle_LookupError_Propagates(t *testing.T) {
 		t.Errorf("expected lookup error, got %v", err)
 	}
 }
+
+// --- ValidateDepth ---
+
+func TestValidateDepth_RootParent_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — parent is a root (no parent of its own), so child would be level 2.
+	parentID := mustID(t)
+	lookup := func(_ issue.ID) (issue.ID, error) {
+		return issue.ID{}, nil // root — no parent
+	}
+
+	// When
+	err := issue.ValidateDepth(parentID, lookup)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateDepth_Level2Parent_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — parent is at level 2 (has one ancestor), so child would be level 3.
+	parentID := mustID(t)
+	grandparentID := mustID(t)
+
+	lookup := func(id issue.ID) (issue.ID, error) {
+		if id == parentID {
+			return grandparentID, nil
+		}
+		return issue.ID{}, nil // grandparent is root
+	}
+
+	// When
+	err := issue.ValidateDepth(parentID, lookup)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateDepth_Level3Parent_Fails(t *testing.T) {
+	t.Parallel()
+
+	// Given — parent is at level 3 (has two ancestors), so child would be level 4.
+	parentID := mustID(t)
+	grandparentID := mustID(t)
+	greatGrandparentID := mustID(t)
+
+	lookup := func(id issue.ID) (issue.ID, error) {
+		switch id {
+		case parentID:
+			return grandparentID, nil
+		case grandparentID:
+			return greatGrandparentID, nil
+		default:
+			return issue.ID{}, nil
+		}
+	}
+
+	// When
+	err := issue.ValidateDepth(parentID, lookup)
+
+	// Then
+	if !errors.Is(err, domain.ErrDepthExceeded) {
+		t.Errorf("expected ErrDepthExceeded, got %v", err)
+	}
+}
+
+func TestValidateDepth_LookupError_Propagates(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	lookupErr := errors.New("db error")
+	lookup := func(_ issue.ID) (issue.ID, error) {
+		return issue.ID{}, lookupErr
+	}
+
+	// When
+	err := issue.ValidateDepth(mustID(t), lookup)
+
+	// Then
+	if !errors.Is(err, lookupErr) {
+		t.Errorf("expected lookup error, got %v", err)
+	}
+}

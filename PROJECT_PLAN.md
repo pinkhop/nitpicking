@@ -530,7 +530,7 @@ CLI adapter for ticket listing. Flags for all filters (role, state, ready, paren
 
 ### 5.17 `np search` Command
 
-CLI adapter for full-text search. Positional arg: query. Flags for filters, ordering, pagination, `--include-notes`.
+CLI adapter for full-text search. Positional arg: query. Flags for filters, ordering, pagination, `--search-notes`.
 
 - **Depends on:** 3.12, 5.1, 5.2
 - **Package:** `internal/cmd/search`

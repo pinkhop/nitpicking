@@ -34,7 +34,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 	return &cli.Command{
 		Name:      "update",
-		Usage:     "Update a claimed ticket's fields",
+		Usage:     "Atomically update one or more fields on a claimed ticket",
 		ArgsUsage: "<TICKET-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{

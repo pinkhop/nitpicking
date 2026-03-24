@@ -14,13 +14,10 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/claim"
 	"github.com/pinkhop/nitpicking/internal/cmd/comment"
 	"github.com/pinkhop/nitpicking/internal/cmd/create"
-	cmddelete "github.com/pinkhop/nitpicking/internal/cmd/delete"
 	"github.com/pinkhop/nitpicking/internal/cmd/dimensioncmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/doctor"
 	"github.com/pinkhop/nitpicking/internal/cmd/done"
-	"github.com/pinkhop/nitpicking/internal/cmd/edit"
 	"github.com/pinkhop/nitpicking/internal/cmd/epiccmd"
-	"github.com/pinkhop/nitpicking/internal/cmd/extend"
 	"github.com/pinkhop/nitpicking/internal/cmd/gc"
 	"github.com/pinkhop/nitpicking/internal/cmd/graphcmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/historyview"
@@ -34,8 +31,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/search"
 	"github.com/pinkhop/nitpicking/internal/cmd/show"
 	"github.com/pinkhop/nitpicking/internal/cmd/status"
-	"github.com/pinkhop/nitpicking/internal/cmd/transition"
-	"github.com/pinkhop/nitpicking/internal/cmd/update"
 	"github.com/pinkhop/nitpicking/internal/cmd/version"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 )
@@ -138,12 +133,6 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 	// Register deprecated commands as hidden — they work but don't
 	// appear in help output. Use the new subcommand groups instead.
 	deprecated := []*cli.Command{
-		update.NewCmd(f),
-		edit.NewCmd(f),
-		extend.NewCmd(f),
-		cmddelete.NewCmd(f),
-		transition.NewReleaseCmd(f),
-		transition.NewStateCmd(f),
 		relate.NewCmd(f),
 		doctor.NewCmd(f),
 		gc.NewCmd(f),

@@ -115,16 +115,10 @@ Persist the claim ID for the duration of your work on that issue. If you lose it
 ### 3. Update fields
 
 ```bash
-np update <ISSUE-ID> --claim <CLAIM-ID> --title "Revised title"
-np update <ISSUE-ID> --claim <CLAIM-ID> --description "More detail"
-np update <ISSUE-ID> --claim <CLAIM-ID> --priority 1
-np update <ISSUE-ID> --claim <CLAIM-ID> --dimension kind:fix
-```
-
-For a quick one-shot edit that does not require holding a claim, use `np edit`:
-
-```bash
-np edit <ISSUE-ID> --author <your-name> --title "Quick fix"
+np issue update <ISSUE-ID> --claim <CLAIM-ID> --title "Revised title"
+np issue update <ISSUE-ID> --claim <CLAIM-ID> --description "More detail"
+np issue update <ISSUE-ID> --claim <CLAIM-ID> --priority 1
+np issue update <ISSUE-ID> --claim <CLAIM-ID> --dimension kind:fix
 ```
 
 ### 4. Document your work with comments
@@ -146,9 +140,9 @@ np done <ISSUE-ID> --claim <CLAIM-ID> --author <your-name> --reason "Completed: 
 For other transitions, use the explicit commands:
 
 ```bash
-np release <ISSUE-ID> --claim <CLAIM-ID>   # return to open/active without completing
-np state defer <ISSUE-ID> --claim <CLAIM-ID>   # shelve for later
-np state close <ISSUE-ID> --claim <CLAIM-ID>   # close without a reason (prefer 'done' instead)
+np issue reopen <ISSUE-ID> --author <your-name>     # reopen a closed or deferred issue
+np issue defer <ISSUE-ID> --claim <CLAIM-ID>         # shelve for later
+np issue close <ISSUE-ID> --claim <CLAIM-ID> --author <your-name> --reason "Done."  # close with reason
 ```
 
 **Always transition state when you are done.** Abandoned claims block other agents until the stale threshold expires.
@@ -242,10 +236,10 @@ np claim ready --steal-if-needed --author <your-name>
 np claim id <ISSUE-ID> --author <your-name> --steal
 ```
 
-Extend your own claim's threshold if you need more time:
+Set a longer stale threshold at claim time if you need more than the default:
 
 ```bash
-np extend <ISSUE-ID> --claim <CLAIM-ID> --threshold 4h
+np claim id <ISSUE-ID> --author <your-name> --stale-threshold 4h
 ```
 
 ## Epic Subcommand Group
@@ -281,7 +275,9 @@ The `issue` (alias: `i`) command groups issue management operations under a sing
 np issue list                                          # list issues (same as top-level 'list')
 np issue query "search text"                           # search issues (same as top-level 'search')
 np issue update <ID> --claim <CLAIM-ID> --title "New"  # update a claimed issue
+np issue edit <ID> --author <name> --title "Quick fix" # one-shot claim→update→release
 np issue close <ID> --claim <CLAIM-ID> --author <name> --reason "Done."  # close with reason
+np issue release <ID> --claim <CLAIM-ID>               # release claim without closing
 np issue reopen <ID> --author <name>                   # reopen a deferred issue (alias: undefer)
 np issue defer <ID> --claim <CLAIM-ID>                 # defer a claimed issue
 np issue delete <ID> --claim <CLAIM-ID> --confirm      # delete a claimed issue

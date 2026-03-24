@@ -100,7 +100,7 @@ func TestE2E_TaskLifecycle_CreateClaimUpdateClose(t *testing.T) {
 	// When — claim the task, update its fields, add a comment, and close it.
 	claimID := claimIssue(t, dir, taskID, author)
 
-	_, stderr, code := runNP(t, dir, "update", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "update", taskID,
 		"--claim", claimID,
 		"--title", "Implement feature X (revised)",
 		"--description", "Updated after investigation",
@@ -121,8 +121,10 @@ func TestE2E_TaskLifecycle_CreateClaimUpdateClose(t *testing.T) {
 		t.Fatalf("comment add failed (exit %d): %s", code, stderr)
 	}
 
-	closeStdout, stderr, code := runNP(t, dir, "state", "close", taskID,
+	closeStdout, stderr, code := runNP(t, dir, "issue", "close", taskID,
 		"--claim", claimID,
+		"--author", author,
+		"--reason", "test close",
 		"--json",
 	)
 	if code != 0 {
@@ -131,8 +133,8 @@ func TestE2E_TaskLifecycle_CreateClaimUpdateClose(t *testing.T) {
 
 	// Then — the task should be closed with updated fields.
 	closeResult := parseJSON(t, closeStdout)
-	if closeResult["action"] != "close" {
-		t.Errorf("expected action 'close', got %v", closeResult["action"])
+	if closeResult["action"] != "done" {
+		t.Errorf("expected action 'done', got %v", closeResult["action"])
 	}
 
 	issue := showIssue(t, dir, taskID)
@@ -160,7 +162,7 @@ func TestE2E_TaskLifecycle_ClaimReleaseReclaimClose(t *testing.T) {
 	// When — agent1 claims and releases, then agent2 claims and closes.
 	claim1 := claimIssue(t, dir, taskID, agent1)
 
-	_, stderr, code := runNP(t, dir, "release", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "release", taskID,
 		"--claim", claim1,
 		"--json",
 	)
@@ -170,8 +172,10 @@ func TestE2E_TaskLifecycle_ClaimReleaseReclaimClose(t *testing.T) {
 
 	claim2 := claimIssue(t, dir, taskID, agent2)
 
-	_, stderr, code = runNP(t, dir, "state", "close", taskID,
+	_, stderr, code = runNP(t, dir, "issue", "close", taskID,
 		"--claim", claim2,
+		"--author", agent2,
+		"--reason", "test close",
 		"--json",
 	)
 	if code != 0 {
@@ -203,7 +207,7 @@ func TestE2E_TaskLifecycle_Defer(t *testing.T) {
 
 	// When — defer the task.
 	deferClaim := claimIssue(t, dir, deferID, author)
-	_, stderr, code := runNP(t, dir, "state", "defer", deferID,
+	_, stderr, code := runNP(t, dir, "issue", "defer", deferID,
 		"--claim", deferClaim,
 		"--json",
 	)
@@ -239,22 +243,22 @@ func TestE2E_EpicWithChildren_DerivedCompletion(t *testing.T) {
 
 	// When — close both children, then close the epic.
 	claim1 := claimIssue(t, dir, child1, author)
-	_, stderr, code = runNP(t, dir, "state", "close", child1,
-		"--claim", claim1, "--json")
+	_, stderr, code = runNP(t, dir, "issue", "close", child1,
+		"--claim", claim1, "--author", author, "--reason", "test close", "--json")
 	if code != 0 {
 		t.Fatalf("close child1 failed (exit %d): %s", code, stderr)
 	}
 
 	// Closing epic with one open child should fail.
 	epicClaim := claimIssue(t, dir, epicID, author)
-	_, stderr, code = runNP(t, dir, "state", "close", epicID,
-		"--claim", epicClaim, "--json")
+	_, stderr, code = runNP(t, dir, "issue", "close", epicID,
+		"--claim", epicClaim, "--author", author, "--reason", "test close", "--json")
 	if code == 0 {
 		t.Error("expected closing epic with open child to fail")
 	}
 
 	// Release the epic claim so we can reclaim later.
-	_, stderr, code = runNP(t, dir, "release", epicID,
+	_, stderr, code = runNP(t, dir, "issue", "release", epicID,
 		"--claim", epicClaim, "--json")
 	if code != 0 {
 		t.Fatalf("release epic failed (exit %d): %s", code, stderr)
@@ -262,16 +266,16 @@ func TestE2E_EpicWithChildren_DerivedCompletion(t *testing.T) {
 
 	// Close the second child.
 	claim2 := claimIssue(t, dir, child2, author)
-	_, stderr, code = runNP(t, dir, "state", "close", child2,
-		"--claim", claim2, "--json")
+	_, stderr, code = runNP(t, dir, "issue", "close", child2,
+		"--claim", claim2, "--author", author, "--reason", "test close", "--json")
 	if code != 0 {
 		t.Fatalf("close child2 failed (exit %d): %s", code, stderr)
 	}
 
 	// Then — epic can now be closed since all children are closed.
 	epicClaim = claimIssue(t, dir, epicID, author)
-	_, stderr, code = runNP(t, dir, "state", "close", epicID,
-		"--claim", epicClaim, "--json")
+	_, stderr, code = runNP(t, dir, "issue", "close", epicID,
+		"--claim", epicClaim, "--author", author, "--reason", "test close", "--json")
 	if code != 0 {
 		t.Fatalf("close epic failed (exit %d): %s", code, stderr)
 	}
@@ -311,7 +315,7 @@ func TestE2E_AtomicEdit(t *testing.T) {
 	taskID := createTask(t, dir, "Original title", author)
 
 	// When — use the edit command for an atomic claim-update-release.
-	_, stderr, code := runNP(t, dir, "edit", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "edit", taskID,
 		"--author", author,
 		"--title", "Revised via edit",
 		"--description", "Quick fix applied",
@@ -341,8 +345,10 @@ func TestE2E_NotesOnClosedIssue(t *testing.T) {
 	taskID := createTask(t, dir, "Closed task", author)
 	claimID := claimIssue(t, dir, taskID, author)
 
-	_, stderr, code := runNP(t, dir, "state", "close", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "close", taskID,
 		"--claim", claimID,
+		"--author", author,
+		"--reason", "test close",
 		"--json",
 	)
 	if code != 0 {
@@ -377,8 +383,8 @@ func TestE2E_NotesOnClosedIssue(t *testing.T) {
 	}
 	commentResult := parseJSON(t, commentStdout)
 	comments, ok := commentResult["comments"].([]any)
-	if !ok || len(comments) != 2 {
-		t.Errorf("expected 2 comments on closed issue, got %d", len(comments))
+	if !ok || len(comments) != 3 {
+		t.Errorf("expected 3 comments on closed issue (1 close reason + 2 post-close), got %d", len(comments))
 	}
 }
 
@@ -467,8 +473,10 @@ func TestE2E_CreateClaimWithFlag(t *testing.T) {
 	}
 
 	// Clean up — close the issue so the claim is released.
-	_, stderr, code = runNP(t, dir, "state", "close", taskID,
+	_, stderr, code = runNP(t, dir, "issue", "close", taskID,
 		"--claim", claimID,
+		"--author", author,
+		"--reason", "test close",
 		"--json",
 	)
 	if code != 0 {
@@ -485,19 +493,21 @@ func TestE2E_HistoryAuditTrail(t *testing.T) {
 	// When — claim, update, release, re-claim, close.
 	claim1 := claimIssue(t, dir, taskID, author)
 
-	_, _, _ = runNP(t, dir, "update", taskID,
+	_, _, _ = runNP(t, dir, "issue", "update", taskID,
 		"--claim", claim1,
 		"--title", "Audit trail test (updated)",
 		"--json",
 	)
-	_, _, _ = runNP(t, dir, "release", taskID,
+	_, _, _ = runNP(t, dir, "issue", "release", taskID,
 		"--claim", claim1,
 		"--json",
 	)
 
 	claim2 := claimIssue(t, dir, taskID, author)
-	_, _, _ = runNP(t, dir, "state", "close", taskID,
+	_, _, _ = runNP(t, dir, "issue", "close", taskID,
 		"--claim", claim2,
+		"--author", author,
+		"--reason", "test close",
 		"--json",
 	)
 
@@ -655,7 +665,7 @@ func TestE2E_DeleteAndGC(t *testing.T) {
 	claimID := claimIssue(t, dir, taskID, author)
 
 	// When — soft-delete the task, then garbage-collect.
-	_, stderr, code := runNP(t, dir, "delete", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "delete", taskID,
 		"--claim", claimID,
 		"--confirm",
 		"--json",
@@ -702,8 +712,10 @@ func TestE2E_BlockedByRelationship_ReadinessGating(t *testing.T) {
 	blockedBefore := showIssue(t, dir, blockedID)
 
 	blockerClaim := claimIssue(t, dir, blockerID, author)
-	_, stderr, code = runNP(t, dir, "state", "close", blockerID,
+	_, stderr, code = runNP(t, dir, "issue", "close", blockerID,
 		"--claim", blockerClaim,
+		"--author", author,
+		"--reason", "test close",
 		"--json",
 	)
 	if code != 0 {

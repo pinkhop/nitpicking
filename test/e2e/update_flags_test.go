@@ -11,7 +11,7 @@ func TestE2E_Update_AcceptanceCriteriaFlag_RoundTrips(t *testing.T) {
 	taskID, claimID := seedClaimedTask(t, dir, "AC test", author)
 
 	// When — update with --acceptance-criteria.
-	_, stderr, code := runNP(t, dir, "update", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "update", taskID,
 		"--claim", claimID,
 		"--acceptance-criteria", "All unit tests pass",
 		"--json",
@@ -35,7 +35,7 @@ func TestE2E_Update_ParentFlag_ReparentsIssue(t *testing.T) {
 	taskID, claimID := seedClaimedTask(t, dir, "Orphan task", author)
 
 	// When — update the task's parent to the epic.
-	_, stderr, code := runNP(t, dir, "update", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "update", taskID,
 		"--claim", claimID,
 		"--parent", epicID,
 		"--json",
@@ -58,7 +58,7 @@ func TestE2E_Update_DimensionSetAndRemove(t *testing.T) {
 	taskID, claimID := seedClaimedTask(t, dir, "Dimension test", author)
 
 	// When — set two dimensions.
-	_, stderr, code := runNP(t, dir, "update", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "update", taskID,
 		"--claim", claimID,
 		"--dimension", "kind:fix",
 		"--dimension", "area:auth",
@@ -90,7 +90,7 @@ func TestE2E_Update_DimensionSetAndRemove(t *testing.T) {
 	}
 
 	// When — remove one dimension.
-	_, stderr, code = runNP(t, dir, "update", taskID,
+	_, stderr, code = runNP(t, dir, "issue", "update", taskID,
 		"--claim", claimID,
 		"--dimension-remove", "area",
 		"--json",
@@ -129,7 +129,7 @@ func TestE2E_Update_NoteFlag_AddsNote(t *testing.T) {
 	taskID, claimID := seedClaimedTask(t, dir, "Comment test", author)
 
 	// When — update with --comment to add a comment inline.
-	_, stderr, code := runNP(t, dir, "update", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "update", taskID,
 		"--claim", claimID,
 		"--comment", "Progress update: halfway done",
 		"--json",

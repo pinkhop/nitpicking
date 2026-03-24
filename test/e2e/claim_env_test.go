@@ -42,7 +42,7 @@ func TestE2E_ClaimEnvVar_UpdateUsesNPCLAIM(t *testing.T) {
 	// When — update the title using NP_CLAIM env var instead of --claim flag.
 	_, stderr, code := runNPWithEnv(t, dir,
 		[]string{"NP_CLAIM=" + claimID},
-		"update", taskID,
+		"issue", "update", taskID,
 		"--title", "Updated via env",
 		"--json",
 	)

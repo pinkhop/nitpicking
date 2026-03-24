@@ -55,7 +55,7 @@ func TestE2E_Priority_UpdateAcceptsCaseInsensitiveAndBareNumber(t *testing.T) {
 	taskID, claimID := seedClaimedTask(t, dir, "Priority update test", author)
 
 	// When — update priority using lowercase.
-	_, stderr, code := runNP(t, dir, "update", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "update", taskID,
 		"--claim", claimID,
 		"--priority", "p0",
 		"--json",
@@ -79,7 +79,7 @@ func TestE2E_Priority_EditAcceptsBareNumber(t *testing.T) {
 	taskID := createTask(t, dir, "Priority edit test", author)
 
 	// When — edit priority using bare number.
-	_, stderr, code := runNP(t, dir, "edit", taskID,
+	_, stderr, code := runNP(t, dir, "issue", "edit", taskID,
 		"--author", author,
 		"--priority", "1",
 		"--json",

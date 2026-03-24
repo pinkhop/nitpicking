@@ -45,8 +45,10 @@ func closeIssue(t *testing.T, dir, issueID, author string) {
 	t.Helper()
 
 	claimID := claimIssue(t, dir, issueID, author)
-	_, stderr, code := runNP(t, dir, "state", "close", issueID,
+	_, stderr, code := runNP(t, dir, "issue", "close", issueID,
 		"--claim", claimID,
+		"--author", author,
+		"--reason", "test close",
 		"--json",
 	)
 	if code != 0 {
@@ -70,7 +72,7 @@ func deferIssue(t *testing.T, dir, issueID, author string) {
 	t.Helper()
 
 	claimID := claimIssue(t, dir, issueID, author)
-	_, stderr, code := runNP(t, dir, "state", "defer", issueID,
+	_, stderr, code := runNP(t, dir, "issue", "defer", issueID,
 		"--claim", claimID,
 		"--json",
 	)

@@ -21,6 +21,7 @@ func TestTransition_LegalTransitions(t *testing.T) {
 		{"claimed to closed", issue.StateClaimed, issue.StateClosed},
 		{"claimed to deferred", issue.StateClaimed, issue.StateDeferred},
 		{"deferred to claimed", issue.StateDeferred, issue.StateClaimed},
+		{"closed to claimed", issue.StateClosed, issue.StateClaimed},
 	}
 
 	for _, tc := range cases {
@@ -66,15 +67,18 @@ func TestTransition_IllegalTransitions(t *testing.T) {
 	}
 }
 
-func TestTransition_FromClosed_ReturnsTerminalState(t *testing.T) {
+func TestTransition_ClosedToOpen_IllegalDirectly(t *testing.T) {
 	t.Parallel()
 
+	// Closed issues must be claimed before transitioning — direct
+	// closed→open is not allowed.
+
 	// When
-	err := issue.Transition(issue.StateClosed, issue.StateClaimed)
+	err := issue.Transition(issue.StateClosed, issue.StateOpen)
 
 	// Then
-	if !errors.Is(err, domain.ErrTerminalState) {
-		t.Errorf("expected ErrTerminalState, got %v", err)
+	if !errors.Is(err, domain.ErrIllegalTransition) {
+		t.Errorf("expected ErrIllegalTransition, got %v", err)
 	}
 }
 
@@ -132,17 +136,19 @@ func TestParseState_InvalidState_Fails(t *testing.T) {
 	}
 }
 
-func TestState_IsTerminal(t *testing.T) {
+func TestState_IsTerminal_NoStatesAreTerminal(t *testing.T) {
 	t.Parallel()
 
-	// Then
-	if !issue.StateClosed.IsTerminal() {
-		t.Error("expected closed to be terminal")
+	// No states are terminal — all states can be transitioned out of.
+	states := []issue.State{
+		issue.StateOpen,
+		issue.StateClaimed,
+		issue.StateClosed,
+		issue.StateDeferred,
 	}
-	if issue.StateOpen.IsTerminal() {
-		t.Error("expected open to not be terminal")
-	}
-	if issue.StateClaimed.IsTerminal() {
-		t.Error("expected claimed to not be terminal")
+	for _, s := range states {
+		if s.IsTerminal() {
+			t.Errorf("expected %s to not be terminal", s)
+		}
 	}
 }

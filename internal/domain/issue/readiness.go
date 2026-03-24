@@ -2,7 +2,7 @@ package issue
 
 // BlockerStatus summarizes a blocked_by target's state for readiness checks.
 type BlockerStatus struct {
-	// IsClosed is true if the blocker is in a terminal state (closed).
+	// IsClosed is true if the blocker is closed (resolved).
 	IsClosed bool
 	// IsDeleted is true if the blocker has been soft-deleted.
 	IsDeleted bool

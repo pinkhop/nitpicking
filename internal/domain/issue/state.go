@@ -17,8 +17,8 @@ const (
 	// StateClaimed indicates an agent or human has taken ownership.
 	StateClaimed
 
-	// StateClosed indicates the issue is fully resolved. Terminal — cannot
-	// be reclaimed or reopened.
+	// StateClosed indicates the issue is fully resolved. Closed issues can
+	// be reclaimed and reopened if needed.
 	StateClosed
 
 	// StateDeferred indicates the issue should not be worked on now.
@@ -52,10 +52,11 @@ func ParseState(s string) (State, error) {
 }
 
 // IsTerminal reports whether the state is terminal — no further transitions
-// are allowed. Only "closed" is terminal within the state machine. "Deleted"
-// is a separate concept checked independently.
+// are allowed. No states are currently terminal; closed issues can be
+// reclaimed and reopened. "Deleted" is a separate concept checked
+// independently.
 func (s State) IsTerminal() bool {
-	return s == StateClosed
+	return false
 }
 
 // transitions defines the legal state transitions for all issues.
@@ -64,7 +65,7 @@ var transitions = map[State]map[State]bool{
 	StateOpen:     {StateClaimed: true},
 	StateClaimed:  {StateOpen: true, StateClosed: true, StateDeferred: true},
 	StateDeferred: {StateClaimed: true},
-	// StateClosed is terminal — no transitions out.
+	StateClosed:   {StateClaimed: true},
 }
 
 // Transition validates a state transition for any issue role. Returns

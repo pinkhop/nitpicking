@@ -44,8 +44,10 @@ func TestValidateClaim_DeletedIssue_Fails(t *testing.T) {
 	}
 }
 
-func TestValidateClaim_ClosedIssue_Fails(t *testing.T) {
+func TestValidateClaim_ClosedIssue_Succeeds(t *testing.T) {
 	t.Parallel()
+
+	// Closed issues can be reclaimed for reopening.
 
 	// Given
 	status := claim.IssueClaimStatus{
@@ -54,10 +56,9 @@ func TestValidateClaim_ClosedIssue_Fails(t *testing.T) {
 
 	// When
 	err := claim.ValidateClaim(status, false, time.Now())
-
 	// Then
-	if !errors.Is(err, domain.ErrTerminalState) {
-		t.Errorf("expected ErrTerminalState, got %v", err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

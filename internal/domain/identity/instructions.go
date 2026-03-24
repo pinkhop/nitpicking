@@ -66,7 +66,7 @@ Comments do not require claiming and can be added to any issue, including closed
 
 | Transition | When to use |
 |------------|-------------|
-| ` + "`np state close <ID> --claim <CID>`" + ` | Task is complete (terminal — cannot reopen) |
+| ` + "`np state close <ID> --claim <CID>`" + ` | Task is complete (can be reopened if needed) |
 | ` + "`np release <ID> --claim <CID>`" + ` | Epic has been decomposed; or task cannot be completed now |
 | ` + "`np state wait <ID> --claim <CID>`" + ` | Blocked on a human or stakeholder decision |
 
@@ -100,7 +100,7 @@ np history <ID> # audit trail of all changes
 - **Use ` + "`np claim ready`" + ` to find work.** Do not browse and cherry-pick issues.
 - **Document your work.** Add a comment before transitioning state — capture reasoning, trade-offs, and findings.
 - **Always transition state when done.** Close, release, or wait — never abandon a claim.
-- **Close is terminal.** Closed tasks cannot be reopened or modified (comments can still be added).
+- **Closed issues can be reopened.** Claim a closed issue and release it to reopen.
 - **Epics are never closed directly.** They complete when all children resolve.
 - **Use ` + "`np`" + ` exclusively.** Do not track work outside of ` + "`np`" + `.
 `

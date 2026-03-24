@@ -26,10 +26,6 @@ func ValidateClaim(status IssueClaimStatus, allowSteal bool, now time.Time) erro
 		return fmt.Errorf("cannot claim deleted issue: %w", domain.ErrTerminalState)
 	}
 
-	if status.State == issue.StateClosed {
-		return fmt.Errorf("cannot claim closed issue: %w", domain.ErrTerminalState)
-	}
-
 	if status.ActiveClaim.ID() != "" {
 		if !allowSteal {
 			return &domain.ClaimConflictError{

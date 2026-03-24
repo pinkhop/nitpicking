@@ -76,25 +76,18 @@ func newStatusCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput   bool
 		eligibleOnly bool
-		issueArg     string
 	)
 
 	return &cli.Command{
-		Name:  "status",
-		Usage: "Show completion status for open epics",
+		Name:      "status",
+		Usage:     "Show completion status for open epics",
+		ArgsUsage: "[EPIC-ID]",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "eligible-only",
 				Usage:       "Show only epics eligible for closure",
 				Category:    "Options",
 				Destination: &eligibleOnly,
-			},
-			&cli.StringFlag{
-				Name:        "issue",
-				Aliases:     []string{"i"},
-				Usage:       "Show status for a specific epic ID",
-				Category:    "Options",
-				Destination: &issueArg,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -111,6 +104,7 @@ func newStatusCmd(f *cmdutil.Factory) *cli.Command {
 
 			var epics []port.IssueListItem
 
+			issueArg := cmd.Args().Get(0)
 			if issueArg != "" {
 				// Single epic mode.
 				resolver := cmdutil.NewIDResolver(svc)

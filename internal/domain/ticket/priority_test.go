@@ -18,6 +18,13 @@ func TestParsePriority_ValidValues(t *testing.T) {
 		{"P2", ticket.P2},
 		{"P3", ticket.P3},
 		{"P4", ticket.P4},
+		// Case-insensitive.
+		{"p0", ticket.P0},
+		{"p3", ticket.P3},
+		// Bare numeric (P prefix optional).
+		{"0", ticket.P0},
+		{"2", ticket.P2},
+		{"4", ticket.P4},
 	}
 
 	for _, tc := range cases {
@@ -40,7 +47,7 @@ func TestParsePriority_ValidValues(t *testing.T) {
 func TestParsePriority_InvalidValues(t *testing.T) {
 	t.Parallel()
 
-	cases := []string{"p0", "P5", "high", "", "0"}
+	cases := []string{"P5", "high", "", "5", "-1", "p5"}
 
 	for _, input := range cases {
 		t.Run(input, func(t *testing.T) {

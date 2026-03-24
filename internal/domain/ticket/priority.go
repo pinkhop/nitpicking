@@ -1,6 +1,9 @@
 package ticket
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Priority represents the urgency of a ticket. Lower numbers indicate higher
 // urgency. The default priority is P2.
@@ -47,11 +50,18 @@ func (p Priority) String() string {
 	return fmt.Sprintf("Priority(%d)", int(p))
 }
 
-// ParsePriority parses a priority string (e.g., "P0", "P2") into a Priority.
-// Parsing is case-sensitive — "p0" is not valid.
+// ParsePriority parses a priority string into a Priority. Accepts canonical
+// form ("P0"–"P4"), lowercase ("p0"–"p4"), and bare numeric ("0"–"4").
 func ParsePriority(s string) (Priority, error) {
+	normalized := strings.ToUpper(s)
+
+	// Accept bare numeric: "0" → "P0", "4" → "P4".
+	if len(normalized) == 1 && normalized[0] >= '0' && normalized[0] <= '9' {
+		normalized = "P" + normalized
+	}
+
 	for p := P0; p <= P4; p++ {
-		if s == priorityStrings[p] {
+		if normalized == priorityStrings[p] {
 			return p, nil
 		}
 	}

@@ -6,26 +6,21 @@ type BlockerStatus struct {
 	IsClosed bool
 	// IsDeleted is true if the blocker has been soft-deleted.
 	IsDeleted bool
-	// IsComplete is true if the blocker is a complete epic (all children
-	// closed or recursively complete). Epics have no closed state, so
-	// derived completion is the only way an epic blocker can be resolved
-	// without deletion.
-	IsComplete bool
 }
 
-// AncestorStatus summarizes an ancestor epic's state for readiness propagation.
+// AncestorStatus summarizes an ancestor's state for readiness propagation.
 type AncestorStatus struct {
 	// State is the ancestor's current state.
 	State State
 }
 
-// IsTaskReady determines whether a task is ready for work per §6.3.
+// IsTaskReady determines whether a task is ready for work.
 //
 // A task is ready when:
 //  1. Its state is open.
-//  2. It has no unresolved blocked_by relationships (closed, deleted, or
-//     complete targets count as resolved).
-//  3. No ancestor epic is deferred.
+//  2. It has no unresolved blocked_by relationships (closed or deleted
+//     targets count as resolved).
+//  3. No ancestor is deferred.
 func IsTaskReady(state State, blockers []BlockerStatus, ancestors []AncestorStatus) bool {
 	if state != StateOpen {
 		return false
@@ -46,7 +41,7 @@ func IsTaskReady(state State, blockers []BlockerStatus, ancestors []AncestorStat
 	return true
 }
 
-// IsEpicReady determines whether an epic is ready for decomposition per §6.3.
+// IsEpicReady determines whether an epic is ready for decomposition.
 //
 // An epic is ready when:
 //  1. Its state is open.
@@ -78,8 +73,7 @@ func IsEpicReady(state State, hasChildren bool, blockers []BlockerStatus, ancest
 }
 
 // blockerResolved reports whether a blocked_by target is resolved. A blocker
-// is resolved when it has been closed, soft-deleted, or — for epics — derived
-// as complete (all children closed or recursively complete).
+// is resolved when it has been closed or soft-deleted.
 func blockerResolved(b BlockerStatus) bool {
-	return b.IsClosed || b.IsDeleted || b.IsComplete
+	return b.IsClosed || b.IsDeleted
 }

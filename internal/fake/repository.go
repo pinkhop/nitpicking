@@ -151,15 +151,7 @@ func (r *Repository) GetChildStatuses(_ context.Context, epicID issue.ID) ([]iss
 			continue
 		}
 		if t.ParentID() == epicID {
-			isComplete := false
-			if t.IsEpic() {
-				isComplete = r.isEpicCompleteInternal(t.ID())
-			}
-			children = append(children, issue.ChildStatus{
-				Role:       t.Role(),
-				State:      t.State(),
-				IsComplete: isComplete,
-			})
+			children = append(children, issue.ChildStatus{State: t.State()})
 		}
 	}
 	return children, nil
@@ -681,9 +673,8 @@ func (r *Repository) getBlockerStatusesInternal(issueID issue.ID) []issue.Blocke
 				continue
 			}
 			statuses = append(statuses, issue.BlockerStatus{
-				IsClosed:   target.State() == issue.StateClosed,
-				IsDeleted:  target.IsDeleted(),
-				IsComplete: target.IsEpic() && r.isEpicCompleteInternal(target.ID()),
+				IsClosed:  target.State() == issue.StateClosed,
+				IsDeleted: target.IsDeleted(),
 			})
 		}
 	}
@@ -763,25 +754,6 @@ func (r *Repository) hasChildrenInternal(epicID issue.ID) bool {
 		}
 	}
 	return false
-}
-
-func (r *Repository) isEpicCompleteInternal(epicID issue.ID) bool {
-	var children []issue.ChildStatus
-	for _, t := range r.issues {
-		if t.IsDeleted() || t.ParentID() != epicID {
-			continue
-		}
-		isComplete := false
-		if t.IsEpic() {
-			isComplete = r.isEpicCompleteInternal(t.ID())
-		}
-		children = append(children, issue.ChildStatus{
-			Role:       t.Role(),
-			State:      t.State(),
-			IsComplete: isComplete,
-		})
-	}
-	return issue.IsEpicComplete(children)
 }
 
 func (r *Repository) getDescendantsInternal(epicID issue.ID) []issue.DescendantInfo {

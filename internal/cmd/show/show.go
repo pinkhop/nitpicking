@@ -23,7 +23,6 @@ type showOutput struct {
 	Revision           int                  `json:"revision"`
 	Author             string               `json:"author,omitzero"`
 	IsReady            bool                 `json:"is_ready"`
-	IsComplete         bool                 `json:"is_complete,omitzero"`
 	CommentCount       int                  `json:"comment_count,omitzero"`
 	ClaimID            string               `json:"claim_id,omitzero"`
 	ClaimAuthor        string               `json:"claim_author,omitzero"`
@@ -89,7 +88,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					Revision:           result.Revision,
 					Author:             result.Author.String(),
 					IsReady:            result.IsReady,
-					IsComplete:         result.IsComplete,
 					CommentCount:       result.CommentCount,
 					ClaimID:            result.ClaimID,
 					ClaimAuthor:        result.ClaimAuthor,
@@ -130,9 +128,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 			if result.IsReady {
 				_, _ = fmt.Fprintf(w, "Ready: %s\n", cs.Green("yes"))
-			}
-			if result.IsComplete {
-				_, _ = fmt.Fprintf(w, "Complete: %s\n", cs.Green("yes"))
 			}
 
 			if result.CommentCount > 0 {

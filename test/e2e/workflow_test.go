@@ -237,35 +237,48 @@ func TestE2E_EpicWithChildren_DerivedCompletion(t *testing.T) {
 	child1 := createTaskWithParent(t, dir, "Add OAuth provider", author, epicID)
 	child2 := createTaskWithParent(t, dir, "Write integration tests", author, epicID)
 
-	// When — close the first child; the epic should not yet be complete.
+	// When — close both children, then close the epic.
 	claim1 := claimIssue(t, dir, child1, author)
 	_, stderr, code = runNP(t, dir, "state", "close", child1,
-		"--claim", claim1,
-		"--json",
-	)
+		"--claim", claim1, "--json")
 	if code != 0 {
 		t.Fatalf("close child1 failed (exit %d): %s", code, stderr)
 	}
 
-	epicAfterOne := showIssue(t, dir, epicID)
-	if epicAfterOne["is_complete"] == true {
-		t.Error("epic should not be complete with one open child")
+	// Closing epic with one open child should fail.
+	epicClaim := claimIssue(t, dir, epicID, author)
+	_, stderr, code = runNP(t, dir, "state", "close", epicID,
+		"--claim", epicClaim, "--json")
+	if code == 0 {
+		t.Error("expected closing epic with open child to fail")
 	}
 
-	// Close the second child — the epic should now be complete.
+	// Release the epic claim so we can reclaim later.
+	_, stderr, code = runNP(t, dir, "release", epicID,
+		"--claim", epicClaim, "--json")
+	if code != 0 {
+		t.Fatalf("release epic failed (exit %d): %s", code, stderr)
+	}
+
+	// Close the second child.
 	claim2 := claimIssue(t, dir, child2, author)
 	_, stderr, code = runNP(t, dir, "state", "close", child2,
-		"--claim", claim2,
-		"--json",
-	)
+		"--claim", claim2, "--json")
 	if code != 0 {
 		t.Fatalf("close child2 failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — the epic is derived-complete.
-	epicAfterAll := showIssue(t, dir, epicID)
-	if epicAfterAll["is_complete"] != true {
-		t.Errorf("epic should be complete after all children closed, got is_complete=%v", epicAfterAll["is_complete"])
+	// Then — epic can now be closed since all children are closed.
+	epicClaim = claimIssue(t, dir, epicID, author)
+	_, stderr, code = runNP(t, dir, "state", "close", epicID,
+		"--claim", epicClaim, "--json")
+	if code != 0 {
+		t.Fatalf("close epic failed (exit %d): %s", code, stderr)
+	}
+
+	epicAfterClose := showIssue(t, dir, epicID)
+	if epicAfterClose["state"] != "closed" {
+		t.Errorf("expected epic state 'closed', got %v", epicAfterClose["state"])
 	}
 }
 

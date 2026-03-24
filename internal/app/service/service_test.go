@@ -567,38 +567,19 @@ func TestListIssues_FilterByReady(t *testing.T) {
 	}
 }
 
-func TestBlockedByCompleteEpic_TaskBecomesReady(t *testing.T) {
+func TestBlockedByClosedBlocker_TaskBecomesReady(t *testing.T) {
 	t.Parallel()
 
-	// Given — an epic with one child task (closed), and another task
-	// blocked_by that epic. The epic is "complete" (all children closed)
-	// but never explicitly closed (epics have no closed state).
+	// Given — a task blocked_by another task. Close the blocker.
 	ctx := t.Context()
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "agent-a")
 
-	epicOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
-		Role: issue.RoleEpic, Title: "Blocker epic", Author: author,
+	blockerOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Blocker task", Author: author, Claim: true,
 	})
 	if err != nil {
-		t.Fatalf("precondition: create epic: %v", err)
-	}
-	epicID := epicOut.Issue.ID()
-
-	childOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
-		Role: issue.RoleTask, Title: "Child task", Author: author,
-		ParentID: epicID, Claim: true,
-	})
-	if err != nil {
-		t.Fatalf("precondition: create child: %v", err)
-	}
-
-	err = svc.TransitionState(ctx, service.TransitionInput{
-		IssueID: childOut.Issue.ID(), ClaimID: childOut.ClaimID,
-		Action: service.ActionClose,
-	})
-	if err != nil {
-		t.Fatalf("precondition: close child: %v", err)
+		t.Fatalf("precondition: create blocker: %v", err)
 	}
 
 	blockedOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
@@ -609,17 +590,25 @@ func TestBlockedByCompleteEpic_TaskBecomesReady(t *testing.T) {
 	}
 
 	err = svc.AddRelationship(ctx, blockedOut.Issue.ID(),
-		service.RelationshipInput{Type: issue.RelBlockedBy, TargetID: epicID}, author)
+		service.RelationshipInput{Type: issue.RelBlockedBy, TargetID: blockerOut.Issue.ID()}, author)
 	if err != nil {
 		t.Fatalf("precondition: add blocked_by: %v", err)
+	}
+
+	// Close the blocker.
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: blockerOut.Issue.ID(), ClaimID: blockerOut.ClaimID,
+		Action: service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close blocker: %v", err)
 	}
 
 	// When — list ready issues.
 	listOut, err := svc.ListIssues(ctx, service.ListIssuesInput{
 		Filter: port.IssueFilter{Ready: true},
 	})
-	// Then — the blocked task should appear as ready because its epic
-	// blocker is complete.
+	// Then — the blocked task should appear as ready.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -632,52 +621,44 @@ func TestBlockedByCompleteEpic_TaskBecomesReady(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("expected blocked task %s to be ready (epic blocker is complete), but it was not in ready list", blockedOut.Issue.ID())
+		t.Errorf("expected blocked task %s to be ready after blocker closed", blockedOut.Issue.ID())
 	}
 }
 
-func TestShowIssue_BlockedByCompleteEpic_IsReady(t *testing.T) {
+func TestShowIssue_BlockedByClosedBlocker_IsReady(t *testing.T) {
 	t.Parallel()
 
-	// Given — same setup: task blocked by a complete epic.
+	// Given — a task blocked by a closed task.
 	ctx := t.Context()
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "agent-b")
 
-	epicOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
-		Role: issue.RoleEpic, Title: "Blocker epic", Author: author,
+	blockerOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Blocker", Author: author, Claim: true,
 	})
 	if err != nil {
-		t.Fatalf("precondition: create epic: %v", err)
-	}
-
-	childOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
-		Role: issue.RoleTask, Title: "Child task", Author: author,
-		ParentID: epicOut.Issue.ID(), Claim: true,
-	})
-	if err != nil {
-		t.Fatalf("precondition: create child: %v", err)
-	}
-
-	err = svc.TransitionState(ctx, service.TransitionInput{
-		IssueID: childOut.Issue.ID(), ClaimID: childOut.ClaimID,
-		Action: service.ActionClose,
-	})
-	if err != nil {
-		t.Fatalf("precondition: close child: %v", err)
+		t.Fatalf("precondition: create blocker: %v", err)
 	}
 
 	blockedOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
-		Role: issue.RoleTask, Title: "Blocked task", Author: author,
+		Role: issue.RoleTask, Title: "Blocked", Author: author,
 	})
 	if err != nil {
-		t.Fatalf("precondition: create blocked task: %v", err)
+		t.Fatalf("precondition: create blocked: %v", err)
 	}
 
 	err = svc.AddRelationship(ctx, blockedOut.Issue.ID(),
-		service.RelationshipInput{Type: issue.RelBlockedBy, TargetID: epicOut.Issue.ID()}, author)
+		service.RelationshipInput{Type: issue.RelBlockedBy, TargetID: blockerOut.Issue.ID()}, author)
 	if err != nil {
 		t.Fatalf("precondition: add blocked_by: %v", err)
+	}
+
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: blockerOut.Issue.ID(), ClaimID: blockerOut.ClaimID,
+		Action: service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close blocker: %v", err)
 	}
 
 	// When — show the blocked task.
@@ -687,7 +668,7 @@ func TestShowIssue_BlockedByCompleteEpic_IsReady(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !showOut.IsReady {
-		t.Error("expected blocked task to be ready when epic blocker is complete")
+		t.Error("expected blocked task to be ready when blocker is closed")
 	}
 }
 

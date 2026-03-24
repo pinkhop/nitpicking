@@ -604,8 +604,6 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id issue.ID) (ShowIssueOutp
 			output.IsReady = issue.IsEpicReady(t.State(), hasChildren, blockers, ancestors)
 
 			// Completion.
-			children, _ := uow.Issues().GetChildStatuses(ctx, id)
-			output.IsComplete = issue.IsEpicComplete(children)
 		}
 
 		// Comment count.

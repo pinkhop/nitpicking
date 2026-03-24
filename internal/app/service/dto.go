@@ -127,7 +127,6 @@ type ShowIssueOutput struct {
 	Author        identity.Author
 	Relationships []issue.Relationship
 	IsReady       bool
-	IsComplete    bool // Only meaningful for epics.
 	CommentCount  int
 	ClaimID       string
 	ClaimAuthor   string

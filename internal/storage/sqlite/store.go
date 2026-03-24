@@ -437,14 +437,11 @@ func (r *issueRepo) SearchIssues(_ context.Context, query string, filter port.Is
 
 func (r *issueRepo) GetChildStatuses(_ context.Context, epicID issue.ID) ([]issue.ChildStatus, error) {
 	var children []issue.ChildStatus
-	err := sqlitex.Execute(r.conn, `SELECT role, state FROM issues WHERE parent_id = ? AND deleted = 0`, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, `SELECT state FROM issues WHERE parent_id = ? AND deleted = 0`, &sqlitex.ExecOptions{
 		Args: []any{epicID.String()},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			role, _ := issue.ParseRole(stmt.ColumnText(0))
-			state, _ := issue.ParseState(stmt.ColumnText(1))
-			children = append(children, issue.ChildStatus{
-				Role: role, State: state, IsComplete: state == issue.StateClosed,
-			})
+			state, _ := issue.ParseState(stmt.ColumnText(0))
+			children = append(children, issue.ChildStatus{State: state})
 			return nil
 		},
 	})
@@ -904,18 +901,10 @@ func (r *relRepo) GetBlockerStatuses(_ context.Context, issueID issue.ID) ([]iss
 			ResultFunc: func(stmt *sqlite.Stmt) error {
 				state, _ := issue.ParseState(stmt.ColumnText(0))
 				deleted := stmt.ColumnInt(1) != 0
-				role, _ := issue.ParseRole(stmt.ColumnText(2))
-				targetID := stmt.ColumnText(3)
-
-				isComplete := false
-				if role == issue.RoleEpic {
-					isComplete = r.isEpicComplete(targetID)
-				}
 
 				statuses = append(statuses, issue.BlockerStatus{
-					IsClosed:   state == issue.StateClosed,
-					IsDeleted:  deleted,
-					IsComplete: isComplete,
+					IsClosed:  state == issue.StateClosed,
+					IsDeleted: deleted,
 				})
 				return nil
 			},
@@ -924,48 +913,6 @@ func (r *relRepo) GetBlockerStatuses(_ context.Context, issueID issue.ID) ([]iss
 		return nil, &domain.DatabaseError{Op: "get blocker statuses", Err: err}
 	}
 	return statuses, nil
-}
-
-// isEpicComplete recursively derives whether an epic is complete by checking
-// that it has children and all of them are closed (tasks) or complete
-// (sub-epics).
-func (r *relRepo) isEpicComplete(epicID string) bool {
-	type child struct {
-		role  issue.Role
-		state issue.State
-		id    string
-	}
-
-	var children []child
-	_ = sqlitex.Execute(r.conn,
-		`SELECT role, state, issue_id FROM issues WHERE parent_id = ? AND deleted = 0`,
-		&sqlitex.ExecOptions{
-			Args: []any{epicID},
-			ResultFunc: func(stmt *sqlite.Stmt) error {
-				role, _ := issue.ParseRole(stmt.ColumnText(0))
-				state, _ := issue.ParseState(stmt.ColumnText(1))
-				children = append(children, child{role: role, state: state, id: stmt.ColumnText(2)})
-				return nil
-			},
-		})
-
-	if len(children) == 0 {
-		return false
-	}
-
-	for _, c := range children {
-		switch c.role {
-		case issue.RoleTask:
-			if c.state != issue.StateClosed {
-				return false
-			}
-		case issue.RoleEpic:
-			if !r.isEpicComplete(c.id) {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 // --- HistoryRepository ---

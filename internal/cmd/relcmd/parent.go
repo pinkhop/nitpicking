@@ -9,96 +9,19 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
-	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
 // newParentCmd constructs the "rel parent" parent command with detach,
 // children, and tree subcommands for managing parent-child hierarchy.
 func newParentCmd(f *cmdutil.Factory) *cli.Command {
-	oldDetach := newDetachCmd(f)
-	oldDetach.Name = "detach-legacy"
-	oldDetach.Hidden = true
-
 	return &cli.Command{
 		Name:  "parent",
 		Usage: "Manage parent-child hierarchy",
 		Commands: []*cli.Command{
 			newPositionalDetachCmd(f),
-			oldDetach,
 			newChildrenCmd(f),
 			newParentTreeCmd(f),
-		},
-	}
-}
-
-// newDetachCmd constructs "rel parent detach" which removes the parent
-// assignment from a claimed issue.
-func newDetachCmd(f *cmdutil.Factory) *cli.Command {
-	var (
-		jsonOutput bool
-		issueArg   string
-		claimID    string
-	)
-
-	return &cli.Command{
-		Name:  "detach",
-		Usage: "Remove the parent from a claimed issue",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "issue",
-				Aliases:     []string{"i"},
-				Usage:       "Issue ID (required)",
-				Required:    true,
-				Destination: &issueArg,
-			},
-			&cli.StringFlag{
-				Name:        "claim",
-				Sources:     cli.EnvVars("NP_CLAIM"),
-				Usage:       "Active claim ID for the issue (required)",
-				Required:    true,
-				Destination: &claimID,
-			},
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Category:    "Options",
-				Destination: &jsonOutput,
-			},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
-			}
-			resolver := cmdutil.NewIDResolver(svc)
-
-			issueID, err := resolver.Resolve(ctx, issueArg)
-			if err != nil {
-				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
-			}
-
-			zeroID := issue.ID{}
-			input := service.UpdateIssueInput{
-				IssueID:  issueID,
-				ClaimID:  claimID,
-				ParentID: &zeroID,
-			}
-			if err := svc.UpdateIssue(ctx, input); err != nil {
-				return fmt.Errorf("detaching parent: %w", err)
-			}
-
-			if jsonOutput {
-				return cmdutil.WriteJSON(f.IOStreams.Out, map[string]string{
-					"issue_id": issueID.String(),
-					"action":   "detached",
-				})
-			}
-
-			cs := f.IOStreams.ColorScheme()
-			_, err = fmt.Fprintf(f.IOStreams.Out, "%s Detached %s from parent\n",
-				cs.SuccessIcon(), cs.Bold(issueID.String()))
-			return err
 		},
 	}
 }

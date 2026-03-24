@@ -18,17 +18,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
-// hideSubcommand marks a named subcommand within a parent command as hidden.
-// The command remains functional but is excluded from help output.
-func hideSubcommand(parent *cli.Command, name string) {
-	for _, sub := range parent.Commands {
-		if sub.Name == name {
-			sub.Hidden = true
-			return
-		}
-	}
-}
-
 // FilterRelationships returns only the relationships whose type matches any of
 // the given types. This is the shared filtering logic used by blocks list and
 // cites list.
@@ -45,22 +34,14 @@ func FilterRelationships(rels []issue.Relationship, types ...issue.RelationType)
 // NewCmd constructs the "rel" parent command with subcommands for managing
 // issue relationships by type.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
-	blocksCmd := newBlocksCmd(f)
-	citesCmd := newCitesCmd(f)
-
-	// Hide the old type-specific add/remove subcommands — they still work
-	// but "rel add <A> <rel> <B>" is the preferred interface.
-	hideSubcommand(blocksCmd, "add")
-	hideSubcommand(citesCmd, "add")
-
 	return &cli.Command{
 		Name:    "rel",
 		Aliases: []string{"r"},
 		Usage:   "Manage relationships between issues",
 		Commands: []*cli.Command{
 			newAddCmd(f),
-			blocksCmd,
-			citesCmd,
+			newBlocksCmd(f),
+			newCitesCmd(f),
 			newParentCmd(f),
 			newListCmd(f),
 			newTreeCmd(f),
@@ -247,6 +228,51 @@ func newCyclesCmd(f *cmdutil.Factory) *cli.Command {
 					finding.Message)
 			}
 			return nil
+		},
+	}
+}
+
+// newRelTypeListCmd constructs a "list <ID>" subcommand that shows
+// relationships filtered by the given types.
+func newRelTypeListCmd(f *cmdutil.Factory, typeName string, types ...issue.RelationType) *cli.Command {
+	var jsonOutput bool
+
+	return &cli.Command{
+		Name:      "list",
+		Usage:     fmt.Sprintf("List %s relationships for an issue", typeName),
+		ArgsUsage: "<ISSUE-ID>",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:        "json",
+				Usage:       "Output machine-readable JSON instead of human-readable text",
+				Category:    "Options",
+				Destination: &jsonOutput,
+			},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			rawID := cmd.Args().Get(0)
+			if rawID == "" {
+				return cmdutil.FlagErrorf("issue ID argument is required")
+			}
+
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			issueID, err := resolver.Resolve(ctx, rawID)
+			if err != nil {
+				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
+			}
+
+			shown, err := svc.ShowIssue(ctx, issueID)
+			if err != nil {
+				return fmt.Errorf("looking up issue: %w", err)
+			}
+
+			filtered := FilterRelationships(shown.Relationships, types...)
+			return renderRelationships(f, filtered, issueID, jsonOutput)
 		},
 	}
 }

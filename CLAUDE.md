@@ -87,7 +87,7 @@ Every mutation requires an `--author` flag identifying who is acting. Pick a sta
 ### 1. Find work
 
 ```bash
-np next --author <your-name>          # claim the highest-priority ready ticket
+np claim ready --author <your-name>   # claim the highest-priority ready ticket
 np list --ready                       # browse all ready tickets without claiming
 np list --ready --facet kind:fix      # filter ready tickets by facet
 np search "login timeout"             # full-text search across titles and descriptions
@@ -100,7 +100,7 @@ A ticket is **ready** when it is `open` (task) or `active` with no children (epi
 Claiming is mandatory before updating fields or transitioning state. Claiming returns a **claim ID** — a token you must pass to all subsequent operations on that ticket.
 
 ```bash
-np claim <TICKET-ID> --author <your-name>
+np claim id <TICKET-ID> --author <your-name>
 # → returns claim ID, e.g. a1b2c3d4e5f6...
 ```
 
@@ -189,8 +189,8 @@ np note search "root cause"
 Claims expire after their stale threshold (default 2 hours). If no ready tickets exist, steal a stale one:
 
 ```bash
-np next --steal-if-needed --author <your-name>
-np claim <TICKET-ID> --author <your-name> --steal
+np claim ready --steal-if-needed --author <your-name>
+np claim id <TICKET-ID> --author <your-name> --steal
 ```
 
 Extend your own claim's threshold if you need more time:

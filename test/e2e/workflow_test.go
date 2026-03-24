@@ -64,7 +64,7 @@ func createTask(t *testing.T, dir, title, author string) string {
 func claimTicket(t *testing.T, dir, ticketID, author string) string {
 	t.Helper()
 
-	stdout, stderr, code := runNP(t, dir, "claim", ticketID,
+	stdout, stderr, code := runNP(t, dir, "claim", "id", ticketID,
 		"--author", author,
 		"--json",
 	)
@@ -539,13 +539,13 @@ func TestE2E_NextClaimsHighestPriorityReady(t *testing.T) {
 	highID := createTaskWithPriority(t, dir, "High priority", author, "P0")
 	createTaskWithPriority(t, dir, "Medium priority", author, "P2")
 
-	// When — next claims the highest-priority ready ticket.
-	stdout, stderr, code := runNP(t, dir, "next",
+	// When — "claim ready" claims the highest-priority ready ticket.
+	stdout, stderr, code := runNP(t, dir, "claim", "ready",
 		"--author", author,
 		"--json",
 	)
 	if code != 0 {
-		t.Fatalf("next failed (exit %d): %s", code, stderr)
+		t.Fatalf("claim ready failed (exit %d): %s", code, stderr)
 	}
 
 	// Then — the claimed ticket should be the P0 one.

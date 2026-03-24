@@ -113,8 +113,8 @@
 - [x] **5.4** `np agent name` — generates Docker-style random agent name
 - [x] **5.5** `np agent prime` — prints Markdown workflow instructions
 - [x] **5.6** `np create` — creates tickets with all field flags, optional claim, idempotency key
-- [x] **5.7** `np claim <TICKET-ID>` — claims a ticket with optional steal
-- [x] **5.8** `np next` — claims highest-priority ready ticket with role/facet filters
+- [x] **5.7** `np claim id <TICKET-ID>` — claims a ticket with optional steal
+- [x] **5.8** `np claim ready` — claims highest-priority ready ticket with role/facet filters
 - [x] **5.9** `np update <TICKET-ID>` — updates claimed ticket fields
 - [x] **5.10** `np edit <TICKET-ID>` — one-shot claim→update→release
 - [x] **5.11** `np release/close/defer/wait` — state transitions

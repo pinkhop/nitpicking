@@ -458,19 +458,19 @@ CLI adapter for ticket creation. Flags: `--title`, `--description`, `--acceptanc
 - **Depends on:** 3.3, 5.1, 5.2
 - **Package:** `internal/cmd/create`
 
-### 5.7 `np claim` Command
+### 5.7 `np claim id` Subcommand
 
 CLI adapter for `ClaimByID`. Flags: `--steal`, `--author`, `--stale-threshold`.
 
 - **Depends on:** 3.4, 5.1, 5.2
 - **Package:** `internal/cmd/claim`
 
-### 5.8 `np next` Command
+### 5.8 `np claim ready` Subcommand
 
 CLI adapter for `ClaimNextReady`. Flags: `--facet` (filter), `--role` (filter), `--steal-if-needed`, `--author`, `--stale-threshold`.
 
 - **Depends on:** 3.4, 5.1, 5.2
-- **Package:** `internal/cmd/next`
+- **Package:** `internal/cmd/claim`
 
 ### 5.9 `np update` Command
 

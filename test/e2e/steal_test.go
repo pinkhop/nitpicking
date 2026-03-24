@@ -18,7 +18,7 @@ func TestE2E_ClaimStealing_StealStaleClaimByID(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// When — agent B steals the claim.
-	stdout, stderr, code := runNP(t, dir, "claim", ticketID,
+	stdout, stderr, code := runNP(t, dir, "claim", "id", ticketID,
 		"--author", agentB,
 		"--steal",
 		"--json",
@@ -60,7 +60,7 @@ func TestE2E_ClaimStealing_OriginalClaimInvalidatedAfterSteal(t *testing.T) {
 	ticketID, claimA := seedClaimedTaskWithThreshold(t, dir, "Will be stolen", agentA, "1s")
 	time.Sleep(2 * time.Second)
 
-	_, stderr, code := runNP(t, dir, "claim", ticketID,
+	_, stderr, code := runNP(t, dir, "claim", "id", ticketID,
 		"--author", agentB,
 		"--steal",
 		"--json",
@@ -92,7 +92,7 @@ func TestE2E_ClaimStealing_CannotStealActiveClaim(t *testing.T) {
 	ticketID, _ := seedClaimedTask(t, dir, "Actively claimed", agentA)
 
 	// When — agent B attempts to steal the active claim.
-	_, _, code := runNP(t, dir, "claim", ticketID,
+	_, _, code := runNP(t, dir, "claim", "id", ticketID,
 		"--author", agentB,
 		"--steal",
 		"--json",
@@ -104,7 +104,7 @@ func TestE2E_ClaimStealing_CannotStealActiveClaim(t *testing.T) {
 	}
 }
 
-func TestE2E_ClaimStealing_NextStealIfNeeded(t *testing.T) {
+func TestE2E_ClaimStealing_ClaimReadyStealIfNeeded(t *testing.T) {
 	// Given — the only ticket in the database is stale-claimed by agent A,
 	// so there are no unclaimed ready tickets.
 	dir := initDB(t, "STEAL")
@@ -114,23 +114,23 @@ func TestE2E_ClaimStealing_NextStealIfNeeded(t *testing.T) {
 	ticketID, _ := seedClaimedTaskWithThreshold(t, dir, "Only ticket", agentA, "1s")
 	time.Sleep(2 * time.Second)
 
-	// When — agent B uses next with --steal-if-needed.
-	stdout, stderr, code := runNP(t, dir, "next",
+	// When — agent B uses "claim ready" with --steal-if-needed.
+	stdout, stderr, code := runNP(t, dir, "claim", "ready",
 		"--author", agentB,
 		"--steal-if-needed",
 		"--json",
 	)
 
-	// Then — next steals the stale claim.
+	// Then — claim ready steals the stale claim.
 	if code != 0 {
-		t.Fatalf("next --steal-if-needed failed (exit %d): %s", code, stderr)
+		t.Fatalf("claim ready --steal-if-needed failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
 	if result["ticket_id"] != ticketID {
 		t.Errorf("expected ticket_id %s, got %v", ticketID, result["ticket_id"])
 	}
 	if result["stolen"] != true {
-		t.Error("expected stolen=true in next --steal-if-needed response")
+		t.Error("expected stolen=true in claim ready --steal-if-needed response")
 	}
 }
 
@@ -143,7 +143,7 @@ func TestE2E_ClaimStealing_StolenClaimAllowsFullLifecycle(t *testing.T) {
 	ticketID, _ := seedClaimedTaskWithThreshold(t, dir, "Lifecycle after steal", agentA, "1s")
 	time.Sleep(2 * time.Second)
 
-	stdout, stderr, code := runNP(t, dir, "claim", ticketID,
+	stdout, stderr, code := runNP(t, dir, "claim", "id", ticketID,
 		"--author", agentB,
 		"--steal",
 		"--json",

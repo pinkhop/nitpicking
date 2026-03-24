@@ -57,13 +57,13 @@ func TestE2E_Concurrency_TwoAgentsClaimSameTicket(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		resultA.stdout, resultA.stderr, resultA.exitCode = runNPAsync(t, dir,
-			"claim", taskID, "--author", "agent-alpha", "--json",
+			"claim", "id", taskID, "--author", "agent-alpha", "--json",
 		)
 	}()
 	go func() {
 		defer wg.Done()
 		resultB.stdout, resultB.stderr, resultB.exitCode = runNPAsync(t, dir,
-			"claim", taskID, "--author", "agent-beta", "--json",
+			"claim", "id", taskID, "--author", "agent-beta", "--json",
 		)
 	}()
 	wg.Wait()
@@ -113,13 +113,13 @@ func TestE2E_Concurrency_TwoAgentsClaimDifferentTickets(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		resultA.stdout, resultA.stderr, resultA.exitCode = runNPAsync(t, dir,
-			"claim", taskA, "--author", "agent-alpha", "--json",
+			"claim", "id", taskA, "--author", "agent-alpha", "--json",
 		)
 	}()
 	go func() {
 		defer wg.Done()
 		resultB.stdout, resultB.stderr, resultB.exitCode = runNPAsync(t, dir,
-			"claim", taskB, "--author", "agent-beta", "--json",
+			"claim", "id", taskB, "--author", "agent-beta", "--json",
 		)
 	}()
 	wg.Wait()
@@ -143,14 +143,14 @@ func TestE2E_Concurrency_TwoAgentsClaimDifferentTickets(t *testing.T) {
 	}
 }
 
-func TestE2E_Concurrency_NextClaimsDifferentTickets(t *testing.T) {
+func TestE2E_Concurrency_ClaimReadyClaimsDifferentTickets(t *testing.T) {
 	// Given — multiple open tasks with different priorities.
 	dir := initDB(t, "CONC")
 	createTaskWithPriority(t, dir, "High priority", "setup-agent", "P0")
 	createTaskWithPriority(t, dir, "Medium priority", "setup-agent", "P1")
 	createTaskWithPriority(t, dir, "Low priority", "setup-agent", "P2")
 
-	// When — two agents simultaneously request the next ready ticket.
+	// When — two agents simultaneously request the next ready ticket via "claim ready".
 	type nextResult struct {
 		stdout   string
 		stderr   string
@@ -167,23 +167,23 @@ func TestE2E_Concurrency_NextClaimsDifferentTickets(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		resultA.stdout, resultA.stderr, resultA.exitCode = runNPAsync(t, dir,
-			"next", "--author", "agent-alpha", "--json",
+			"claim", "ready", "--author", "agent-alpha", "--json",
 		)
 	}()
 	go func() {
 		defer wg.Done()
 		resultB.stdout, resultB.stderr, resultB.exitCode = runNPAsync(t, dir,
-			"next", "--author", "agent-beta", "--json",
+			"claim", "ready", "--author", "agent-beta", "--json",
 		)
 	}()
 	wg.Wait()
 
 	// Then — both agents should succeed (there are enough tickets for both).
 	if resultA.exitCode != 0 {
-		t.Errorf("agent-alpha next failed (exit %d): %s", resultA.exitCode, resultA.stderr)
+		t.Errorf("agent-alpha claim ready failed (exit %d): %s", resultA.exitCode, resultA.stderr)
 	}
 	if resultB.exitCode != 0 {
-		t.Errorf("agent-beta next failed (exit %d): %s", resultB.exitCode, resultB.stderr)
+		t.Errorf("agent-beta claim ready failed (exit %d): %s", resultB.exitCode, resultB.stderr)
 	}
 
 	// They should claim different tickets.

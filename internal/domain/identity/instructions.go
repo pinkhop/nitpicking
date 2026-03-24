@@ -29,7 +29,7 @@ An epic is complete when all its children are closed or complete. You never clos
 ### 1. Find work
 
 ` + "```" + `
-np next --author <your-name>          # claim the highest-priority ready ticket
+np claim ready --author <your-name>   # claim the highest-priority ready ticket
 np list --ready                       # browse all ready tickets without claiming
 ` + "```" + `
 
@@ -84,7 +84,7 @@ If you discover something unrelated to your current ticket (e.g., a failing test
 If no ready tickets exist, steal a stale one:
 
 ` + "```" + `
-np next --steal-if-needed --author <your-name>
+np claim ready --steal-if-needed --author <your-name>
 ` + "```" + `
 
 ## Diagnostics
@@ -97,7 +97,7 @@ np history <ID> # audit trail of all changes
 
 ## Key Rules
 
-- **Use ` + "`np next`" + ` to find work.** Do not browse and cherry-pick tickets.
+- **Use ` + "`np claim ready`" + ` to find work.** Do not browse and cherry-pick tickets.
 - **Always transition state when done.** Close, release, or wait — never abandon a claim.
 - **Close is terminal.** Closed tasks cannot be reopened or modified (notes can still be added).
 - **Epics are never closed directly.** They complete when all children resolve.

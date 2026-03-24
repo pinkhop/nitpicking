@@ -183,7 +183,7 @@ func seedClaimedTaskWithThreshold(t *testing.T, dir, title, author, threshold st
 
 	taskID := createTask(t, dir, title, author)
 
-	stdout, stderr, code := runNP(t, dir, "claim", taskID,
+	stdout, stderr, code := runNP(t, dir, "claim", "id", taskID,
 		"--author", author,
 		"--stale-threshold", threshold,
 		"--json",

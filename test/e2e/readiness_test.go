@@ -48,10 +48,10 @@ func TestE2E_EpicWithChildren_ExcludedFromNextAndList(t *testing.T) {
 		}
 	}
 
-	// When — next should claim a task, not the epic.
-	nextStdout, stderr, code := runNP(t, dir, "next", "--author", author, "--json")
+	// When — "claim ready" should claim a task, not the epic.
+	nextStdout, stderr, code := runNP(t, dir, "claim", "ready", "--author", author, "--json")
 	if code != 0 {
-		t.Fatalf("next failed (exit %d): %s", code, stderr)
+		t.Fatalf("claim ready failed (exit %d): %s", code, stderr)
 	}
 	nextResult := parseJSON(t, nextStdout)
 	if nextResult["ticket_id"] == epicID {

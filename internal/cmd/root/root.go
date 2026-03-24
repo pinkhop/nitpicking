@@ -22,7 +22,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/historyview"
 	cmdinit "github.com/pinkhop/nitpicking/internal/cmd/init"
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
-	"github.com/pinkhop/nitpicking/internal/cmd/next"
 	"github.com/pinkhop/nitpicking/internal/cmd/note"
 	"github.com/pinkhop/nitpicking/internal/cmd/relate"
 	"github.com/pinkhop/nitpicking/internal/cmd/search"
@@ -174,7 +173,6 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			// Ticket lifecycle.
 			create.NewCmd(f),
 			claim.NewCmd(f),
-			next.NewCmd(f),
 			update.NewCmd(f),
 			edit.NewCmd(f),
 			extend.NewCmd(f),

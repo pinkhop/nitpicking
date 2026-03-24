@@ -15,7 +15,7 @@ func TestAgentInstructions_ContainsCoreWorkflowSections(t *testing.T) {
 
 	// Then
 	required := []string{
-		"np next",
+		"np claim ready",
 		"np update",
 		"np close",
 		"np release",

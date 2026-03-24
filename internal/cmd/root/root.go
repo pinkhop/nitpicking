@@ -26,6 +26,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
 	"github.com/pinkhop/nitpicking/internal/cmd/ready"
 	"github.com/pinkhop/nitpicking/internal/cmd/relate"
+	"github.com/pinkhop/nitpicking/internal/cmd/relcmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/search"
 	"github.com/pinkhop/nitpicking/internal/cmd/show"
 	"github.com/pinkhop/nitpicking/internal/cmd/status"
@@ -125,6 +126,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				historyview.NewCmd(f),
 			}},
 			{"Annotations", []*cli.Command{
+				relcmd.NewCmd(f),
 				relate.NewCmd(f),
 				comment.NewCmd(f),
 			}},

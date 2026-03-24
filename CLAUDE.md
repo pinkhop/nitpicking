@@ -202,6 +202,21 @@ np relate remove <ISSUE-ID> blocked_by <BLOCKER-ID> --author <your-name>
 - `blocked_by` / `blocks` — the issue cannot progress until the blocker is closed.
 - `cites` / `cited_by` — informational reference; does not block.
 
+The `rel` command (alias: `r`) provides a structured namespace for relationships:
+
+```bash
+np rel blocks add --source <ID> --target <BLOCKER-ID> --author <name>    # add blocker
+np rel blocks remove --source <ID> --target <BLOCKER-ID> --author <name> # remove blocker
+np rel blocks list --issue <ID>                                           # list blocking rels
+np rel cites add --source <ID> --target <REF-ID> --author <name>         # add citation
+np rel cites list --issue <ID>                                            # list citations
+np rel parent detach --issue <ID> --claim <CLAIM-ID>                     # remove parent
+np rel parent children --issue <ID>                                       # list children
+np rel parent tree --issue <ID>                                           # show descendant tree
+np rel list --issue <ID>                                                  # all relationships
+np rel cycles                                                             # detect cycles
+```
+
 ## Comments
 
 Comments do **not** require claiming and can be added to closed issues.

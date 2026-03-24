@@ -853,6 +853,7 @@ func (r *Repository) ticketToListItem(t ticket.Ticket) port.TicketListItem {
 		State:     t.State(),
 		Priority:  t.Priority(),
 		Title:     t.Title(),
+		ParentID:  t.ParentID(),
 		CreatedAt: t.CreatedAt(),
 		UpdatedAt: updatedAt,
 		IsDeleted: t.IsDeleted(),

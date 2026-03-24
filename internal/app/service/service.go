@@ -89,6 +89,12 @@ type Service interface {
 	// ShowHistory lists history entries for a ticket.
 	ShowHistory(ctx context.Context, input ListHistoryInput) (ListHistoryOutput, error)
 
+	// --- Graph ---
+
+	// GetGraphData returns all non-deleted tickets and their relationships
+	// in a single read-only transaction, for rendering as a graph.
+	GetGraphData(ctx context.Context) (GraphDataOutput, error)
+
 	// --- Diagnostics ---
 
 	// Doctor runs diagnostics and returns findings.

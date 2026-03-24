@@ -635,6 +635,47 @@ func TestListTickets_ExcludeClosed_WithExplicitClosedState_ShowsClosed(t *testin
 	}
 }
 
+// --- GetGraphData ---
+
+func TestGetGraphData_ReturnsNodesAndRelationships(t *testing.T) {
+	t.Parallel()
+
+	// Given: two tasks with a blocked_by relationship.
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+
+	a, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
+		Role: ticket.RoleTask, Title: "Task A", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create A: %v", err)
+	}
+	b, err := svc.CreateTicket(t.Context(), service.CreateTicketInput{
+		Role: ticket.RoleTask, Title: "Task B", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create B: %v", err)
+	}
+	err = svc.AddRelationship(t.Context(), a.Ticket.ID(),
+		service.RelationshipInput{Type: ticket.RelBlockedBy, TargetID: b.Ticket.ID()}, author)
+	if err != nil {
+		t.Fatalf("precondition: add relationship: %v", err)
+	}
+
+	// When
+	result, err := svc.GetGraphData(t.Context())
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Nodes) != 2 {
+		t.Errorf("expected 2 nodes, got %d", len(result.Nodes))
+	}
+	if len(result.Relationships) == 0 {
+		t.Error("expected at least 1 relationship")
+	}
+}
+
 // --- DeleteTicket ---
 
 func TestDeleteTicket_TaskSucceeds(t *testing.T) {

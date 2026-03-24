@@ -837,6 +837,40 @@ func (s *serviceImpl) ShowHistory(ctx context.Context, input ListHistoryInput) (
 	return output, err
 }
 
+// --- Graph ---
+
+func (s *serviceImpl) GetGraphData(ctx context.Context) (GraphDataOutput, error) {
+	var output GraphDataOutput
+	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
+		// Fetch all non-deleted tickets with a high page size.
+		items, _, err := uow.Tickets().ListTickets(ctx, port.TicketFilter{}, port.OrderByPriority, port.PageRequest{PageSize: 10000})
+		if err != nil {
+			return err
+		}
+		output.Nodes = items
+
+		// Collect relationships for all tickets. Use a set to deduplicate
+		// since ListRelationships returns both directions.
+		seen := make(map[string]bool)
+		for _, item := range items {
+			rels, err := uow.Relationships().ListRelationships(ctx, item.ID)
+			if err != nil {
+				return err
+			}
+			for _, rel := range rels {
+				key := rel.SourceID().String() + "-" + rel.Type().String() + "-" + rel.TargetID().String()
+				if !seen[key] {
+					seen[key] = true
+					output.Relationships = append(output.Relationships, rel)
+				}
+			}
+		}
+
+		return nil
+	})
+	return output, err
+}
+
 // --- Diagnostics ---
 
 func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {

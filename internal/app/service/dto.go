@@ -227,6 +227,14 @@ type DoctorOutput struct {
 	Findings []DoctorFinding
 }
 
+// GraphDataOutput holds the data needed to render a ticket graph.
+type GraphDataOutput struct {
+	// Nodes contains all non-deleted tickets as lightweight projections.
+	Nodes []port.TicketListItem
+	// Relationships contains all relationships for the included tickets.
+	Relationships []ticket.Relationship
+}
+
 // GCInput holds the parameters for garbage collection.
 type GCInput struct {
 	IncludeClosed bool

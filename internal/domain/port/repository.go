@@ -49,6 +49,7 @@ type TicketListItem struct {
 	State     ticket.State
 	Priority  ticket.Priority
 	Title     string
+	ParentID  ticket.ID
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	IsDeleted bool

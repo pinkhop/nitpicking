@@ -310,7 +310,7 @@ func (r *ticketRepo) ListTickets(_ context.Context, filter port.TicketFilter, or
 	}
 
 	orderClause := ticketOrderClause(orderBy)
-	query := `SELECT t.ticket_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted FROM tickets t ` + where + orderClause + ` LIMIT ?`
+	query := `SELECT t.ticket_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM tickets t ` + where + orderClause + ` LIMIT ?`
 	args = append(args, page.PageSize)
 
 	var items []port.TicketListItem
@@ -322,10 +322,11 @@ func (r *ticketRepo) ListTickets(_ context.Context, filter port.TicketFilter, or
 			state, _ := ticket.ParseState(stmt.ColumnText(2))
 			priority, _ := ticket.ParsePriority(stmt.ColumnText(3))
 			createdAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(5))
+			parentID, _ := ticket.ParseID(stmt.ColumnText(7))
 
 			items = append(items, port.TicketListItem{
 				ID: id, Role: role, State: state, Priority: priority,
-				Title: stmt.ColumnText(4), CreatedAt: createdAt,
+				Title: stmt.ColumnText(4), ParentID: parentID, CreatedAt: createdAt,
 				IsDeleted: stmt.ColumnInt(6) != 0,
 			})
 			return nil
@@ -351,7 +352,7 @@ func (r *ticketRepo) SearchTickets(_ context.Context, query string, filter port.
 	}
 
 	orderClause := ticketOrderClause(orderBy)
-	selectQuery := `SELECT t.ticket_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted FROM tickets t ` + where + ftsWhere + orderClause + ` LIMIT ?`
+	selectQuery := `SELECT t.ticket_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id FROM tickets t ` + where + ftsWhere + orderClause + ` LIMIT ?`
 	args = append(args, page.PageSize)
 
 	var items []port.TicketListItem
@@ -363,10 +364,11 @@ func (r *ticketRepo) SearchTickets(_ context.Context, query string, filter port.
 			state, _ := ticket.ParseState(stmt.ColumnText(2))
 			priority, _ := ticket.ParsePriority(stmt.ColumnText(3))
 			createdAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(5))
+			parentID, _ := ticket.ParseID(stmt.ColumnText(7))
 
 			items = append(items, port.TicketListItem{
 				ID: id, Role: role, State: state, Priority: priority,
-				Title: stmt.ColumnText(4), CreatedAt: createdAt,
+				Title: stmt.ColumnText(4), ParentID: parentID, CreatedAt: createdAt,
 				IsDeleted: stmt.ColumnInt(6) != 0,
 			})
 			return nil

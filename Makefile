@@ -159,6 +159,15 @@ gofumpt:
 goimports:
 	go tool golang.org/x/tools/cmd/goimports -w .
 
+## templ: Generate Go code from .templ template files.
+##
+## Runs the templ code generator, which compiles .templ files into Go
+## source files. This target must be run before build when templates
+## have been modified.
+.PHONY: templ
+templ:
+	go tool github.com/a-h/templ/cmd/templ generate
+
 ## fmt: Run all formatters (gofumpt, goimports).
 ##
 ## Convenience target that applies all automatic formatting fixes. Run this

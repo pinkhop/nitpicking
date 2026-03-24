@@ -15,12 +15,13 @@ import (
 
 // childOutput is the JSON representation of a single child item.
 type childOutput struct {
-	ID        string `json:"id"`
-	Role      string `json:"role"`
-	State     string `json:"state"`
-	Priority  string `json:"priority"`
-	Title     string `json:"title"`
-	CreatedAt string `json:"created_at"`
+	ID            string `json:"id"`
+	Role          string `json:"role"`
+	State         string `json:"state"`
+	DisplayStatus string `json:"display_status"`
+	Priority      string `json:"priority"`
+	Title         string `json:"title"`
+	CreatedAt     string `json:"created_at"`
 }
 
 // childrenOutput is the JSON representation of the children list.
@@ -90,12 +91,13 @@ func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 				}
 				for _, item := range result.Items {
 					out.Items = append(out.Items, childOutput{
-						ID:        item.ID.String(),
-						Role:      item.Role.String(),
-						State:     item.State.String(),
-						Priority:  item.Priority.String(),
-						Title:     item.Title,
-						CreatedAt: item.CreatedAt.Format(time.RFC3339),
+						ID:            item.ID.String(),
+						Role:          item.Role.String(),
+						State:         item.State.String(),
+						DisplayStatus: item.DisplayStatus(),
+						Priority:      item.Priority.String(),
+						Title:         item.Title,
+						CreatedAt:     item.CreatedAt.Format(time.RFC3339),
 					})
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)
@@ -114,7 +116,7 @@ func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 					cs.Bold(item.ID.String()),
 					cs.Dim(item.Role.String()),
-					item.State.String(),
+					item.DisplayStatus(),
 					cs.Yellow(item.Priority.String()),
 					item.Title)
 			}

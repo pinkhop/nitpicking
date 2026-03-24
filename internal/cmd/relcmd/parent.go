@@ -85,7 +85,7 @@ func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 					cs.Bold(item.ID.String()),
 					cs.Dim(item.Role.String()),
-					item.State.String(),
+					item.DisplayStatus(),
 					cs.Yellow(item.Priority.String()),
 					item.Title)
 			}
@@ -163,7 +163,7 @@ func newParentTreeCmd(f *cmdutil.Factory) *cli.Command {
 				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 					cs.Bold(item.ID.String()),
 					cs.Dim(item.Role.String()),
-					item.State.String(),
+					item.DisplayStatus(),
 					cs.Yellow(item.Priority.String()),
 					item.Title)
 			}

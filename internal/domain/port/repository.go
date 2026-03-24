@@ -42,6 +42,16 @@ type IssueListItem struct {
 	IsBlocked bool
 }
 
+// DisplayStatus returns the human-readable status for display purposes.
+// When the issue is blocked, it returns "blocked" instead of the underlying
+// state. This is a presentation concern — the domain state machine is unchanged.
+func (item IssueListItem) DisplayStatus() string {
+	if item.IsBlocked {
+		return "blocked"
+	}
+	return item.State.String()
+}
+
 // IssueFilter defines filtering criteria for issue list and search.
 type IssueFilter struct {
 	// Role filters by issue role (zero value means no filter).

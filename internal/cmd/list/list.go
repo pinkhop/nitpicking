@@ -17,13 +17,14 @@ import (
 
 // listItemOutput is the JSON representation of a single issue in a list.
 type listItemOutput struct {
-	ID        string `json:"id"`
-	Role      string `json:"role"`
-	State     string `json:"state"`
-	Priority  string `json:"priority"`
-	Title     string `json:"title"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID            string `json:"id"`
+	Role          string `json:"role"`
+	State         string `json:"state"`
+	DisplayStatus string `json:"display_status"`
+	Priority      string `json:"priority"`
+	Title         string `json:"title"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
 }
 
 // listOutput is the JSON representation of the list command result.
@@ -224,13 +225,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 				for _, item := range result.Items {
 					out.Items = append(out.Items, listItemOutput{
-						ID:        item.ID.String(),
-						Role:      item.Role.String(),
-						State:     item.State.String(),
-						Priority:  item.Priority.String(),
-						Title:     item.Title,
-						CreatedAt: item.CreatedAt.Format(time.RFC3339),
-						UpdatedAt: item.UpdatedAt.Format(time.RFC3339),
+						ID:            item.ID.String(),
+						Role:          item.Role.String(),
+						State:         item.State.String(),
+						DisplayStatus: item.DisplayStatus(),
+						Priority:      item.Priority.String(),
+						Title:         item.Title,
+						CreatedAt:     item.CreatedAt.Format(time.RFC3339),
+						UpdatedAt:     item.UpdatedAt.Format(time.RFC3339),
 					})
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)
@@ -251,7 +253,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
 						cs.Bold(item.ID.String()),
 						cs.Dim(item.Role.String()),
-						item.State.String(),
+						item.DisplayStatus(),
 						cs.Yellow(item.Priority.String()),
 						cs.Dim(item.CreatedAt.Format(time.DateTime)),
 						item.Title)
@@ -259,7 +261,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 						cs.Bold(item.ID.String()),
 						cs.Dim(item.Role.String()),
-						item.State.String(),
+						item.DisplayStatus(),
 						cs.Yellow(item.Priority.String()),
 						item.Title)
 				}

@@ -70,6 +70,8 @@ See `SPECIFICATION.md` for the full specification and `PRODUCT_VISION.md` for pr
 
 This project has **no other users yet** — the sole consumer is the developer. There are no backward-compatibility obligations for CLI commands, flags, database schema, or file formats. Deprecated commands and aliases exist only as transitional conveniences and can be removed freely.
 
+**No in-tree database migrations.** Schema and data migrations must NOT be part of the `np` codebase. When a schema change is needed, use a throw-away `main.go` script or run `sqlite3` directly against the database file. The `admin upgrade` command is a placeholder for future use; it must not contain migration logic.
+
 ## Gotchas
 
 - **No golangci-lint.** Linting uses six individual tools invoked separately via `make lint`. All are managed as Go tool dependencies in `go.mod`.

@@ -398,7 +398,7 @@ func TestE2E_RelationshipsAndSearch(t *testing.T) {
 	referenceID := createTask(t, dir, "Document migration steps", author)
 
 	// When — establish relationships.
-	_, stderr, code := runNP(t, dir, "relate", "add", blockedID,
+	_, stderr, code := runNP(t, dir, "rel", "add", blockedID,
 		"blocked_by", blockerID,
 		"--author", author,
 		"--json",
@@ -407,7 +407,7 @@ func TestE2E_RelationshipsAndSearch(t *testing.T) {
 		t.Fatalf("relate blocked_by failed (exit %d): %s", code, stderr)
 	}
 
-	_, stderr, code = runNP(t, dir, "relate", "add", referenceID,
+	_, stderr, code = runNP(t, dir, "rel", "add", referenceID,
 		"cites", blockerID,
 		"--author", author,
 		"--json",
@@ -699,7 +699,7 @@ func TestE2E_BlockedByRelationship_ReadinessGating(t *testing.T) {
 	blockerID := createTask(t, dir, "Prerequisite work", author)
 	blockedID := createTask(t, dir, "Dependent work", author)
 
-	_, stderr, code := runNP(t, dir, "relate", "add", blockedID,
+	_, stderr, code := runNP(t, dir, "rel", "add", blockedID,
 		"blocked_by", blockerID,
 		"--author", author,
 		"--json",

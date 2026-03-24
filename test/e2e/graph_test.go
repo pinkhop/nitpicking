@@ -87,7 +87,7 @@ func TestE2E_Graph_RelationshipsRendered(t *testing.T) {
 	idA := createTask(t, dir, "Blocker", "e2e-agent")
 	idB := createTask(t, dir, "Blocked", "e2e-agent")
 
-	_, stderr, code := runNP(t, dir, "relate", "add", idB, "blocked_by", idA,
+	_, stderr, code := runNP(t, dir, "rel", "add", idB, "blocked_by", idA,
 		"--author", "e2e-agent")
 	if code != 0 {
 		t.Fatalf("relate add failed (exit %d): %s", code, stderr)

@@ -95,7 +95,7 @@ func seedDeferredTask(t *testing.T, dir, title, author string) string {
 func addRelationship(t *testing.T, dir, sourceID, relType, targetID, author string) {
 	t.Helper()
 
-	_, stderr, code := runNP(t, dir, "relate", "add", sourceID,
+	_, stderr, code := runNP(t, dir, "rel", "add", sourceID,
 		relType, targetID,
 		"--author", author,
 		"--json",

@@ -26,7 +26,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
 	"github.com/pinkhop/nitpicking/internal/cmd/quickstart"
 	"github.com/pinkhop/nitpicking/internal/cmd/ready"
-	"github.com/pinkhop/nitpicking/internal/cmd/relate"
 	"github.com/pinkhop/nitpicking/internal/cmd/relcmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/search"
 	"github.com/pinkhop/nitpicking/internal/cmd/show"
@@ -133,7 +132,6 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 	// Register deprecated commands as hidden — they work but don't
 	// appear in help output. Use the new subcommand groups instead.
 	deprecated := []*cli.Command{
-		relate.NewCmd(f),
 		doctor.NewCmd(f),
 		gc.NewCmd(f),
 	}

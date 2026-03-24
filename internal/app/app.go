@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,10 +105,10 @@ func classifyError(stderr io.Writer, err error, signalCancelIsError bool) ExitCo
 }
 
 // newFactory constructs the Factory with all dependencies wired in the correct
-// order. Both IOStreams and Logger are eager — cheap to construct and needed by
-// virtually every command. As the application grows, expensive dependencies
-// (HTTP clients, database pools) are added as function-typed fields whose
-// construction is deferred until first use.
+// order. IOStreams is eager — cheap to construct and needed by virtually every
+// command. As the application grows, expensive dependencies (HTTP clients,
+// database pools) are added as function-typed fields whose construction is
+// deferred until first use.
 func newFactory(appName, appVersion string) *cmdutil.Factory {
 	f := &cmdutil.Factory{
 		AppName:    appName,
@@ -121,12 +120,7 @@ func newFactory(appName, appVersion string) *cmdutil.Factory {
 	// needed by virtually every command.
 	f.IOStreams = iostreams.System()
 
-	// Phase 2: Logger — constructed eagerly with a mutable LevelVar so it is
-	// usable from the first log line. The level defaults to Info and is updated
-	// by the root command's Before hook after flag parsing.
-	f.LogLevel, f.Logger = newLogger(f.IOStreams)
-
-	// Phase 3: Store — the SQLite database connection, constructed lazily.
+	// Phase 2: Store — the SQLite database connection, constructed lazily.
 	// Database discovery runs once on first access; the Store is memoized.
 	// When an existing database is found, Open is used (no DDL). When no
 	// database exists, Create is used to apply the schema — this only
@@ -162,26 +156,4 @@ func newFactory(appName, appVersion string) *cmdutil.Factory {
 	}
 
 	return f
-}
-
-// newLogger constructs the application logger eagerly and returns both the
-// mutable LevelVar and a closure that returns the logger. The logger starts
-// at Info level; the root command's Before hook adjusts it after flag parsing
-// by calling LevelVar.Set.
-//
-// The closure form exists solely as a testing seam — production callers always
-// receive the same *slog.Logger instance. Using a LevelVar means the handler
-// checks the current level on every log call, so updating the level after
-// construction retroactively affects all logging.
-//
-// Output is always JSON, suitable for structured log ingestion.
-func newLogger(ios *iostreams.IOStreams) (*slog.LevelVar, func() *slog.Logger) {
-	level := &slog.LevelVar{} // defaults to Info
-
-	handler := slog.NewJSONHandler(ios.ErrOut, &slog.HandlerOptions{
-		Level: level,
-	})
-
-	logger := slog.New(handler)
-	return level, func() *slog.Logger { return logger }
 }

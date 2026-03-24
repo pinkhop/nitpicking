@@ -3,17 +3,13 @@ package app
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"runtime"
 	"strings"
 	"testing"
-	"testing/slogtest"
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
-	"github.com/pinkhop/nitpicking/internal/iostreams"
 )
 
 // ---------------------------------------------------------------------------
@@ -247,98 +243,5 @@ func TestNewFactory_ReturnsAppNameAndVersion(t *testing.T) {
 	}
 	if actualVer != appVersion {
 		t.Errorf("expected app version %q, got %q", appVersion, actualVer)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// newLogger — handler conformance via testing/slogtest
-// ---------------------------------------------------------------------------
-
-// TestNewLogger_NonTTY_JSONHandlerConformance verifies that the handler
-// produced by newLogger when stderr is not a TTY passes the full slog.Handler
-// contract — attributes, groups, WithAttrs, WithGroup, and level filtering
-// all behave correctly with the wired-in LevelVar and writer.
-func TestNewLogger_NonTTY_JSONHandlerConformance(t *testing.T) {
-	t.Parallel()
-
-	// Given — a shared buffer variable; newHandler writes to a fresh buffer
-	// each subtest, and result reads back from the same buffer.
-	var buf *bytes.Buffer
-
-	slogtest.Run(t,
-		func(t *testing.T) slog.Handler {
-			ios, _, _, stderr := iostreams.Test()
-			// Non-TTY is the default for iostreams.Test.
-			_, loggerFn := newLogger(ios)
-			buf = stderr
-			return loggerFn().Handler()
-		},
-		func(t *testing.T) map[string]any {
-			line := bytes.TrimSpace(buf.Bytes())
-			if len(line) == 0 {
-				return nil
-			}
-			var m map[string]any
-			if err := json.Unmarshal(line, &m); err != nil {
-				t.Fatalf("failed to parse JSON log output: %v\nraw: %s", err, line)
-			}
-			return m
-		},
-	)
-}
-
-// ---------------------------------------------------------------------------
-// newLogger — LevelVar wiring and closure identity
-// ---------------------------------------------------------------------------
-
-func TestNewLogger_LevelVar_ControlsOutput(t *testing.T) {
-	t.Parallel()
-
-	// Given
-	ios, _, _, stderr := iostreams.Test()
-	level, loggerFn := newLogger(ios)
-	logger := loggerFn()
-
-	// When — set level to Error, then log at Info
-	level.Set(slog.LevelError)
-	logger.Info("should be suppressed")
-
-	// Then
-	if stderr.Len() != 0 {
-		t.Errorf("expected Info message to be suppressed at Error level, got %q", stderr.String())
-	}
-}
-
-func TestNewLogger_LevelVar_DefaultsToInfo(t *testing.T) {
-	t.Parallel()
-
-	// Given
-	ios, _, _, stderr := iostreams.Test()
-	_, loggerFn := newLogger(ios)
-	logger := loggerFn()
-
-	// When — log at Debug (below default Info level)
-	logger.Debug("should be suppressed")
-
-	// Then
-	if stderr.Len() != 0 {
-		t.Errorf("expected Debug message to be suppressed at default Info level, got %q", stderr.String())
-	}
-}
-
-func TestNewLogger_ClosureReturnsSameInstance(t *testing.T) {
-	t.Parallel()
-
-	// Given
-	ios, _, _, _ := iostreams.Test()
-	_, loggerFn := newLogger(ios)
-
-	// When
-	a := loggerFn()
-	b := loggerFn()
-
-	// Then
-	if a != b {
-		t.Error("expected logger closure to return the same instance on every call")
 	}
 }

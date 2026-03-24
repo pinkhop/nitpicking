@@ -1,8 +1,6 @@
 package cmdutil
 
 import (
-	"log/slog"
-
 	"github.com/pinkhop/nitpicking/internal/iostreams"
 	"github.com/pinkhop/nitpicking/internal/storage/sqlite"
 )
@@ -12,8 +10,8 @@ import (
 // and they can be replaced in tests with trivial stubs or panicking functions
 // to catch accidental dependency usage.
 //
-// Eager fields (like IOStreams and Logger) are cheap to construct and used by
-// virtually every command. As the application grows, expensive dependencies
+// Eager fields (like IOStreams) are cheap to construct and used by virtually
+// every command. As the application grows, expensive dependencies
 // (HTTP clients, database pools) are added as function-typed fields whose
 // cost is deferred until actual use.
 //
@@ -43,21 +41,6 @@ type Factory struct {
 	// Constructed eagerly because it is needed by almost every command and
 	// has no expensive initialization.
 	IOStreams *iostreams.IOStreams
-
-	// Logger returns the application's structured logger. In production, the
-	// returned logger is constructed eagerly at Factory creation time with a
-	// mutable LogLevel — it is usable immediately, even before flag parsing.
-	// The function form exists as a testing seam: tests replace the closure
-	// entirely (e.g., with the test's own *slog.Logger) without touching
-	// LogLevel.
-	Logger func() *slog.Logger
-
-	// LogLevel controls the minimum severity for the production Logger. It is
-	// safe for concurrent use. The root command's Before hook sets it from the
-	// --log-level flag after parsing; long-running services may also expose
-	// it via an admin endpoint for runtime adjustment. Tests that replace
-	// Logger ignore this field.
-	LogLevel *slog.LevelVar
 
 	// Store returns the SQLite database connection. Constructed lazily on
 	// first access — database discovery and opening happen at that point.

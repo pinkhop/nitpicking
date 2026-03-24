@@ -137,8 +137,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				filter.States = []ticket.State{parsedState}
 			}
 
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
 			if parent != "" {
-				parentID, err := ticket.ParseID(parent)
+				parentID, err := resolver.Resolve(ctx, parent)
 				if err != nil {
 					return cmdutil.FlagErrorf("invalid parent ID: %s", err)
 				}
@@ -146,7 +152,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			if descendantsOf != "" {
-				descID, err := ticket.ParseID(descendantsOf)
+				descID, err := resolver.Resolve(ctx, descendantsOf)
 				if err != nil {
 					return cmdutil.FlagErrorf("invalid descendants-of ID: %s", err)
 				}
@@ -154,7 +160,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			if ancestorsOf != "" {
-				ancID, err := ticket.ParseID(ancestorsOf)
+				ancID, err := resolver.Resolve(ctx, ancestorsOf)
 				if err != nil {
 					return cmdutil.FlagErrorf("invalid ancestors-of ID: %s", err)
 				}
@@ -184,11 +190,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Filter:  filter,
 				OrderBy: orderBy,
 				Page:    port.PageRequest{PageSize: pageSize},
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
 			}
 			result, err := svc.ListTickets(ctx, input)
 			if err != nil {

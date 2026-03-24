@@ -97,7 +97,13 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("ticket ID argument is required")
 			}
 
-			ticketID, err := ticket.ParseID(rawID)
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			ticketID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 			}
@@ -131,7 +137,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					zeroID := ticket.ID{}
 					input.ParentID = &zeroID
 				} else {
-					pid, err := ticket.ParseID(parent)
+					pid, err := resolver.Resolve(ctx, parent)
 					if err != nil {
 						return cmdutil.FlagErrorf("invalid parent ID: %s", err)
 					}
@@ -151,11 +157,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					return cmdutil.FlagErrorf("invalid facet %q: %s", s, err)
 				}
 				input.FacetSet = append(input.FacetSet, facet)
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
 			}
 			if err := svc.UpdateTicket(ctx, input); err != nil {
 				return fmt.Errorf("updating ticket: %w", err)

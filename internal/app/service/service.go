@@ -24,6 +24,9 @@ type Service interface {
 	// AgentInstructions returns Markdown instructions for agents.
 	AgentInstructions(ctx context.Context) (string, error)
 
+	// GetPrefix returns the database's configured ticket ID prefix.
+	GetPrefix(ctx context.Context) (string, error)
+
 	// --- Ticket Operations ---
 
 	// CreateTicket creates a new ticket.

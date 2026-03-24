@@ -8,7 +8,6 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // deleteOutput is the JSON representation of the delete command result.
@@ -59,7 +58,13 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("ticket ID argument is required")
 			}
 
-			ticketID, err := ticket.ParseID(rawID)
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			ticketID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 			}
@@ -67,11 +72,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			input := service.DeleteInput{
 				TicketID: ticketID,
 				ClaimID:  claimID,
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
 			}
 			if err := svc.DeleteTicket(ctx, input); err != nil {
 				return fmt.Errorf("deleting ticket: %w", err)

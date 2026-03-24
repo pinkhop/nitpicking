@@ -12,7 +12,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // --- JSON output types ---
@@ -97,25 +96,26 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			ticketID, err := ticket.ParseID(ticketArg)
-			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
-			}
-
 			parsedAuthor, err := identity.NewAuthor(author)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid author: %s", err)
+			}
+
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			ticketID, err := resolver.Resolve(ctx, ticketArg)
+			if err != nil {
+				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 			}
 
 			input := service.AddNoteInput{
 				TicketID: ticketID,
 				Author:   parsedAuthor,
 				Body:     body,
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
 			}
 			result, err := svc.AddNote(ctx, input)
 			if err != nil {
@@ -234,7 +234,13 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			ticketID, err := ticket.ParseID(ticketArg)
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			ticketID, err := resolver.Resolve(ctx, ticketArg)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 			}
@@ -242,11 +248,6 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 			input := service.ListNotesInput{
 				TicketID: ticketID,
 				Page:     port.PageRequest{PageSize: pageSize},
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
 			}
 			result, err := svc.ListNotes(ctx, input)
 			if err != nil {
@@ -331,22 +332,23 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("search query argument is required")
 			}
 
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
 			input := service.SearchNotesInput{
 				Query: query,
 				Page:  port.PageRequest{PageSize: pageSize},
 			}
 
 			if ticketArg != "" {
-				tid, err := ticket.ParseID(ticketArg)
+				tid, err := resolver.Resolve(ctx, ticketArg)
 				if err != nil {
 					return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 				}
 				input.TicketID = tid
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
 			}
 			result, err := svc.SearchNotes(ctx, input)
 			if err != nil {

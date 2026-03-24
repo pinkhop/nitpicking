@@ -214,6 +214,58 @@ func TestID_IsZero_DetectsZeroValue(t *testing.T) {
 	}
 }
 
+func TestResolveID_FullID_ReturnsParsedID(t *testing.T) {
+	t.Parallel()
+
+	// When
+	id, err := ticket.ResolveID("NP-a3bxr", "NP")
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id.String() != "NP-a3bxr" {
+		t.Errorf("expected NP-a3bxr, got %s", id.String())
+	}
+}
+
+func TestResolveID_BareRandom_PrependsPrefix(t *testing.T) {
+	t.Parallel()
+
+	// When
+	id, err := ticket.ResolveID("a3bxr", "NP")
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id.String() != "NP-a3bxr" {
+		t.Errorf("expected NP-a3bxr, got %s", id.String())
+	}
+}
+
+func TestResolveID_InvalidBareRandom_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// When: a string that isn't a valid full ID or a valid random part.
+	_, err := ticket.ResolveID("not-valid", "NP")
+
+	// Then
+	if err == nil {
+		t.Fatal("expected error for invalid input")
+	}
+}
+
+func TestResolveID_BareRandomWithExcludedChars_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// When: bare random with excluded Crockford chars (i, l, o, u).
+	_, err := ticket.ResolveID("il0ou", "NP")
+
+	// Then
+	if err == nil {
+		t.Fatal("expected error for invalid Crockford chars")
+	}
+}
+
 func TestValidatePrefix_ValidPrefixes(t *testing.T) {
 	t.Parallel()
 

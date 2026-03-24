@@ -54,6 +54,22 @@ func ParseID(s string) (ID, error) {
 	return ID{prefix: prefix, random: random}, nil
 }
 
+// ResolveID parses a ticket ID string that may be either a full ID
+// (PREFIX-random) or a bare random part (just the 5-char Crockford string).
+// If the input contains a separator, it is parsed as a full ID. Otherwise,
+// the given prefix is prepended and the result is parsed as a full ID.
+func ResolveID(raw, prefix string) (ID, error) {
+	if strings.ContainsRune(raw, '-') {
+		return ParseID(raw)
+	}
+
+	if err := validateRandom(raw); err != nil {
+		return ID{}, fmt.Errorf("invalid ticket ID %q: %w", raw, err)
+	}
+
+	return ParseID(prefix + "-" + raw)
+}
+
 // GenerateID creates a new random ticket ID with the given prefix. The
 // collisionCheck callback returns true if the generated ID already exists;
 // on collision, the function regenerates and retries up to maxRetries times.

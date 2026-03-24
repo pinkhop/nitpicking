@@ -8,7 +8,6 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // showOutput is the JSON representation of the show command result.
@@ -60,14 +59,15 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("ticket ID argument is required")
 			}
 
-			ticketID, err := ticket.ParseID(rawID)
-			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
-			}
-
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			ticketID, err := resolver.Resolve(ctx, rawID)
+			if err != nil {
+				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 			}
 			result, err := svc.ShowTicket(ctx, ticketID)
 			if err != nil {

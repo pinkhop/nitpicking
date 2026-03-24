@@ -8,7 +8,6 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // transitionOutput is the JSON representation of a transition command result.
@@ -50,7 +49,13 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 				return cmdutil.FlagErrorf("ticket ID argument is required")
 			}
 
-			ticketID, err := ticket.ParseID(rawID)
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			ticketID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 			}
@@ -59,11 +64,6 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 				TicketID: ticketID,
 				ClaimID:  claimID,
 				Action:   action,
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
 			}
 			if err := svc.TransitionState(ctx, input); err != nil {
 				return fmt.Errorf("transitioning ticket: %w", err)

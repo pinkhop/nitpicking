@@ -81,7 +81,13 @@ func newIDCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("ticket ID argument is required")
 			}
 
-			ticketID, err := ticket.ParseID(rawID)
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			ticketID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 			}
@@ -104,11 +110,6 @@ func newIDCmd(f *cmdutil.Factory) *cli.Command {
 				Author:         parsedAuthor,
 				AllowSteal:     steal,
 				StaleThreshold: threshold,
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
 			}
 			result, err := svc.ClaimByID(ctx, input)
 			if err != nil {

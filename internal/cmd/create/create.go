@@ -173,15 +173,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			// Parse optional parent ID.
-			var parentID ticket.ID
-			if parent != "" {
-				parentID, err = ticket.ParseID(parent)
-				if err != nil {
-					return cmdutil.FlagErrorf("invalid parent ID: %s", err)
-				}
-			}
-
 			// Parse facets: three-way merge of env, JSON, and flags.
 			// Precedence: flags > JSON > env. Different keys are merged;
 			// same key uses the highest-precedence source.
@@ -206,6 +197,21 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			// Parse optional parent ID.
+			var parentID ticket.ID
+			if parent != "" {
+				parentID, err = resolver.Resolve(ctx, parent)
+				if err != nil {
+					return cmdutil.FlagErrorf("invalid parent ID: %s", err)
+				}
+			}
+
 			input := service.CreateTicketInput{
 				Role:               parsedRole,
 				Title:              title,
@@ -217,11 +223,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Author:             parsedAuthor,
 				Claim:              claim,
 				IdempotencyKey:     idempotencyKey,
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
 			}
 			result, err := svc.CreateTicket(ctx, input)
 			if err != nil {

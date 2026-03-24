@@ -44,6 +44,19 @@ func (s *serviceImpl) AgentInstructions(_ context.Context) (string, error) {
 	return identity.AgentInstructions(), nil
 }
 
+func (s *serviceImpl) GetPrefix(ctx context.Context) (string, error) {
+	var prefix string
+	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
+		p, err := uow.Database().GetPrefix(ctx)
+		if err != nil {
+			return err
+		}
+		prefix = p
+		return nil
+	})
+	return prefix, err
+}
+
 // --- Ticket Operations ---
 
 func (s *serviceImpl) CreateTicket(ctx context.Context, input CreateTicketInput) (CreateTicketOutput, error) {

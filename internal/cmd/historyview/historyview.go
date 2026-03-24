@@ -10,7 +10,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // fieldChangeOutput is the JSON representation of a single field change.
@@ -68,7 +67,13 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("ticket ID argument is required")
 			}
 
-			ticketID, err := ticket.ParseID(rawID)
+			svc, err := cmdutil.NewTracker(f)
+			if err != nil {
+				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			ticketID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 			}
@@ -76,11 +81,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			input := service.ListHistoryInput{
 				TicketID: ticketID,
 				Page:     port.PageRequest{PageSize: pageSize},
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
 			}
 			result, err := svc.ShowHistory(ctx, input)
 			if err != nil {

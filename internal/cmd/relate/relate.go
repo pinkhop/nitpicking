@@ -69,19 +69,9 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("usage: np relate add <SOURCE> <TYPE> <TARGET>")
 			}
 
-			sourceID, err := ticket.ParseID(sourceRaw)
-			if err != nil {
-				return cmdutil.FlagErrorf("invalid source ticket ID: %s", err)
-			}
-
 			relType, err := ticket.ParseRelationType(relTypeRaw)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
-			}
-
-			targetID, err := ticket.ParseID(targetRaw)
-			if err != nil {
-				return cmdutil.FlagErrorf("invalid target ticket ID: %s", err)
 			}
 
 			parsedAuthor, err := identity.NewAuthor(author)
@@ -89,14 +79,25 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("invalid author: %s", err)
 			}
 
-			rel := service.RelationshipInput{
-				Type:     relType,
-				TargetID: targetID,
-			}
-
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			sourceID, err := resolver.Resolve(ctx, sourceRaw)
+			if err != nil {
+				return cmdutil.FlagErrorf("invalid source ticket ID: %s", err)
+			}
+
+			targetID, err := resolver.Resolve(ctx, targetRaw)
+			if err != nil {
+				return cmdutil.FlagErrorf("invalid target ticket ID: %s", err)
+			}
+
+			rel := service.RelationshipInput{
+				Type:     relType,
+				TargetID: targetID,
 			}
 			if err := svc.AddRelationship(ctx, sourceID, rel, parsedAuthor); err != nil {
 				return fmt.Errorf("adding relationship: %w", err)
@@ -158,19 +159,9 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("usage: np relate remove <SOURCE> <TYPE> <TARGET>")
 			}
 
-			sourceID, err := ticket.ParseID(sourceRaw)
-			if err != nil {
-				return cmdutil.FlagErrorf("invalid source ticket ID: %s", err)
-			}
-
 			relType, err := ticket.ParseRelationType(relTypeRaw)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
-			}
-
-			targetID, err := ticket.ParseID(targetRaw)
-			if err != nil {
-				return cmdutil.FlagErrorf("invalid target ticket ID: %s", err)
 			}
 
 			parsedAuthor, err := identity.NewAuthor(author)
@@ -178,14 +169,25 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("invalid author: %s", err)
 			}
 
-			rel := service.RelationshipInput{
-				Type:     relType,
-				TargetID: targetID,
-			}
-
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			sourceID, err := resolver.Resolve(ctx, sourceRaw)
+			if err != nil {
+				return cmdutil.FlagErrorf("invalid source ticket ID: %s", err)
+			}
+
+			targetID, err := resolver.Resolve(ctx, targetRaw)
+			if err != nil {
+				return cmdutil.FlagErrorf("invalid target ticket ID: %s", err)
+			}
+
+			rel := service.RelationshipInput{
+				Type:     relType,
+				TargetID: targetID,
 			}
 			if err := svc.RemoveRelationship(ctx, sourceID, rel, parsedAuthor); err != nil {
 				return fmt.Errorf("removing relationship: %w", err)

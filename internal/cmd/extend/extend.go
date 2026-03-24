@@ -8,7 +8,6 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
-	"github.com/pinkhop/nitpicking/internal/domain/ticket"
 )
 
 // extendOutput is the JSON representation of the extend command result.
@@ -57,11 +56,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("ticket ID argument is required")
 			}
 
-			ticketID, err := ticket.ParseID(rawID)
-			if err != nil {
-				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
-			}
-
 			duration, err := time.ParseDuration(threshold)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid threshold duration: %s", err)
@@ -70,6 +64,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			ticketID, err := resolver.Resolve(ctx, rawID)
+			if err != nil {
+				return cmdutil.FlagErrorf("invalid ticket ID: %s", err)
 			}
 			if err := svc.ExtendStaleThreshold(ctx, ticketID, claimID, duration); err != nil {
 				return fmt.Errorf("extending stale threshold: %w", err)

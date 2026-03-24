@@ -17,13 +17,13 @@ func TestAgentInstructions_ContainsCoreWorkflowSections(t *testing.T) {
 	required := []string{
 		"np claim ready",
 		"np update",
-		"np state close",
-		"np release",
+		"np done",
+		"np issue release",
 		"claim",
 		"np create",
 		"np comment",
 		"exclusive",
-		"np state wait",
+		"np issue defer",
 		"np search",
 	}
 

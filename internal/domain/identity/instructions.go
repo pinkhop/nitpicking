@@ -66,9 +66,9 @@ Comments do not require claiming and can be added to any issue, including closed
 
 | Transition | When to use |
 |------------|-------------|
-| ` + "`np state close <ID> --claim <CID>`" + ` | Task is complete (can be reopened if needed) |
-| ` + "`np release <ID> --claim <CID>`" + ` | Epic has been decomposed; or task cannot be completed now |
-| ` + "`np state wait <ID> --claim <CID>`" + ` | Blocked on a human or stakeholder decision |
+| ` + "`np done <ID> --claim <CID> --author <name> --reason \"...\"`" + ` | Task is complete (can be reopened if needed) |
+| ` + "`np issue release <ID> --claim <CID>`" + ` | Epic has been decomposed; or task cannot be completed now |
+| ` + "`np issue defer <ID> --claim <CID>`" + ` | Shelve for later (can be restored with undefer) |
 
 ## Handling Incidentals
 
@@ -77,7 +77,7 @@ If you discover something unrelated to your current issue (e.g., a failing test,
 1. Search for an existing issue: ` + "`np search \"description\"`" + `
 2. If none found, create a new issue: ` + "`np create --role task --title \"...\" --author <your-name>`" + `
 3. If the incidental blocks your current work, add a relationship:
-   ` + "`np relate add <YOUR-ISSUE> blocked_by <BLOCKER-ID> --author <your-name>`" + `
+   ` + "`np rel add <YOUR-ISSUE> blocked_by <BLOCKER-ID> --author <your-name>`" + `
 
 ## Stale Claims and Stealing
 
@@ -99,8 +99,8 @@ np issue history <ID> # audit trail of all changes
 
 - **Use ` + "`np claim ready`" + ` to find work.** Do not browse and cherry-pick issues.
 - **Document your work.** Add a comment before transitioning state — capture reasoning, trade-offs, and findings.
-- **Always transition state when done.** Close, release, or wait — never abandon a claim.
-- **Closed issues can be reopened.** Claim a closed issue and release it to reopen.
+- **Always transition state when done.** Close, release, or defer — never abandon a claim.
+- **Closed issues can be reopened.** Use ` + "`np issue reopen <ID> --author <name>`" + ` to restore them.
 - **Epics are never closed directly.** They complete when all children resolve.
 - **Use ` + "`np`" + ` exclusively.** Do not track work outside of ` + "`np`" + `.
 `

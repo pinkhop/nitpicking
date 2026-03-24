@@ -223,9 +223,8 @@ Valid `<rel>` values: `blocked_by`, `blocks`, `cites`, `cited_by`, `parent_of`, 
 Comments do **not** require claiming and can be added to closed issues.
 
 ```bash
-np comment add <ISSUE-ID> --body "Found the root cause in auth.go:142" --author <your-name>
-np comment list <ISSUE-ID>
-np comment search "root cause"
+np comment add --issue <ISSUE-ID> --body "Found the root cause in auth.go:142" --author <your-name>
+np comment list --issue <ISSUE-ID>
 ```
 
 ## Stale Claims and Stealing

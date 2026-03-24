@@ -103,7 +103,6 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				issuecmd.NewCmd(f),
 				epiccmd.NewCmd(f),
 				create.NewCmd(f),
-				claim.NewCmd(f),
 			}},
 			{"Workflow", []*cli.Command{
 				ready.NewCmd(f),
@@ -132,6 +131,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 	// Register deprecated commands as hidden — they work but don't
 	// appear in help output. Use the new subcommand groups instead.
 	deprecated := []*cli.Command{
+		claim.NewCmd(f),
 		doctor.NewCmd(f),
 		gc.NewCmd(f),
 	}

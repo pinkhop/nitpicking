@@ -59,14 +59,17 @@ and `[accent]` below.
 
     [accent]np agent prime[/accent]
 
-  This prints Markdown workflow instructions. Paste the output into your agent's
-  instruction file:
+  This prints Markdown workflow instructions. Provide the output to your agent
+  at the start of every session, and re-provide it whenever context is compacted
+  or cleared. The prime output is too large for static instruction files.
+
+  Your instruction file should contain a brief reference to np so agents know
+  the tool exists:
 
     • [accent]CLAUDE.md[/accent]   — for Claude Code
     • [accent]AGENTS.md[/accent]   — for GitHub Copilot and other agents
     • [accent].github/copilot-instructions.md[/accent] — Copilot alternate location
 
-  Or tell your agent to run [accent]np agent prime[/accent] at the start of each session.
   No hooks or integrations required — np is just a CLI.
 
 [bold]Pick an author name[/bold]

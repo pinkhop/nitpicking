@@ -132,9 +132,9 @@ func checkNpInstructionsPresent(cwd string) []service.DoctorFinding {
 		return nil
 	}
 
-	msg := "No agent instruction files (CLAUDE.md, AGENTS.md) found — AI agents need np workflow instructions to use the tool effectively. Run 'np agent prime' and paste the output into your agent's instruction file."
+	msg := "No agent instruction files (CLAUDE.md, AGENTS.md) found — AI agents need a brief np reference in their instruction file so they know the tool exists. Add a note mentioning np, and provide the full output of 'np agent prime' at the start of each session."
 	if anyExists {
-		msg = "Agent instruction files exist but none mention np — AI agents need np workflow instructions to use the tool effectively. Run 'np agent prime' and paste the output into your agent's instruction file."
+		msg = "Agent instruction files exist but none mention np — AI agents need a brief np reference so they know the tool exists. Add a note mentioning np, and provide the full output of 'np agent prime' at the start of each session."
 	}
 
 	return []service.DoctorFinding{{

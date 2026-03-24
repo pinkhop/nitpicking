@@ -69,24 +69,16 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newListCmd constructs "rel list" which shows all relationships for an issue.
+// newListCmd constructs "rel list <ID>" which shows all relationships for an
+// issue.
 func newListCmd(f *cmdutil.Factory) *cli.Command {
-	var (
-		jsonOutput bool
-		issueArg   string
-	)
+	var jsonOutput bool
 
 	return &cli.Command{
-		Name:  "list",
-		Usage: "List all relationships for an issue",
+		Name:      "list",
+		Usage:     "List all relationships for an issue",
+		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "issue",
-				Aliases:     []string{"i"},
-				Usage:       "Issue ID (required)",
-				Required:    true,
-				Destination: &issueArg,
-			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -95,13 +87,18 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			rawID := cmd.Args().Get(0)
+			if rawID == "" {
+				return cmdutil.FlagErrorf("issue ID argument is required")
+			}
+
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
 			}
 			resolver := cmdutil.NewIDResolver(svc)
 
-			issueID, err := resolver.Resolve(ctx, issueArg)
+			issueID, err := resolver.Resolve(ctx, rawID)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}

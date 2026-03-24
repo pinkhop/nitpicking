@@ -68,8 +68,7 @@ func Create(dbPath string) (*Store, error) {
 }
 
 // Open opens an existing SQLite database at dbPath. It does not apply schema
-// DDL — the database must already have been created with Create. It runs any
-// pending one-shot migrations (e.g. the ticket→issue rename) before returning.
+// DDL — the database must already have been created with Create.
 func Open(dbPath string) (*Store, error) {
 	pool, err := sqlitex.NewPool(dbPath, sqlitex.PoolOptions{
 		PoolSize:    1,
@@ -78,43 +77,6 @@ func Open(dbPath string) (*Store, error) {
 	if err != nil {
 		return nil, &domain.DatabaseError{Op: "open database", Err: err}
 	}
-
-	conn, err := pool.Take(context.Background())
-	if err != nil {
-		closeErr := pool.Close()
-		return nil, &domain.DatabaseError{Op: "take connection for migration", Err: errors.Join(err, closeErr)}
-	}
-	err = migrateTicketsToIssues(conn)
-	if err != nil {
-		pool.Put(conn)
-		closeErr := pool.Close()
-		return nil, &domain.DatabaseError{Op: "migrate tickets to issues", Err: errors.Join(err, closeErr)}
-	}
-	err = migrateFacetsToDimensions(conn)
-	if err != nil {
-		pool.Put(conn)
-		closeErr := pool.Close()
-		return nil, &domain.DatabaseError{Op: "migrate facets to dimensions", Err: errors.Join(err, closeErr)}
-	}
-	err = migrateNotesToComments(conn)
-	if err != nil {
-		pool.Put(conn)
-		closeErr := pool.Close()
-		return nil, &domain.DatabaseError{Op: "migrate notes to comments", Err: errors.Join(err, closeErr)}
-	}
-	err = migrateActiveToOpen(conn)
-	if err != nil {
-		pool.Put(conn)
-		closeErr := pool.Close()
-		return nil, &domain.DatabaseError{Op: "migrate active to open", Err: errors.Join(err, closeErr)}
-	}
-	err = migrateWaitingToDeferred(conn)
-	pool.Put(conn)
-	if err != nil {
-		closeErr := pool.Close()
-		return nil, &domain.DatabaseError{Op: "migrate waiting to deferred", Err: errors.Join(err, closeErr)}
-	}
-
 	return &Store{pool: pool}, nil
 }
 

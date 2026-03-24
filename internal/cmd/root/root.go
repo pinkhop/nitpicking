@@ -2,7 +2,6 @@ package root
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os/signal"
@@ -90,7 +89,7 @@ func LoggerFrom(ctx context.Context) *slog.Logger {
 // every subcommand and enriches the context with cross-cutting concerns;
 // the After hook tears down infrastructure started in Before.
 func NewRootCmd(f *cmdutil.Factory) *cli.Command {
-	var env, logLevel string
+	var logLevel string
 
 	// stopSignals deregisters the signal handler installed in Before.
 	// Declared here so the After hook can call it during teardown.
@@ -100,19 +99,6 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "np",
 		Usage: "A local-only, CLI-driven issue tracker for AI agent workflows",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "env",
-				Sources:     cli.EnvVars("ENV", "ENVIRONMENT"),
-				Usage:       "Set the deployment environment; e.g., dev, staging, prod",
-				Value:       "dev",
-				Destination: &env,
-				Validator: func(s string) error {
-					if strings.TrimSpace(s) == "" {
-						return errors.New("environment variable is empty")
-					}
-					return nil
-				},
-			},
 			&cli.StringFlag{
 				Name:        "log-level",
 				Sources:     cli.EnvVars("LOG_LEVEL"),

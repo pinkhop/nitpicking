@@ -277,11 +277,14 @@ func newUndeferCmd(f *cmdutil.Factory) *cli.Command {
 }
 
 // newDeferCmd constructs the "issue defer" subcommand, which defers a claimed
-// issue for later work.
+// issue for later work. An optional --until flag records a revisit date as a
+// dimension (metadata only — np has no scheduler, but doctor can report
+// overdue deferrals).
 func newDeferCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		claimID    string
+		until      string
 	)
 
 	return &cli.Command{
@@ -295,6 +298,12 @@ func newDeferCmd(f *cmdutil.Factory) *cli.Command {
 				Usage:       "Active claim ID for the issue (required)",
 				Required:    true,
 				Destination: &claimID,
+			},
+			&cli.StringFlag{
+				Name:        "until",
+				Usage:       "Date to revisit (YYYY-MM-DD); recorded as defer_until dimension",
+				Category:    "Options",
+				Destination: &until,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -320,25 +329,51 @@ func newDeferCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
-			input := service.TransitionInput{
+			// Set the defer_until dimension before transitioning, since the
+			// transition invalidates the claim.
+			if until != "" {
+				dim, dimErr := issue.NewDimension("defer_until", until)
+				if dimErr != nil {
+					return cmdutil.FlagErrorf("invalid --until value: %s", dimErr)
+				}
+				updateInput := service.UpdateIssueInput{
+					IssueID:      issueID,
+					ClaimID:      claimID,
+					DimensionSet: []issue.Dimension{dim},
+				}
+				if updateErr := svc.UpdateIssue(ctx, updateInput); updateErr != nil {
+					return fmt.Errorf("setting defer_until: %w", updateErr)
+				}
+			}
+
+			transInput := service.TransitionInput{
 				IssueID: issueID,
 				ClaimID: claimID,
 				Action:  service.ActionDefer,
 			}
-			if err := svc.TransitionState(ctx, input); err != nil {
+			if err := svc.TransitionState(ctx, transInput); err != nil {
 				return fmt.Errorf("deferring issue: %w", err)
 			}
 
 			if jsonOutput {
-				return cmdutil.WriteJSON(f.IOStreams.Out, map[string]string{
+				out := map[string]string{
 					"issue_id": issueID.String(),
 					"action":   "defer",
-				})
+				}
+				if until != "" {
+					out["until"] = until
+				}
+				return cmdutil.WriteJSON(f.IOStreams.Out, out)
 			}
 
 			cs := f.IOStreams.ColorScheme()
-			_, err = fmt.Fprintf(f.IOStreams.Out, "%s Deferred %s\n",
-				cs.SuccessIcon(), cs.Bold(issueID.String()))
+			if until != "" {
+				_, err = fmt.Fprintf(f.IOStreams.Out, "%s Deferred %s until %s\n",
+					cs.SuccessIcon(), cs.Bold(issueID.String()), until)
+			} else {
+				_, err = fmt.Fprintf(f.IOStreams.Out, "%s Deferred %s\n",
+					cs.SuccessIcon(), cs.Bold(issueID.String()))
+			}
 			return err
 		},
 	}

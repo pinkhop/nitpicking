@@ -104,11 +104,35 @@ func TestE2E_ClaimStealing_CannotStealActiveClaim(t *testing.T) {
 	}
 }
 
-// NOTE: A TestE2E_ClaimStealing_NextStealFallback test is intentionally
-// omitted. There is a known edge case where stale-claimed tickets appear in
-// the "ready" list, causing `next` to attempt a normal claim (without
-// steal) before reaching the steal-fallback path. This results in a claim
-// conflict error. See the bug ticket for details.
+func TestE2E_ClaimStealing_NextStealFallback(t *testing.T) {
+	// Given — the only ticket in the database is stale-claimed by agent A,
+	// so there are no unclaimed ready tickets.
+	dir := initDB(t, "STEAL")
+	agentA := "agent-alpha"
+	agentB := "agent-beta"
+
+	ticketID, _ := seedClaimedTaskWithThreshold(t, dir, "Only ticket", agentA, "1s")
+	time.Sleep(2 * time.Second)
+
+	// When — agent B uses next with --steal-fallback.
+	stdout, stderr, code := runNP(t, dir, "next",
+		"--author", agentB,
+		"--steal-fallback",
+		"--json",
+	)
+
+	// Then — next steals the stale claim.
+	if code != 0 {
+		t.Fatalf("next --steal-fallback failed (exit %d): %s", code, stderr)
+	}
+	result := parseJSON(t, stdout)
+	if result["ticket_id"] != ticketID {
+		t.Errorf("expected ticket_id %s, got %v", ticketID, result["ticket_id"])
+	}
+	if result["stolen"] != true {
+		t.Error("expected stolen=true in next --steal-fallback response")
+	}
+}
 
 func TestE2E_ClaimStealing_StolenClaimAllowsFullLifecycle(t *testing.T) {
 	// Given — agent B has stolen a stale claim from agent A.

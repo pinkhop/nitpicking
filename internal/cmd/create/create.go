@@ -3,6 +3,7 @@ package create
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -134,8 +135,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			// Parse facets from the repeatable --facet flag.
+			// Parse facets: merge NP_FACETS env var (space-separated) with
+			// explicit --facet flags. Explicit flags take precedence.
 			facets = cmd.StringSlice("facet")
+			facets = mergeFacetSources(os.Getenv("NP_FACETS"), facets)
 			parsedFacets, err := parseFacets(facets)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
@@ -213,6 +216,37 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 // parseFacets converts a slice of "key:value" strings into a slice of
 // validated ticket.Facet values.
+// mergeFacetSources combines facets from the NP_FACETS env var (space-separated
+// key:value pairs) with explicitly provided --facet flag values. Explicit flags
+// take precedence: if the same key appears in both sources, the flag value wins.
+func mergeFacetSources(envValue string, flagFacets []string) []string {
+	if envValue == "" {
+		return flagFacets
+	}
+
+	// Build a set of keys provided by explicit flags.
+	explicitKeys := make(map[string]bool)
+	for _, f := range flagFacets {
+		key, _, ok := strings.Cut(f, ":")
+		if ok {
+			explicitKeys[key] = true
+		}
+	}
+
+	// Prepend env facets that don't conflict with explicit flags.
+	envParts := strings.Fields(envValue)
+	merged := make([]string, 0, len(envParts)+len(flagFacets))
+	for _, part := range envParts {
+		key, _, ok := strings.Cut(part, ":")
+		if ok && !explicitKeys[key] {
+			merged = append(merged, part)
+		}
+	}
+	merged = append(merged, flagFacets...)
+
+	return merged
+}
+
 func parseFacets(raw []string) ([]ticket.Facet, error) {
 	if len(raw) == 0 {
 		return nil, nil

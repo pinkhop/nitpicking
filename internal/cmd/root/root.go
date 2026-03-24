@@ -39,12 +39,10 @@ import (
 // help output. urfave/cli sorts categories alphabetically; we override the
 // root help template to render them in this sequence instead.
 var categoryOrder = []string{
-	"Setup",
-	"Issue Lifecycle",
-	"Workflow",
-	"Query",
-	"Annotations",
-	"Maintenance",
+	"Workflow Shortcuts",
+	"Issues",
+	"Admin",
+	"Getting Started",
 }
 
 func init() {
@@ -94,37 +92,33 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			return nil
 		},
 		Commands: categorize([]commandGroup{
-			{"Setup", []*cli.Command{
-				quickstart.NewCmd(f),
-				cmdinit.NewCmd(f),
-				agent.NewCmd(f),
-				completion.NewCmd(f),
-				version.NewCmd(f),
-			}},
-			{"Issue Lifecycle", []*cli.Command{
-				issuecmd.NewCmd(f),
-				epiccmd.NewCmd(f),
-				create.NewCmd(f),
-			}},
-			{"Workflow", []*cli.Command{
+			{"Workflow Shortcuts", []*cli.Command{
 				ready.NewCmd(f),
 				blocked.NewCmd(f),
-				status.NewCmd(f),
+				create.NewCmd(f),
 				done.NewCmd(f),
-			}},
-			{"Query", []*cli.Command{
 				show.NewCmd(f),
-				list.NewCmd(f),
 				search.NewCmd(f),
+				list.NewCmd(f),
+				status.NewCmd(f),
 			}},
-			{"Annotations", []*cli.Command{
+			{"Issues", []*cli.Command{
+				issuecmd.NewCmd(f),
+				epiccmd.NewCmd(f),
 				relcmd.NewCmd(f),
-				comment.NewCmd(f),
 				dimensioncmd.NewCmd(f),
+				comment.NewCmd(f),
 			}},
-			{"Maintenance", []*cli.Command{
+			{"Admin", []*cli.Command{
 				admincmd.NewCmd(f),
+				agent.NewCmd(f),
+			}},
+			{"Getting Started", []*cli.Command{
+				quickstart.NewCmd(f),
+				cmdinit.NewCmd(f),
 				where.NewCmd(f),
+				completion.NewCmd(f),
+				version.NewCmd(f),
 			}},
 		}),
 	}

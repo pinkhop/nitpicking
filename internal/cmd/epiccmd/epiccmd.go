@@ -163,13 +163,17 @@ func newStatusCmd(f *cmdutil.Factory) *cli.Command {
 					continue
 				}
 
+				// An epic is only eligible for closure if it's still open.
+				// Closed epics have already been resolved.
+				eligible := prog.Eligible && epic.State != issue.StateClosed
+
 				items = append(items, epicStatusItem{
 					ID:       epic.ID.String(),
 					Title:    epic.Title,
 					Total:    prog.Total,
 					Closed:   prog.Closed,
 					Percent:  prog.Percent,
-					Eligible: prog.Eligible,
+					Eligible: eligible,
 				})
 			}
 

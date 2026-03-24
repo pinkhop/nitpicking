@@ -25,7 +25,7 @@ type AncestorStatus struct {
 //  1. Its state is open.
 //  2. It has no unresolved blocked_by relationships (closed, deleted, or
 //     complete targets count as resolved).
-//  3. No ancestor epic is deferred or waiting.
+//  3. No ancestor epic is deferred.
 func IsTaskReady(state State, blockers []BlockerStatus, ancestors []AncestorStatus) bool {
 	if state != StateOpen {
 		return false
@@ -38,7 +38,7 @@ func IsTaskReady(state State, blockers []BlockerStatus, ancestors []AncestorStat
 	}
 
 	for _, a := range ancestors {
-		if a.State == StateDeferred || a.State == StateWaiting {
+		if a.State == StateDeferred {
 			return false
 		}
 	}
@@ -52,7 +52,7 @@ func IsTaskReady(state State, blockers []BlockerStatus, ancestors []AncestorStat
 //  1. Its state is open.
 //  2. It has no children (needs decomposition).
 //  3. It has no unresolved blocked_by relationships.
-//  4. No ancestor is deferred or waiting.
+//  4. No ancestor is deferred.
 func IsEpicReady(state State, hasChildren bool, blockers []BlockerStatus, ancestors []AncestorStatus) bool {
 	if state != StateOpen {
 		return false
@@ -69,7 +69,7 @@ func IsEpicReady(state State, hasChildren bool, blockers []BlockerStatus, ancest
 	}
 
 	for _, a := range ancestors {
-		if a.State == StateDeferred || a.State == StateWaiting {
+		if a.State == StateDeferred {
 			return false
 		}
 	}

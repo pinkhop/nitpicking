@@ -25,7 +25,6 @@ func TestIsTaskReady_NotOpen_NotReady(t *testing.T) {
 		issue.StateClaimed,
 		issue.StateClosed,
 		issue.StateDeferred,
-		issue.StateWaiting,
 	}
 
 	for _, state := range cases {
@@ -111,23 +110,6 @@ func TestIsTaskReady_DeferredAncestor_NotReady(t *testing.T) {
 	}
 }
 
-func TestIsTaskReady_WaitingAncestor_NotReady(t *testing.T) {
-	t.Parallel()
-
-	// Given
-	ancestors := []issue.AncestorStatus{
-		{State: issue.StateWaiting},
-	}
-
-	// When
-	result := issue.IsTaskReady(issue.StateOpen, nil, ancestors)
-
-	// Then
-	if result {
-		t.Error("expected not ready with waiting ancestor")
-	}
-}
-
 func TestIsEpicReady_ActiveNoChildrenNoBlockers_Ready(t *testing.T) {
 	t.Parallel()
 
@@ -158,7 +140,6 @@ func TestIsEpicReady_NotActive_NotReady(t *testing.T) {
 	cases := []issue.State{
 		issue.StateClaimed,
 		issue.StateDeferred,
-		issue.StateWaiting,
 	}
 
 	for _, state := range cases {

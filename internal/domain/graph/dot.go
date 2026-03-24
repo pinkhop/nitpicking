@@ -33,7 +33,6 @@ var stateColors = map[issue.State]string{
 	issue.StateClaimed:  "yellow",
 	issue.StateClosed:   "gray",
 	issue.StateDeferred: "lightyellow",
-	issue.StateWaiting:  "orange",
 }
 
 // RenderDOT generates a Graphviz DOT string from the given nodes and edges.

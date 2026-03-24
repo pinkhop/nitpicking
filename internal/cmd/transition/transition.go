@@ -17,7 +17,7 @@ type transitionOutput struct {
 }
 
 // newTransitionCmd builds a single transition subcommand (release, close,
-// defer, wait). All four share identical flag sets and differ only in the
+// defer). All three share identical flag sets and differ only in the
 // action label passed to the service.
 func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.TransitionAction) *cli.Command {
 	var (
@@ -86,16 +86,15 @@ func newTransitionCmd(f *cmdutil.Factory, name, usage string, action service.Tra
 	}
 }
 
-// NewStateCmd constructs the "state" parent command with close, defer, and
-// wait subcommands for terminal and special state transitions.
+// NewStateCmd constructs the "state" parent command with close and defer
+// subcommands for terminal and special state transitions.
 func NewStateCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:  "state",
-		Usage: "Transition issue state (close, defer, wait)",
+		Usage: "Transition issue state (close, defer)",
 		Commands: []*cli.Command{
 			newTransitionCmd(f, "close", "Close a claimed task", service.ActionClose),
 			newTransitionCmd(f, "defer", "Defer a claimed issue", service.ActionDefer),
-			newTransitionCmd(f, "wait", "Mark a claimed issue as waiting", service.ActionWait),
 		},
 	}
 }
@@ -117,8 +116,6 @@ func pastTense(name string) string {
 		return "Closed"
 	case "defer":
 		return "Deferred"
-	case "wait":
-		return "Set waiting on"
 	default:
 		return "Transitioned"
 	}

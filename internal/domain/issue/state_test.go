@@ -20,9 +20,7 @@ func TestTransition_LegalTransitions(t *testing.T) {
 		{"claimed to open", issue.StateClaimed, issue.StateOpen},
 		{"claimed to closed", issue.StateClaimed, issue.StateClosed},
 		{"claimed to deferred", issue.StateClaimed, issue.StateDeferred},
-		{"claimed to waiting", issue.StateClaimed, issue.StateWaiting},
 		{"deferred to claimed", issue.StateDeferred, issue.StateClaimed},
-		{"waiting to claimed", issue.StateWaiting, issue.StateClaimed},
 	}
 
 	for _, tc := range cases {
@@ -50,7 +48,6 @@ func TestTransition_IllegalTransitions(t *testing.T) {
 		{"open to closed", issue.StateOpen, issue.StateClosed},
 		{"open to deferred", issue.StateOpen, issue.StateDeferred},
 		{"deferred to open", issue.StateDeferred, issue.StateOpen},
-		{"waiting to open", issue.StateWaiting, issue.StateOpen},
 		{"claimed to claimed", issue.StateClaimed, issue.StateClaimed},
 	}
 
@@ -104,7 +101,6 @@ func TestParseState_ValidStates(t *testing.T) {
 		{"claimed", issue.StateClaimed},
 		{"closed", issue.StateClosed},
 		{"deferred", issue.StateDeferred},
-		{"waiting", issue.StateWaiting},
 	}
 
 	for _, tc := range cases {

@@ -103,10 +103,16 @@ func Open(dbPath string) (*Store, error) {
 		return nil, &domain.DatabaseError{Op: "migrate notes to comments", Err: errors.Join(err, closeErr)}
 	}
 	err = migrateActiveToOpen(conn)
+	if err != nil {
+		pool.Put(conn)
+		closeErr := pool.Close()
+		return nil, &domain.DatabaseError{Op: "migrate active to open", Err: errors.Join(err, closeErr)}
+	}
+	err = migrateWaitingToDeferred(conn)
 	pool.Put(conn)
 	if err != nil {
 		closeErr := pool.Close()
-		return nil, &domain.DatabaseError{Op: "migrate active to open", Err: errors.Join(err, closeErr)}
+		return nil, &domain.DatabaseError{Op: "migrate waiting to deferred", Err: errors.Join(err, closeErr)}
 	}
 
 	return &Store{pool: pool}, nil
@@ -1280,7 +1286,7 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 	}
 
 	if filter.Ready {
-		// Ready means: correct state, no unresolved blockers, no deferred/waiting
+		// Ready means: correct state, no unresolved blockers, no deferred
 		// ancestors, and (for epics) no children.
 		//
 		// State: all issues must be open.
@@ -1315,7 +1321,7 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 			  )
 		)`)
 
-		// No ancestor epic is deferred or waiting. Walk the parent chain with
+		// No ancestor epic is deferred. Walk the parent chain with
 		// a recursive CTE and reject issues that have any such ancestor.
 		conditions = append(conditions, `NOT EXISTS (
 			WITH RECURSIVE ancestors(aid) AS (
@@ -1325,7 +1331,7 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 			)
 			SELECT 1 FROM ancestors a
 			JOIN issues anc ON anc.issue_id = a.aid
-			WHERE anc.state IN ('deferred', 'waiting')
+			WHERE anc.state = 'deferred'
 		)`)
 	}
 

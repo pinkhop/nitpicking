@@ -97,7 +97,7 @@ np search "login timeout"             # full-text search across titles and descr
 
 `np list` hides closed issues by default since they are terminal and no longer actionable. Use `--include-closed` to show them, or `--state closed` to list only closed issues.
 
-An issue is **ready** when it is `open` with no children (for epics, needing decomposition), has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred` or `waiting`.
+An issue is **ready** when it is `open` with no children (for epics, needing decomposition), has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred` .
 
 ### 2. Claim before mutating
 
@@ -141,7 +141,7 @@ Every transition requires the claim ID and ends the claim.
 np state close <ISSUE-ID> --claim <CLAIM-ID>   # complete the task (terminal — cannot reopen)
 np release <ISSUE-ID> --claim <CLAIM-ID>   # return to open/active without completing
 np state defer <ISSUE-ID> --claim <CLAIM-ID>   # shelve for later
-np state wait  <ISSUE-ID> --claim <CLAIM-ID>   # blocked on an external dependency
+
 ```
 
 **Always transition state when you are done.** Abandoned claims block other agents until the stale threshold expires.
@@ -251,7 +251,7 @@ Append `--json` to any command for structured, machine-readable output. JSON is 
 
 - **Claim before mutating.** Field updates and state transitions are gated by claiming.
 - **Document your work.** Add a comment before transitioning state — capture reasoning, trade-offs, and findings.
-- **Always transition state when done.** Do not abandon claims — release, close, defer, or wait.
+- **Always transition state when done.** Do not abandon claims — release, close, or defer.
 - **Close is terminal.** Closed tasks cannot be reopened, reclaimed, or modified (comments can still be added).
 - **Epics are never closed directly.** An epic is complete when all its children are resolved.
 - **Use `np` exclusively.** Do not track work outside of `np`.

@@ -475,8 +475,6 @@ func (s *serviceImpl) TransitionState(ctx context.Context, input TransitionInput
 			return s.closeIssue(ctx, uow, t, input.ClaimID, c.Author(), now)
 		case ActionDefer:
 			return s.transitionIssue(ctx, uow, t, input.ClaimID, c.Author(), now, issue.StateDeferred)
-		case ActionWait:
-			return s.transitionIssue(ctx, uow, t, input.ClaimID, c.Author(), now, issue.StateWaiting)
 		default:
 			return fmt.Errorf("invalid transition action")
 		}

@@ -88,30 +88,6 @@ func seedDeferredTask(t *testing.T, dir, title, author string) string {
 	return taskID
 }
 
-// waitIssue claims and marks an issue as waiting. The test fails if any
-// step does not succeed.
-func waitIssue(t *testing.T, dir, issueID, author string) {
-	t.Helper()
-
-	claimID := claimIssue(t, dir, issueID, author)
-	_, stderr, code := runNP(t, dir, "state", "wait", issueID,
-		"--claim", claimID,
-		"--json",
-	)
-	if code != 0 {
-		t.Fatalf("wait %s failed (exit %d): %s", issueID, code, stderr)
-	}
-}
-
-// seedWaitingTask creates a task and marks it as waiting. Returns the issue ID.
-func seedWaitingTask(t *testing.T, dir, title, author string) string {
-	t.Helper()
-
-	taskID := createTask(t, dir, title, author)
-	waitIssue(t, dir, taskID, author)
-	return taskID
-}
-
 // addRelationship adds a relationship between two issues. The test fails
 // if the command does not succeed.
 func addRelationship(t *testing.T, dir, sourceID, relType, targetID, author string) {
@@ -264,20 +240,6 @@ func TestE2E_Seed_DeferredTask(t *testing.T) {
 	issue := showIssue(t, dir, issueID)
 	if issue["state"] != "deferred" {
 		t.Errorf("expected state 'deferred', got %v", issue["state"])
-	}
-}
-
-func TestE2E_Seed_WaitingTask(t *testing.T) {
-	// Given — a fresh database.
-	dir := initDB(t, "SEED")
-
-	// When — seed a waiting task.
-	issueID := seedWaitingTask(t, dir, "Waiting task", "seed-agent")
-
-	// Then — the issue is in waiting state.
-	issue := showIssue(t, dir, issueID)
-	if issue["state"] != "waiting" {
-		t.Errorf("expected state 'waiting', got %v", issue["state"])
 	}
 }
 

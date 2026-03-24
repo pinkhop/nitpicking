@@ -68,7 +68,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "state",
 				Aliases:     []string{"s"},
-				Usage:       "Filter by state: open, active, claimed, closed, deferred, waiting",
+				Usage:       "Filter by state: open, claimed, closed, deferred",
 				Destination: &state,
 			},
 			&cli.BoolFlag{

@@ -82,7 +82,7 @@ An issue that organizes other issues. Its completion derives from its children.
 - Optionally has a parent issue (nesting is allowed).
 - **Cannot** be directly completed — completion is derived from children
   (see [4.2](#42-epic-completion-derivation)).
-- Has three directly settable **planning states**: `active`, `deferred`, `waiting`
+- Has three directly settable **planning states**: `active`, `deferred`
   (see [3.4](#34-states)).
 - **Claimable** — an epic must be claimed to edit its metadata or decompose it into
   children. This prevents two agents from racing to break down the same epic.
@@ -154,7 +154,7 @@ how completion works.
 | `claimed`  | Both        | An agent or human has taken ownership. For tasks: working on it or updating fields. For epics: editing metadata or decomposing into children. |
 | `closed`   | Tasks       | Fully resolved. **Terminal** — cannot be claimed or reopened. Create a new issue and cite the old one instead. |
 | `deferred` | Both        | Should not be worked on now. For epics: unclaimed descendants are no longer ready (see [4.3](#43-readiness)); claimed descendants continue, but nothing new starts. |
-| `waiting`  | Both        | Cannot proceed until something **external to the issue tracker** happens — e.g., a human decision, a permission grant. Same readiness propagation as `deferred` for epics. (Name is provisional; "blocked" is explicitly rejected.) |
+
 
 #### State Transitions
 
@@ -164,7 +164,7 @@ itself (from any non-terminal state).
 
 ```
 (any non-terminal state) → claimed    take ownership
-claimed → open / active               release without completing
+claimed → open               release without completing
 claimed → closed                      complete (tasks only)
 claimed → deferred                    shelve
 claimed → waiting                     externally blocked
@@ -368,8 +368,8 @@ A task is **ready** when all of the following are true:
 1. Its state is `open`.
 2. It has no `blocked_by` relationships, **or** every `blocked_by` target has been
    closed or deleted.
-3. No ancestor epic is `deferred` or `waiting`. (Readiness propagates downward — a
-   deferred or waiting epic suppresses readiness for all unclaimed descendants.)
+3. No ancestor epic is `deferred` . (Readiness propagates downward — a
+   deferred epic suppresses readiness for all unclaimed descendants.)
 
 ### 4.4 Duplicate Handling
 
@@ -738,7 +738,7 @@ reports findings but does not modify any data. Examples:
 
 - **Circular `blocked_by` relationships** — dependency cycles.
 - **Deadlocked state** — all remaining issues are blocked (e.g., on `claimed`,
-  `deferred`, or `waiting` issues).
+  `deferred`,  issues).
 - **Stale `claimed` issues** — issues that have been claimed but show no activity.
 - **Epics with no task descendants** — epic subtrees that have no tasks at any leaf,
   indicating decomposition work is needed.
@@ -833,7 +833,7 @@ design principles. They should be resolved before implementation.
 ### ~~9.1 Objective State: Derived vs. Explicit~~ — RESOLVED
 
 Resolved: epics have a separate state model from tasks. Epics have three directly
-settable planning states (`active`, `deferred`, `waiting`) plus `claimed`. Completion is
+settable planning states (`active`, `deferred`) plus `claimed`. Completion is
 derived from children, never directly set. `deferred` and `waiting` propagate downward
 as readiness constraints — unclaimed descendants are no longer ready, but claimed
 descendants continue. See [3.4](#34-states) and [4.2](#42-epic-completion-derivation).
@@ -880,9 +880,9 @@ normal operation — it exists "in case", not "as part of the workflow."
 ### ~~9.6 Task State vs. Objective Derivation~~ — RESOLVED
 
 Resolved: epic completion is defined strictly as "has children and all children are
-closed/complete." Tasks that are `deferred` or `waiting` are not closed, so they keep
+closed/complete." Tasks that are `deferred`  are not closed, so they keep
 the parent epic incomplete — which is accurate. The epic's own planning state
-(`active`, `deferred`, `waiting`) is an independent, directly settable concern. If all
+(`active`, `deferred`) is an independent, directly settable concern. If all
 children are deferred, the epic is incomplete and likely should itself be marked
 `deferred` — but that is a judgment call, not an automatic derivation.
 

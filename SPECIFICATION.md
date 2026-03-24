@@ -123,7 +123,7 @@ An issue that organizes other issues. Its completion is derived from its childre
 
 - Optionally has a parent issue (nesting is allowed).
 - Cannot be directly completed — completion is derived (see [6.2](#62-epic-completion-derivation)).
-- Has two directly settable planning states: `deferred`, `waiting` (see [5.2](#52-epic-states)).
+- Has one directly settable planning state: `deferred` (see [5.2](#52-epic-states)).
 - Claimable — an epic must be claimed to edit its metadata or decompose it into children.
 
 #### Task
@@ -285,7 +285,7 @@ All issue roles (task and epic) share the same state lifecycle:
 | `claimed`  | An agent or human has taken ownership; working on it or updating fields. |
 | `closed`   | Fully resolved. **Terminal** — cannot be claimed or reopened. |
 | `deferred` | Should not be worked on now. Unclaimed descendants are no longer ready; claimed descendants continue. |
-| `waiting`  | Cannot proceed until something external to the issue tracker happens. Same readiness propagation as `deferred`. |
+
 
 ### 5.3 State Transition Rules
 
@@ -293,7 +293,7 @@ All issue roles (task and epic) share the same state lifecycle:
 
 ```
 (any non-terminal state) → claimed    take ownership
-claimed → open / active               release without completing
+claimed → open               release without completing
 claimed → closed                      complete (tasks only)
 claimed → deferred                    shelve
 claimed → waiting                     externally blocked
@@ -345,7 +345,7 @@ A task is **ready** when all of the following are true:
 
 1. Its state is `open`.
 2. It has no `blocked_by` relationships, **or** every `blocked_by` target has been closed, deleted, or completed (epics only — an epic is complete when all its children are closed or recursively complete; see [6.2](#62-epic-completion-derivation)).
-3. No ancestor epic is `deferred` or `waiting`.
+3. No ancestor epic is `deferred` .
 
 #### Epic Readiness
 
@@ -354,13 +354,13 @@ An epic is **ready** when all of the following are true:
 1. Its state is `open`.
 2. It has **no children** — it needs decomposition into tasks and/or sub-epics.
 3. It has no `blocked_by` relationships, **or** every `blocked_by` target has been closed, deleted, or completed (epics only).
-4. No ancestor epic is `deferred` or `waiting`.
+4. No ancestor epic is `deferred` .
 
 An epic that already has children is not ready — its work is defined; progress comes from completing its descendants.
 
 #### Readiness Propagation
 
-Readiness propagates downward — a deferred or waiting epic suppresses readiness for all unclaimed descendants.
+Readiness propagates downward — a deferred epic suppresses readiness for all unclaimed descendants.
 
 ### 6.4 Staleness and Stealing
 

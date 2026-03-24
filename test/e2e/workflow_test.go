@@ -195,14 +195,13 @@ func TestE2E_TaskLifecycle_ClaimReleaseReclaimClose(t *testing.T) {
 	}
 }
 
-func TestE2E_TaskLifecycle_DeferAndWait(t *testing.T) {
-	// Given — two tasks, one to be deferred and one to be marked as waiting.
+func TestE2E_TaskLifecycle_Defer(t *testing.T) {
+	// Given — a task to be deferred.
 	dir := initDB(t, "WF")
 	author := "lifecycle-agent"
 	deferID := createTask(t, dir, "Low priority polish", author)
-	waitID := createTask(t, dir, "Blocked on external API", author)
 
-	// When — defer one task and mark the other as waiting.
+	// When — defer the task.
 	deferClaim := claimIssue(t, dir, deferID, author)
 	_, stderr, code := runNP(t, dir, "state", "defer", deferID,
 		"--claim", deferClaim,
@@ -212,24 +211,10 @@ func TestE2E_TaskLifecycle_DeferAndWait(t *testing.T) {
 		t.Fatalf("defer failed (exit %d): %s", code, stderr)
 	}
 
-	waitClaim := claimIssue(t, dir, waitID, author)
-	_, stderr, code = runNP(t, dir, "state", "wait", waitID,
-		"--claim", waitClaim,
-		"--json",
-	)
-	if code != 0 {
-		t.Fatalf("wait failed (exit %d): %s", code, stderr)
-	}
-
-	// Then — each task reflects the correct terminal/non-terminal state.
+	// Then — the task is in deferred state.
 	deferIssue := showIssue(t, dir, deferID)
 	if deferIssue["state"] != "deferred" {
 		t.Errorf("expected deferred state, got %v", deferIssue["state"])
-	}
-
-	waitIssue := showIssue(t, dir, waitID)
-	if waitIssue["state"] != "waiting" {
-		t.Errorf("expected waiting state, got %v", waitIssue["state"])
 	}
 }
 

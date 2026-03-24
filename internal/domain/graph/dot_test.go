@@ -67,7 +67,6 @@ func TestRenderDOT_StateColors_MatchExpected(t *testing.T) {
 		{"claimed", issue.StateClaimed, "yellow"},
 		{"closed", issue.StateClosed, "gray"},
 		{"deferred", issue.StateDeferred, "lightyellow"},
-		{"waiting", issue.StateWaiting, "orange"},
 	}
 
 	for _, tc := range cases {

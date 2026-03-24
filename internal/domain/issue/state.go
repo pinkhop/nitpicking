@@ -23,10 +23,6 @@ const (
 
 	// StateDeferred indicates the issue should not be worked on now.
 	StateDeferred
-
-	// StateWaiting indicates the issue cannot proceed until something
-	// external happens.
-	StateWaiting
 )
 
 // stateStrings maps each State to its canonical lowercase string.
@@ -35,7 +31,6 @@ var stateStrings = map[State]string{
 	StateClaimed:  "claimed",
 	StateClosed:   "closed",
 	StateDeferred: "deferred",
-	StateWaiting:  "waiting",
 }
 
 // String returns the canonical lowercase string representation.
@@ -67,9 +62,8 @@ func (s State) IsTerminal() bool {
 // Key: current state → Value: set of allowed next states.
 var transitions = map[State]map[State]bool{
 	StateOpen:     {StateClaimed: true},
-	StateClaimed:  {StateOpen: true, StateClosed: true, StateDeferred: true, StateWaiting: true},
+	StateClaimed:  {StateOpen: true, StateClosed: true, StateDeferred: true},
 	StateDeferred: {StateClaimed: true},
-	StateWaiting:  {StateClaimed: true},
 	// StateClosed is terminal — no transitions out.
 }
 

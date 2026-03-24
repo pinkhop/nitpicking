@@ -112,9 +112,6 @@ const (
 
 	// ActionDefer shelves the issue.
 	ActionDefer
-
-	// ActionWait marks the issue as externally blocked.
-	ActionWait
 )
 
 // DeleteInput holds the parameters for soft-deleting an issue.

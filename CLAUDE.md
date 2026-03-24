@@ -125,7 +125,15 @@ For a quick one-shot edit that does not require holding a claim, use `np edit`:
 np edit <TICKET-ID> --author <your-name> --title "Quick fix"
 ```
 
-### 4. Transition state when done
+### 4. Document your work with notes
+
+Before transitioning state, add a note capturing your reasoning, trade-offs, findings, or anything a future reader would find useful.
+
+```bash
+np note add --ticket <TICKET-ID> --body "Approach taken: ..." --author <your-name>
+```
+
+### 5. Transition state when done
 
 Every transition requires the claim ID and ends the claim.
 
@@ -242,6 +250,7 @@ Append `--json` to any command for structured, machine-readable output. JSON is 
 ## Key Rules
 
 - **Claim before mutating.** Field updates and state transitions are gated by claiming.
+- **Document your work.** Add a note before transitioning state — capture reasoning, trade-offs, and findings.
 - **Always transition state when done.** Do not abandon claims — release, close, defer, or wait.
 - **Close is terminal.** Closed tasks cannot be reopened, reclaimed, or modified (notes can still be added).
 - **Epics are never closed directly.** An epic is complete when all its children are resolved.

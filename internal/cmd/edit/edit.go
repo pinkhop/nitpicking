@@ -45,6 +45,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
+				Sources:     cli.EnvVars("NP_AUTHOR"),
 				Usage:       "Author name for the one-shot claim",
 				Required:    true,
 				Destination: &author,

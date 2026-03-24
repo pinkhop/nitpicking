@@ -54,6 +54,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
+				Sources:     cli.EnvVars("NP_AUTHOR"),
 				Usage:       "Author name",
 				Required:    true,
 				Destination: &author,
@@ -142,6 +143,7 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
+				Sources:     cli.EnvVars("NP_AUTHOR"),
 				Usage:       "Author name",
 				Required:    true,
 				Destination: &author,

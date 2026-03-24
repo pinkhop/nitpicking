@@ -59,6 +59,7 @@ func newIDCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
+				Sources:     cli.EnvVars("NP_AUTHOR"),
 				Usage:       "Author name for the claim",
 				Required:    true,
 				Destination: &author,
@@ -142,6 +143,7 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "author",
 				Aliases:     []string{"a"},
+				Sources:     cli.EnvVars("NP_AUTHOR"),
 				Usage:       "Author name for the claim",
 				Required:    true,
 				Destination: &author,

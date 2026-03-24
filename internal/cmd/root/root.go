@@ -76,7 +76,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 	// Declared here so the After hook can call it during teardown.
 	var stopSignals func()
 
-	return &cli.Command{
+	rootCmd := &cli.Command{
 		Name:                          "np",
 		Usage:                         "A local-only, CLI-driven issue tracker for AI agent workflows",
 		CustomRootCommandHelpTemplate: rootHelpTemplate,
@@ -110,12 +110,6 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 				epiccmd.NewCmd(f),
 				create.NewCmd(f),
 				claim.NewCmd(f),
-				update.NewCmd(f),
-				edit.NewCmd(f),
-				extend.NewCmd(f),
-				cmddelete.NewCmd(f),
-				transition.NewReleaseCmd(f),
-				transition.NewStateCmd(f),
 			}},
 			{"Workflow", []*cli.Command{
 				ready.NewCmd(f),
@@ -131,18 +125,35 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			}},
 			{"Annotations", []*cli.Command{
 				relcmd.NewCmd(f),
-				relate.NewCmd(f),
 				comment.NewCmd(f),
 				dimensioncmd.NewCmd(f),
 			}},
 			{"Maintenance", []*cli.Command{
 				admincmd.NewCmd(f),
 				graphcmd.NewCmd(f),
-				doctor.NewCmd(f),
-				gc.NewCmd(f),
 			}},
 		}),
 	}
+
+	// Register deprecated commands as hidden — they work but don't
+	// appear in help output. Use the new subcommand groups instead.
+	deprecated := []*cli.Command{
+		update.NewCmd(f),
+		edit.NewCmd(f),
+		extend.NewCmd(f),
+		cmddelete.NewCmd(f),
+		transition.NewReleaseCmd(f),
+		transition.NewStateCmd(f),
+		relate.NewCmd(f),
+		doctor.NewCmd(f),
+		gc.NewCmd(f),
+	}
+	for _, cmd := range deprecated {
+		cmd.Hidden = true
+		rootCmd.Commands = append(rootCmd.Commands, cmd)
+	}
+
+	return rootCmd
 }
 
 // commandGroup pairs a category label with the commands that belong to it.

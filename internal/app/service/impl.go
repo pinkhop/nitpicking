@@ -963,12 +963,19 @@ func (s *serviceImpl) releaseIssue(ctx context.Context, uow port.UnitOfWork, iss
 }
 
 func (s *serviceImpl) closeIssue(ctx context.Context, uow port.UnitOfWork, t issue.Issue, claimID string, author identity.Author, now time.Time) error {
-	if !t.IsTask() {
-		return fmt.Errorf("only tasks can be closed: %w", domain.ErrIllegalTransition)
-	}
-
 	if err := issue.Transition(t.State(), issue.StateClosed); err != nil {
 		return err
+	}
+
+	// Ensure all children are closed before allowing close.
+	children, err := uow.Issues().GetChildStatuses(ctx, t.ID())
+	if err != nil {
+		return fmt.Errorf("checking children: %w", err)
+	}
+	for _, child := range children {
+		if child.State != issue.StateClosed {
+			return fmt.Errorf("cannot close issue with unclosed children: %w", domain.ErrIllegalTransition)
+		}
 	}
 
 	t = t.WithState(issue.StateClosed)
@@ -980,7 +987,7 @@ func (s *serviceImpl) closeIssue(ctx context.Context, uow port.UnitOfWork, t iss
 	}
 
 	revision, _ := uow.History().CountHistory(ctx, t.ID())
-	_, err := uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
+	_, histErr := uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
 		IssueID:   t.ID(),
 		Revision:  revision,
 		Author:    author,
@@ -990,7 +997,7 @@ func (s *serviceImpl) closeIssue(ctx context.Context, uow port.UnitOfWork, t iss
 			{Field: "state", Before: issue.StateClaimed.String(), After: issue.StateClosed.String()},
 		},
 	}))
-	return err
+	return histErr
 }
 
 func (s *serviceImpl) transitionIssue(ctx context.Context, uow port.UnitOfWork, t issue.Issue, claimID string, author identity.Author, now time.Time, targetState issue.State) error {

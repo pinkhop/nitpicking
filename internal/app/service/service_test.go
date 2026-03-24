@@ -917,3 +917,94 @@ func TestShowHistory_ReturnsEntries(t *testing.T) {
 		t.Error("expected at least 1 history entry (creation)")
 	}
 }
+
+func TestCloseIssue_WithUnclosedChildren_Fails(t *testing.T) {
+	t.Parallel()
+
+	// Given — a parent with an open child.
+	svc, _ := setupService(t)
+	ctx := context.Background()
+	author := mustAuthor(t, "alice")
+
+	parentOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Parent", Author: author, Claim: true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create parent: %v", err)
+	}
+
+	_, err = svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Child", Author: author, ParentID: parentOut.Issue.ID(),
+	})
+	if err != nil {
+		t.Fatalf("precondition: create child: %v", err)
+	}
+
+	// When — try to close the parent.
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: parentOut.Issue.ID(),
+		ClaimID: parentOut.ClaimID,
+		Action:  service.ActionClose,
+	})
+
+	// Then — should fail because child is not closed.
+	if err == nil {
+		t.Fatal("expected error when closing issue with unclosed children")
+	}
+	if !errors.Is(err, domain.ErrIllegalTransition) {
+		t.Errorf("expected ErrIllegalTransition, got %v", err)
+	}
+}
+
+func TestCloseIssue_WithAllChildrenClosed_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — a parent with a closed child.
+	svc, _ := setupService(t)
+	ctx := context.Background()
+	author := mustAuthor(t, "alice")
+
+	parentOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Parent", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create parent: %v", err)
+	}
+
+	childOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role: issue.RoleTask, Title: "Child", Author: author, Claim: true, ParentID: parentOut.Issue.ID(),
+	})
+	if err != nil {
+		t.Fatalf("precondition: create child: %v", err)
+	}
+
+	// Close the child first.
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: childOut.Issue.ID(),
+		ClaimID: childOut.ClaimID,
+		Action:  service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close child: %v", err)
+	}
+
+	// Claim the parent.
+	claimOut, err := svc.ClaimByID(ctx, service.ClaimInput{
+		IssueID: parentOut.Issue.ID(),
+		Author:  author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim parent: %v", err)
+	}
+
+	// When — close the parent.
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: parentOut.Issue.ID(),
+		ClaimID: claimOut.ClaimID,
+		Action:  service.ActionClose,
+	})
+	// Then — should succeed.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

@@ -189,7 +189,7 @@ np note search "root cause"
 Claims expire after their stale threshold (default 2 hours). If no ready tickets exist, steal a stale one:
 
 ```bash
-np next --steal-fallback --author <your-name>
+np next --steal-if-needed --author <your-name>
 np claim <TICKET-ID> --author <your-name> --steal
 ```
 

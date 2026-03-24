@@ -60,7 +60,7 @@ type ClaimNextReadyInput struct {
 	Author         identity.Author
 	Role           ticket.Role
 	FacetFilters   []port.FacetFilter
-	StealFallback  bool
+	StealIfNeeded  bool
 	StaleThreshold time.Duration
 }
 

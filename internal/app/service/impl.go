@@ -333,8 +333,8 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input ClaimNextReadyIn
 			return nil
 		}
 
-		// No ready tickets — try steal fallback.
-		if !input.StealFallback {
+		// No ready tickets — try stealing a stale claim if requested.
+		if !input.StealIfNeeded {
 			return domain.ErrNotFound
 		}
 

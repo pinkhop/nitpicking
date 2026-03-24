@@ -467,7 +467,7 @@ CLI adapter for `ClaimByID`. Flags: `--steal`, `--author`, `--stale-threshold`.
 
 ### 5.8 `np next` Command
 
-CLI adapter for `ClaimNextReady`. Flags: `--facet` (filter), `--role` (filter), `--steal-fallback`, `--author`, `--stale-threshold`.
+CLI adapter for `ClaimNextReady`. Flags: `--facet` (filter), `--role` (filter), `--steal-if-needed`, `--author`, `--stale-threshold`.
 
 - **Depends on:** 3.4, 5.1, 5.2
 - **Package:** `internal/cmd/next`

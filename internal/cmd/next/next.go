@@ -29,7 +29,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		jsonOutput     bool
 		author         string
 		role           string
-		stealFallback  bool
+		stealIfNeeded  bool
 		staleThreshold string
 	)
 
@@ -60,9 +60,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Usage: "Facet filter in key:value format (repeatable)",
 			},
 			&cli.BoolFlag{
-				Name:        "steal-fallback",
+				Name:        "steal-if-needed",
+				Aliases:     []string{"steal"},
 				Usage:       "Fall back to stealing a stale claim if no unclaimed tickets are ready",
-				Destination: &stealFallback,
+				Destination: &stealIfNeeded,
 			},
 			&cli.StringFlag{
 				Name:        "stale-threshold",
@@ -103,7 +104,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Author:         parsedAuthor,
 				Role:           parsedRole,
 				FacetFilters:   facetFilters,
-				StealFallback:  stealFallback,
+				StealIfNeeded:  stealIfNeeded,
 				StaleThreshold: threshold,
 			}
 

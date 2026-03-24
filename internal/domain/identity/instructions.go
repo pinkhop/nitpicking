@@ -84,7 +84,7 @@ If you discover something unrelated to your current ticket (e.g., a failing test
 If no ready tickets exist, steal a stale one:
 
 ` + "```" + `
-np next --steal-fallback --author <your-name>
+np next --steal-if-needed --author <your-name>
 ` + "```" + `
 
 ## Diagnostics

@@ -104,7 +104,7 @@ func TestE2E_ClaimStealing_CannotStealActiveClaim(t *testing.T) {
 	}
 }
 
-func TestE2E_ClaimStealing_NextStealFallback(t *testing.T) {
+func TestE2E_ClaimStealing_NextStealIfNeeded(t *testing.T) {
 	// Given — the only ticket in the database is stale-claimed by agent A,
 	// so there are no unclaimed ready tickets.
 	dir := initDB(t, "STEAL")
@@ -114,23 +114,23 @@ func TestE2E_ClaimStealing_NextStealFallback(t *testing.T) {
 	ticketID, _ := seedClaimedTaskWithThreshold(t, dir, "Only ticket", agentA, "1s")
 	time.Sleep(2 * time.Second)
 
-	// When — agent B uses next with --steal-fallback.
+	// When — agent B uses next with --steal-if-needed.
 	stdout, stderr, code := runNP(t, dir, "next",
 		"--author", agentB,
-		"--steal-fallback",
+		"--steal-if-needed",
 		"--json",
 	)
 
 	// Then — next steals the stale claim.
 	if code != 0 {
-		t.Fatalf("next --steal-fallback failed (exit %d): %s", code, stderr)
+		t.Fatalf("next --steal-if-needed failed (exit %d): %s", code, stderr)
 	}
 	result := parseJSON(t, stdout)
 	if result["ticket_id"] != ticketID {
 		t.Errorf("expected ticket_id %s, got %v", ticketID, result["ticket_id"])
 	}
 	if result["stolen"] != true {
-		t.Error("expected stolen=true in next --steal-fallback response")
+		t.Error("expected stolen=true in next --steal-if-needed response")
 	}
 }
 

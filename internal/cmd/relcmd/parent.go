@@ -16,11 +16,16 @@ import (
 // newParentCmd constructs the "rel parent" parent command with detach,
 // children, and tree subcommands for managing parent-child hierarchy.
 func newParentCmd(f *cmdutil.Factory) *cli.Command {
+	oldDetach := newDetachCmd(f)
+	oldDetach.Name = "detach-legacy"
+	oldDetach.Hidden = true
+
 	return &cli.Command{
 		Name:  "parent",
 		Usage: "Manage parent-child hierarchy",
 		Commands: []*cli.Command{
-			newDetachCmd(f),
+			newPositionalDetachCmd(f),
+			oldDetach,
 			newChildrenCmd(f),
 			newParentTreeCmd(f),
 		},

@@ -47,42 +47,63 @@ func TestDeriveChecks_StaleClaim_FailsClaimCheck(t *testing.T) {
 	}
 }
 
-func TestDeriveChecks_NoReadyIssues_FailsReadinessCheck(t *testing.T) {
+func TestDeriveChecks_BlockerCycle_FailsBlockerHealthCheck(t *testing.T) {
 	t.Parallel()
 
-	// Given — a no_ready_issues finding.
+	// Given — a blocker_cycle finding.
 	findings := []service.DoctorFinding{
-		{Category: "no_ready_issues", Severity: "warning", Message: "No issues are ready"},
+		{Category: "blocker_cycle", Severity: "error", Message: "Cycle detected in blocked_by chain involving NP-abc"},
 	}
 
 	// When
 	checks := deriveChecks(findings, severityInfo)
 
-	// Then — the readiness check should fail.
-	c := checkByName(checks, "readiness")
+	// Then — the blocker_health check should fail.
+	c := checkByName(checks, "blocker_health")
 	if c == nil {
-		t.Fatal("expected 'readiness' check")
+		t.Fatal("expected 'blocker_health' check")
 	}
 	if c.Status != "fail" {
 		t.Errorf("expected status 'fail', got %q", c.Status)
 	}
 }
 
-func TestDeriveChecks_CloseEligibleBlocker_FailsReadinessCheck(t *testing.T) {
+func TestDeriveChecks_BlockerDeferred_FailsBlockerHealthCheck(t *testing.T) {
 	t.Parallel()
 
-	// Given — a close_eligible_blocker finding (subcategory of readiness).
+	// Given — a blocker_deferred finding.
 	findings := []service.DoctorFinding{
-		{Category: "close_eligible_blocker", Severity: "warning", Message: "Epic X is close-eligible"},
+		{Category: "blocker_deferred", Severity: "error", Message: "Issue NP-xyz is deferred and blocking"},
 	}
 
 	// When
 	checks := deriveChecks(findings, severityInfo)
 
-	// Then — the readiness check should fail.
-	c := checkByName(checks, "readiness")
+	// Then — the blocker_health check should fail.
+	c := checkByName(checks, "blocker_health")
 	if c == nil {
-		t.Fatal("expected 'readiness' check")
+		t.Fatal("expected 'blocker_health' check")
+	}
+	if c.Status != "fail" {
+		t.Errorf("expected status 'fail', got %q", c.Status)
+	}
+}
+
+func TestDeriveChecks_BlockerDeleted_FailsBlockerHealthCheck(t *testing.T) {
+	t.Parallel()
+
+	// Given — a blocker_deleted finding.
+	findings := []service.DoctorFinding{
+		{Category: "blocker_deleted", Severity: "error", Message: "Blocked by deleted issue"},
+	}
+
+	// When
+	checks := deriveChecks(findings, severityInfo)
+
+	// Then — the blocker_health check should fail.
+	c := checkByName(checks, "blocker_health")
+	if c == nil {
+		t.Fatal("expected 'blocker_health' check")
 	}
 	if c.Status != "fail" {
 		t.Errorf("expected status 'fail', got %q", c.Status)
@@ -113,7 +134,7 @@ func TestDeriveChecks_InstructionsFinding_FailsInstructionsCheck(t *testing.T) {
 func TestDeriveChecks_MultipleFindings_CorrectStatuses(t *testing.T) {
 	t.Parallel()
 
-	// Given — findings for stale claims and instructions, but not readiness.
+	// Given — findings for stale claims and instructions, but not blocker health.
 	findings := []service.DoctorFinding{
 		{Category: "stale_claim", Severity: "warning", Message: "Stale claim"},
 		{Category: "instructions", Severity: "warning", Message: "No instruction files"},
@@ -122,14 +143,14 @@ func TestDeriveChecks_MultipleFindings_CorrectStatuses(t *testing.T) {
 	// When
 	checks := deriveChecks(findings, severityInfo)
 
-	// Then — stale_claims and instructions fail; readiness passes.
+	// Then — stale_claims and instructions fail; blocker_health passes.
 	staleClaims := checkByName(checks, "stale_claims")
 	if staleClaims == nil || staleClaims.Status != "fail" {
 		t.Error("expected stale_claims to fail")
 	}
-	readiness := checkByName(checks, "readiness")
-	if readiness == nil || readiness.Status != "pass" {
-		t.Error("expected readiness to pass")
+	blockerHealth := checkByName(checks, "blocker_health")
+	if blockerHealth == nil || blockerHealth.Status != "pass" {
+		t.Error("expected blocker_health to pass")
 	}
 	instructions := checkByName(checks, "instructions")
 	if instructions == nil || instructions.Status != "fail" {
@@ -150,15 +171,18 @@ func TestDeriveChecks_ErrorThreshold_SkipsWarningChecks(t *testing.T) {
 	// When — threshold is error, so warning checks should be skipped.
 	checks := deriveChecks(findings, severityError)
 
-	// Then — all current checks are warning-level, so all should be skipped.
-	for _, c := range checks {
-		if c.Status != "skipped" {
-			t.Errorf("check %q: expected status 'skipped', got %q", c.Name, c.Status)
-		}
+	// Then — warning-level checks should be skipped; error-level should pass.
+	staleClaims := checkByName(checks, "stale_claims")
+	if staleClaims == nil || staleClaims.Status != "skipped" {
+		t.Error("expected stale_claims to be skipped")
+	}
+	blockerHealth := checkByName(checks, "blocker_health")
+	if blockerHealth == nil || blockerHealth.Status != "pass" {
+		t.Error("expected blocker_health to pass (error-level, no findings)")
 	}
 }
 
-func TestDeriveChecks_WarningThreshold_IncludesWarningChecks(t *testing.T) {
+func TestDeriveChecks_WarningThreshold_SkipsInfoButKeepsWarningAndError(t *testing.T) {
 	t.Parallel()
 
 	// Given — a warning-level finding.
@@ -176,6 +200,24 @@ func TestDeriveChecks_WarningThreshold_IncludesWarningChecks(t *testing.T) {
 	}
 	if c.Status != "fail" {
 		t.Errorf("expected status 'fail', got %q", c.Status)
+	}
+}
+
+func TestDeriveChecks_ChecksOrderedBySeverity(t *testing.T) {
+	t.Parallel()
+
+	// Given — no findings.
+	var findings []service.DoctorFinding
+
+	// When
+	checks := deriveChecks(findings, severityInfo)
+
+	// Then — blocker_health (error) should come before stale_claims (warning).
+	if len(checks) < 2 {
+		t.Fatalf("expected at least 2 checks, got %d", len(checks))
+	}
+	if checks[0].Name != "blocker_health" {
+		t.Errorf("first check should be 'blocker_health' (error), got %q", checks[0].Name)
 	}
 }
 
@@ -202,8 +244,7 @@ func TestCountSkipped_ReturnsCorrectCount(t *testing.T) {
 func TestFilterFindings_ExcludesSkippedCheckCategories(t *testing.T) {
 	t.Parallel()
 
-	// Given — findings for both warning and info checks (all current checks
-	// are warning-level, so with an error threshold all should be excluded).
+	// Given — findings for warning-level checks.
 	findings := []service.DoctorFinding{
 		{Category: "stale_claim", Severity: "warning", Message: "Stale claim"},
 		{Category: "instructions", Severity: "warning", Message: "No instructions"},
@@ -212,7 +253,7 @@ func TestFilterFindings_ExcludesSkippedCheckCategories(t *testing.T) {
 	// When — threshold is error, so warning categories should be excluded.
 	filtered := filterFindings(findings, severityError)
 
-	// Then — no findings should pass the filter.
+	// Then — only error-level check categories should pass; no warning findings.
 	if len(filtered) != 0 {
 		t.Errorf("filtered count: got %d, want 0", len(filtered))
 	}
@@ -232,6 +273,27 @@ func TestFilterFindings_IncludesActiveCheckCategories(t *testing.T) {
 	// Then — the finding should be included.
 	if len(filtered) != 1 {
 		t.Errorf("filtered count: got %d, want 1", len(filtered))
+	}
+}
+
+func TestFilterFindings_IncludesErrorFindings(t *testing.T) {
+	t.Parallel()
+
+	// Given — findings for error-level checks.
+	findings := []service.DoctorFinding{
+		{Category: "blocker_cycle", Severity: "error", Message: "Cycle detected"},
+		{Category: "stale_claim", Severity: "warning", Message: "Stale claim"},
+	}
+
+	// When — threshold is error.
+	filtered := filterFindings(findings, severityError)
+
+	// Then — only error-level findings pass.
+	if len(filtered) != 1 {
+		t.Errorf("filtered count: got %d, want 1", len(filtered))
+	}
+	if filtered[0].Category != "blocker_cycle" {
+		t.Errorf("expected blocker_cycle, got %q", filtered[0].Category)
 	}
 }
 
@@ -295,7 +357,6 @@ func TestSeverityString_ReturnsLabel(t *testing.T) {
 
 			// When
 			got := tc.severity.String()
-
 			// Then
 			if got != tc.want {
 				t.Errorf("String(): got %q, want %q", got, tc.want)

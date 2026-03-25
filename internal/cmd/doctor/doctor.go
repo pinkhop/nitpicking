@@ -95,18 +95,19 @@ type checkDefinition struct {
 // diagnosticChecks defines the ordered list of checks doctor performs, sorted
 // by severity (error first, warning second, info third).
 var diagnosticChecks = []checkDefinition{
+	// Error-level checks.
+	{
+		Name:       "blocker_health",
+		Severity:   severityError,
+		Categories: []string{"blocker_cycle", "blocker_deleted", "blocker_deferred", "blocker_close_eligible", "blocker_dead_end"},
+		PassDetail: "No blocker graph issues found",
+	},
 	// Warning-level checks.
 	{
 		Name:       "stale_claims",
 		Severity:   severityWarning,
 		Categories: []string{"stale_claim"},
 		PassDetail: "No stale claims found",
-	},
-	{
-		Name:       "readiness",
-		Severity:   severityWarning,
-		Categories: []string{"no_ready_issues", "close_eligible_blocker", "deferred_blocker"},
-		PassDetail: "Ready issues available",
 	},
 	{
 		Name:       "instructions",

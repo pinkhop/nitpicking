@@ -1244,7 +1244,7 @@ func TestRemoveRelationship_Refs_DeletesEitherDirection(t *testing.T) {
 
 // --- Doctor: no-ready-issues analysis ---
 
-func TestDoctor_NoIssues_NoReadinessFinding(t *testing.T) {
+func TestDoctor_NoIssues_NoBlockerFindings(t *testing.T) {
 	t.Parallel()
 
 	// Given — an empty database with no issues.
@@ -1253,19 +1253,21 @@ func TestDoctor_NoIssues_NoReadinessFinding(t *testing.T) {
 
 	// When
 	result, err := svc.Doctor(ctx)
-	// Then — no "no_ready_issues" finding should appear.
+	// Then — no blocker findings should appear.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if findingByCategory(result.Findings, "no_ready_issues") != nil {
-		t.Error("expected no 'no_ready_issues' finding when database is empty")
+	for _, f := range result.Findings {
+		if strings.HasPrefix(f.Category, "blocker_") {
+			t.Errorf("unexpected blocker finding: %q", f.Category)
+		}
 	}
 }
 
-func TestDoctor_ReadyIssuesExist_NoReadinessFinding(t *testing.T) {
+func TestDoctor_ReadyIssuesExist_NoBlockerFindings(t *testing.T) {
 	t.Parallel()
 
-	// Given — a database with a ready task.
+	// Given — a database with a ready task (not blocked).
 	svc, _ := setupService(t)
 	ctx := t.Context()
 	author := mustAuthor(t, "doctor-test")
@@ -1285,12 +1287,14 @@ func TestDoctor_ReadyIssuesExist_NoReadinessFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if findingByCategory(result.Findings, "no_ready_issues") != nil {
-		t.Error("expected no 'no_ready_issues' finding when ready issues exist")
+	for _, f := range result.Findings {
+		if strings.HasPrefix(f.Category, "blocker_") {
+			t.Errorf("unexpected blocker finding: %q", f.Category)
+		}
 	}
 }
 
-func TestDoctor_AllClosed_NoReadinessFinding(t *testing.T) {
+func TestDoctor_AllClosed_NoBlockerFindings(t *testing.T) {
 	t.Parallel()
 
 	// Given — a database where all issues are closed.
@@ -1322,15 +1326,18 @@ func TestDoctor_AllClosed_NoReadinessFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if findingByCategory(result.Findings, "no_ready_issues") != nil {
-		t.Error("expected no 'no_ready_issues' finding when all issues are closed")
+	for _, f := range result.Findings {
+		if strings.HasPrefix(f.Category, "blocker_") {
+			t.Errorf("unexpected blocker finding: %q", f.Category)
+		}
 	}
 }
 
-func TestDoctor_BlockedByOpenTask_ReportsNoReady(t *testing.T) {
+func TestDoctor_BlockedByClaimedTask_NoBlockerFindings(t *testing.T) {
 	t.Parallel()
 
-	// Given — task A is blocked by open task B; no ready issues.
+	// Given — task A is blocked by claimed task B. B is claimed (actively
+	// being worked on), so the chain resolves.
 	svc, _ := setupService(t)
 	ctx := t.Context()
 	author := mustAuthor(t, "doctor-test")
@@ -1364,24 +1371,18 @@ func TestDoctor_BlockedByOpenTask_ReportsNoReady(t *testing.T) {
 
 	// When
 	result, err := svc.Doctor(ctx)
-	// Then — should report no_ready_issues with the blocked issue listed.
+	// Then — no blocker findings because the blocker is claimed.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	finding := findingByCategory(result.Findings, "no_ready_issues")
-	if finding == nil {
-		t.Fatal("expected 'no_ready_issues' finding")
-	}
-	if finding.Severity != "warning" {
-		t.Errorf("expected severity 'warning', got %q", finding.Severity)
-	}
-	if !slices.Contains(finding.IssueIDs, blockedOut.Issue.ID().String()) {
-		t.Errorf("expected blocked issue %s in IssueIDs, got %v",
-			blockedOut.Issue.ID(), finding.IssueIDs)
+	for _, f := range result.Findings {
+		if strings.HasPrefix(f.Category, "blocker_") {
+			t.Errorf("unexpected blocker finding: %q — %s", f.Category, f.Message)
+		}
 	}
 }
 
-func TestDoctor_BlockedByCloseEligibleEpic_SuggestsCloseEligible(t *testing.T) {
+func TestDoctor_BlockedByCloseEligibleEpic_ReportsBlockerCloseEligible(t *testing.T) {
 	t.Parallel()
 
 	// Given — task A is blocked by epic B whose only child C is closed.
@@ -1437,13 +1438,13 @@ func TestDoctor_BlockedByCloseEligibleEpic_SuggestsCloseEligible(t *testing.T) {
 
 	// When
 	result, err := svc.Doctor(ctx)
-	// Then — should suggest running epic close-eligible.
+	// Then — should report blocker_close_eligible.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	finding := findingByCategory(result.Findings, "close_eligible_blocker")
+	finding := findingByCategory(result.Findings, "blocker_close_eligible")
 	if finding == nil {
-		t.Fatal("expected 'close_eligible_blocker' finding")
+		t.Fatal("expected 'blocker_close_eligible' finding")
 	}
 	if !strings.Contains(finding.Suggestion, "epic close-eligible") {
 		t.Errorf("expected suggestion to mention 'epic close-eligible', got %q",
@@ -1455,7 +1456,7 @@ func TestDoctor_BlockedByCloseEligibleEpic_SuggestsCloseEligible(t *testing.T) {
 	}
 }
 
-func TestDoctor_DeferredIssueBlocking_SuggestsUndefer(t *testing.T) {
+func TestDoctor_DeferredIssueBlocking_ReportsBlockerDeferred(t *testing.T) {
 	t.Parallel()
 
 	// Given — task A is blocked by deferred task B.
@@ -1500,13 +1501,13 @@ func TestDoctor_DeferredIssueBlocking_SuggestsUndefer(t *testing.T) {
 
 	// When
 	result, err := svc.Doctor(ctx)
-	// Then — should suggest undefer.
+	// Then — should report blocker_deferred and suggest undefer.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	finding := findingByCategory(result.Findings, "deferred_blocker")
+	finding := findingByCategory(result.Findings, "blocker_deferred")
 	if finding == nil {
-		t.Fatal("expected 'deferred_blocker' finding")
+		t.Fatal("expected 'blocker_deferred' finding")
 	}
 	if !strings.Contains(finding.Suggestion, "issue undefer") {
 		t.Errorf("expected suggestion to mention 'issue undefer', got %q",

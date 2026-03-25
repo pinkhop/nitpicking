@@ -929,12 +929,12 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 			})
 		}
 
-		// Check for no-ready-issues condition.
-		readinessFindings, readErr := s.checkReadiness(ctx, uow)
-		if readErr != nil {
-			return readErr
+		// Check blocker graph health.
+		blockerFindings, blockerErr := s.checkBlockerHealth(ctx, uow)
+		if blockerErr != nil {
+			return blockerErr
 		}
-		output.Findings = append(output.Findings, readinessFindings...)
+		output.Findings = append(output.Findings, blockerFindings...)
 
 		return nil
 	})
@@ -942,121 +942,189 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 	return output, err
 }
 
-// checkReadiness detects when no issues are ready for work and analyzes the
-// causes. It produces actionable findings when blocked or deferred issues
-// prevent any work from being picked up.
-func (s *serviceImpl) checkReadiness(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
-	// Check whether any ready issues exist.
-	readyItems, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
-		Ready:         true,
-		ExcludeClosed: true,
-	}, port.OrderByPriority, 1)
-	if err != nil {
-		return nil, fmt.Errorf("listing ready issues: %w", err)
-	}
-	if len(readyItems) > 0 {
-		return nil, nil
-	}
-
-	// Check whether any non-closed issues exist at all.
+// checkBlockerHealth walks the transitive blocked_by graph for all blocked
+// issues and reports structural problems. Unlike the old readiness check, this
+// runs unconditionally — it does not gate on "zero ready issues". It subsumes
+// the old no_ready_issues, close_eligible_blocker, and deferred_blocker
+// categories under a unified blocker_health check.
+func (s *serviceImpl) checkBlockerHealth(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
+	// Load all non-deleted, non-closed issues.
 	allItems, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
 		ExcludeClosed: true,
 	}, port.OrderByPriority, -1)
 	if err != nil {
-		return nil, fmt.Errorf("listing all issues: %w", err)
+		return nil, fmt.Errorf("listing issues: %w", err)
 	}
+
 	if len(allItems) == 0 {
 		return nil, nil
 	}
 
+	// Build issue state index from list items.
+	type issueInfo struct {
+		id        issue.ID
+		state     issue.State
+		isBlocked bool
+		isEpic    bool
+	}
+	issueIndex := make(map[string]issueInfo, len(allItems))
+	for _, item := range allItems {
+		issueIndex[item.ID.String()] = issueInfo{
+			id:        item.ID,
+			state:     item.State,
+			isBlocked: item.IsBlocked,
+			isEpic:    item.Role == issue.RoleEpic,
+		}
+	}
+
+	// Build blocked_by adjacency list: for each issue, its direct blockers.
+	blockedByGraph := make(map[string][]string)
+	for _, item := range allItems {
+		if !item.IsBlocked {
+			continue
+		}
+		rels, relErr := uow.Relationships().ListRelationships(ctx, item.ID)
+		if relErr != nil {
+			return nil, fmt.Errorf("listing relationships for %s: %w", item.ID, relErr)
+		}
+		for _, rel := range rels {
+			if rel.Type() == issue.RelBlockedBy && rel.SourceID() == item.ID {
+				blockedByGraph[item.ID.String()] = append(
+					blockedByGraph[item.ID.String()], rel.TargetID().String(),
+				)
+			}
+		}
+	}
+
 	var findings []DoctorFinding
 
-	// Identify blocked issues and analyze their blockers.
-	blockedItems, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
-		Blocked:       true,
-		ExcludeClosed: true,
-	}, port.OrderByPriority, -1)
-	if err != nil {
-		return nil, fmt.Errorf("listing blocked issues: %w", err)
-	}
+	// Deduplicate findings across chains.
+	reportedCycles := make(map[string]bool)
+	reportedDeferred := make(map[string]bool)
+	reportedStale := make(map[string]bool)
+	reportedDeleted := make(map[string]bool)
+	reportedDeadEnd := make(map[string]bool)
 
-	// Track close-eligible epics and deferred blockers to deduplicate findings.
-	closeEligibleEpics := make(map[string]bool)
-	deferredBlockers := make(map[string]bool)
-
-	for _, blocked := range blockedItems {
-		rels, relErr := uow.Relationships().ListRelationships(ctx, blocked.ID)
-		if relErr != nil {
-			return nil, fmt.Errorf("listing relationships for %s: %w", blocked.ID, relErr)
+	// Walk each blocked issue's transitive chain.
+	for issueIDStr, blockers := range blockedByGraph {
+		if len(blockers) == 0 {
+			continue
 		}
 
-		for _, rel := range rels {
-			if rel.Type() != issue.RelBlockedBy || rel.SourceID() != blocked.ID {
-				continue
-			}
-			targetID := rel.TargetID()
+		// DFS to walk transitive blocked_by edges.
+		visited := make(map[string]bool)
+		inStack := make(map[string]bool)
 
-			blocker, getErr := uow.Issues().GetIssue(ctx, targetID, false)
-			if getErr != nil {
-				continue // blocker deleted or not found — already resolved
-			}
-
-			if blocker.State() == issue.StateClosed {
-				continue
-			}
-
-			// Check if the blocker is deferred.
-			if blocker.State() == issue.StateDeferred && !deferredBlockers[targetID.String()] {
-				deferredBlockers[targetID.String()] = true
-			}
-
-			// Check if the blocker is a close-eligible epic.
-			if blocker.IsEpic() && !closeEligibleEpics[targetID.String()] {
-				children, childErr := uow.Issues().GetChildStatuses(ctx, targetID)
-				if childErr != nil {
-					continue
+		var walk func(node string) (reachesResolution bool)
+		walk = func(node string) bool {
+			if inStack[node] {
+				// Cycle detected.
+				if !reportedCycles[node] {
+					reportedCycles[node] = true
+					findings = append(findings, DoctorFinding{
+						Category: "blocker_cycle",
+						Severity: "error",
+						Message:  fmt.Sprintf("Cycle detected in blocked_by chain involving %s", node),
+						IssueIDs: []string{node},
+					})
 				}
-				if isCloseEligible(children) {
-					closeEligibleEpics[targetID.String()] = true
+				return false
+			}
+			if visited[node] {
+				return false
+			}
+			visited[node] = true
+			inStack[node] = true
+			defer func() { inStack[node] = false }()
+
+			info, exists := issueIndex[node]
+			if !exists {
+				// Issue is deleted or closed — stale relationship.
+				if !reportedDeleted[node] {
+					reportedDeleted[node] = true
+					findings = append(findings, DoctorFinding{
+						Category:   "blocker_deleted",
+						Severity:   "error",
+						Message:    fmt.Sprintf("Issue %s is blocked by %s which is closed or deleted (stale relationship)", issueIDStr, node),
+						IssueIDs:   []string{issueIDStr, node},
+						Suggestion: fmt.Sprintf("Run 'np rel blocks unblock %s %s --author <name>' to remove the stale relationship.", issueIDStr, node),
+					})
+				}
+				return false
+			}
+
+			// Terminal conditions: issue is claimed or open+unblocked.
+			if info.state == issue.StateClaimed {
+				return true
+			}
+
+			// Dead end: deferred blocker.
+			if info.state == issue.StateDeferred {
+				if !reportedDeferred[node] {
+					reportedDeferred[node] = true
+					findings = append(findings, DoctorFinding{
+						Category:   "blocker_deferred",
+						Severity:   "error",
+						Message:    fmt.Sprintf("Issue %s is deferred and blocking other issues", node),
+						IssueIDs:   []string{node},
+						Suggestion: fmt.Sprintf("Run 'np issue undefer %s --author <name>' to restore it.", node),
+					})
+				}
+				return false
+			}
+
+			// Check close-eligible epics before treating open+unblocked as resolved.
+			if info.isEpic && info.state == issue.StateOpen && !info.isBlocked {
+				children, childErr := uow.Issues().GetChildStatuses(ctx, info.id)
+				if childErr == nil && isCloseEligible(children) {
+					if !reportedStale[node] {
+						reportedStale[node] = true
+						findings = append(findings, DoctorFinding{
+							Category:   "blocker_close_eligible",
+							Severity:   "error",
+							Message:    fmt.Sprintf("Epic %s has all children closed but is still open, blocking other issues", node),
+							IssueIDs:   []string{node},
+							Suggestion: "Run 'np epic close-eligible --author <name>' to batch-close fully resolved epics.",
+						})
+					}
+					return false
 				}
 			}
+
+			// Open and unblocked (and not a close-eligible epic) — resolution point.
+			if info.state == issue.StateOpen && !info.isBlocked {
+				return true
+			}
+
+			// Recurse into this node's blockers if it's also blocked.
+			nodeBlockers := blockedByGraph[node]
+			if len(nodeBlockers) == 0 {
+				return true // Not blocked — this is a resolution point.
+			}
+
+			anyResolves := false
+			for _, blocker := range nodeBlockers {
+				if walk(blocker) {
+					anyResolves = true
+				}
+			}
+
+			if !anyResolves && !reportedDeadEnd[node] {
+				reportedDeadEnd[node] = true
+				findings = append(findings, DoctorFinding{
+					Category: "blocker_dead_end",
+					Severity: "error",
+					Message:  fmt.Sprintf("All transitive blockers for %s are unresolvable (nothing is claimed or ready)", node),
+					IssueIDs: []string{node},
+				})
+			}
+
+			return anyResolves
 		}
-	}
 
-	// Emit findings for close-eligible epic blockers.
-	for epicID := range closeEligibleEpics {
-		findings = append(findings, DoctorFinding{
-			Category:   "close_eligible_blocker",
-			Severity:   "warning",
-			Message:    fmt.Sprintf("Epic %s has all children closed but is still open, blocking other issues.", epicID),
-			IssueIDs:   []string{epicID},
-			Suggestion: "Run 'np epic close-eligible --author <name>' to batch-close fully resolved epics.",
-		})
-	}
-
-	// Emit findings for deferred blockers.
-	for blockerID := range deferredBlockers {
-		findings = append(findings, DoctorFinding{
-			Category:   "deferred_blocker",
-			Severity:   "warning",
-			Message:    fmt.Sprintf("Issue %s is deferred and blocking other issues.", blockerID),
-			IssueIDs:   []string{blockerID},
-			Suggestion: fmt.Sprintf("Run 'np issue undefer %s --author <name>' to restore it.", blockerID),
-		})
-	}
-
-	// Emit the summary finding if there are blocked issues.
-	if len(blockedItems) > 0 {
-		blockedIDs := make([]string, 0, len(blockedItems))
-		for _, item := range blockedItems {
-			blockedIDs = append(blockedIDs, item.ID.String())
+		for _, blocker := range blockers {
+			walk(blocker)
 		}
-		findings = append(findings, DoctorFinding{
-			Category: "no_ready_issues",
-			Severity: "warning",
-			Message:  fmt.Sprintf("No issues are ready for work. %d issues are blocked.", len(blockedItems)),
-			IssueIDs: blockedIDs,
-		})
 	}
 
 	return findings, nil

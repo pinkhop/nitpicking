@@ -97,6 +97,12 @@ type checkDefinition struct {
 var diagnosticChecks = []checkDefinition{
 	// Error-level checks.
 	{
+		Name:       "storage_integrity",
+		Severity:   severityError,
+		Categories: []string{"storage_integrity"},
+		PassDetail: "Integrity check passed",
+	},
+	{
 		Name:       "blocker_health",
 		Severity:   severityError,
 		Categories: []string{"blocker_cycle", "blocker_deleted", "blocker_deferred", "blocker_close_eligible", "blocker_dead_end"},
@@ -169,6 +175,12 @@ var diagnosticChecks = []checkDefinition{
 		Severity:   severityInfo,
 		Categories: []string{"long_deferral"},
 		PassDetail: "No issues deferred for more than 1 week",
+	},
+	{
+		Name:       "gc_recommended",
+		Severity:   severityInfo,
+		Categories: []string{"gc_recommended"},
+		PassDetail: "Deleted issue ratio is within threshold",
 	},
 	{
 		Name:       "blocked_by_human",

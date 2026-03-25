@@ -212,12 +212,12 @@ func TestDeriveChecks_ChecksOrderedBySeverity(t *testing.T) {
 	// When
 	checks := deriveChecks(findings, severityInfo)
 
-	// Then — blocker_health (error) should come before stale_claims (warning).
+	// Then — error-level checks should come before warning-level checks.
 	if len(checks) < 2 {
 		t.Fatalf("expected at least 2 checks, got %d", len(checks))
 	}
-	if checks[0].Name != "blocker_health" {
-		t.Errorf("first check should be 'blocker_health' (error), got %q", checks[0].Name)
+	if checks[0].Name != "storage_integrity" {
+		t.Errorf("first check should be 'storage_integrity' (error), got %q", checks[0].Name)
 	}
 }
 

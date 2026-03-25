@@ -209,6 +209,39 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 	return nil
 }
 
+func (r *dbRepo) IntegrityCheck(_ context.Context) error {
+	var result string
+	err := sqlitex.Execute(r.conn, `PRAGMA integrity_check`, &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			result = stmt.ColumnText(0)
+			return nil
+		},
+	})
+	if err != nil {
+		return &domain.DatabaseError{Op: "integrity check", Err: err}
+	}
+	if result != "ok" {
+		return fmt.Errorf("integrity check failed: %s", result)
+	}
+	return nil
+}
+
+func (r *dbRepo) CountDeletedRatio(_ context.Context) (total, deleted int, err error) {
+	err = sqlitex.Execute(r.conn,
+		`SELECT COUNT(*), COALESCE(SUM(CASE WHEN deleted = 1 THEN 1 ELSE 0 END), 0) FROM issues`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *sqlite.Stmt) error {
+				total = stmt.ColumnInt(0)
+				deleted = stmt.ColumnInt(1)
+				return nil
+			},
+		})
+	if err != nil {
+		return 0, 0, &domain.DatabaseError{Op: "count deleted ratio", Err: err}
+	}
+	return total, deleted, nil
+}
+
 // --- IssueRepository ---
 
 type issueRepo struct{ conn *sqlite.Conn }

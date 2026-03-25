@@ -275,6 +275,14 @@ type DatabaseRepository interface {
 
 	// GC physically removes deleted (and optionally closed) issue data.
 	GC(ctx context.Context, includeClosedIssues bool) error
+
+	// IntegrityCheck runs database-level integrity validation (e.g. SQLite
+	// PRAGMA integrity_check). Returns nil if the database is healthy.
+	IntegrityCheck(ctx context.Context) error
+
+	// CountDeletedRatio returns the total number of issues and the number of
+	// soft-deleted issues, for GC threshold calculations.
+	CountDeletedRatio(ctx context.Context) (total, deleted int, err error)
 }
 
 // UnitOfWork represents a transactional scope. All repository operations

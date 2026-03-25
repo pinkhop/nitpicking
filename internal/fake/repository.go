@@ -673,6 +673,24 @@ func (r *Repository) GC(_ context.Context, includeClosed bool) error {
 	return nil
 }
 
+func (r *Repository) IntegrityCheck(_ context.Context) error {
+	// Fake always reports healthy.
+	return nil
+}
+
+func (r *Repository) CountDeletedRatio(_ context.Context) (total, deleted int, err error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, t := range r.issues {
+		total++
+		if t.IsDeleted() {
+			deleted++
+		}
+	}
+	return total, deleted, nil
+}
+
 // --- Internal helpers ---
 
 func (r *Repository) matchesFilter(t issue.Issue, f port.IssueFilter) bool {

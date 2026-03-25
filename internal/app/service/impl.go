@@ -15,6 +15,11 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
+// gcThresholdRatio is the fraction of deleted issues at which the doctor
+// recommends running GC. When deleted issues exceed this ratio of total
+// issues, a gc_recommended finding is emitted.
+const gcThresholdRatio = 0.20
+
 // serviceImpl implements the Service interface.
 type serviceImpl struct {
 	tx port.Transactor
@@ -987,6 +992,32 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 			return oErr
 		}
 		output.Findings = append(output.Findings, orphanFindings...)
+
+		// Check storage integrity.
+		integrityErr := uow.Database().IntegrityCheck(ctx)
+		if integrityErr != nil {
+			output.Findings = append(output.Findings, DoctorFinding{
+				Category:   "storage_integrity",
+				Severity:   "error",
+				Message:    fmt.Sprintf("Data corruption detected: %v", integrityErr),
+				Suggestion: "Back up .np/ immediately and investigate corruption.",
+			})
+		}
+
+		// Check GC recommendation.
+		total, deleted, countErr := uow.Database().CountDeletedRatio(ctx)
+		if countErr == nil && total > 0 {
+			ratio := float64(deleted) / float64(total)
+			if ratio > gcThresholdRatio {
+				pct := int(ratio * 100)
+				output.Findings = append(output.Findings, DoctorFinding{
+					Category:   "gc_recommended",
+					Severity:   "info",
+					Message:    fmt.Sprintf("%d of %d issues are deleted (%d%%)", deleted, total, pct),
+					Suggestion: "Run 'np admin gc --confirm' to remove deleted issues.",
+				})
+			}
+		}
 
 		// Check for missing kind labels.
 		labelFindings, lErr := s.checkMissingLabels(ctx, uow)

@@ -34,7 +34,6 @@ type IssueListItem struct {
 	Title     string
 	ParentID  issue.ID
 	CreatedAt time.Time
-	UpdatedAt time.Time
 	IsDeleted bool
 	// IsBlocked is true when the issue has at least one unresolved
 	// blocked_by relationship. This is a computed display concern —

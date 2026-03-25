@@ -1509,7 +1509,8 @@ func (s *serviceImpl) checkDeferrals(ctx context.Context, uow port.UnitOfWork, n
 		}
 
 		// Check long_deferrals: deferred for more than 1 week.
-		deferredDuration := now.Sub(item.UpdatedAt)
+		// Uses CreatedAt as a proxy — the schema has no updated_at column.
+		deferredDuration := now.Sub(item.CreatedAt)
 		if deferredDuration > oneWeek {
 			deferredDays := int(deferredDuration.Hours() / 24)
 			findings = append(findings, DoctorFinding{

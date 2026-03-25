@@ -24,7 +24,6 @@ type searchItemOutput struct {
 	Priority      string `json:"priority"`
 	Title         string `json:"title"`
 	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at,omitzero"`
 }
 
 // searchOutput is the JSON representation of the search command result.
@@ -185,7 +184,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 						Priority:      item.Priority.String(),
 						Title:         item.Title,
 						CreatedAt:     cmdutil.FormatJSONTimestamp(item.CreatedAt),
-						UpdatedAt:     cmdutil.FormatJSONTimestamp(item.UpdatedAt),
 					})
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)

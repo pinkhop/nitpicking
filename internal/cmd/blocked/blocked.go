@@ -45,7 +45,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			if jsonOutput {
-				return cmdutil.WriteJSON(f.IOStreams.Out, result)
+				out := cmdutil.ListOutput{
+					HasMore: result.HasMore,
+					Items:   cmdutil.ConvertListItems(result.Items),
+				}
+				return cmdutil.WriteJSON(f.IOStreams.Out, out)
 			}
 
 			cs := f.IOStreams.ColorScheme()

@@ -910,10 +910,6 @@ func (r *Repository) matchesCommentFilter(n comment.Comment, f port.CommentFilte
 }
 
 func (r *Repository) issueToListItem(t issue.Issue) port.IssueListItem {
-	updatedAt := t.CreatedAt()
-	if entries, ok := r.histories[t.ID().String()]; ok && len(entries) > 0 {
-		updatedAt = entries[len(entries)-1].Timestamp()
-	}
 	return port.IssueListItem{
 		ID:        t.ID(),
 		Role:      t.Role(),
@@ -922,7 +918,6 @@ func (r *Repository) issueToListItem(t issue.Issue) port.IssueListItem {
 		Title:     t.Title(),
 		ParentID:  t.ParentID(),
 		CreatedAt: t.CreatedAt(),
-		UpdatedAt: updatedAt,
 		IsDeleted: t.IsDeleted(),
 		IsBlocked: r.isIssueBlocked(t),
 	}
@@ -939,7 +934,7 @@ func (r *Repository) sortIssueItems(items []port.IssueListItem, orderBy port.Iss
 		case port.OrderByCreatedAt:
 			return a.CreatedAt.Compare(b.CreatedAt)
 		case port.OrderByUpdatedAt:
-			return b.UpdatedAt.Compare(a.UpdatedAt)
+			return b.CreatedAt.Compare(a.CreatedAt)
 		default:
 			return 0
 		}

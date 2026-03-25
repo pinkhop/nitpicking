@@ -15,24 +15,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
-// listItemOutput is the JSON representation of a single issue in a list.
-type listItemOutput struct {
-	ID            string `json:"id"`
-	Role          string `json:"role"`
-	State         string `json:"state"`
-	DisplayStatus string `json:"display_status"`
-	Priority      string `json:"priority"`
-	Title         string `json:"title"`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at"`
-}
-
-// listOutput is the JSON representation of the list command result.
-type listOutput struct {
-	Items   []listItemOutput `json:"items"`
-	HasMore bool             `json:"has_more"`
-}
-
 // NewCmd constructs the "list" command, which returns a filtered, ordered,
 // paginated list of issues.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
@@ -220,21 +202,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			if jsonOutput {
-				out := listOutput{
+				out := cmdutil.ListOutput{
 					HasMore: result.HasMore,
-					Items:   make([]listItemOutput, 0, len(result.Items)),
-				}
-				for _, item := range result.Items {
-					out.Items = append(out.Items, listItemOutput{
-						ID:            item.ID.String(),
-						Role:          item.Role.String(),
-						State:         item.State.String(),
-						DisplayStatus: item.DisplayStatus(),
-						Priority:      item.Priority.String(),
-						Title:         item.Title,
-						CreatedAt:     item.CreatedAt.Format(time.RFC3339),
-						UpdatedAt:     item.UpdatedAt.Format(time.RFC3339),
-					})
+					Items:   cmdutil.ConvertListItems(result.Items),
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)
 			}

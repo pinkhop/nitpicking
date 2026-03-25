@@ -171,7 +171,7 @@ COMMANDS:{{range $_, $name := orderedCategories}}{{range $.VisibleCategories}}{{
 
    {{.Name}}:{{range .VisibleCommands}}
      {{join .Names ", "}}{{"\t"}}{{.Usage}}{{end}}{{end}}{{end}}{{end}}{{range .VisibleCategories}}{{if not .Name}}{{range .VisibleCommands}}
-   {{join .Names ", "}}{{"\t"}}{{.Usage}}{{end}}{{end}}{{end}}{{end}}{{if .VisibleFlagCategories}}
+     {{join .Names ", "}}{{"\t"}}{{.Usage}}{{end}}{{end}}{{end}}{{end}}{{if .VisibleFlagCategories}}
 
 GLOBAL OPTIONS:{{template "visibleFlagCategoryTemplate" .}}{{else if .VisibleFlags}}
 

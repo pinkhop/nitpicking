@@ -52,8 +52,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Issue ID (required)",
-				Required:    true,
+				Usage:       "Issue ID (optional when --claim is provided)",
 				Destination: &issueArg,
 			},
 			&cli.StringFlag{
@@ -89,11 +88,12 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 			if err != nil {
 				return err
 			}
-			resolver := cmdutil.NewIDResolver(svc)
+			idResolver := cmdutil.NewIDResolver(svc)
+			claimResolver := cmdutil.NewClaimIssueResolver(svc, idResolver)
 
-			issueID, err := resolver.Resolve(ctx, issueArg)
+			issueID, err := claimResolver.Resolve(ctx, issueArg, claimID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
+				return cmdutil.FlagErrorf("%s", err)
 			}
 
 			dim, err := issue.NewDimension(key, value)
@@ -144,8 +144,7 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 			&cli.StringFlag{
 				Name:        "issue",
 				Aliases:     []string{"i"},
-				Usage:       "Issue ID (required)",
-				Required:    true,
+				Usage:       "Issue ID (optional when --claim is provided)",
 				Destination: &issueArg,
 			},
 			&cli.StringFlag{
@@ -174,11 +173,12 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 			if err != nil {
 				return err
 			}
-			resolver := cmdutil.NewIDResolver(svc)
+			idResolver := cmdutil.NewIDResolver(svc)
+			claimResolver := cmdutil.NewClaimIssueResolver(svc, idResolver)
 
-			issueID, err := resolver.Resolve(ctx, issueArg)
+			issueID, err := claimResolver.Resolve(ctx, issueArg, claimID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
+				return cmdutil.FlagErrorf("%s", err)
 			}
 
 			input := service.UpdateIssueInput{

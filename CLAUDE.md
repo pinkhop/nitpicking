@@ -118,13 +118,15 @@ np claim id <ISSUE-ID> --author <your-name>
 
 Persist the claim ID for the duration of your work on that issue. If you lose it, you cannot continue — another agent (or you) must wait for the claim to go stale and then steal it.
 
+**Issue ID is optional when `--claim` is provided.** Every claim knows its issue, so commands that accept `--claim` can derive the issue ID automatically. If both are provided, they must agree — a mismatch produces an error.
+
 ### 3. Update fields
 
 ```bash
-np issue update <ISSUE-ID> --claim <CLAIM-ID> --title "Revised title"
-np issue update <ISSUE-ID> --claim <CLAIM-ID> --description "More detail"
-np issue update <ISSUE-ID> --claim <CLAIM-ID> --priority 1
-np issue update <ISSUE-ID> --claim <CLAIM-ID> --dimension kind:fix
+np issue update --claim <CLAIM-ID> --title "Revised title"
+np issue update --claim <CLAIM-ID> --description "More detail"
+np issue update --claim <CLAIM-ID> --priority 1
+np issue update --claim <CLAIM-ID> --dimension kind:fix
 ```
 
 ### 4. Document your work with comments
@@ -140,7 +142,7 @@ np comment add --issue <ISSUE-ID> --body "Approach taken: ..." --author <your-na
 Use `np done` (alias: `close`) for the common workflow of closing an issue with a reason. It adds a comment and closes in one step:
 
 ```bash
-np done <ISSUE-ID> --claim <CLAIM-ID> --author <your-name> --reason "Completed: all tests pass."
+np done --claim <CLAIM-ID> --author <your-name> --reason "Completed: all tests pass."
 ```
 
 For other transitions, use the explicit commands:
@@ -148,8 +150,8 @@ For other transitions, use the explicit commands:
 ```bash
 np issue reopen <ISSUE-ID> --author <your-name>     # reopen a closed issue
 np issue undefer <ISSUE-ID> --author <your-name>    # restore a deferred issue
-np issue defer <ISSUE-ID> --claim <CLAIM-ID>         # shelve for later
-np issue close <ISSUE-ID> --claim <CLAIM-ID> --author <your-name> --reason "Done."  # close with reason
+np issue defer --claim <CLAIM-ID>                    # shelve for later
+np issue close --claim <CLAIM-ID> --author <your-name> --reason "Done."  # close with reason
 ```
 
 **Always transition state when you are done.** Abandoned claims block other agents until the stale threshold expires.
@@ -261,8 +263,9 @@ np epic children <EPIC-ID>             # list all children of an epic
 The `dimension` (alias: `dim`) command manages key-value metadata on issues:
 
 ```bash
-np dimension add --issue <ID> --claim <CLAIM-ID> --key kind --value bug     # set dimension
-np dimension remove --issue <ID> --claim <CLAIM-ID> --key kind              # remove dimension
+np dimension add --claim <CLAIM-ID> --key kind --value bug                  # set dimension (issue derived from claim)
+np dimension add --issue <ID> --claim <CLAIM-ID> --key kind --value bug     # explicit issue ID (must match claim)
+np dimension remove --claim <CLAIM-ID> --key kind                           # remove dimension
 np dimension list --issue <ID>                                               # list for issue
 np dimension list-all                                                        # all unique dims
 np dimension propagate --issue <ID> --author <name> --key kind              # propagate to descendants
@@ -275,15 +278,15 @@ The `issue` (alias: `i`) command groups issue management operations under a sing
 ```bash
 np issue list                                          # list issues (same as top-level 'list')
 np issue query "search text"                           # search issues (same as top-level 'search')
-np issue update <ID> --claim <CLAIM-ID> --title "New"  # update a claimed issue
+np issue update --claim <CLAIM-ID> --title "New"       # update a claimed issue (issue derived from claim)
 np issue edit <ID> --author <name> --title "Quick fix" # one-shot claim→update→release
-np issue close <ID> --claim <CLAIM-ID> --author <name> --reason "Done."  # close with reason
-np issue release <ID> --claim <CLAIM-ID>               # release claim without closing
+np issue close --claim <CLAIM-ID> --author <name> --reason "Done."  # close with reason
+np issue release --claim <CLAIM-ID>                    # release claim without closing
 np issue reopen <ID> --author <name>                   # reopen a closed issue
 np issue undefer <ID> --author <name>                  # restore a deferred issue
-np issue defer <ID> --claim <CLAIM-ID>                 # defer a claimed issue
-np issue defer <ID> --claim <CLAIM-ID> --until 2026-04-01  # defer with revisit date
-np issue delete <ID> --claim <CLAIM-ID> --confirm      # delete a claimed issue
+np issue defer --claim <CLAIM-ID>                      # defer a claimed issue
+np issue defer --claim <CLAIM-ID> --until 2026-04-01   # defer with revisit date
+np issue delete --claim <CLAIM-ID> --confirm           # delete a claimed issue
 np issue history <ID>                                  # audit trail of all changes
 np issue comment <ID> --author <name> --body "Comment text"  # add a comment
 np issue orphans                                       # list issues with no parent epic

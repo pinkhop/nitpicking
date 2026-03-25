@@ -103,9 +103,6 @@ func newCloseCmd(f *cmdutil.Factory) *cli.Command {
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
-			if rawID == "" {
-				return cmdutil.FlagErrorf("issue ID argument is required")
-			}
 
 			parsedAuthor, err := identity.NewAuthor(author)
 			if err != nil {
@@ -116,11 +113,12 @@ func newCloseCmd(f *cmdutil.Factory) *cli.Command {
 			if err != nil {
 				return err
 			}
-			resolver := cmdutil.NewIDResolver(svc)
+			idResolver := cmdutil.NewIDResolver(svc)
+			claimResolver := cmdutil.NewClaimIssueResolver(svc, idResolver)
 
-			issueID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := claimResolver.Resolve(ctx, rawID, claimID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
+				return cmdutil.FlagErrorf("%s", err)
 			}
 
 			return done.Run(ctx, done.RunInput{
@@ -314,19 +312,17 @@ func newDeferCmd(f *cmdutil.Factory) *cli.Command {
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
-			if rawID == "" {
-				return cmdutil.FlagErrorf("issue ID argument is required")
-			}
 
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
 			}
-			resolver := cmdutil.NewIDResolver(svc)
+			idResolver := cmdutil.NewIDResolver(svc)
+			claimResolver := cmdutil.NewClaimIssueResolver(svc, idResolver)
 
-			issueID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := claimResolver.Resolve(ctx, rawID, claimID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
+				return cmdutil.FlagErrorf("%s", err)
 			}
 
 			// Set the defer_until dimension before transitioning, since the
@@ -408,19 +404,17 @@ func newReleaseCmd(f *cmdutil.Factory) *cli.Command {
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			rawID := cmd.Args().Get(0)
-			if rawID == "" {
-				return cmdutil.FlagErrorf("issue ID argument is required")
-			}
 
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
 			}
-			resolver := cmdutil.NewIDResolver(svc)
+			idResolver := cmdutil.NewIDResolver(svc)
+			claimResolver := cmdutil.NewClaimIssueResolver(svc, idResolver)
 
-			issueID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := claimResolver.Resolve(ctx, rawID, claimID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
+				return cmdutil.FlagErrorf("%s", err)
 			}
 
 			input := service.TransitionInput{

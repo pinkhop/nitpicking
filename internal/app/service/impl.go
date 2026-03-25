@@ -227,6 +227,21 @@ func (s *serviceImpl) ClaimByID(ctx context.Context, input ClaimInput) (ClaimOut
 	return output, err
 }
 
+func (s *serviceImpl) LookupClaimIssueID(ctx context.Context, claimID string) (issue.ID, error) {
+	var issueID issue.ID
+
+	err := s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
+		c, err := uow.Claims().GetClaimByID(ctx, claimID)
+		if err != nil {
+			return err
+		}
+		issueID = c.IssueID()
+		return nil
+	})
+
+	return issueID, err
+}
+
 // claimWithinTx performs the claim logic using an already-open UnitOfWork.
 // Both ClaimByID and ClaimNextReady delegate here so that ClaimNextReady
 // can list issues and claim within a single transaction rather than nesting.

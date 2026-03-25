@@ -56,19 +56,17 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			rawID := cmd.Args().Get(0)
-			if rawID == "" {
-				return cmdutil.FlagErrorf("issue ID argument is required")
-			}
 
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
 			}
-			resolver := cmdutil.NewIDResolver(svc)
+			idResolver := cmdutil.NewIDResolver(svc)
+			claimResolver := cmdutil.NewClaimIssueResolver(svc, idResolver)
 
-			issueID, err := resolver.Resolve(ctx, rawID)
+			issueID, err := claimResolver.Resolve(ctx, rawID, claimID)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
+				return cmdutil.FlagErrorf("%s", err)
 			}
 
 			input := service.DeleteInput{

@@ -38,6 +38,10 @@ type Service interface {
 	// ClaimNextReady claims the highest-priority ready issue.
 	ClaimNextReady(ctx context.Context, input ClaimNextReadyInput) (ClaimOutput, error)
 
+	// LookupClaimIssueID returns the issue ID associated with the given claim
+	// ID. Returns domain.ErrNotFound if the claim does not exist.
+	LookupClaimIssueID(ctx context.Context, claimID string) (issue.ID, error)
+
 	// OneShotUpdate performs an atomic claim→update→release.
 	OneShotUpdate(ctx context.Context, input OneShotUpdateInput) error
 

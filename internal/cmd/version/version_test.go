@@ -381,8 +381,8 @@ func TestRun_FormatJSON_Verbose_WithBuildInfo_PrintsFullJSON(t *testing.T) {
 	if got["commit"] != "abc123def456" {
 		t.Errorf("expected commit %q, got %v", "abc123def456", got["commit"])
 	}
-	if got["built"] != "2025-06-15T10:30:00Z" {
-		t.Errorf("expected built %q, got %v", "2025-06-15T10:30:00Z", got["built"])
+	if got["built"] != "2025-06-15T10:30:00.000Z" {
+		t.Errorf("expected built %q, got %v", "2025-06-15T10:30:00.000Z", got["built"])
 	}
 
 	// dirty should be a boolean false, not absent.

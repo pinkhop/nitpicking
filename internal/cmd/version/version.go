@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/urfave/cli/v3"
 
@@ -175,7 +176,13 @@ func runJSON(_ context.Context, opts *Options) error {
 		}
 		vo.Dirty = &bi.Dirty
 		if bi.Time != "" {
-			vo.Built = &bi.Time
+			parsed, parseErr := time.Parse(time.RFC3339, bi.Time)
+			if parseErr == nil {
+				formatted := cmdutil.FormatJSONTimestamp(parsed)
+				vo.Built = &formatted
+			} else {
+				vo.Built = &bi.Time
+			}
 		}
 	}
 

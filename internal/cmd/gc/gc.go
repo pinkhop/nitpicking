@@ -41,7 +41,8 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:        "include-closed",
-				Usage:       "Also remove closed issues",
+				Aliases:     []string{"aggressive"},
+				Usage:       "Also remove closed issues (not just deleted)",
 				Destination: &includeClosed,
 			},
 		},

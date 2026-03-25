@@ -78,11 +78,19 @@ This project has **no other users yet** — the sole consumer is the developer. 
 - **Integration/E2E tests use build tags.** They won't run with `make test`; use `make test-integration` or `make test-e2e` explicitly.
 - **Version injection via ldflags.** `make build` injects the version string into `internal/app.version`; pass `VERSION=x.y.z` to override the default `"dev"`.
 
+
+---
+
+
 # np — Issue Tracker
+
+np is local-only — no network, no remote sync, no background daemons. It stores issues in an embedded SQLite database under the `.np/` directory.
 
 np is the **exclusive** tool for task management in this project. Do not use your platform's built-in task tracking (TodoWrite, TaskCreate, markdown checklists, etc.).
 
-np is local-only — no network, no remote sync, no background daemons. It stores issues in an embedded SQLite database under the `.np/` directory.
+## Executable Location
+
+The `np` executable is available at `./dist/np` after running `make build` once.
 
 ## Choosing an Author Name
 

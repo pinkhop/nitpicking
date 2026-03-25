@@ -113,7 +113,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			dot := graph.RenderDOT(nodes, edges)
 
 			if outputFile != "" {
-				if err := os.WriteFile(outputFile, []byte(dot), 0o644); err != nil {
+				if err := os.WriteFile(outputFile, []byte(dot), 0o600); err != nil {
 					return fmt.Errorf("writing to %s: %w", outputFile, err)
 				}
 				cs := f.IOStreams.ColorScheme()

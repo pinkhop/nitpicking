@@ -19,7 +19,7 @@ func IsDatabaseInitialized(dir string) bool {
 // given directory. Checks for patterns that would exclude the .np directory:
 // ".np/", ".np", or "/.np/".
 func IsGitIgnored(dir string) bool {
-	data, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	data, err := os.ReadFile(filepath.Join(dir, ".gitignore")) // #nosec G304 -- dir is the working directory from caller; file name is a fixed constant
 	if err != nil {
 		return false
 	}
@@ -39,7 +39,7 @@ func IsGitIgnored(dir string) bool {
 func HasAgentInstructions(dir string) bool {
 	candidates := []string{"CLAUDE.md", "AGENTS.md", filepath.Join(".github", "copilot-instructions.md")}
 	for _, name := range candidates {
-		data, err := os.ReadFile(filepath.Join(dir, name))
+		data, err := os.ReadFile(filepath.Join(dir, name)) // #nosec G304 -- dir is the working directory; name is from a fixed candidate list
 		if err != nil {
 			continue
 		}

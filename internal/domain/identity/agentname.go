@@ -6,7 +6,7 @@ import "math/rand/v2"
 // Seeded from the default crypto source at init time for unpredictable
 // sequences, but uses PCG for speed — agent names need variety, not
 // cryptographic security.
-var prng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+var prng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())) // #nosec G404 -- agent names need variety, not cryptographic security; PCG seeded from crypto/rand
 
 // adjectives is a curated list of positive, non-offensive adjectives for
 // Docker-style agent name generation.

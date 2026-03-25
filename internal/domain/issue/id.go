@@ -21,7 +21,7 @@ const idSpace = 32 * 32 * 32 * 32 * 32
 // Seeded from the default crypto source at init time for unpredictable
 // sequences, but uses PCG for speed — issue IDs need collision resistance,
 // not cryptographic security.
-var prng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+var prng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())) // #nosec G404 -- issue IDs need collision resistance, not cryptographic security; PCG seeded from crypto/rand
 
 // ID represents an issue identifier in the form PREFIX-random (e.g., "NP-a3bxr").
 // The prefix is uppercase ASCII letters; the random portion is lowercase

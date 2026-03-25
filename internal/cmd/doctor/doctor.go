@@ -116,13 +116,13 @@ var diagnosticChecks = []checkDefinition{
 	},
 	// Warning-level checks.
 	{
-		Name:       "stale_claims",
+		Name:       "stale_claims", // #nosec G101 -- not a credential; diagnostic check name
 		Severity:   severityWarning,
 		Categories: []string{"stale_claim"},
 		PassDetail: "No stale claims found",
 	},
 	{
-		Name:       "close_eligible",
+		Name:       "close_eligible", // #nosec G101 -- not a credential; diagnostic check name
 		Severity:   severityWarning,
 		Categories: []string{"close_eligible"},
 		PassDetail: "No epics are eligible to be closed",
@@ -134,7 +134,7 @@ var diagnosticChecks = []checkDefinition{
 		PassDetail: "No priority inversions found",
 	},
 	{
-		Name:       "closed_parents",
+		Name:       "closed_parents", // #nosec G101 -- not a credential; diagnostic check name
 		Severity:   severityWarning,
 		Categories: []string{"closed_parent"},
 		PassDetail: "No open issues have closed parents",
@@ -159,7 +159,7 @@ var diagnosticChecks = []checkDefinition{
 		PassDetail: "No unusually long-held claims",
 	},
 	{
-		Name:       "orphan_tasks",
+		Name:       "orphan_tasks", // #nosec G101 -- not a credential; diagnostic check name
 		Severity:   severityInfo,
 		Categories: []string{"orphan_task"},
 		PassDetail: "All non-bug open tasks belong to an epic",
@@ -433,7 +433,7 @@ func checkNpInstructionsPresent(cwd string) []service.DoctorFinding {
 
 	for _, name := range instructionFiles {
 		path := filepath.Join(cwd, name)
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) // #nosec G304 -- path is cwd joined with a fixed file name from instructionFiles
 		if err != nil {
 			continue
 		}

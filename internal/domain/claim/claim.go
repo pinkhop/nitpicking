@@ -133,8 +133,8 @@ func (c Claim) WithStaleThreshold(d time.Duration) (Claim, error) {
 // source should halt the process.
 func generateClaimID() string {
 	var buf [claimIDBytes]byte
-	hi := rand.Uint64()
-	lo := rand.Uint64()
+	hi := rand.Uint64() // #nosec G404 -- math/rand/v2 is backed by crypto/rand by default in Go 1.22+
+	lo := rand.Uint64() // #nosec G404 -- see comment above
 	binary.BigEndian.PutUint64(buf[:8], hi)
 	binary.BigEndian.PutUint64(buf[8:], lo)
 	return hex.EncodeToString(buf[:])

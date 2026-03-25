@@ -310,9 +310,12 @@ np admin upgrade                       # check for schema upgrades
 ## Diagnostics
 
 ```bash
-np admin doctor # detect stale claims, no-ready-issues analysis, suggest unblock actions
-np show <ID>    # full issue detail including readiness, relationships, completion
-np issue history <ID> # audit trail of all changes
+np admin doctor                        # detect stale claims, no-ready-issues analysis, suggest unblock actions
+np admin doctor --verbose              # show per-check pass/fail for every diagnostic
+np admin doctor --severity warning     # skip informational checks; only run warning and error
+np admin doctor --severity error       # only run error-level checks
+np show <ID>                           # full issue detail including readiness, relationships, completion
+np issue history <ID>                  # audit trail of all changes
 np admin graph                         # generate Graphviz DOT of all issues and relationships
 np admin graph -o issues.dot           # write to file instead of stdout
 np where                               # print the .np/ directory path

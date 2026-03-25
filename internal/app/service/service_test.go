@@ -10,6 +10,7 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/app/service"
 	"github.com/pinkhop/nitpicking/internal/domain"
+	"github.com/pinkhop/nitpicking/internal/domain/claim"
 	"github.com/pinkhop/nitpicking/internal/domain/identity"
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
 	"github.com/pinkhop/nitpicking/internal/domain/port"
@@ -1516,6 +1517,99 @@ func TestDoctor_DeferredIssueBlocking_ReportsBlockerDeferred(t *testing.T) {
 	if !slices.Contains(finding.IssueIDs, blockerOut.Issue.ID().String()) {
 		t.Errorf("expected deferred blocker %s in IssueIDs, got %v",
 			blockerOut.Issue.ID(), finding.IssueIDs)
+	}
+}
+
+func TestDoctor_StaleClaim_ReportsStealable(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task with a stale claim (last activity >2h ago with default
+	// threshold).
+	svc, repo := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	out, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "Stale claim task",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create task: %v", err)
+	}
+
+	// Insert a claim with old last_activity directly into the repo.
+	staleClaim := claim.ReconstructClaim(
+		"stale-claim-id-1234",
+		out.Issue.ID(),
+		author,
+		claim.DefaultStaleThreshold,
+		time.Now().Add(-3*time.Hour), // 3h ago — past 2h threshold
+	)
+	if err := repo.CreateClaim(ctx, staleClaim); err != nil {
+		t.Fatalf("precondition: create stale claim: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — stale_claim finding should say "stealable".
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "stale_claim")
+	if finding == nil {
+		t.Fatal("expected 'stale_claim' finding")
+	}
+	if !strings.Contains(finding.Message, "stealable") {
+		t.Errorf("expected message to contain 'stealable', got %q", finding.Message)
+	}
+	if finding.Suggestion == "" {
+		t.Error("expected suggestion for stealing the claim")
+	}
+}
+
+func TestDoctor_LongClaim_ReportsLongHeld(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task with a claim held for >2× default threshold (>4h) but
+	// with a custom 24h threshold so it's not yet stale.
+	svc, repo := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	out, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "Long claim task",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create task: %v", err)
+	}
+
+	// Insert a claim with old last_activity but long threshold.
+	longClaim := claim.ReconstructClaim(
+		"long-claim-id-5678",
+		out.Issue.ID(),
+		author,
+		24*time.Hour,                 // custom 24h threshold
+		time.Now().Add(-5*time.Hour), // 5h ago — >2× default 2h but <24h threshold
+	)
+	if err := repo.CreateClaim(ctx, longClaim); err != nil {
+		t.Fatalf("precondition: create long claim: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — long_claim finding should appear.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "long_claim")
+	if finding == nil {
+		t.Fatal("expected 'long_claim' finding")
+	}
+	if !strings.Contains(finding.Message, "not yet stealable") {
+		t.Errorf("expected message to contain 'not yet stealable', got %q", finding.Message)
 	}
 }
 

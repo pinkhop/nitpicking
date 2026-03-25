@@ -463,6 +463,19 @@ func (r *Repository) ListStaleClaims(_ context.Context, now time.Time) ([]claim.
 	return stale, nil
 }
 
+func (r *Repository) ListActiveClaims(_ context.Context, now time.Time) ([]claim.Claim, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var active []claim.Claim
+	for _, c := range r.claims {
+		if !c.IsStale(now) {
+			active = append(active, c)
+		}
+	}
+	return active, nil
+}
+
 // --- RelationshipRepository ---
 
 func (r *Repository) CreateRelationship(_ context.Context, rel issue.Relationship) (bool, error) {

@@ -915,18 +915,42 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
 		now := time.Now()
 
-		// Check stale claims.
+		// Check stale claims (stealable).
 		staleClaims, err := uow.Claims().ListStaleClaims(ctx, now)
 		if err != nil {
 			return err
 		}
-		for _, c := range staleClaims {
-			output.Findings = append(output.Findings, DoctorFinding{
-				Category: "stale_claim",
-				Severity: "warning",
-				Message:  fmt.Sprintf("Issue %s has been claimed by %q since %s (stale)", c.IssueID(), c.Author(), c.LastActivity().Format(time.RFC3339)),
-				IssueIDs: []string{c.IssueID().String()},
-			})
+		if len(staleClaims) > 0 {
+			for _, c := range staleClaims {
+				output.Findings = append(output.Findings, DoctorFinding{
+					Category:   "stale_claim",
+					Severity:   "warning",
+					Message:    fmt.Sprintf("%s: claimed by %q since %s (stealable)", c.IssueID(), c.Author(), c.LastActivity().Format(time.RFC3339)),
+					IssueIDs:   []string{c.IssueID().String()},
+					Suggestion: fmt.Sprintf("Run 'np claim id %s --author <name> --steal' to steal the claim.", c.IssueID()),
+				})
+			}
+		}
+
+		// Check long-held claims: active claims where idle time exceeds
+		// 2× the default stale threshold but the claim is not yet stealable
+		// (e.g. due to a custom longer threshold).
+		activeClaims, err := uow.Claims().ListActiveClaims(ctx, now)
+		if err != nil {
+			return err
+		}
+		longThreshold := 2 * claim.DefaultStaleThreshold
+		for _, c := range activeClaims {
+			idleDuration := now.Sub(c.LastActivity())
+			if idleDuration > longThreshold {
+				output.Findings = append(output.Findings, DoctorFinding{
+					Category: "long_claim",
+					Severity: "info",
+					Message: fmt.Sprintf("%s has been claimed for %s (stale threshold: %s, not yet stealable)",
+						c.IssueID(), idleDuration.Truncate(time.Minute), c.StaleThreshold()),
+					IssueIDs: []string{c.IssueID().String()},
+				})
+			}
 		}
 
 		// Check blocker graph health.

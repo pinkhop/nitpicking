@@ -845,6 +845,26 @@ func (r *claimRepo) ListStaleClaims(_ context.Context, now time.Time) ([]claim.C
 	return stale, nil
 }
 
+func (r *claimRepo) ListActiveClaims(_ context.Context, now time.Time) ([]claim.Claim, error) {
+	var active []claim.Claim
+	err := sqlitex.Execute(r.conn, `SELECT claim_id, issue_id, author, stale_threshold, last_activity FROM claims`, &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			tid, _ := issue.ParseID(stmt.ColumnText(1))
+			author, _ := identity.NewAuthor(stmt.ColumnText(2))
+			lastAct, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(4))
+			c := claim.ReconstructClaim(stmt.ColumnText(0), tid, author, time.Duration(stmt.ColumnInt64(3)), lastAct)
+			if !c.IsStale(now) {
+				active = append(active, c)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		return nil, &domain.DatabaseError{Op: "list active claims", Err: err}
+	}
+	return active, nil
+}
+
 func (r *claimRepo) scanClaim(query string, args ...any) (claim.Claim, error) {
 	var result claim.Claim
 	var found bool

@@ -222,6 +222,10 @@ type ClaimRepository interface {
 
 	// ListStaleClaims returns all claims that are stale as of the given time.
 	ListStaleClaims(ctx context.Context, now time.Time) ([]claim.Claim, error)
+
+	// ListActiveClaims returns all claims that are not stale as of the given
+	// time.
+	ListActiveClaims(ctx context.Context, now time.Time) ([]claim.Claim, error)
 }
 
 // RelationshipRepository defines the persistence interface for relationships.

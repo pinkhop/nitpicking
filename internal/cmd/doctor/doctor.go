@@ -115,6 +115,13 @@ var diagnosticChecks = []checkDefinition{
 		Categories: []string{"instructions"},
 		PassDetail: "Agent instruction files reference np",
 	},
+	// Info-level checks.
+	{
+		Name:       "long_claims",
+		Severity:   severityInfo,
+		Categories: []string{"long_claim"},
+		PassDetail: "No unusually long-held claims",
+	},
 }
 
 // deriveChecks computes the pass/fail/skipped status of each diagnostic check

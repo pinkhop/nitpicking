@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/urfave/cli/v3"
 
@@ -248,7 +247,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					Priority:  t.Priority().String(),
 					State:     t.State().String(),
 					ClaimID:   result.ClaimID,
-					CreatedAt: t.CreatedAt().Format(time.RFC3339),
+					CreatedAt: cmdutil.FormatJSONTimestamp(t.CreatedAt()),
 				})
 			}
 

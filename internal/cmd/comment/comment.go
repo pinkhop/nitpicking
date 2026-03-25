@@ -205,7 +205,7 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 						IssueID:   n.IssueID().String(),
 						Author:    n.Author().String(),
 						Body:      n.Body(),
-						CreatedAt: n.CreatedAt().Format(time.RFC3339),
+						CreatedAt: cmdutil.FormatJSONTimestamp(n.CreatedAt()),
 					})
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)

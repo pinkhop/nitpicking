@@ -1743,6 +1743,101 @@ func TestDoctor_ClosedParent_ReportsClosedParent(t *testing.T) {
 	}
 }
 
+func TestDoctor_LowPriorityBlocker_ReportsPriorityInversion(t *testing.T) {
+	t.Parallel()
+
+	// Given — P1 task blocked by P4 task.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	blockerOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:     issue.RoleTask,
+		Title:    "Low priority blocker",
+		Author:   author,
+		Priority: issue.P4,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create blocker: %v", err)
+	}
+
+	blockedOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:     issue.RoleTask,
+		Title:    "High priority blocked",
+		Author:   author,
+		Priority: issue.P1,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create blocked: %v", err)
+	}
+
+	err = svc.AddRelationship(ctx, blockedOut.Issue.ID(), service.RelationshipInput{
+		Type:     issue.RelBlockedBy,
+		TargetID: blockerOut.Issue.ID(),
+	}, author)
+	if err != nil {
+		t.Fatalf("precondition: add blocked_by: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — should report priority_inversion.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "priority_inversion")
+	if finding == nil {
+		t.Fatal("expected 'priority_inversion' finding")
+	}
+	if !strings.Contains(finding.Message, "P4") || !strings.Contains(finding.Message, "P1") {
+		t.Errorf("expected message to mention P4 and P1, got %q", finding.Message)
+	}
+}
+
+func TestDoctor_LowPriorityParent_ReportsPriorityInversion(t *testing.T) {
+	t.Parallel()
+
+	// Given — P3 epic with P1 child task.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	epicOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:     issue.RoleEpic,
+		Title:    "Low priority epic",
+		Author:   author,
+		Priority: issue.P3,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create epic: %v", err)
+	}
+
+	_, err = svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:     issue.RoleTask,
+		Title:    "High priority child",
+		Author:   author,
+		Priority: issue.P1,
+		ParentID: epicOut.Issue.ID(),
+	})
+	if err != nil {
+		t.Fatalf("precondition: create child: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — should report priority_inversion for parent-child.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "priority_inversion")
+	if finding == nil {
+		t.Fatal("expected 'priority_inversion' finding")
+	}
+	if !strings.Contains(finding.Message, "P3") || !strings.Contains(finding.Message, "P1") {
+		t.Errorf("expected message to mention P3 and P1, got %q", finding.Message)
+	}
+}
+
 // findingByCategory returns the first finding with the given category, or nil.
 func findingByCategory(findings []service.DoctorFinding, category string) *service.DoctorFinding {
 	for i := range findings {

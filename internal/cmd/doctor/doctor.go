@@ -122,6 +122,12 @@ var diagnosticChecks = []checkDefinition{
 		PassDetail: "No epics are eligible to be closed",
 	},
 	{
+		Name:       "priority_inversion",
+		Severity:   severityWarning,
+		Categories: []string{"priority_inversion"},
+		PassDetail: "No priority inversions found",
+	},
+	{
 		Name:       "closed_parents",
 		Severity:   severityWarning,
 		Categories: []string{"closed_parent"},

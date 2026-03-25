@@ -974,6 +974,13 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 		}
 		output.Findings = append(output.Findings, parentFindings...)
 
+		// Check for priority inversions.
+		inversionFindings, invErr := s.checkPriorityInversion(ctx, uow)
+		if invErr != nil {
+			return invErr
+		}
+		output.Findings = append(output.Findings, inversionFindings...)
+
 		return nil
 	})
 
@@ -1261,6 +1268,77 @@ func (s *serviceImpl) checkParentHealth(ctx context.Context, uow port.UnitOfWork
 				Message:  fmt.Sprintf("Open %s %s has closed parent epic %s", item.Role, item.ID, item.ParentID),
 				IssueIDs: []string{item.ID.String(), item.ParentID.String()},
 			})
+		}
+	}
+
+	return findings, nil
+}
+
+// checkPriorityInversion detects two types of priority inversions:
+// (a) A low-priority blocker gating higher-priority work via blocked_by.
+// (b) A parent epic with lower priority than one of its children.
+func (s *serviceImpl) checkPriorityInversion(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
+	// Load all non-deleted, non-closed issues.
+	allItems, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
+		ExcludeClosed: true,
+	}, port.OrderByPriority, -1)
+	if err != nil {
+		return nil, fmt.Errorf("listing issues: %w", err)
+	}
+
+	// Index issues by ID for quick lookup.
+	itemIndex := make(map[string]port.IssueListItem, len(allItems))
+	for _, item := range allItems {
+		itemIndex[item.ID.String()] = item
+	}
+
+	var findings []DoctorFinding
+
+	for _, item := range allItems {
+		// (a) Check blocked_by inversions.
+		if item.IsBlocked {
+			rels, relErr := uow.Relationships().ListRelationships(ctx, item.ID)
+			if relErr != nil {
+				continue
+			}
+			for _, rel := range rels {
+				if rel.Type() != issue.RelBlockedBy || rel.SourceID() != item.ID {
+					continue
+				}
+				blocker, ok := itemIndex[rel.TargetID().String()]
+				if !ok {
+					continue // blocker is closed or deleted
+				}
+				// Higher numeric priority value = lower urgency.
+				if blocker.Priority > item.Priority {
+					findings = append(findings, DoctorFinding{
+						Category: "priority_inversion",
+						Severity: "warning",
+						Message: fmt.Sprintf("%s %s %s blocks higher-priority %s %s %s",
+							blocker.Priority, blocker.Role, blocker.ID,
+							item.Priority, item.Role, item.ID),
+						IssueIDs: []string{blocker.ID.String(), item.ID.String()},
+					})
+				}
+			}
+		}
+
+		// (b) Check parent-child inversions.
+		if !item.ParentID.IsZero() {
+			parent, ok := itemIndex[item.ParentID.String()]
+			if !ok {
+				continue // parent is closed or deleted
+			}
+			if parent.Priority > item.Priority {
+				findings = append(findings, DoctorFinding{
+					Category: "priority_inversion",
+					Severity: "warning",
+					Message: fmt.Sprintf("%s %s %s has higher-priority %s %s %s as a child",
+						parent.Priority, parent.Role, parent.ID,
+						item.Priority, item.Role, item.ID),
+					IssueIDs: []string{parent.ID.String(), item.ID.String()},
+				})
+			}
 		}
 	}
 

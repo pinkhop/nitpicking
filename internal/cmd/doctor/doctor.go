@@ -102,12 +102,30 @@ var diagnosticChecks = []checkDefinition{
 		Categories: []string{"blocker_cycle", "blocker_deleted", "blocker_deferred", "blocker_close_eligible", "blocker_dead_end"},
 		PassDetail: "No blocker graph issues found",
 	},
+	{
+		Name:       "deleted_parents",
+		Severity:   severityError,
+		Categories: []string{"deleted_parent"},
+		PassDetail: "No issues reference deleted parents",
+	},
 	// Warning-level checks.
 	{
 		Name:       "stale_claims",
 		Severity:   severityWarning,
 		Categories: []string{"stale_claim"},
 		PassDetail: "No stale claims found",
+	},
+	{
+		Name:       "close_eligible",
+		Severity:   severityWarning,
+		Categories: []string{"close_eligible"},
+		PassDetail: "No epics are eligible to be closed",
+	},
+	{
+		Name:       "closed_parents",
+		Severity:   severityWarning,
+		Categories: []string{"closed_parent"},
+		PassDetail: "No open issues have closed parents",
 	},
 	{
 		Name:       "instructions",

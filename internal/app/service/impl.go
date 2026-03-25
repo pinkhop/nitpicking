@@ -960,6 +960,20 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 		}
 		output.Findings = append(output.Findings, blockerFindings...)
 
+		// Check for close-eligible epics (standalone, not only when blocking).
+		closeEligibleFindings, ceErr := s.checkCloseEligible(ctx, uow)
+		if ceErr != nil {
+			return ceErr
+		}
+		output.Findings = append(output.Findings, closeEligibleFindings...)
+
+		// Check for deleted and closed parent references.
+		parentFindings, pErr := s.checkParentHealth(ctx, uow)
+		if pErr != nil {
+			return pErr
+		}
+		output.Findings = append(output.Findings, parentFindings...)
+
 		return nil
 	})
 
@@ -1166,6 +1180,91 @@ func isCloseEligible(children []issue.ChildStatus) bool {
 		}
 	}
 	return true
+}
+
+// checkCloseEligible detects open epics whose children are all closed, making
+// them eligible for closure. This is a standalone check that runs regardless of
+// blocking relationships — unlike blocker_close_eligible which only fires when
+// the epic is in a blocking chain.
+func (s *serviceImpl) checkCloseEligible(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
+	epics, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
+		Role:          issue.RoleEpic,
+		ExcludeClosed: true,
+	}, port.OrderByPriority, -1)
+	if err != nil {
+		return nil, fmt.Errorf("listing epics: %w", err)
+	}
+
+	var findings []DoctorFinding
+	for _, epic := range epics {
+		children, childErr := uow.Issues().GetChildStatuses(ctx, epic.ID)
+		if childErr != nil {
+			continue
+		}
+		if isCloseEligible(children) {
+			findings = append(findings, DoctorFinding{
+				Category:   "close_eligible",
+				Severity:   "warning",
+				Message:    fmt.Sprintf("Epic %s has all children closed and is eligible to be closed", epic.ID),
+				IssueIDs:   []string{epic.ID.String()},
+				Suggestion: "Run 'np epic close-eligible --author <name>' to batch-close fully resolved epics.",
+			})
+		}
+	}
+
+	return findings, nil
+}
+
+// checkParentHealth detects issues with broken parent references — either
+// referencing a deleted parent (data integrity issue) or open issues whose
+// parent is closed (orphaned children).
+func (s *serviceImpl) checkParentHealth(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
+	// Load all non-deleted issues (including closed for parent lookup).
+	allItems, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{}, port.OrderByPriority, -1)
+	if err != nil {
+		return nil, fmt.Errorf("listing issues: %w", err)
+	}
+
+	var findings []DoctorFinding
+	for _, item := range allItems {
+		if item.ParentID.IsZero() {
+			continue
+		}
+
+		parent, parentErr := uow.Issues().GetIssue(ctx, item.ParentID, true)
+		if parentErr != nil {
+			// Parent not found at all — this is an integrity error.
+			findings = append(findings, DoctorFinding{
+				Category: "deleted_parent",
+				Severity: "error",
+				Message:  fmt.Sprintf("%s references deleted parent %s", item.ID, item.ParentID),
+				IssueIDs: []string{item.ID.String(), item.ParentID.String()},
+			})
+			continue
+		}
+
+		if parent.IsDeleted() {
+			findings = append(findings, DoctorFinding{
+				Category: "deleted_parent",
+				Severity: "error",
+				Message:  fmt.Sprintf("%s references deleted parent %s", item.ID, item.ParentID),
+				IssueIDs: []string{item.ID.String(), item.ParentID.String()},
+			})
+			continue
+		}
+
+		// Only report closed parent for open (non-closed) issues.
+		if item.State != issue.StateClosed && parent.State() == issue.StateClosed {
+			findings = append(findings, DoctorFinding{
+				Category: "closed_parent",
+				Severity: "warning",
+				Message:  fmt.Sprintf("Open %s %s has closed parent epic %s", item.Role, item.ID, item.ParentID),
+				IssueIDs: []string{item.ID.String(), item.ParentID.String()},
+			})
+		}
+	}
+
+	return findings, nil
 }
 
 func (s *serviceImpl) GC(ctx context.Context, input GCInput) (GCOutput, error) {

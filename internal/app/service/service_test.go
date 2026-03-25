@@ -1613,6 +1613,136 @@ func TestDoctor_LongClaim_ReportsLongHeld(t *testing.T) {
 	}
 }
 
+func TestDoctor_CloseEligibleEpic_ReportsCloseEligible(t *testing.T) {
+	t.Parallel()
+
+	// Given — an epic with all children closed (close-eligible).
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	epicOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleEpic,
+		Title:  "Close-eligible epic",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create epic: %v", err)
+	}
+
+	childOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:     issue.RoleTask,
+		Title:    "Epic child",
+		Author:   author,
+		ParentID: epicOut.Issue.ID(),
+		Claim:    true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create child: %v", err)
+	}
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: childOut.Issue.ID(),
+		ClaimID: childOut.ClaimID,
+		Action:  service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close child: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — should report close_eligible.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "close_eligible")
+	if finding == nil {
+		t.Fatal("expected 'close_eligible' finding")
+	}
+	if !slices.Contains(finding.IssueIDs, epicOut.Issue.ID().String()) {
+		t.Errorf("expected epic %s in IssueIDs, got %v", epicOut.Issue.ID(), finding.IssueIDs)
+	}
+}
+
+func TestDoctor_ClosedParent_ReportsClosedParent(t *testing.T) {
+	t.Parallel()
+
+	// Given — an open task whose parent epic is closed.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	epicOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleEpic,
+		Title:  "Will-be-closed epic",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create epic: %v", err)
+	}
+
+	childOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:     issue.RoleTask,
+		Title:    "Child task",
+		Author:   author,
+		ParentID: epicOut.Issue.ID(),
+		Claim:    true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create child: %v", err)
+	}
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: childOut.Issue.ID(),
+		ClaimID: childOut.ClaimID,
+		Action:  service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close child: %v", err)
+	}
+
+	// Close the epic.
+	epicClaim, err := svc.ClaimByID(ctx, service.ClaimInput{
+		IssueID: epicOut.Issue.ID(),
+		Author:  author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim epic: %v", err)
+	}
+	err = svc.TransitionState(ctx, service.TransitionInput{
+		IssueID: epicOut.Issue.ID(),
+		ClaimID: epicClaim.ClaimID,
+		Action:  service.ActionClose,
+	})
+	if err != nil {
+		t.Fatalf("precondition: close epic: %v", err)
+	}
+
+	// Create a new open task under the closed epic.
+	orphanOut, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:     issue.RoleTask,
+		Title:    "Orphaned by closed parent",
+		Author:   author,
+		ParentID: epicOut.Issue.ID(),
+	})
+	if err != nil {
+		t.Fatalf("precondition: create orphan: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — should report closed_parent.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "closed_parent")
+	if finding == nil {
+		t.Fatal("expected 'closed_parent' finding")
+	}
+	if !slices.Contains(finding.IssueIDs, orphanOut.Issue.ID().String()) {
+		t.Errorf("expected orphan %s in IssueIDs, got %v", orphanOut.Issue.ID(), finding.IssueIDs)
+	}
+}
+
 // findingByCategory returns the first finding with the given category, or nil.
 func findingByCategory(findings []service.DoctorFinding, category string) *service.DoctorFinding {
 	for i := range findings {

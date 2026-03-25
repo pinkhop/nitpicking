@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"text/tabwriter"
-	"time"
 
 	"github.com/urfave/cli/v3"
 
@@ -97,7 +96,7 @@ func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 						DisplayStatus: item.DisplayStatus(),
 						Priority:      item.Priority.String(),
 						Title:         item.Title,
-						CreatedAt:     item.CreatedAt.Format(time.RFC3339),
+						CreatedAt:     cmdutil.FormatJSONTimestamp(item.CreatedAt),
 					})
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)

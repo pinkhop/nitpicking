@@ -201,9 +201,9 @@ func newCyclesCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			// Filter for cycle-related findings.
-			var cycleFindings []service.DoctorFinding
+			cycleFindings := make([]service.DoctorFinding, 0)
 			for _, finding := range result.Findings {
-				if finding.Category == "cycle" {
+				if finding.Category == "blocker_cycle" {
 					cycleFindings = append(cycleFindings, finding)
 				}
 			}

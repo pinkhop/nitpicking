@@ -211,16 +211,16 @@ type ListHistoryOutput struct {
 // DoctorFinding represents a single diagnostic finding.
 type DoctorFinding struct {
 	// Category identifies the kind of finding.
-	Category string
+	Category string `json:"category"`
 	// Severity is "warning" or "error".
-	Severity string
+	Severity string `json:"severity"`
 	// Message describes the finding.
-	Message string
+	Message string `json:"message"`
 	// IssueIDs lists affected issues.
-	IssueIDs []string
+	IssueIDs []string `json:"issue_ids,omitzero"`
 	// Suggestion provides an actionable remediation command or step.
 	// Empty when no specific action is recommended.
-	Suggestion string
+	Suggestion string `json:"suggestion,omitzero"`
 }
 
 // DoctorOutput holds the results of the doctor diagnostic.

@@ -100,7 +100,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 						Revision:  e.Revision(),
 						Author:    e.Author().String(),
 						EventType: e.EventType().String(),
-						Timestamp: e.Timestamp().Format(time.RFC3339),
+						Timestamp: cmdutil.FormatJSONTimestamp(e.Timestamp()),
 					}
 					for _, c := range e.Changes() {
 						entry.Changes = append(entry.Changes, fieldChangeOutput{

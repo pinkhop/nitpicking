@@ -174,6 +174,57 @@ func TestIsEpicReady_UnresolvedBlocker_NotReady(t *testing.T) {
 	}
 }
 
+func TestIsTaskReady_BlockedAncestor_NotReady(t *testing.T) {
+	t.Parallel()
+
+	// Given — an ancestor that is blocked.
+	ancestors := []issue.AncestorStatus{
+		{State: issue.StateOpen, IsBlocked: true},
+	}
+
+	// When
+	result := issue.IsTaskReady(issue.StateOpen, nil, ancestors)
+
+	// Then
+	if result {
+		t.Error("expected not ready with blocked ancestor")
+	}
+}
+
+func TestIsEpicReady_BlockedAncestor_NotReady(t *testing.T) {
+	t.Parallel()
+
+	// Given — an ancestor that is blocked.
+	ancestors := []issue.AncestorStatus{
+		{State: issue.StateOpen, IsBlocked: true},
+	}
+
+	// When
+	result := issue.IsEpicReady(issue.StateOpen, false, nil, ancestors)
+
+	// Then
+	if result {
+		t.Error("expected not ready with blocked ancestor")
+	}
+}
+
+func TestIsTaskReady_AncestorBlockedByResolvedBlocker_Ready(t *testing.T) {
+	t.Parallel()
+
+	// Given — an ancestor that is not blocked (blocker was resolved).
+	ancestors := []issue.AncestorStatus{
+		{State: issue.StateOpen, IsBlocked: false},
+	}
+
+	// When
+	result := issue.IsTaskReady(issue.StateOpen, nil, ancestors)
+
+	// Then
+	if !result {
+		t.Error("expected ready when ancestor's blocker is resolved")
+	}
+}
+
 func TestIsTaskReady_OpenBlocker_NotReady(t *testing.T) {
 	t.Parallel()
 

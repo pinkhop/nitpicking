@@ -546,10 +546,16 @@ func (r *issueRepo) GetAncestorStatuses(_ context.Context, id issue.ID) ([]issue
 
 		var stateStr string
 		var stateFound bool
-		err = sqlitex.Execute(r.conn, `SELECT state FROM issues WHERE issue_id = ? AND deleted = 0`, &sqlitex.ExecOptions{
-			Args: []any{parentID},
+		var isBlocked bool
+		err = sqlitex.Execute(r.conn, `SELECT state,
+			EXISTS(SELECT 1 FROM relationships r JOIN issues b ON r.target_id = b.issue_id
+				WHERE r.source_id = ? AND r.rel_type = 'blocked_by'
+				AND b.state != 'closed' AND b.deleted = 0)
+			FROM issues WHERE issue_id = ? AND deleted = 0`, &sqlitex.ExecOptions{
+			Args: []any{parentID, parentID},
 			ResultFunc: func(stmt *sqlite.Stmt) error {
 				stateStr = stmt.ColumnText(0)
+				isBlocked = stmt.ColumnInt(1) != 0
 				stateFound = true
 				return nil
 			},
@@ -559,7 +565,7 @@ func (r *issueRepo) GetAncestorStatuses(_ context.Context, id issue.ID) ([]issue
 		}
 
 		state, _ := issue.ParseState(stateStr)
-		ancestors = append(ancestors, issue.AncestorStatus{State: state})
+		ancestors = append(ancestors, issue.AncestorStatus{State: state, IsBlocked: isBlocked})
 		current = parentID
 	}
 

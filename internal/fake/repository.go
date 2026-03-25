@@ -210,7 +210,10 @@ func (r *Repository) GetAncestorStatuses(_ context.Context, id issue.ID) ([]issu
 		if !ok || parent.IsDeleted() {
 			break
 		}
-		ancestors = append(ancestors, issue.AncestorStatus{State: parent.State()})
+		ancestors = append(ancestors, issue.AncestorStatus{
+			State:     parent.State(),
+			IsBlocked: r.isIssueBlocked(parent),
+		})
 		current = parentID
 	}
 
@@ -808,7 +811,10 @@ func (r *Repository) getAncestorStatusesInternal(id issue.ID) []issue.AncestorSt
 		if !ok || parent.IsDeleted() {
 			break
 		}
-		ancestors = append(ancestors, issue.AncestorStatus{State: parent.State()})
+		ancestors = append(ancestors, issue.AncestorStatus{
+			State:     parent.State(),
+			IsBlocked: r.isIssueBlocked(parent),
+		})
 		current = parentID
 	}
 	return ancestors

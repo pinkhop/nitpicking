@@ -120,18 +120,27 @@ type DeleteInput struct {
 	ClaimID string
 }
 
+// InheritedBlocking describes why an issue is not ready due to a blocked
+// ancestor. The AncestorID identifies the first blocked ancestor, and
+// BlockerIDs lists the unresolved blockers on that ancestor.
+type InheritedBlocking struct {
+	AncestorID issue.ID
+	BlockerIDs []issue.ID
+}
+
 // ShowIssueOutput holds the full detail view of an issue.
 type ShowIssueOutput struct {
-	Issue         issue.Issue
-	Revision      int
-	Author        identity.Author
-	Relationships []issue.Relationship
-	IsReady       bool
-	CommentCount  int
-	ChildCount    int
-	ClaimID       string
-	ClaimAuthor   string
-	ClaimStaleAt  time.Time
+	Issue             issue.Issue
+	Revision          int
+	Author            identity.Author
+	Relationships     []issue.Relationship
+	IsReady           bool
+	InheritedBlocking *InheritedBlocking
+	CommentCount      int
+	ChildCount        int
+	ClaimID           string
+	ClaimAuthor       string
+	ClaimStaleAt      time.Time
 }
 
 // ListIssuesInput holds the parameters for listing issues.

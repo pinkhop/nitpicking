@@ -623,8 +623,32 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id issue.ID) (ShowIssueOutp
 		} else {
 			hasChildren, _ := uow.Issues().HasChildren(ctx, id)
 			output.IsReady = issue.IsEpicReady(t.State(), hasChildren, blockers, ancestors)
+		}
 
-			// Completion.
+		// Inherited blocking: find the first blocked ancestor and its blockers.
+		for _, a := range ancestors {
+			if !a.IsBlocked {
+				continue
+			}
+			ib := &InheritedBlocking{AncestorID: a.ID}
+			// Retrieve the ancestor's relationships to find its unresolved blockers.
+			ancestorRels, relErr := uow.Relationships().ListRelationships(ctx, a.ID)
+			if relErr == nil {
+				for _, rel := range ancestorRels {
+					if rel.Type() == issue.RelBlockedBy {
+						// Check if the blocker is unresolved (not closed/deleted).
+						blocker, getErr := uow.Issues().GetIssue(ctx, rel.TargetID(), false)
+						if getErr != nil {
+							continue
+						}
+						if blocker.State() != issue.StateClosed && !blocker.IsDeleted() {
+							ib.BlockerIDs = append(ib.BlockerIDs, rel.TargetID())
+						}
+					}
+				}
+			}
+			output.InheritedBlocking = ib
+			break
 		}
 
 		// Comment count — use unlimited listing to count all comments.

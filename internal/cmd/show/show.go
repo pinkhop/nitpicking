@@ -3,6 +3,7 @@ package show
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/urfave/cli/v3"
@@ -12,24 +13,32 @@ import (
 
 // showOutput is the JSON representation of the show command result.
 type showOutput struct {
-	ID                 string               `json:"id"`
-	Role               string               `json:"role"`
-	Title              string               `json:"title"`
-	Description        string               `json:"description,omitzero"`
-	AcceptanceCriteria string               `json:"acceptance_criteria,omitzero"`
-	Priority           string               `json:"priority"`
-	State              string               `json:"state"`
-	ParentID           string               `json:"parent_id,omitzero"`
-	Revision           int                  `json:"revision"`
-	Author             string               `json:"author,omitzero"`
-	IsReady            bool                 `json:"is_ready"`
-	CommentCount       int                  `json:"comment_count,omitzero"`
-	ChildCount         int                  `json:"child_count,omitzero"`
-	ClaimID            string               `json:"claim_id,omitzero"`
-	ClaimAuthor        string               `json:"claim_author,omitzero"`
-	ClaimStaleAt       string               `json:"claim_stale_at,omitzero"`
-	Relationships      []relationshipOutput `json:"relationships,omitzero"`
-	CreatedAt          string               `json:"created_at"`
+	ID                 string                   `json:"id"`
+	Role               string                   `json:"role"`
+	Title              string                   `json:"title"`
+	Description        string                   `json:"description,omitzero"`
+	AcceptanceCriteria string                   `json:"acceptance_criteria,omitzero"`
+	Priority           string                   `json:"priority"`
+	State              string                   `json:"state"`
+	ParentID           string                   `json:"parent_id,omitzero"`
+	Revision           int                      `json:"revision"`
+	Author             string                   `json:"author,omitzero"`
+	IsReady            bool                     `json:"is_ready"`
+	InheritedBlocking  *inheritedBlockingOutput `json:"inherited_blocking,omitzero"`
+	CommentCount       int                      `json:"comment_count,omitzero"`
+	ChildCount         int                      `json:"child_count,omitzero"`
+	ClaimID            string                   `json:"claim_id,omitzero"`
+	ClaimAuthor        string                   `json:"claim_author,omitzero"`
+	ClaimStaleAt       string                   `json:"claim_stale_at,omitzero"`
+	Relationships      []relationshipOutput     `json:"relationships,omitzero"`
+	CreatedAt          string                   `json:"created_at"`
+}
+
+// inheritedBlockingOutput is the JSON representation of blocking inherited
+// from an ancestor epic.
+type inheritedBlockingOutput struct {
+	AncestorID string   `json:"ancestor_id"`
+	BlockerIDs []string `json:"blocker_ids"`
 }
 
 // relationshipOutput is the JSON representation of a single relationship.
@@ -112,6 +121,17 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					})
 				}
 
+				if result.InheritedBlocking != nil {
+					ib := &inheritedBlockingOutput{
+						AncestorID: result.InheritedBlocking.AncestorID.String(),
+						BlockerIDs: make([]string, 0, len(result.InheritedBlocking.BlockerIDs)),
+					}
+					for _, bid := range result.InheritedBlocking.BlockerIDs {
+						ib.BlockerIDs = append(ib.BlockerIDs, bid.String())
+					}
+					out.InheritedBlocking = ib
+				}
+
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)
 			}
 
@@ -131,6 +151,16 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 
 			if result.IsReady {
 				_, _ = fmt.Fprintf(w, "Ready: %s\n", cs.Green("yes"))
+			}
+
+			if result.InheritedBlocking != nil {
+				blockerStrs := make([]string, 0, len(result.InheritedBlocking.BlockerIDs))
+				for _, bid := range result.InheritedBlocking.BlockerIDs {
+					blockerStrs = append(blockerStrs, bid.String())
+				}
+				_, _ = fmt.Fprintf(w, "Blocked via ancestor: %s (blocked by %s)\n",
+					cs.Bold(result.InheritedBlocking.AncestorID.String()),
+					cs.Red(strings.Join(blockerStrs, ", ")))
 			}
 
 			if result.ChildCount > 0 {

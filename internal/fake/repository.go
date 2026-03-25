@@ -211,6 +211,7 @@ func (r *Repository) GetAncestorStatuses(_ context.Context, id issue.ID) ([]issu
 			break
 		}
 		ancestors = append(ancestors, issue.AncestorStatus{
+			ID:        parent.ID(),
 			State:     parent.State(),
 			IsBlocked: r.isIssueBlocked(parent),
 		})
@@ -812,6 +813,7 @@ func (r *Repository) getAncestorStatusesInternal(id issue.ID) []issue.AncestorSt
 			break
 		}
 		ancestors = append(ancestors, issue.AncestorStatus{
+			ID:        parent.ID(),
 			State:     parent.State(),
 			IsBlocked: r.isIssueBlocked(parent),
 		})

@@ -10,6 +10,8 @@ type BlockerStatus struct {
 
 // AncestorStatus summarizes an ancestor's state for readiness propagation.
 type AncestorStatus struct {
+	// ID identifies the ancestor issue.
+	ID ID
 	// State is the ancestor's current state.
 	State State
 	// IsBlocked is true when the ancestor has at least one unresolved

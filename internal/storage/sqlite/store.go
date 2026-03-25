@@ -589,7 +589,8 @@ func (r *issueRepo) GetAncestorStatuses(_ context.Context, id issue.ID) ([]issue
 		}
 
 		state, _ := issue.ParseState(stateStr)
-		ancestors = append(ancestors, issue.AncestorStatus{State: state, IsBlocked: isBlocked})
+		ancestorID, _ := issue.ParseID(parentID)
+		ancestors = append(ancestors, issue.AncestorStatus{ID: ancestorID, State: state, IsBlocked: isBlocked})
 		current = parentID
 	}
 

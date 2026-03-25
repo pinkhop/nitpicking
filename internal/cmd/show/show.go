@@ -94,7 +94,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 					ChildCount:         result.ChildCount,
 					ClaimID:            result.ClaimID,
 					ClaimAuthor:        result.ClaimAuthor,
-					CreatedAt:          t.CreatedAt().Format(time.RFC3339),
+					CreatedAt:          cmdutil.FormatJSONTimestamp(t.CreatedAt()),
 				}
 
 				if !t.ParentID().IsZero() {
@@ -102,7 +102,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 
 				if !result.ClaimStaleAt.IsZero() {
-					out.ClaimStaleAt = result.ClaimStaleAt.Format(time.RFC3339)
+					out.ClaimStaleAt = cmdutil.FormatJSONTimestamp(result.ClaimStaleAt)
 				}
 
 				for _, rel := range result.Relationships {

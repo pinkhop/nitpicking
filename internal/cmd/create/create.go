@@ -191,7 +191,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			// same key uses the highest-precedence source.
 			flagLabels := cmd.StringSlice("label")
 			envDimensions := envDimensionStrings(os.Getenv("NP_DIMENSIONS"))
-			jsonDimensions := jsonLabelsToStrings(tj.Dimensions)
+			jsonDimensions := jsonLabelsToStrings(tj.Labels)
 			mergedDimensions := mergeDimensionsFromJSON(envDimensions, jsonDimensions, flagLabels)
 			parsedDimensions, err := parseDimensions(mergedDimensions)
 			if err != nil {

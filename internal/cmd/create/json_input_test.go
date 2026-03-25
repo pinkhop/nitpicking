@@ -18,7 +18,7 @@ func TestParseIssueJSON_ValidFullInput(t *testing.T) {
 		"acceptance_criteria": "Login works",
 		"priority": "P0",
 		"parent_id": "NP-abc12",
-		"dimensions": {"kind": "bug", "area": "auth"}
+		"labels": {"kind": "bug", "area": "auth"}
 	}`)
 
 	// When
@@ -45,8 +45,8 @@ func TestParseIssueJSON_ValidFullInput(t *testing.T) {
 	if tj.ParentID != "NP-abc12" {
 		t.Errorf("parent_id: got %q, want %q", tj.ParentID, "NP-abc12")
 	}
-	if tj.Dimensions["kind"] != "bug" || tj.Dimensions["area"] != "auth" {
-		t.Errorf("dimensions: got %v, want kind:bug area:auth", tj.Dimensions)
+	if tj.Labels["kind"] != "bug" || tj.Labels["area"] != "auth" {
+		t.Errorf("labels: got %v, want kind:bug area:auth", tj.Labels)
 	}
 }
 
@@ -118,8 +118,8 @@ func TestParseIssueJSON_MinimalInput(t *testing.T) {
 	if tj.Description != "" {
 		t.Errorf("description: got %q, want empty", tj.Description)
 	}
-	if tj.Dimensions != nil {
-		t.Errorf("dimensions: got %v, want nil", tj.Dimensions)
+	if tj.Labels != nil {
+		t.Errorf("labels: got %v, want nil", tj.Labels)
 	}
 }
 

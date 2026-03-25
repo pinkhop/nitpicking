@@ -15,7 +15,7 @@
    - 4.3 [Relationship](#43-relationship)
    - 4.4 [History Entry](#44-history-entry)
    - 4.5 [Claim](#45-claim)
-   - 4.6 [Dimension](#46-dimension)
+   - 4.6 [Label](#46-label)
    - 4.7 [Issue ID Format](#47-issue-id-format)
    - 4.8 [Author Validation](#48-author-validation)
 5. [State Machines](#5-state-machines)
@@ -148,7 +148,7 @@ All issues carry these fields regardless of role:
 | State               | Yes      | Yes     | See [5](#5-state-machines). All issues start as `open`. |
 | Revision            | Yes      | No      | Integer; derived from history entry count (`revision = history count − 1`). Starts at `0`. |
 | Parent              | No       | Yes     | Reference to a parent issue. Any issue may have any other issue as its parent. See [4.1.1](#411-parent-constraints). |
-| Dimensions              | —        | Yes     | Zero or more key–value pairs. See [4.6](#46-dimension). |
+| Labels              | —        | Yes     | Zero or more key–value pairs. See [4.6](#46-label). |
 | Notes               | —        | —       | Zero or more. See [4.2](#42-note). Managed separately. |
 | Relationships       | —        | —       | Zero or more. See [4.3](#43-relationship). |
 | Created At          | Yes      | No      | Automatically applied timestamp. |
@@ -224,9 +224,9 @@ A claim is invalidated when:
 - The claimer releases the issue (close, defer, wait, or release).
 - Another agent steals the issue.
 
-### 4.6 Dimension
+### 4.6 Label
 
-Dimensions are key–value pairs on any issue for filtering and agent coordination.
+Labels are key–value pairs on any issue for filtering and agent coordination.
 
 - **Keys**: 1–64 bytes, ASCII printable characters only (0x21–0x7E), no whitespace. Must contain at least one alphanumeric character.
 - **Values**: 1–256 bytes, free-form UTF-8 text. No whitespace. Must contain at least one alphanumeric character.
@@ -234,7 +234,7 @@ Dimensions are key–value pairs on any issue for filtering and agent coordinati
 - Require claiming to add, modify, or remove.
 - Queryable: exact key–value match, `key:*` wildcard (matches any value for that key), and optionally negative matching.
 
-**Labels** are a convention on dimensions, not a first-class field. The recommended dimension key for labels is `kind` (e.g., `kind:feat`, `kind:fix`). Users define their own vocabulary. For users without an existing convention, the recommended default is the [Conventional Commits](https://www.conventionalcommits.org/) type vocabulary:
+**Labels** are a convention on labels, not a first-class field. The recommended label key for labels is `kind` (e.g., `kind:feat`, `kind:fix`). Users define their own vocabulary. For users without an existing convention, the recommended default is the [Conventional Commits](https://www.conventionalcommits.org/) type vocabulary:
 
 | Value      | Definition |
 |------------|------------|
@@ -249,7 +249,7 @@ Dimensions are key–value pairs on any issue for filtering and agent coordinati
 | `ci`       | Changes to CI/CD configuration or automation. |
 | `chore`    | Maintenance that doesn't fit other categories. |
 
-These are suggestions, not enforced values. The system does not validate dimension values against this list.
+These are suggestions, not enforced values. The system does not validate label values against this list.
 
 ### 4.7 Issue ID Format
 
@@ -451,7 +451,7 @@ The instructions must be brief — enough to get an agent started with pointers 
 
 #### Create
 
-Create an issue. Settable at creation: title, description, acceptance criteria, priority, role (task or epic), parent issue, dimensions, and relationships.
+Create an issue. Settable at creation: title, description, acceptance criteria, priority, role (task or epic), parent issue, labels, and relationships.
 
 - Optionally start as claimed (returns a claim ID).
 - Optional **idempotency key**: if an issue with the same key exists, return the existing issue instead.
@@ -468,18 +468,18 @@ Claim a specific issue. Returns a claim ID.
 Claim the highest-priority unclaimed ready issue — task or epic (see [6.3](#63-readiness)).
 
 - **Ordering**: lowest `P` number first; ties broken by earliest creation time.
-- Filterable by dimension and by role (to claim only tasks or only epics).
+- Filterable by label and by role (to claim only tasks or only epics).
 - **Steal fallback**: if no ready issues are available, optionally steal the highest-priority stale claimed issue. Caller must explicitly opt in.
 
 #### One-Shot Update
 
-Update one or more properties on an **unclaimed** issue in a single atomic claim → update → release transaction. The claim ID is generated and immediately invalidated internally; the caller never sees or manages it. Requires an explicit author (bound to the transient claim). Intended for quick fixes — correcting a title, setting a dimension — without the overhead of a separate claim/release cycle.
+Update one or more properties on an **unclaimed** issue in a single atomic claim → update → release transaction. The claim ID is generated and immediately invalidated internally; the caller never sees or manages it. Requires an explicit author (bound to the transient claim). Intended for quick fixes — correcting a title, setting a label — without the overhead of a separate claim/release cycle.
 
 - Fails if the issue is already claimed (same as a regular claim attempt).
 
 #### Update
 
-Update one or more properties, dimensions (add/modify/remove), relationships (add/remove), and/or parent assignment. Optionally add a comment in the same operation. Requires the claim ID. All changes are a single atomic mutation.
+Update one or more properties, labels (add/modify/remove), relationships (add/remove), and/or parent assignment. Optionally add a comment in the same operation. Requires the claim ID. All changes are a single atomic mutation.
 
 #### Extend Stale Threshold
 
@@ -504,13 +504,13 @@ Soft-delete a claimed issue. Requires the claim ID. Deleting an epic recursively
 
 #### Show
 
-Display the full current state of an issue: all fields, dimensions, relationships, parent, children (epics), and derived properties (readiness, completion status). Notes are excluded — they have their own listing.
+Display the full current state of an issue: all fields, labels, relationships, parent, children (epics), and derived properties (readiness, completion status). Notes are excluded — they have their own listing.
 
 #### List
 
 List issues with high-level information: ID, role, state, priority, title. Optionally include timestamps.
 
-- Filterable by: role (epic or task), state, the computed "ready" predicate, parent issue, dimension (`key:value` exact match, `key:*` wildcard, optionally negative matching).
+- Filterable by: role (epic or task), state, the computed "ready" predicate, parent issue, label (`key:value` exact match, `key:*` wildcard, optionally negative matching).
 - Orderable by: priority, creation time, modification time.
 - Paginated.
 
@@ -518,7 +518,7 @@ List issues with high-level information: ID, role, state, priority, title. Optio
 
 Full-text search on title, description, and acceptance criteria. Optionally include notes.
 
-- Filterable by: role, state, dimension.
+- Filterable by: role, state, label.
 - Orderable by: relevance (default), priority, creation time, modification time.
 - Paginated.
 
@@ -565,7 +565,7 @@ Full-text search on notes for a specific issue.
 
 Full-text search across all comments in the database.
 
-- Filterable by: author, created-after date-time, created-after comment ID, issue dimensions, issue state.
+- Filterable by: author, created-after date-time, created-after comment ID, issue labels, issue state.
 - Orderable and paginated.
 
 ### 8.6 History Operations

@@ -262,14 +262,14 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 					out = append(out, dimJSON{Key: k, Value: v})
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, map[string]any{
-					"issue_id":   issueID.String(),
-					"dimensions": out,
+					"issue_id": issueID.String(),
+					"labels":   out,
 				})
 			}
 
 			w := f.IOStreams.Out
 			if dims.Len() == 0 {
-				_, _ = fmt.Fprintln(w, "No dimensions set.")
+				_, _ = fmt.Fprintln(w, "No labels set.")
 				return nil
 			}
 
@@ -305,7 +305,7 @@ func newListAllCmd(f *cmdutil.Factory) *cli.Command {
 
 			dims, err := svc.ListDistinctLabels(ctx)
 			if err != nil {
-				return fmt.Errorf("listing dimensions: %w", err)
+				return fmt.Errorf("listing labels: %w", err)
 			}
 
 			if jsonOutput {
@@ -318,14 +318,14 @@ func newListAllCmd(f *cmdutil.Factory) *cli.Command {
 					out = append(out, dimJSON{Key: d.Key(), Value: d.Value()})
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, map[string]any{
-					"dimensions": out,
-					"count":      len(dims),
+					"labels": out,
+					"count":  len(dims),
 				})
 			}
 
 			w := f.IOStreams.Out
 			if len(dims) == 0 {
-				_, _ = fmt.Fprintln(w, "No dimensions found.")
+				_, _ = fmt.Fprintln(w, "No labels found.")
 				return nil
 			}
 

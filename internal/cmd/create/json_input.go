@@ -17,7 +17,7 @@ type issueJSON struct {
 	AcceptanceCriteria string            `json:"acceptance_criteria"`
 	Priority           string            `json:"priority"`
 	ParentID           string            `json:"parent_id"`
-	Dimensions         map[string]string `json:"dimensions"`
+	Labels             map[string]string `json:"labels"`
 }
 
 // parseIssueJSON unmarshals a JSON byte slice into an issueJSON struct.

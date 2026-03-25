@@ -167,9 +167,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			// Display dimensions.
+			// Display labels.
 			if t.Labels().Len() > 0 {
-				_, _ = fmt.Fprintf(w, "\n%s\n", cs.Bold("Dimensions:"))
+				_, _ = fmt.Fprintf(w, "\n%s\n", cs.Bold("Labels:"))
 				for k, v := range t.Labels().All() {
 					_, _ = fmt.Fprintf(w, "  %s: %s\n", k, v)
 				}

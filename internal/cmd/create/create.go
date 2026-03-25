@@ -94,8 +94,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &parent,
 			},
 			&cli.StringSliceFlag{
-				Name:     "dimension",
-				Usage:    "Dimension in key:value format (repeatable)",
+				Name:     "label",
+				Aliases:  []string{"dimension"},
+				Usage:    "Label in key:value format (repeatable)",
 				Category: "Options",
 			},
 			&cli.BoolFlag{
@@ -188,10 +189,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			// Parse dimensions: three-way merge of env, JSON, and flags.
 			// Precedence: flags > JSON > env. Different keys are merged;
 			// same key uses the highest-precedence source.
-			flagDimensions := cmd.StringSlice("dimension")
+			flagLabels := cmd.StringSlice("label")
 			envDimensions := envDimensionStrings(os.Getenv("NP_DIMENSIONS"))
 			jsonDimensions := jsonLabelsToStrings(tj.Dimensions)
-			mergedDimensions := mergeDimensionsFromJSON(envDimensions, jsonDimensions, flagDimensions)
+			mergedDimensions := mergeDimensionsFromJSON(envDimensions, jsonDimensions, flagLabels)
 			parsedDimensions, err := parseDimensions(mergedDimensions)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)

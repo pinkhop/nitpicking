@@ -155,8 +155,9 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &role,
 			},
 			&cli.StringSliceFlag{
-				Name:     "dimension",
-				Usage:    "Dimension filter in key:value format (repeatable)",
+				Name:     "label",
+				Aliases:  []string{"dimension"},
+				Usage:    "Label filter in key:value format (repeatable)",
 				Category: "Options",
 			},
 			&cli.BoolFlag{
@@ -193,9 +194,9 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			// Parse dimension filters.
-			rawDimensions := cmd.StringSlice("dimension")
-			dimensionFilters, err := parseLabelFilters(rawDimensions)
+			// Parse label filters.
+			rawLabels := cmd.StringSlice("label")
+			dimensionFilters, err := parseLabelFilters(rawLabels)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}

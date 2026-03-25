@@ -67,8 +67,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &state,
 			},
 			&cli.StringSliceFlag{
-				Name:     "dimension",
-				Usage:    "Dimension filter in key:value format (repeatable)",
+				Name:     "label",
+				Aliases:  []string{"dimension"},
+				Usage:    "Label filter in key:value format (repeatable)",
 				Category: "Options",
 			},
 			&cli.StringFlag{
@@ -133,12 +134,12 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				filter.States = []issue.State{parsedState}
 			}
 
-			// Parse dimension filters.
-			rawDimensions := cmd.StringSlice("dimension")
-			for _, s := range rawDimensions {
+			// Parse label filters.
+			rawLabels := cmd.StringSlice("label")
+			for _, s := range rawLabels {
 				key, value, ok := strings.Cut(s, ":")
 				if !ok {
-					return cmdutil.FlagErrorf("invalid dimension filter %q: must be in key:value format", s)
+					return cmdutil.FlagErrorf("invalid label filter %q: must be in key:value format", s)
 				}
 				ff := port.LabelFilter{Key: key}
 				if value != "*" {

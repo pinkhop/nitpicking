@@ -17,13 +17,14 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/port"
 )
 
-// NewCmd constructs the "dimension" parent command with subcommands for
-// managing issue dimensions.
+// NewCmd constructs the "label" parent command with subcommands for managing
+// issue labels (key-value metadata). The old names "dimension" and "dim" are
+// kept as deprecated aliases.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
-		Name:    "dimension",
-		Aliases: []string{"dim"},
-		Usage:   "Manage issue dimensions (key-value metadata)",
+		Name:    "label",
+		Aliases: []string{"l", "dimension", "dim"},
+		Usage:   "Manage issue labels (key-value metadata)",
 		Commands: []*cli.Command{
 			newAddCmd(f),
 			newRemoveCmd(f),

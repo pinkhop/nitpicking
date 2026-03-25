@@ -501,13 +501,15 @@ func newEditCmd(f *cmdutil.Factory) *cli.Command {
 				Destination: &parent,
 			},
 			&cli.StringSliceFlag{
-				Name:     "dimension",
-				Usage:    "Set a dimension in key:value format (repeatable)",
+				Name:     "label",
+				Aliases:  []string{"dimension"},
+				Usage:    "Set a label in key:value format (repeatable)",
 				Category: "Options",
 			},
 			&cli.StringSliceFlag{
-				Name:     "dimension-remove",
-				Usage:    "Remove a dimension by key (repeatable)",
+				Name:     "label-remove",
+				Aliases:  []string{"dimension-remove"},
+				Usage:    "Remove a label by key (repeatable)",
 				Category: "Options",
 			},
 			&cli.BoolFlag{
@@ -542,7 +544,7 @@ func newEditCmd(f *cmdutil.Factory) *cli.Command {
 			input := service.OneShotUpdateInput{
 				IssueID:     issueID,
 				Author:      parsedAuthor,
-				LabelRemove: cmd.StringSlice("dimension-remove"),
+				LabelRemove: cmd.StringSlice("label-remove"),
 			}
 
 			if cmd.IsSet("title") {
@@ -574,7 +576,7 @@ func newEditCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			rawLabelSet := cmd.StringSlice("dimension")
+			rawLabelSet := cmd.StringSlice("label")
 			for _, s := range rawLabelSet {
 				key, value, ok := strings.Cut(s, ":")
 				if !ok {

@@ -97,7 +97,7 @@ np claim ready --author <your-name>   # claim the highest-priority ready issue
 np ready                              # browse all ready issues without claiming
 np blocked                            # list issues blocked by unresolved dependencies
 np status                             # dashboard with counts by state
-np list --ready --dimension kind:fix  # filter ready issues by dimension
+np list --ready --label kind:fix      # filter ready issues by label
 np list --include-closed              # include closed issues (hidden by default)
 np list --state closed                # show only closed issues
 np search "login timeout"             # full-text search across titles and descriptions
@@ -126,7 +126,7 @@ Persist the claim ID for the duration of your work on that issue. If you lose it
 np issue update --claim <CLAIM-ID> --title "Revised title"
 np issue update --claim <CLAIM-ID> --description "More detail"
 np issue update --claim <CLAIM-ID> --priority 1
-np issue update --claim <CLAIM-ID> --dimension kind:fix
+np issue update --claim <CLAIM-ID> --label kind:fix
 ```
 
 ### 4. Document your work with comments
@@ -258,17 +258,17 @@ np epic close-eligible --dry-run --author <name>  # preview without closing
 np epic children <EPIC-ID>             # list all children of an epic
 ```
 
-## Dimension Subcommand Group
+## Label Subcommand Group
 
-The `dimension` (alias: `dim`) command manages key-value metadata on issues:
+The `label` (alias: `l`) command manages key-value metadata on issues. The old names `dimension` and `dim` are accepted as deprecated aliases.
 
 ```bash
-np dimension add --claim <CLAIM-ID> --key kind --value bug                  # set dimension (issue derived from claim)
-np dimension add --issue <ID> --claim <CLAIM-ID> --key kind --value bug     # explicit issue ID (must match claim)
-np dimension remove --claim <CLAIM-ID> --key kind                           # remove dimension
-np dimension list --issue <ID>                                               # list for issue
-np dimension list-all                                                        # all unique dims
-np dimension propagate --issue <ID> --author <name> --key kind              # propagate to descendants
+np label add --claim <CLAIM-ID> --key kind --value bug                  # set label (issue derived from claim)
+np label add --issue <ID> --claim <CLAIM-ID> --key kind --value bug     # explicit issue ID (must match claim)
+np label remove --claim <CLAIM-ID> --key kind                           # remove label
+np label list --issue <ID>                                               # list for issue
+np label list-all                                                        # all unique labels
+np label propagate --issue <ID> --author <name> --key kind              # propagate to descendants
 ```
 
 ## Issue Subcommand Group

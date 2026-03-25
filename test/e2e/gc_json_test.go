@@ -79,3 +79,45 @@ func TestE2E_AdminGCJSON_IncludeClosed_ConformsToJSONStandards(t *testing.T) {
 		t.Errorf("closed_issues_removed must be a number, got %v", result["closed_issues_removed"])
 	}
 }
+
+func TestE2E_AdminGCIncludeClosed_ClosedIssueWithRelationships_Succeeds(t *testing.T) {
+	// Given — a closed task that has a blocking relationship with an open task.
+	dir := initDB(t, "GR")
+	closedTask := createTask(t, dir, "will close", "gc-agent")
+	openTask := createTask(t, dir, "stays open", "gc-agent")
+	addRelationship(t, dir, openTask, "blocked_by", closedTask, "gc-agent")
+	addRelationship(t, dir, closedTask, "refs", openTask, "gc-agent")
+	claimID := claimIssue(t, dir, closedTask, "gc-agent")
+	_, stderr, code := runNP(t, dir, "done", "--claim", claimID, "--author", "gc-agent", "--reason", "done")
+	if code != 0 {
+		t.Fatalf("precondition: done failed (exit %d): %s", code, stderr)
+	}
+
+	// When — gc with --include-closed.
+	_, stderr, code = runNP(t, dir, "admin", "gc", "--confirm", "--include-closed", "--json")
+
+	// Then — GC succeeds despite the closed issue having relationships.
+	if code != 0 {
+		t.Fatalf("admin gc --include-closed failed (exit %d): %s", code, stderr)
+	}
+}
+
+func TestE2E_AdminGCIncludeClosed_ClosedParentEpic_Succeeds(t *testing.T) {
+	// Given — a closed epic that is the parent of a closed child task.
+	dir := initDB(t, "GP")
+	epicID := createEpic(t, dir, "parent epic", "gc-agent")
+	childID := createTaskWithParent(t, dir, "child task", "gc-agent", epicID)
+	childClaim := claimIssue(t, dir, childID, "gc-agent")
+	_, stderr, code := runNP(t, dir, "done", "--claim", childClaim, "--author", "gc-agent", "--reason", "done")
+	if code != 0 {
+		t.Fatalf("precondition: close child failed (exit %d): %s", code, stderr)
+	}
+
+	// When — gc with --include-closed (epic auto-closes when all children close).
+	_, stderr, code = runNP(t, dir, "admin", "gc", "--confirm", "--include-closed", "--json")
+
+	// Then — GC succeeds despite the parent-child FK relationship.
+	if code != 0 {
+		t.Fatalf("admin gc --include-closed failed (exit %d): %s", code, stderr)
+	}
+}

@@ -176,9 +176,13 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 		query string
 	}{
 		{"gc dimensions", `DELETE FROM dimensions WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
+		{"gc comments fts", `DELETE FROM comments_fts WHERE comment_id IN (SELECT comment_id FROM comments WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1))`},
 		{"gc comments", `DELETE FROM comments WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
 		{"gc history", `DELETE FROM history WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
+		{"gc claims", `DELETE FROM claims WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
 		{"gc relationships", `DELETE FROM relationships WHERE source_id IN (SELECT issue_id FROM issues WHERE deleted = 1) OR target_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
+		{"gc issues fts", `DELETE FROM issues_fts WHERE issue_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
+		{"gc parent refs", `UPDATE issues SET parent_id = NULL WHERE parent_id IN (SELECT issue_id FROM issues WHERE deleted = 1)`},
 		{"gc issues", `DELETE FROM issues WHERE deleted = 1`},
 	}
 
@@ -194,8 +198,13 @@ func (r *dbRepo) GC(_ context.Context, includeClosed bool) error {
 			query string
 		}{
 			{"gc closed dimensions", `DELETE FROM dimensions WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
+			{"gc closed comments fts", `DELETE FROM comments_fts WHERE comment_id IN (SELECT comment_id FROM comments WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed'))`},
 			{"gc closed comments", `DELETE FROM comments WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
 			{"gc closed history", `DELETE FROM history WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
+			{"gc closed claims", `DELETE FROM claims WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
+			{"gc closed relationships", `DELETE FROM relationships WHERE source_id IN (SELECT issue_id FROM issues WHERE state = 'closed') OR target_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
+			{"gc closed issues fts", `DELETE FROM issues_fts WHERE issue_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
+			{"gc closed parent refs", `UPDATE issues SET parent_id = NULL WHERE parent_id IN (SELECT issue_id FROM issues WHERE state = 'closed')`},
 			{"gc closed issues", `DELETE FROM issues WHERE state = 'closed'`},
 		}
 

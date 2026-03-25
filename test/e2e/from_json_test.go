@@ -184,12 +184,12 @@ func TestE2E_CreateFromJSON_DimensionsMerge(t *testing.T) {
 	// Given
 	dir := initDB(t, "TEST")
 
-	jsonInput := `{"role":"task","title":"Dimension merge test","dimensions":{"kind":"bug","area":"auth"}}`
+	jsonInput := `{"role":"task","title":"Label merge test","labels":{"kind":"bug","area":"auth"}}`
 
-	// When: --dimension flag overrides kind but area comes from JSON.
+	// When: --label flag overrides kind but area comes from JSON.
 	stdout, stderr, code := runNP(t, dir, "create",
 		"--from-json", jsonInput,
-		"--dimension", "kind:feature",
+		"--label", "kind:feature",
 		"--author", "e2e-agent",
 		"--claim",
 		"--json",

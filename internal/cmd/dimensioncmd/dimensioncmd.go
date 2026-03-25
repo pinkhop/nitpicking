@@ -35,20 +35,20 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newAddCmd constructs "dimension add" which sets a dimension on a claimed
-// issue.
+// newAddCmd constructs "label add" which sets a label on a claimed issue.
+// Takes a positional key:value argument; parses on the first colon so values
+// may contain colons.
 func newAddCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		issueArg   string
 		claimID    string
-		key        string
-		value      string
 	)
 
 	return &cli.Command{
-		Name:  "add",
-		Usage: "Set a dimension on a claimed issue",
+		Name:      "add",
+		Usage:     "Set a label on a claimed issue",
+		ArgsUsage: "<key:value>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "issue",
@@ -63,20 +63,6 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				Required:    true,
 				Destination: &claimID,
 			},
-			&cli.StringFlag{
-				Name:        "key",
-				Aliases:     []string{"k"},
-				Usage:       "Dimension key (required)",
-				Required:    true,
-				Destination: &key,
-			},
-			&cli.StringFlag{
-				Name:        "value",
-				Aliases:     []string{"v"},
-				Usage:       "Dimension value (required)",
-				Required:    true,
-				Destination: &value,
-			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -85,6 +71,15 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			raw := cmd.Args().Get(0)
+			if raw == "" {
+				return cmdutil.FlagErrorf("label argument is required (key:value)")
+			}
+			key, value, ok := strings.Cut(raw, ":")
+			if !ok {
+				return cmdutil.FlagErrorf("label must be in key:value format, got %q", raw)
+			}
+
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
@@ -99,7 +94,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 
 			dim, err := issue.NewLabel(key, value)
 			if err != nil {
-				return cmdutil.FlagErrorf("invalid dimension: %s", err)
+				return cmdutil.FlagErrorf("invalid label: %s", err)
 			}
 
 			input := service.UpdateIssueInput{
@@ -108,7 +103,7 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				LabelSet: []issue.Label{dim},
 			}
 			if err := svc.UpdateIssue(ctx, input); err != nil {
-				return fmt.Errorf("setting dimension: %w", err)
+				return fmt.Errorf("setting label: %w", err)
 			}
 
 			if jsonOutput {
@@ -135,12 +130,12 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 		jsonOutput bool
 		issueArg   string
 		claimID    string
-		key        string
 	)
 
 	return &cli.Command{
-		Name:  "remove",
-		Usage: "Remove a dimension from a claimed issue",
+		Name:      "remove",
+		Usage:     "Remove a label from a claimed issue",
+		ArgsUsage: "<key>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "issue",
@@ -155,13 +150,6 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 				Required:    true,
 				Destination: &claimID,
 			},
-			&cli.StringFlag{
-				Name:        "key",
-				Aliases:     []string{"k"},
-				Usage:       "Dimension key to remove (required)",
-				Required:    true,
-				Destination: &key,
-			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -170,6 +158,11 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			key := cmd.Args().Get(0)
+			if key == "" {
+				return cmdutil.FlagErrorf("label key argument is required")
+			}
+
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
@@ -188,7 +181,7 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 				LabelRemove: []string{key},
 			}
 			if err := svc.UpdateIssue(ctx, input); err != nil {
-				return fmt.Errorf("removing dimension: %w", err)
+				return fmt.Errorf("removing label: %w", err)
 			}
 
 			if jsonOutput {
@@ -350,19 +343,20 @@ func newListAllCmd(f *cmdutil.Factory) *cli.Command {
 	}
 }
 
-// newPropagateCmd constructs "dimension propagate" which copies a dimension
-// from a parent issue to all its descendants that lack it.
+// newPropagateCmd constructs "label propagate" which copies a label from a
+// parent issue to all its descendants that lack it. The label key is a
+// positional argument.
 func newPropagateCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		issueArg   string
 		author     string
-		key        string
 	)
 
 	return &cli.Command{
-		Name:  "propagate",
-		Usage: "Propagate a dimension from a parent to all descendants",
+		Name:      "propagate",
+		Usage:     "Propagate a label from a parent to all descendants",
+		ArgsUsage: "<key>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "issue",
@@ -379,13 +373,6 @@ func newPropagateCmd(f *cmdutil.Factory) *cli.Command {
 				Required:    true,
 				Destination: &author,
 			},
-			&cli.StringFlag{
-				Name:        "key",
-				Aliases:     []string{"k"},
-				Usage:       "Dimension key to propagate (required)",
-				Required:    true,
-				Destination: &key,
-			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -394,6 +381,11 @@ func newPropagateCmd(f *cmdutil.Factory) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			key := cmd.Args().Get(0)
+			if key == "" {
+				return cmdutil.FlagErrorf("label key argument is required")
+			}
+
 			parsedAuthor, err := identity.NewAuthor(author)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid author: %s", err)

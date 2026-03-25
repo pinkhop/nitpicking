@@ -263,12 +263,12 @@ np epic children <EPIC-ID>             # list all children of an epic
 The `label` (alias: `l`) command manages key-value metadata on issues. The old names `dimension` and `dim` are accepted as deprecated aliases.
 
 ```bash
-np label add --claim <CLAIM-ID> --key kind --value bug                  # set label (issue derived from claim)
-np label add --issue <ID> --claim <CLAIM-ID> --key kind --value bug     # explicit issue ID (must match claim)
-np label remove --claim <CLAIM-ID> --key kind                           # remove label
+np label add kind:bug --claim <CLAIM-ID>                                # set label (positional key:value)
+np label add kind:bug --issue <ID> --claim <CLAIM-ID>                   # explicit issue ID (must match claim)
+np label remove kind --claim <CLAIM-ID>                                 # remove label (positional key)
 np label list --issue <ID>                                               # list for issue
 np label list-all                                                        # all unique labels
-np label propagate --issue <ID> --author <name> --key kind              # propagate to descendants
+np label propagate kind --issue <ID> --author <name>                    # propagate to descendants (positional key)
 ```
 
 ## Issue Subcommand Group

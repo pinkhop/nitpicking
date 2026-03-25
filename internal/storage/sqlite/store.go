@@ -360,9 +360,21 @@ func (r *issueRepo) ListIssues(_ context.Context, filter port.IssueFilter, order
 		fetchLimit = -1 // unlimited
 	}
 	query := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id,
-		EXISTS(SELECT 1 FROM relationships r JOIN issues b ON r.target_id = b.issue_id
+		(EXISTS(SELECT 1 FROM relationships r JOIN issues b ON r.target_id = b.issue_id
 			WHERE r.source_id = t.issue_id AND r.rel_type = 'blocked_by'
-			AND b.state != 'closed' AND b.deleted = 0) AS is_blocked
+			AND b.state != 'closed' AND b.deleted = 0)
+		OR EXISTS(
+			WITH RECURSIVE anc(aid) AS (
+				SELECT t.parent_id
+				UNION ALL
+				SELECT p.parent_id FROM issues p JOIN anc a ON p.issue_id = a.aid WHERE p.parent_id IS NOT NULL
+			)
+			SELECT 1 FROM anc a
+			JOIN issues anc_i ON anc_i.issue_id = a.aid
+			WHERE EXISTS(SELECT 1 FROM relationships r JOIN issues b ON r.target_id = b.issue_id
+				WHERE r.source_id = anc_i.issue_id AND r.rel_type = 'blocked_by'
+				AND b.state != 'closed' AND b.deleted = 0)
+		)) AS is_blocked
 		FROM issues t ` + where + orderClause
 	if fetchLimit > 0 {
 		query += ` LIMIT ?`
@@ -413,9 +425,21 @@ func (r *issueRepo) SearchIssues(_ context.Context, query string, filter port.Is
 		fetchLimit = -1
 	}
 	selectQuery := `SELECT t.issue_id, t.role, t.state, t.priority, t.title, t.created_at, t.deleted, t.parent_id,
-		EXISTS(SELECT 1 FROM relationships r JOIN issues b ON r.target_id = b.issue_id
+		(EXISTS(SELECT 1 FROM relationships r JOIN issues b ON r.target_id = b.issue_id
 			WHERE r.source_id = t.issue_id AND r.rel_type = 'blocked_by'
-			AND b.state != 'closed' AND b.deleted = 0) AS is_blocked
+			AND b.state != 'closed' AND b.deleted = 0)
+		OR EXISTS(
+			WITH RECURSIVE anc(aid) AS (
+				SELECT t.parent_id
+				UNION ALL
+				SELECT p.parent_id FROM issues p JOIN anc a ON p.issue_id = a.aid WHERE p.parent_id IS NOT NULL
+			)
+			SELECT 1 FROM anc a
+			JOIN issues anc_i ON anc_i.issue_id = a.aid
+			WHERE EXISTS(SELECT 1 FROM relationships r JOIN issues b ON r.target_id = b.issue_id
+				WHERE r.source_id = anc_i.issue_id AND r.rel_type = 'blocked_by'
+				AND b.state != 'closed' AND b.deleted = 0)
+		)) AS is_blocked
 		FROM issues t ` + where + ftsWhere + orderClause
 	if fetchLimit > 0 {
 		selectQuery += ` LIMIT ?`
@@ -1380,8 +1404,8 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 			  AND bt.state != 'closed'
 		)`)
 
-		// No ancestor epic is deferred. Walk the parent chain with
-		// a recursive CTE and reject issues that have any such ancestor.
+		// No ancestor epic is deferred or blocked. Walk the parent chain
+		// with a recursive CTE and reject issues that have any such ancestor.
 		conditions = append(conditions, `NOT EXISTS (
 			WITH RECURSIVE ancestors(aid) AS (
 				SELECT t.parent_id
@@ -1391,6 +1415,14 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 			SELECT 1 FROM ancestors a
 			JOIN issues anc ON anc.issue_id = a.aid
 			WHERE anc.state = 'deferred'
+			   OR EXISTS (
+				SELECT 1 FROM relationships r
+				JOIN issues bt ON r.target_id = bt.issue_id
+				WHERE r.source_id = anc.issue_id
+				  AND r.rel_type = 'blocked_by'
+				  AND bt.deleted = 0
+				  AND bt.state != 'closed'
+			)
 		)`)
 	}
 
@@ -1399,14 +1431,34 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 	}
 
 	if filter.Blocked {
-		// Issues with at least one unresolved blocked_by relationship.
-		conditions = append(conditions, `EXISTS (
-			SELECT 1 FROM relationships r
-			JOIN issues bt ON r.target_id = bt.issue_id
-			WHERE r.source_id = t.issue_id
-			  AND r.rel_type = 'blocked_by'
-			  AND bt.deleted = 0
-			  AND bt.state != 'closed'
+		// Issues that are blocked — either directly (own blocked_by) or
+		// inherited (an ancestor epic has unresolved blocked_by).
+		conditions = append(conditions, `(
+			EXISTS (
+				SELECT 1 FROM relationships r
+				JOIN issues bt ON r.target_id = bt.issue_id
+				WHERE r.source_id = t.issue_id
+				  AND r.rel_type = 'blocked_by'
+				  AND bt.deleted = 0
+				  AND bt.state != 'closed'
+			)
+			OR EXISTS (
+				WITH RECURSIVE ancestors(aid) AS (
+					SELECT t.parent_id
+					UNION ALL
+					SELECT p.parent_id FROM issues p JOIN ancestors a ON p.issue_id = a.aid WHERE p.parent_id IS NOT NULL
+				)
+				SELECT 1 FROM ancestors a
+				JOIN issues anc ON anc.issue_id = a.aid
+				WHERE EXISTS (
+					SELECT 1 FROM relationships r
+					JOIN issues bt ON r.target_id = bt.issue_id
+					WHERE r.source_id = anc.issue_id
+					  AND r.rel_type = 'blocked_by'
+					  AND bt.deleted = 0
+					  AND bt.state != 'closed'
+				)
+			)
 		)`)
 	}
 

@@ -134,6 +134,12 @@ var diagnosticChecks = []checkDefinition{
 		PassDetail: "No open issues have closed parents",
 	},
 	{
+		Name:       "overdue_deferrals",
+		Severity:   severityWarning,
+		Categories: []string{"overdue_deferral"},
+		PassDetail: "No overdue deferrals",
+	},
+	{
 		Name:       "instructions",
 		Severity:   severityWarning,
 		Categories: []string{"instructions"},
@@ -157,6 +163,18 @@ var diagnosticChecks = []checkDefinition{
 		Severity:   severityInfo,
 		Categories: []string{"missing_label"},
 		PassDetail: "All open issues have a kind label",
+	},
+	{
+		Name:       "long_deferrals",
+		Severity:   severityInfo,
+		Categories: []string{"long_deferral"},
+		PassDetail: "No issues deferred for more than 1 week",
+	},
+	{
+		Name:       "blocked_by_human",
+		Severity:   severityInfo,
+		Categories: []string{"blocked_by_human"},
+		PassDetail: "No issues waiting on human action",
 	},
 }
 

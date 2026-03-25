@@ -995,6 +995,20 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 		}
 		output.Findings = append(output.Findings, labelFindings...)
 
+		// Check deferral health.
+		deferralFindings, dErr := s.checkDeferrals(ctx, uow, now)
+		if dErr != nil {
+			return dErr
+		}
+		output.Findings = append(output.Findings, deferralFindings...)
+
+		// Check for human-blocked issues.
+		humanFindings, hErr := s.checkBlockedByHuman(ctx, uow)
+		if hErr != nil {
+			return hErr
+		}
+		output.Findings = append(output.Findings, humanFindings...)
+
 		return nil
 	})
 
@@ -1420,6 +1434,83 @@ func (s *serviceImpl) checkMissingLabels(ctx context.Context, uow port.UnitOfWor
 		Message:  fmt.Sprintf("%d open issues are missing the kind label", len(missing)),
 		IssueIDs: ids,
 	}}, nil
+}
+
+// checkDeferrals detects overdue and long-standing deferrals.
+// overdue_deferrals (warning): deferred issues past their defer_until date.
+// long_deferrals (info): issues deferred for more than 1 week.
+func (s *serviceImpl) checkDeferrals(ctx context.Context, uow port.UnitOfWork, now time.Time) ([]DoctorFinding, error) {
+	deferred, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
+		States: []issue.State{issue.StateDeferred},
+	}, port.OrderByPriority, -1)
+	if err != nil {
+		return nil, fmt.Errorf("listing deferred issues: %w", err)
+	}
+
+	var findings []DoctorFinding
+	oneWeek := 7 * 24 * time.Hour
+
+	for _, item := range deferred {
+		// Check overdue_deferrals: look for defer_until dimension.
+		shown, showErr := uow.Issues().GetIssue(ctx, item.ID, false)
+		if showErr != nil {
+			continue
+		}
+
+		deferUntil, hasDeferUntil := shown.Dimensions().Get("defer_until")
+		if hasDeferUntil {
+			parsedDate, parseErr := time.Parse("2006-01-02", deferUntil)
+			if parseErr == nil && now.After(parsedDate) {
+				overdueDays := int(now.Sub(parsedDate).Hours() / 24)
+				findings = append(findings, DoctorFinding{
+					Category:   "overdue_deferral",
+					Severity:   "warning",
+					Message:    fmt.Sprintf("%s was deferred until %s (%d days overdue)", item.ID, deferUntil, overdueDays),
+					IssueIDs:   []string{item.ID.String()},
+					Suggestion: fmt.Sprintf("Run 'np issue undefer %s --author <name>' to restore it.", item.ID),
+				})
+			}
+		}
+
+		// Check long_deferrals: deferred for more than 1 week.
+		deferredDuration := now.Sub(item.UpdatedAt)
+		if deferredDuration > oneWeek {
+			deferredDays := int(deferredDuration.Hours() / 24)
+			findings = append(findings, DoctorFinding{
+				Category: "long_deferral",
+				Severity: "info",
+				Message:  fmt.Sprintf("%s has been deferred for %d days", item.ID, deferredDays),
+				IssueIDs: []string{item.ID.String()},
+			})
+		}
+	}
+
+	return findings, nil
+}
+
+// checkBlockedByHuman detects issues carrying the waiting_on:human dimension.
+func (s *serviceImpl) checkBlockedByHuman(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
+	waiting, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
+		ExcludeClosed: true,
+		DimensionFilters: []port.DimensionFilter{
+			{Key: "waiting_on", Value: "human"},
+		},
+	}, port.OrderByPriority, -1)
+	if err != nil {
+		return nil, fmt.Errorf("listing human-blocked issues: %w", err)
+	}
+
+	var findings []DoctorFinding
+	for _, item := range waiting {
+		findings = append(findings, DoctorFinding{
+			Category: "blocked_by_human",
+			Severity: "info",
+			Message:  fmt.Sprintf("%s is waiting on human action (label: waiting_on:human)", item.ID),
+			IssueIDs: []string{item.ID.String()},
+		})
+	}
+
+	return findings, nil
 }
 
 func (s *serviceImpl) GC(ctx context.Context, input GCInput) (GCOutput, error) {

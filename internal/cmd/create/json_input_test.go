@@ -268,7 +268,7 @@ func TestJsonDimensionsToStrings_ConvertsDimensionMap(t *testing.T) {
 	dimensions := map[string]string{"kind": "bug", "area": "auth"}
 
 	// When
-	result := jsonDimensionsToStrings(dimensions)
+	result := jsonLabelsToStrings(dimensions)
 
 	// Then
 	if len(result) != 2 {
@@ -287,7 +287,7 @@ func TestJsonDimensionsToStrings_NilMap_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := jsonDimensionsToStrings(nil)
+	result := jsonLabelsToStrings(nil)
 
 	// Then
 	if result != nil {

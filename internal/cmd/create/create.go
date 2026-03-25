@@ -190,7 +190,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			// same key uses the highest-precedence source.
 			flagDimensions := cmd.StringSlice("dimension")
 			envDimensions := envDimensionStrings(os.Getenv("NP_DIMENSIONS"))
-			jsonDimensions := jsonDimensionsToStrings(tj.Dimensions)
+			jsonDimensions := jsonLabelsToStrings(tj.Dimensions)
 			mergedDimensions := mergeDimensionsFromJSON(envDimensions, jsonDimensions, flagDimensions)
 			parsedDimensions, err := parseDimensions(mergedDimensions)
 			if err != nil {
@@ -283,18 +283,18 @@ func envDimensionStrings(envValue string) []string {
 	return strings.Fields(envValue)
 }
 
-func parseDimensions(raw []string) ([]issue.Dimension, error) {
+func parseDimensions(raw []string) ([]issue.Label, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
 
-	dimensions := make([]issue.Dimension, 0, len(raw))
+	dimensions := make([]issue.Label, 0, len(raw))
 	for _, s := range raw {
 		key, value, ok := strings.Cut(s, ":")
 		if !ok {
 			return nil, fmt.Errorf("invalid dimension %q: must be in key:value format", s)
 		}
-		f, err := issue.NewDimension(key, value)
+		f, err := issue.NewLabel(key, value)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dimension %q: %w", s, err)
 		}

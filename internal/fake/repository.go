@@ -236,21 +236,21 @@ func (r *Repository) IssueIDExists(_ context.Context, id issue.ID) (bool, error)
 	return exists, nil
 }
 
-func (r *Repository) ListDistinctDimensions(_ context.Context) ([]issue.Dimension, error) {
+func (r *Repository) ListDistinctLabels(_ context.Context) ([]issue.Label, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	seen := make(map[string]bool)
-	var dims []issue.Dimension
+	var dims []issue.Label
 	for _, t := range r.issues {
 		if t.IsDeleted() {
 			continue
 		}
-		for k, v := range t.Dimensions().All() {
+		for k, v := range t.Labels().All() {
 			key := k + ":" + v
 			if !seen[key] {
 				seen[key] = true
-				dim, _ := issue.NewDimension(k, v)
+				dim, _ := issue.NewLabel(k, v)
 				dims = append(dims, dim)
 			}
 		}
@@ -729,8 +729,8 @@ func (r *Repository) matchesFilter(t issue.Issue, f port.IssueFilter) bool {
 			return false
 		}
 	}
-	for _, ff := range f.DimensionFilters {
-		val, exists := t.Dimensions().Get(ff.Key)
+	for _, ff := range f.LabelFilters {
+		val, exists := t.Labels().Get(ff.Key)
 		if ff.Negate {
 			if ff.Value == "" && exists {
 				return false

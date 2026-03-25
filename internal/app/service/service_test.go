@@ -1904,12 +1904,12 @@ func TestDoctor_TaskWithKindLabel_NoMissingLabel(t *testing.T) {
 	ctx := t.Context()
 	author := mustAuthor(t, "doctor-test")
 
-	dim, _ := issue.NewDimension("kind", "feature")
+	dim, _ := issue.NewLabel("kind", "feature")
 	_, err := svc.CreateIssue(ctx, service.CreateIssueInput{
 		Role:       issue.RoleTask,
 		Title:      "Has kind label",
 		Author:     author,
-		Dimensions: []issue.Dimension{dim},
+		Dimensions: []issue.Label{dim},
 	})
 	if err != nil {
 		t.Fatalf("precondition: create task: %v", err)

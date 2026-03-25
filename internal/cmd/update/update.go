@@ -116,10 +116,10 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			input := service.UpdateIssueInput{
-				IssueID:         issueID,
-				ClaimID:         claimID,
-				DimensionRemove: cmd.StringSlice("dimension-remove"),
-				CommentBody:     commentBody,
+				IssueID:     issueID,
+				ClaimID:     claimID,
+				LabelRemove: cmd.StringSlice("dimension-remove"),
+				CommentBody: commentBody,
 			}
 
 			// Set optional pointer fields only when flags are explicitly provided.
@@ -153,17 +153,17 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			// Parse dimension-set values.
-			rawDimensionSet := cmd.StringSlice("dimension")
-			for _, s := range rawDimensionSet {
+			rawLabelSet := cmd.StringSlice("dimension")
+			for _, s := range rawLabelSet {
 				key, value, ok := strings.Cut(s, ":")
 				if !ok {
 					return cmdutil.FlagErrorf("invalid dimension %q: must be in key:value format", s)
 				}
-				dimension, err := issue.NewDimension(key, value)
+				dimension, err := issue.NewLabel(key, value)
 				if err != nil {
 					return cmdutil.FlagErrorf("invalid dimension %q: %s", s, err)
 				}
-				input.DimensionSet = append(input.DimensionSet, dimension)
+				input.LabelSet = append(input.LabelSet, dimension)
 			}
 			if err := svc.UpdateIssue(ctx, input); err != nil {
 				return fmt.Errorf("updating issue: %w", err)

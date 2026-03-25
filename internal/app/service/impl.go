@@ -107,7 +107,7 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input CreateIssueInput) (
 				AcceptanceCriteria: input.AcceptanceCriteria,
 				Priority:           input.Priority,
 				ParentID:           input.ParentID,
-				Dimensions:         issue.DimensionSetFrom(input.Dimensions),
+				Dimensions:         issue.LabelSetFrom(input.Dimensions),
 				CreatedAt:          now,
 				IdempotencyKey:     input.IdempotencyKey,
 			})
@@ -119,7 +119,7 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input CreateIssueInput) (
 				AcceptanceCriteria: input.AcceptanceCriteria,
 				Priority:           input.Priority,
 				ParentID:           input.ParentID,
-				Dimensions:         issue.DimensionSetFrom(input.Dimensions),
+				Dimensions:         issue.LabelSetFrom(input.Dimensions),
 				CreatedAt:          now,
 				IdempotencyKey:     input.IdempotencyKey,
 			})
@@ -344,9 +344,9 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input ClaimNextReadyIn
 
 	err := s.tx.WithTransaction(ctx, func(uow port.UnitOfWork) error {
 		filter := port.IssueFilter{
-			Ready:            true,
-			Role:             input.Role,
-			DimensionFilters: input.DimensionFilters,
+			Ready:        true,
+			Role:         input.Role,
+			LabelFilters: input.LabelFilters,
 		}
 
 		items, _, err := uow.Issues().ListIssues(ctx, filter, port.OrderByPriority, 1)
@@ -688,11 +688,11 @@ func (s *serviceImpl) SearchIssues(ctx context.Context, input SearchIssuesInput)
 
 // --- Dimension Operations ---
 
-func (s *serviceImpl) ListDistinctDimensions(ctx context.Context) ([]issue.Dimension, error) {
-	var dims []issue.Dimension
+func (s *serviceImpl) ListDistinctLabels(ctx context.Context) ([]issue.Label, error) {
+	var dims []issue.Label
 	err := s.tx.WithReadTransaction(ctx, func(uow port.UnitOfWork) error {
 		var queryErr error
-		dims, queryErr = uow.Issues().ListDistinctDimensions(ctx)
+		dims, queryErr = uow.Issues().ListDistinctLabels(ctx)
 		return queryErr
 	})
 	return dims, err
@@ -1417,7 +1417,7 @@ func (s *serviceImpl) checkOrphanTasks(ctx context.Context, uow port.UnitOfWork)
 		Role:          issue.RoleTask,
 		Orphan:        true,
 		ExcludeClosed: true,
-		DimensionFilters: []port.DimensionFilter{
+		LabelFilters: []port.LabelFilter{
 			{Key: "kind", Value: "bug", Negate: true},
 			{Key: "kind", Value: "fix", Negate: true},
 		},
@@ -1447,7 +1447,7 @@ func (s *serviceImpl) checkOrphanTasks(ctx context.Context, uow port.UnitOfWork)
 func (s *serviceImpl) checkMissingLabels(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
 	missing, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
 		ExcludeClosed: true,
-		DimensionFilters: []port.DimensionFilter{
+		LabelFilters: []port.LabelFilter{
 			{Key: "kind", Negate: true},
 		},
 	}, port.OrderByPriority, -1)
@@ -1493,7 +1493,7 @@ func (s *serviceImpl) checkDeferrals(ctx context.Context, uow port.UnitOfWork, n
 			continue
 		}
 
-		deferUntil, hasDeferUntil := shown.Dimensions().Get("defer_until")
+		deferUntil, hasDeferUntil := shown.Labels().Get("defer_until")
 		if hasDeferUntil {
 			parsedDate, parseErr := time.Parse("2006-01-02", deferUntil)
 			if parseErr == nil && now.After(parsedDate) {
@@ -1528,7 +1528,7 @@ func (s *serviceImpl) checkDeferrals(ctx context.Context, uow port.UnitOfWork, n
 func (s *serviceImpl) checkBlockedByHuman(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
 	waiting, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
 		ExcludeClosed: true,
-		DimensionFilters: []port.DimensionFilter{
+		LabelFilters: []port.LabelFilter{
 			{Key: "waiting_on", Value: "human"},
 		},
 	}, port.OrderByPriority, -1)
@@ -1706,8 +1706,8 @@ type updateFields struct {
 	AcceptanceCriteria *string
 	Priority           *issue.Priority
 	ParentID           *issue.ID
-	DimensionSet       []issue.Dimension
-	DimensionRemove    []string
+	LabelSet           []issue.Label
+	LabelRemove        []string
 }
 
 func oneShotToUpdateFields(input OneShotUpdateInput) updateFields {
@@ -1717,8 +1717,8 @@ func oneShotToUpdateFields(input OneShotUpdateInput) updateFields {
 		AcceptanceCriteria: input.AcceptanceCriteria,
 		Priority:           input.Priority,
 		ParentID:           input.ParentID,
-		DimensionSet:       input.DimensionSet,
-		DimensionRemove:    input.DimensionRemove,
+		LabelSet:           input.LabelSet,
+		LabelRemove:        input.LabelRemove,
 	}
 }
 
@@ -1729,8 +1729,8 @@ func updateFieldsFromInput(input UpdateIssueInput) updateFields {
 		AcceptanceCriteria: input.AcceptanceCriteria,
 		Priority:           input.Priority,
 		ParentID:           input.ParentID,
-		DimensionSet:       input.DimensionSet,
-		DimensionRemove:    input.DimensionRemove,
+		LabelSet:           input.LabelSet,
+		LabelRemove:        input.LabelRemove,
 	}
 }
 
@@ -1788,14 +1788,14 @@ func (s *serviceImpl) applyIssueUpdates(ctx context.Context, uow port.UnitOfWork
 	}
 
 	// Apply dimension changes.
-	dimensions := t.Dimensions()
-	for _, f := range fields.DimensionSet {
+	dimensions := t.Labels()
+	for _, f := range fields.LabelSet {
 		dimensions = dimensions.Set(f)
 	}
-	for _, key := range fields.DimensionRemove {
+	for _, key := range fields.LabelRemove {
 		dimensions = dimensions.Remove(key)
 	}
-	t = t.WithDimensions(dimensions)
+	t = t.WithLabels(dimensions)
 
 	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
 		return err

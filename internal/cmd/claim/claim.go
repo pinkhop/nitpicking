@@ -195,7 +195,7 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 
 			// Parse dimension filters.
 			rawDimensions := cmd.StringSlice("dimension")
-			dimensionFilters, err := parseDimensionFilters(rawDimensions)
+			dimensionFilters, err := parseLabelFilters(rawDimensions)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
@@ -209,11 +209,11 @@ func newReadyCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			input := service.ClaimNextReadyInput{
-				Author:           parsedAuthor,
-				Role:             parsedRole,
-				DimensionFilters: dimensionFilters,
-				StealIfNeeded:    stealIfNeeded,
-				StaleThreshold:   threshold,
+				Author:         parsedAuthor,
+				Role:           parsedRole,
+				LabelFilters:   dimensionFilters,
+				StealIfNeeded:  stealIfNeeded,
+				StaleThreshold: threshold,
 			}
 
 			svc, err := cmdutil.NewTracker(f)
@@ -257,20 +257,20 @@ func writeClaimResult(f *cmdutil.Factory, jsonOutput bool, result service.ClaimO
 	return err
 }
 
-// parseDimensionFilters converts a slice of "key:value" strings into port.DimensionFilter
+// parseLabelFilters converts a slice of "key:value" strings into port.LabelFilter
 // values. A value of "*" is treated as a wildcard (match any value for that key).
-func parseDimensionFilters(raw []string) ([]port.DimensionFilter, error) {
+func parseLabelFilters(raw []string) ([]port.LabelFilter, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
 
-	filters := make([]port.DimensionFilter, 0, len(raw))
+	filters := make([]port.LabelFilter, 0, len(raw))
 	for _, s := range raw {
 		key, value, ok := strings.Cut(s, ":")
 		if !ok {
 			return nil, fmt.Errorf("invalid dimension filter %q: must be in key:value format", s)
 		}
-		ff := port.DimensionFilter{Key: key}
+		ff := port.LabelFilter{Key: key}
 		if value != "*" {
 			ff.Value = value
 		}

@@ -66,8 +66,8 @@ type IssueFilter struct {
 	DescendantsOf issue.ID
 	// AncestorsOf filters to the parent chain of an issue (up to the root).
 	AncestorsOf issue.ID
-	// DimensionFilters specifies dimension-based filters.
-	DimensionFilters []DimensionFilter
+	// LabelFilters specifies dimension-based filters.
+	LabelFilters []LabelFilter
 	// Orphan filters to issues that have no parent epic.
 	Orphan bool
 	// Blocked filters to issues that have at least one unresolved blocked_by
@@ -81,8 +81,8 @@ type IssueFilter struct {
 	IncludeDeleted bool
 }
 
-// DimensionFilter specifies a single dimension-based filter criterion.
-type DimensionFilter struct {
+// LabelFilter specifies a single dimension-based filter criterion.
+type LabelFilter struct {
 	// Key is the dimension key to match.
 	Key string
 	// Value is the dimension value to match. Empty for wildcard ("key:*").
@@ -172,9 +172,9 @@ type IssueRepository interface {
 	// collision detection during ID generation).
 	IssueIDExists(ctx context.Context, id issue.ID) (bool, error)
 
-	// ListDistinctDimensions returns all unique dimension key-value pairs
+	// ListDistinctLabels returns all unique dimension key-value pairs
 	// across non-deleted issues.
-	ListDistinctDimensions(ctx context.Context) ([]issue.Dimension, error)
+	ListDistinctLabels(ctx context.Context) ([]issue.Label, error)
 
 	// GetIssueByIdempotencyKey retrieves an issue by its idempotency key.
 	// Returns domain.ErrNotFound if no issue exists with that key.

@@ -328,14 +328,14 @@ func newDeferCmd(f *cmdutil.Factory) *cli.Command {
 			// Set the defer_until dimension before transitioning, since the
 			// transition invalidates the claim.
 			if until != "" {
-				dim, dimErr := issue.NewDimension("defer_until", until)
+				dim, dimErr := issue.NewLabel("defer_until", until)
 				if dimErr != nil {
 					return cmdutil.FlagErrorf("invalid --until value: %s", dimErr)
 				}
 				updateInput := service.UpdateIssueInput{
-					IssueID:      issueID,
-					ClaimID:      claimID,
-					DimensionSet: []issue.Dimension{dim},
+					IssueID:  issueID,
+					ClaimID:  claimID,
+					LabelSet: []issue.Label{dim},
 				}
 				if updateErr := svc.UpdateIssue(ctx, updateInput); updateErr != nil {
 					return fmt.Errorf("setting defer_until: %w", updateErr)
@@ -540,9 +540,9 @@ func newEditCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			input := service.OneShotUpdateInput{
-				IssueID:         issueID,
-				Author:          parsedAuthor,
-				DimensionRemove: cmd.StringSlice("dimension-remove"),
+				IssueID:     issueID,
+				Author:      parsedAuthor,
+				LabelRemove: cmd.StringSlice("dimension-remove"),
 			}
 
 			if cmd.IsSet("title") {
@@ -574,17 +574,17 @@ func newEditCmd(f *cmdutil.Factory) *cli.Command {
 				}
 			}
 
-			rawDimensionSet := cmd.StringSlice("dimension")
-			for _, s := range rawDimensionSet {
+			rawLabelSet := cmd.StringSlice("dimension")
+			for _, s := range rawLabelSet {
 				key, value, ok := strings.Cut(s, ":")
 				if !ok {
 					return cmdutil.FlagErrorf("invalid dimension %q: must be in key:value format", s)
 				}
-				dimension, dimErr := issue.NewDimension(key, value)
+				dimension, dimErr := issue.NewLabel(key, value)
 				if dimErr != nil {
 					return cmdutil.FlagErrorf("invalid dimension %q: %s", s, dimErr)
 				}
-				input.DimensionSet = append(input.DimensionSet, dimension)
+				input.LabelSet = append(input.LabelSet, dimension)
 			}
 
 			if err := svc.OneShotUpdate(ctx, input); err != nil {

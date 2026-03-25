@@ -87,13 +87,13 @@ func cutDimension(s string) (key string, value string, ok bool) {
 	return "", "", false
 }
 
-// jsonDimensionsToStrings converts a map of dimensions into "key:value" string format.
-func jsonDimensionsToStrings(dimensions map[string]string) []string {
-	if len(dimensions) == 0 {
+// jsonLabelsToStrings converts a map of labels into "key:value" string format.
+func jsonLabelsToStrings(labels map[string]string) []string {
+	if len(labels) == 0 {
 		return nil
 	}
-	result := make([]string, 0, len(dimensions))
-	for k, v := range dimensions {
+	result := make([]string, 0, len(labels))
+	for k, v := range labels {
 		result = append(result, k+":"+v)
 	}
 	return result

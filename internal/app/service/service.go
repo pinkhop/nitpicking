@@ -68,9 +68,9 @@ type Service interface {
 
 	// --- Dimension Operations ---
 
-	// ListDistinctDimensions returns all unique dimension key-value pairs
+	// ListDistinctLabels returns all unique dimension key-value pairs
 	// across non-deleted issues.
-	ListDistinctDimensions(ctx context.Context) ([]issue.Dimension, error)
+	ListDistinctLabels(ctx context.Context) ([]issue.Label, error)
 
 	// --- Relationship Operations ---
 

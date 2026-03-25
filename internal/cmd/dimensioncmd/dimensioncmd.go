@@ -96,15 +96,15 @@ func newAddCmd(f *cmdutil.Factory) *cli.Command {
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
-			dim, err := issue.NewDimension(key, value)
+			dim, err := issue.NewLabel(key, value)
 			if err != nil {
 				return cmdutil.FlagErrorf("invalid dimension: %s", err)
 			}
 
 			input := service.UpdateIssueInput{
-				IssueID:      issueID,
-				ClaimID:      claimID,
-				DimensionSet: []issue.Dimension{dim},
+				IssueID:  issueID,
+				ClaimID:  claimID,
+				LabelSet: []issue.Label{dim},
 			}
 			if err := svc.UpdateIssue(ctx, input); err != nil {
 				return fmt.Errorf("setting dimension: %w", err)
@@ -182,9 +182,9 @@ func newRemoveCmd(f *cmdutil.Factory) *cli.Command {
 			}
 
 			input := service.UpdateIssueInput{
-				IssueID:         issueID,
-				ClaimID:         claimID,
-				DimensionRemove: []string{key},
+				IssueID:     issueID,
+				ClaimID:     claimID,
+				LabelRemove: []string{key},
 			}
 			if err := svc.UpdateIssue(ctx, input); err != nil {
 				return fmt.Errorf("removing dimension: %w", err)
@@ -249,7 +249,7 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 				return fmt.Errorf("looking up issue: %w", err)
 			}
 
-			dims := shown.Issue.Dimensions()
+			dims := shown.Issue.Labels()
 
 			if jsonOutput {
 				type dimJSON struct {
@@ -302,7 +302,7 @@ func newListAllCmd(f *cmdutil.Factory) *cli.Command {
 				return err
 			}
 
-			dims, err := svc.ListDistinctDimensions(ctx)
+			dims, err := svc.ListDistinctLabels(ctx)
 			if err != nil {
 				return fmt.Errorf("listing dimensions: %w", err)
 			}
@@ -414,12 +414,12 @@ func newPropagateCmd(f *cmdutil.Factory) *cli.Command {
 			if err != nil {
 				return fmt.Errorf("looking up parent issue: %w", err)
 			}
-			value, exists := parent.Issue.Dimensions().Get(key)
+			value, exists := parent.Issue.Labels().Get(key)
 			if !exists {
 				return fmt.Errorf("issue %s does not have dimension %q", issueID, key)
 			}
 
-			dim, err := issue.NewDimension(key, value)
+			dim, err := issue.NewLabel(key, value)
 			if err != nil {
 				return fmt.Errorf("invalid dimension: %w", err)
 			}
@@ -441,16 +441,16 @@ func newPropagateCmd(f *cmdutil.Factory) *cli.Command {
 				if showErr != nil {
 					continue
 				}
-				existingVal, hasDim := child.Issue.Dimensions().Get(key)
+				existingVal, hasDim := child.Issue.Labels().Get(key)
 				if hasDim && existingVal == value {
 					continue
 				}
 
 				// Use one-shot update to set the dimension.
 				editErr := svc.OneShotUpdate(ctx, service.OneShotUpdateInput{
-					IssueID:      item.ID,
-					Author:       parsedAuthor,
-					DimensionSet: []issue.Dimension{dim},
+					IssueID:  item.ID,
+					Author:   parsedAuthor,
+					LabelSet: []issue.Label{dim},
 				})
 				if editErr != nil {
 					continue

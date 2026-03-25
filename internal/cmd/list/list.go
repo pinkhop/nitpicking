@@ -195,11 +195,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 				if !ok {
 					return cmdutil.FlagErrorf("invalid dimension filter %q: must be in key:value format", s)
 				}
-				ff := port.DimensionFilter{Key: key}
+				ff := port.LabelFilter{Key: key}
 				if value != "*" {
 					ff.Value = value
 				}
-				filter.DimensionFilters = append(filter.DimensionFilters, ff)
+				filter.LabelFilters = append(filter.LabelFilters, ff)
 			}
 
 			orderBy, err := parseOrderBy(order)

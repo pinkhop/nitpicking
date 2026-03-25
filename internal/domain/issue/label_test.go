@@ -7,7 +7,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain/issue"
 )
 
-func TestNewDimension_ValidKeyValue_Succeeds(t *testing.T) {
+func TestNewLabel_ValidKeyValue_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -25,7 +25,7 @@ func TestNewDimension_ValidKeyValue_Succeeds(t *testing.T) {
 			t.Parallel()
 
 			// When
-			f, err := issue.NewDimension(tc.key, tc.value)
+			f, err := issue.NewLabel(tc.key, tc.value)
 			// Then
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -40,7 +40,7 @@ func TestNewDimension_ValidKeyValue_Succeeds(t *testing.T) {
 	}
 }
 
-func TestNewDimension_InvalidKey_Fails(t *testing.T) {
+func TestNewLabel_InvalidKey_Fails(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -60,7 +60,7 @@ func TestNewDimension_InvalidKey_Fails(t *testing.T) {
 			t.Parallel()
 
 			// When
-			_, err := issue.NewDimension(tc.key, "valid")
+			_, err := issue.NewLabel(tc.key, "valid")
 
 			// Then
 			if err == nil {
@@ -70,7 +70,7 @@ func TestNewDimension_InvalidKey_Fails(t *testing.T) {
 	}
 }
 
-func TestNewDimension_InvalidValue_Fails(t *testing.T) {
+func TestNewLabel_InvalidValue_Fails(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -88,7 +88,7 @@ func TestNewDimension_InvalidValue_Fails(t *testing.T) {
 			t.Parallel()
 
 			// When
-			_, err := issue.NewDimension("kind", tc.value)
+			_, err := issue.NewLabel("kind", tc.value)
 
 			// Then
 			if err == nil {
@@ -98,12 +98,12 @@ func TestNewDimension_InvalidValue_Fails(t *testing.T) {
 	}
 }
 
-func TestDimensionSet_SetAndGet(t *testing.T) {
+func TestLabelSet_SetAndGet(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f, _ := issue.NewDimension("kind", "feat")
-	fs := issue.NewDimensionSet()
+	f, _ := issue.NewLabel("kind", "feat")
+	fs := issue.NewLabelSet()
 
 	// When
 	fs = fs.Set(f)
@@ -118,13 +118,13 @@ func TestDimensionSet_SetAndGet(t *testing.T) {
 	}
 }
 
-func TestDimensionSet_SetOverwrites(t *testing.T) {
+func TestLabelSet_SetOverwrites(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := issue.NewDimension("kind", "feat")
-	f2, _ := issue.NewDimension("kind", "fix")
-	fs := issue.NewDimensionSet().Set(f1)
+	f1, _ := issue.NewLabel("kind", "feat")
+	f2, _ := issue.NewLabel("kind", "fix")
+	fs := issue.NewLabelSet().Set(f1)
 
 	// When
 	fs = fs.Set(f2)
@@ -139,12 +139,12 @@ func TestDimensionSet_SetOverwrites(t *testing.T) {
 	}
 }
 
-func TestDimensionSet_Remove(t *testing.T) {
+func TestLabelSet_Remove(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f, _ := issue.NewDimension("kind", "feat")
-	fs := issue.NewDimensionSet().Set(f)
+	f, _ := issue.NewLabel("kind", "feat")
+	fs := issue.NewLabelSet().Set(f)
 
 	// When
 	fs = fs.Remove("kind")
@@ -159,11 +159,11 @@ func TestDimensionSet_Remove(t *testing.T) {
 	}
 }
 
-func TestDimensionSet_RemoveNonexistent_NoOp(t *testing.T) {
+func TestLabelSet_RemoveNonexistent_NoOp(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	fs := issue.NewDimensionSet()
+	fs := issue.NewLabelSet()
 
 	// When
 	fs2 := fs.Remove("nonexistent")
@@ -174,15 +174,15 @@ func TestDimensionSet_RemoveNonexistent_NoOp(t *testing.T) {
 	}
 }
 
-func TestDimensionSet_Immutability(t *testing.T) {
+func TestLabelSet_Immutability(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := issue.NewDimension("kind", "feat")
-	original := issue.NewDimensionSet().Set(f1)
+	f1, _ := issue.NewLabel("kind", "feat")
+	original := issue.NewLabelSet().Set(f1)
 
 	// When — modify the "copy"
-	f2, _ := issue.NewDimension("priority", "high")
+	f2, _ := issue.NewLabel("priority", "high")
 	_ = original.Set(f2)
 
 	// Then — original is unchanged
@@ -191,15 +191,15 @@ func TestDimensionSet_Immutability(t *testing.T) {
 	}
 }
 
-func TestDimensionSetFrom_BuildsFromSlice(t *testing.T) {
+func TestLabelSetFrom_BuildsFromSlice(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := issue.NewDimension("kind", "feat")
-	f2, _ := issue.NewDimension("area", "backend")
+	f1, _ := issue.NewLabel("kind", "feat")
+	f2, _ := issue.NewLabel("area", "backend")
 
 	// When
-	fs := issue.DimensionSetFrom([]issue.Dimension{f1, f2})
+	fs := issue.LabelSetFrom([]issue.Label{f1, f2})
 
 	// Then
 	if fs.Len() != 2 {
@@ -207,13 +207,13 @@ func TestDimensionSetFrom_BuildsFromSlice(t *testing.T) {
 	}
 }
 
-func TestDimensionSet_All_IteratesAllDimensions(t *testing.T) {
+func TestLabelSet_All_IteratesAllDimensions(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	f1, _ := issue.NewDimension("kind", "feat")
-	f2, _ := issue.NewDimension("area", "backend")
-	fs := issue.NewDimensionSet().Set(f1).Set(f2)
+	f1, _ := issue.NewLabel("kind", "feat")
+	f2, _ := issue.NewLabel("area", "backend")
+	fs := issue.NewLabelSet().Set(f1).Set(f2)
 
 	// When
 	count := 0

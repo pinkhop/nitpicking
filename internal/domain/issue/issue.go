@@ -20,7 +20,7 @@ type Issue struct {
 	priority           Priority
 	state              State
 	parentID           ID
-	dimensions         DimensionSet
+	labels             LabelSet
 	createdAt          time.Time
 	idempotencyKey     string
 	deleted            bool
@@ -34,7 +34,7 @@ type NewTaskParams struct {
 	AcceptanceCriteria string
 	Priority           Priority
 	ParentID           ID
-	Dimensions         DimensionSet
+	Dimensions         LabelSet
 	CreatedAt          time.Time
 	IdempotencyKey     string
 }
@@ -47,7 +47,7 @@ type NewEpicParams struct {
 	AcceptanceCriteria string
 	Priority           Priority
 	ParentID           ID
-	Dimensions         DimensionSet
+	Dimensions         LabelSet
 	CreatedAt          time.Time
 	IdempotencyKey     string
 }
@@ -82,7 +82,7 @@ func NewTask(p NewTaskParams) (Issue, error) {
 		priority:           priority,
 		state:              StateOpen,
 		parentID:           p.ParentID,
-		dimensions:         p.Dimensions,
+		labels:             p.Dimensions,
 		createdAt:          createdAt,
 		idempotencyKey:     p.IdempotencyKey,
 	}, nil
@@ -118,7 +118,7 @@ func NewEpic(p NewEpicParams) (Issue, error) {
 		priority:           priority,
 		state:              StateOpen,
 		parentID:           p.ParentID,
-		dimensions:         p.Dimensions,
+		labels:             p.Dimensions,
 		createdAt:          createdAt,
 		idempotencyKey:     p.IdempotencyKey,
 	}, nil
@@ -151,7 +151,7 @@ func (t Issue) State() State { return t.state }
 func (t Issue) ParentID() ID { return t.parentID }
 
 // Dimensions returns the issue's dimension set.
-func (t Issue) Dimensions() DimensionSet { return t.dimensions }
+func (t Issue) Labels() LabelSet { return t.labels }
 
 // CreatedAt returns the issue's creation timestamp.
 func (t Issue) CreatedAt() time.Time { return t.createdAt }
@@ -211,9 +211,9 @@ func (t Issue) WithParentID(parentID ID) Issue {
 	return t
 }
 
-// WithDimensions returns a new issue with the updated dimension set.
-func (t Issue) WithDimensions(fs DimensionSet) Issue {
-	t.dimensions = fs
+// WithLabels returns a new issue with the updated dimension set.
+func (t Issue) WithLabels(fs LabelSet) Issue {
+	t.labels = fs
 	return t
 }
 

@@ -267,7 +267,7 @@ func (r *issueRepo) CreateIssue(_ context.Context, t issue.Issue) error {
 	}
 
 	// Save dimensions.
-	for k, v := range t.Dimensions().All() {
+	for k, v := range t.Labels().All() {
 		if err := sqlitex.Execute(r.conn, `INSERT INTO dimensions (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 			Args: []any{t.ID().String(), k, v},
 		}); err != nil {
@@ -305,7 +305,7 @@ func (r *issueRepo) GetIssue(_ context.Context, id issue.ID, includeDeleted bool
 	if err != nil {
 		return issue.Issue{}, err
 	}
-	t = t.WithDimensions(dimensions)
+	t = t.WithLabels(dimensions)
 
 	return t, nil
 }
@@ -329,7 +329,7 @@ func (r *issueRepo) UpdateIssue(_ context.Context, t issue.Issue) error {
 	_ = sqlitex.Execute(r.conn, `DELETE FROM dimensions WHERE issue_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{t.ID().String()},
 	})
-	for k, v := range t.Dimensions().All() {
+	for k, v := range t.Labels().All() {
 		if err := sqlitex.Execute(r.conn, `INSERT INTO dimensions (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 			Args: []any{t.ID().String(), k, v},
 		}); err != nil {
@@ -602,8 +602,8 @@ func (r *issueRepo) IssueIDExists(_ context.Context, id issue.ID) (bool, error) 
 	return count > 0, nil
 }
 
-func (r *issueRepo) ListDistinctDimensions(_ context.Context) ([]issue.Dimension, error) {
-	var dims []issue.Dimension
+func (r *issueRepo) ListDistinctLabels(_ context.Context) ([]issue.Label, error) {
+	var dims []issue.Label
 	err := sqlitex.Execute(r.conn,
 		`SELECT DISTINCT d.key, d.value FROM dimensions d
 		 JOIN issues t ON d.issue_id = t.issue_id
@@ -611,7 +611,7 @@ func (r *issueRepo) ListDistinctDimensions(_ context.Context) ([]issue.Dimension
 		 ORDER BY d.key, d.value`,
 		&sqlitex.ExecOptions{
 			ResultFunc: func(stmt *sqlite.Stmt) error {
-				dim, err := issue.NewDimension(stmt.ColumnText(0), stmt.ColumnText(1))
+				dim, err := issue.NewLabel(stmt.ColumnText(0), stmt.ColumnText(1))
 				if err != nil {
 					return err
 				}
@@ -637,18 +637,18 @@ func (r *issueRepo) GetIssueByIdempotencyKey(_ context.Context, key string) (iss
 	return t, nil
 }
 
-func (r *issueRepo) loadDimensions(issueID string) (issue.DimensionSet, error) {
-	fs := issue.NewDimensionSet()
+func (r *issueRepo) loadDimensions(issueID string) (issue.LabelSet, error) {
+	fs := issue.NewLabelSet()
 	err := sqlitex.Execute(r.conn, `SELECT key, value FROM dimensions WHERE issue_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{issueID},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
-			f, _ := issue.NewDimension(stmt.ColumnText(0), stmt.ColumnText(1))
+			f, _ := issue.NewLabel(stmt.ColumnText(0), stmt.ColumnText(1))
 			fs = fs.Set(f)
 			return nil
 		},
 	})
 	if err != nil {
-		return issue.NewDimensionSet(), &domain.DatabaseError{Op: "load dimensions", Err: err}
+		return issue.NewLabelSet(), &domain.DatabaseError{Op: "load dimensions", Err: err}
 	}
 	return fs, nil
 }
@@ -1330,7 +1330,7 @@ func buildIssueWhere(filter port.IssueFilter) (string, []any) {
 		args = append(args, filter.AncestorsOf.String())
 	}
 
-	for _, ff := range filter.DimensionFilters {
+	for _, ff := range filter.LabelFilters {
 		if ff.Negate {
 			if ff.Value == "" {
 				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM dimensions f WHERE f.issue_id = t.issue_id AND f.key = ?)`)

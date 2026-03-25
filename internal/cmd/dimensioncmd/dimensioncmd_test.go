@@ -31,7 +31,7 @@ func mustAuthor(t *testing.T, name string) identity.Author {
 	return a
 }
 
-func TestListDistinctDimensions_ReturnsDimensionsFromNonDeletedIssues(t *testing.T) {
+func TestListDistinctLabels_ReturnsDimensionsFromNonDeletedIssues(t *testing.T) {
 	t.Parallel()
 
 	// Given: two tasks with dimensions.
@@ -39,15 +39,15 @@ func TestListDistinctDimensions_ReturnsDimensionsFromNonDeletedIssues(t *testing
 	ctx := t.Context()
 	author := mustAuthor(t, "test-agent")
 
-	dim1, _ := issue.NewDimension("kind", "bug")
-	dim2, _ := issue.NewDimension("area", "auth")
-	dim3, _ := issue.NewDimension("kind", "feature")
+	dim1, _ := issue.NewLabel("kind", "bug")
+	dim2, _ := issue.NewLabel("area", "auth")
+	dim3, _ := issue.NewLabel("kind", "feature")
 
 	_, err := svc.CreateIssue(ctx, service.CreateIssueInput{
 		Role:       issue.RoleTask,
 		Title:      "Bug task",
 		Author:     author,
-		Dimensions: []issue.Dimension{dim1, dim2},
+		Dimensions: []issue.Label{dim1, dim2},
 	})
 	if err != nil {
 		t.Fatalf("precondition: create task 1 failed: %v", err)
@@ -57,14 +57,14 @@ func TestListDistinctDimensions_ReturnsDimensionsFromNonDeletedIssues(t *testing
 		Role:       issue.RoleTask,
 		Title:      "Feature task",
 		Author:     author,
-		Dimensions: []issue.Dimension{dim3},
+		Dimensions: []issue.Label{dim3},
 	})
 	if err != nil {
 		t.Fatalf("precondition: create task 2 failed: %v", err)
 	}
 
 	// When
-	dims, err := svc.ListDistinctDimensions(ctx)
+	dims, err := svc.ListDistinctLabels(ctx)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

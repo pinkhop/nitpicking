@@ -981,6 +981,20 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 		}
 		output.Findings = append(output.Findings, inversionFindings...)
 
+		// Check for orphan tasks.
+		orphanFindings, oErr := s.checkOrphanTasks(ctx, uow)
+		if oErr != nil {
+			return oErr
+		}
+		output.Findings = append(output.Findings, orphanFindings...)
+
+		// Check for missing kind labels.
+		labelFindings, lErr := s.checkMissingLabels(ctx, uow)
+		if lErr != nil {
+			return lErr
+		}
+		output.Findings = append(output.Findings, labelFindings...)
+
 		return nil
 	})
 
@@ -1343,6 +1357,69 @@ func (s *serviceImpl) checkPriorityInversion(ctx context.Context, uow port.UnitO
 	}
 
 	return findings, nil
+}
+
+// checkOrphanTasks detects non-closed tasks without a parent epic, excluding
+// issues with kind:bug or kind:fix dimensions. These tasks may be missing
+// organizational context.
+func (s *serviceImpl) checkOrphanTasks(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
+	orphans, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
+		Role:          issue.RoleTask,
+		Orphan:        true,
+		ExcludeClosed: true,
+		DimensionFilters: []port.DimensionFilter{
+			{Key: "kind", Value: "bug", Negate: true},
+			{Key: "kind", Value: "fix", Negate: true},
+		},
+	}, port.OrderByPriority, -1)
+	if err != nil {
+		return nil, fmt.Errorf("listing orphan tasks: %w", err)
+	}
+
+	if len(orphans) == 0 {
+		return nil, nil
+	}
+
+	ids := make([]string, 0, len(orphans))
+	for _, item := range orphans {
+		ids = append(ids, item.ID.String())
+	}
+
+	return []DoctorFinding{{
+		Category: "orphan_task",
+		Severity: "info",
+		Message:  fmt.Sprintf("%d open tasks have no parent epic", len(orphans)),
+		IssueIDs: ids,
+	}}, nil
+}
+
+// checkMissingLabels detects open issues missing the "kind" dimension.
+func (s *serviceImpl) checkMissingLabels(ctx context.Context, uow port.UnitOfWork) ([]DoctorFinding, error) {
+	missing, _, err := uow.Issues().ListIssues(ctx, port.IssueFilter{
+		ExcludeClosed: true,
+		DimensionFilters: []port.DimensionFilter{
+			{Key: "kind", Negate: true},
+		},
+	}, port.OrderByPriority, -1)
+	if err != nil {
+		return nil, fmt.Errorf("listing issues missing kind label: %w", err)
+	}
+
+	if len(missing) == 0 {
+		return nil, nil
+	}
+
+	ids := make([]string, 0, len(missing))
+	for _, item := range missing {
+		ids = append(ids, item.ID.String())
+	}
+
+	return []DoctorFinding{{
+		Category: "missing_label",
+		Severity: "info",
+		Message:  fmt.Sprintf("%d open issues are missing the kind label", len(missing)),
+		IssueIDs: ids,
+	}}, nil
 }
 
 func (s *serviceImpl) GC(ctx context.Context, input GCInput) (GCOutput, error) {

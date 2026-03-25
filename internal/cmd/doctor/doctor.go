@@ -146,6 +146,18 @@ var diagnosticChecks = []checkDefinition{
 		Categories: []string{"long_claim"},
 		PassDetail: "No unusually long-held claims",
 	},
+	{
+		Name:       "orphan_tasks",
+		Severity:   severityInfo,
+		Categories: []string{"orphan_task"},
+		PassDetail: "All non-bug open tasks belong to an epic",
+	},
+	{
+		Name:       "missing_labels",
+		Severity:   severityInfo,
+		Categories: []string{"missing_label"},
+		PassDetail: "All open issues have a kind label",
+	},
 }
 
 // deriveChecks computes the pass/fail/skipped status of each diagnostic check

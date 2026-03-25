@@ -1838,6 +1838,95 @@ func TestDoctor_LowPriorityParent_ReportsPriorityInversion(t *testing.T) {
 	}
 }
 
+func TestDoctor_OrphanTask_ReportsOrphanTask(t *testing.T) {
+	t.Parallel()
+
+	// Given — an open task with no parent.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	_, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "Orphan task",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create task: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — should report orphan_task.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "orphan_task")
+	if finding == nil {
+		t.Fatal("expected 'orphan_task' finding")
+	}
+}
+
+func TestDoctor_MissingKindLabel_ReportsMissingLabel(t *testing.T) {
+	t.Parallel()
+
+	// Given — an open task without a kind dimension.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	_, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:   issue.RoleTask,
+		Title:  "No kind label",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create task: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — should report missing_label.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "missing_label")
+	if finding == nil {
+		t.Fatal("expected 'missing_label' finding")
+	}
+}
+
+func TestDoctor_TaskWithKindLabel_NoMissingLabel(t *testing.T) {
+	t.Parallel()
+
+	// Given — an open task WITH a kind dimension.
+	svc, _ := setupService(t)
+	ctx := t.Context()
+	author := mustAuthor(t, "doctor-test")
+
+	dim, _ := issue.NewDimension("kind", "feature")
+	_, err := svc.CreateIssue(ctx, service.CreateIssueInput{
+		Role:       issue.RoleTask,
+		Title:      "Has kind label",
+		Author:     author,
+		Dimensions: []issue.Dimension{dim},
+	})
+	if err != nil {
+		t.Fatalf("precondition: create task: %v", err)
+	}
+
+	// When
+	result, err := svc.Doctor(ctx)
+	// Then — should NOT report missing_label.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	finding := findingByCategory(result.Findings, "missing_label")
+	if finding != nil {
+		t.Error("expected no 'missing_label' finding when kind dimension is set")
+	}
+}
+
 // findingByCategory returns the first finding with the given category, or nil.
 func findingByCategory(findings []service.DoctorFinding, category string) *service.DoctorFinding {
 	for i := range findings {

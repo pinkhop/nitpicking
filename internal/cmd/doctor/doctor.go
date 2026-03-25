@@ -188,6 +188,12 @@ var diagnosticChecks = []checkDefinition{
 		Categories: []string{"blocked_by_human"},
 		PassDetail: "No issues waiting on human action",
 	},
+	{
+		Name:       "multi_claim_authors",
+		Severity:   severityInfo,
+		Categories: []string{"multi_claim_author"},
+		PassDetail: "No authors have multiple active claims",
+	},
 }
 
 // deriveChecks computes the pass/fail/skipped status of each diagnostic check

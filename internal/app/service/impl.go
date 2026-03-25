@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain"
@@ -1040,6 +1041,10 @@ func (s *serviceImpl) Doctor(ctx context.Context) (DoctorOutput, error) {
 		}
 		output.Findings = append(output.Findings, humanFindings...)
 
+		// Check for authors with multiple active claims.
+		multiClaimFindings := s.checkMultiClaimAuthors(activeClaims)
+		output.Findings = append(output.Findings, multiClaimFindings...)
+
 		return nil
 	})
 
@@ -1542,6 +1547,32 @@ func (s *serviceImpl) checkBlockedByHuman(ctx context.Context, uow port.UnitOfWo
 	}
 
 	return findings, nil
+}
+
+// checkMultiClaimAuthors detects authors that have multiple active claims open
+// simultaneously. Each finding lists the author and their claimed issues.
+func (s *serviceImpl) checkMultiClaimAuthors(activeClaims []claim.Claim) []DoctorFinding {
+	// Group active claims by author.
+	byAuthor := make(map[string][]string)
+	for _, c := range activeClaims {
+		authorStr := c.Author().String()
+		byAuthor[authorStr] = append(byAuthor[authorStr], c.IssueID().String())
+	}
+
+	var findings []DoctorFinding
+	for authorStr, issueIDs := range byAuthor {
+		if len(issueIDs) < 2 {
+			continue
+		}
+		findings = append(findings, DoctorFinding{
+			Category: "multi_claim_author",
+			Severity: "info",
+			Message:  fmt.Sprintf("%q has %d active claims: %s", authorStr, len(issueIDs), strings.Join(issueIDs, ", ")),
+			IssueIDs: issueIDs,
+		})
+	}
+
+	return findings
 }
 
 func (s *serviceImpl) GC(ctx context.Context, input GCInput) (GCOutput, error) {

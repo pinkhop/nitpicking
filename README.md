@@ -37,12 +37,16 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project, 
 
 ### Download a release binary
 
-Prebuilt static binaries are available on the [Releases page](https://github.com/pinkhop/nitpicking/releases).
+Prebuilt static binaries are available on the [Releases page](https://github.com/pinkhop/nitpicking/releases). Set `VERSION` to the release you want to install, then follow the instructions for your platform.
+
+```bash
+VERSION=0.1.1
+```
 
 **macOS (Apple Silicon):**
 
 ```bash
-curl -fsSL https://github.com/pinkhop/nitpicking/releases/latest/download/nitpicking_0.1.1_darwin_arm64.tar.gz -o np.tar.gz
+curl -fsSL "https://github.com/pinkhop/nitpicking/releases/download/v${VERSION}/nitpicking_${VERSION}_darwin_arm64.tar.gz" -o np.tar.gz
 tar xzf np.tar.gz np
 xattr -d com.apple.quarantine np
 sudo mv np /usr/local/bin/
@@ -52,7 +56,7 @@ rm np.tar.gz
 **macOS (Intel):**
 
 ```bash
-curl -fsSL https://github.com/pinkhop/nitpicking/releases/latest/download/nitpicking_0.1.1_darwin_amd64.tar.gz -o np.tar.gz
+curl -fsSL "https://github.com/pinkhop/nitpicking/releases/download/v${VERSION}/nitpicking_${VERSION}_darwin_amd64.tar.gz" -o np.tar.gz
 tar xzf np.tar.gz np
 xattr -d com.apple.quarantine np
 sudo mv np /usr/local/bin/
@@ -64,7 +68,7 @@ Remove the quarantine attribute that macOS GateKeeper applies to downloaded file
 **Linux (x86_64):**
 
 ```bash
-curl -fsSL https://github.com/pinkhop/nitpicking/releases/latest/download/nitpicking_0.1.1_linux_amd64.tar.gz -o np.tar.gz
+curl -fsSL "https://github.com/pinkhop/nitpicking/releases/download/v${VERSION}/nitpicking_${VERSION}_linux_amd64.tar.gz" -o np.tar.gz
 tar xzf np.tar.gz np
 sudo mv np /usr/local/bin/
 rm np.tar.gz
@@ -73,7 +77,7 @@ rm np.tar.gz
 **Linux (ARM64):**
 
 ```bash
-curl -fsSL https://github.com/pinkhop/nitpicking/releases/latest/download/nitpicking_0.1.1_linux_arm64.tar.gz -o np.tar.gz
+curl -fsSL "https://github.com/pinkhop/nitpicking/releases/download/v${VERSION}/nitpicking_${VERSION}_linux_arm64.tar.gz" -o np.tar.gz
 tar xzf np.tar.gz np
 sudo mv np /usr/local/bin/
 rm np.tar.gz

@@ -1,0 +1,7 @@
+# admin gc --include-closed --json: closed_issues_removed is a number.
+
+np-init GI
+np-seed task 'GC include-closed' gc-agent TASK --claim
+exec np close --claim $TASK_CLAIM --reason done
+exec np admin gc --confirm --include-closed --json
+np-json-has closed_issues_removed 1

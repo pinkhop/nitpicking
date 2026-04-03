@@ -1,0 +1,10 @@
+# Descendants of a deferred epic are not ready.
+
+np-init DED
+np-seed epic 'Deferred epic' defer-agent EPIC --claim
+np-seed task 'Child task' defer-agent CHILD --parent $EPIC
+
+exec np issue defer --claim $EPIC_CLAIM --json
+
+exec np show $CHILD --json
+np-json-has is_ready false

@@ -1,0 +1,4 @@
+# Verify that completion scripts include the "label" command.
+
+exec np admin completion bash
+stdout 'label'

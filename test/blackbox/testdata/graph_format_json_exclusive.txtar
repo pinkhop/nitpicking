@@ -1,0 +1,7 @@
+# Verify that --format and --json are mutually exclusive — specifying both
+# produces a non-zero exit code.
+
+np-init TEST
+np-seed task 'Conflict test' test-agent TASK
+
+! exec np rel graph --format dot --json

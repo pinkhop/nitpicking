@@ -1,0 +1,23 @@
+# Verify that 'np list --json' with default flags produces valid JSON with
+# items array, has_more boolean, snake_case keys, and correct item fields.
+
+np-init LJ
+np-seed task 'List audit task' audit-agent TASK
+np-seed epic 'List audit epic' audit-agent EPIC
+
+exec np list --json
+np-json-array-len items 2
+! np-json-no-field has_more
+
+# Items contain expected snake_case fields.
+stdout '"id"'
+stdout '"role"'
+stdout '"state"'
+stdout '"priority"'
+stdout '"created_at"'
+
+# No PascalCase leaks or is_deleted.
+! stdout '"is_deleted"'
+! stdout '"IsDeleted"'
+! stdout '"ID"'
+! stdout '"Role"'

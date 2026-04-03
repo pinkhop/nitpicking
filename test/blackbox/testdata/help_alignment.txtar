@@ -1,0 +1,5 @@
+# Verify that the 'help' command in --help output is properly aligned
+# at 5 spaces indentation (matching categorized commands).
+
+exec np --help
+stdout '     help'

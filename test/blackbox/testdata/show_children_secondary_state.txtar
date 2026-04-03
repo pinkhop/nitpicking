@@ -1,0 +1,14 @@
+# Show JSON for an epic with children: each child's secondary state and
+# display_status must reflect ready/blocked status.
+
+np-init SCS
+np-seed epic 'Parent epic' show-child-state EPIC
+np-seed task 'Ready child' show-child-state READY --parent $EPIC
+np-seed task 'Blocker task' show-child-state BLOCKER
+np-seed task 'Blocked child' show-child-state BLOCKED --parent $EPIC
+np-seed-rel BLOCKED blocked_by BLOCKER show-child-state
+
+exec np show $EPIC --json
+np-json-has child_count 2
+stdout '"display_status": "open \(ready\)"'
+stdout '"display_status": "open \(blocked\)"'

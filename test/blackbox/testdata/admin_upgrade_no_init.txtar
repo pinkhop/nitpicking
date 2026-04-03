@@ -1,0 +1,4 @@
+# Admin upgrade with no prior "np init": the database is auto-created
+# and upgrade succeeds because the auto-created schema is valid.
+
+exec np admin upgrade

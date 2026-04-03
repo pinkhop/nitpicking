@@ -1,0 +1,31 @@
+# Epic secondary-state completion: an epic cannot be closed while it has open
+# children. Once all children are closed, the epic can be closed.
+
+np-init WF
+np-seed epic 'Authentication overhaul' epic-agent EPIC
+np-seed task 'Add OAuth provider' epic-agent CHILD1 --parent $EPIC --claim
+np-seed task 'Write integration tests' epic-agent CHILD2 --parent $EPIC
+
+# Close the first child.
+exec np close --claim $CHILD1_CLAIM --reason 'test close' --json
+
+# Closing the epic with one open child should fail.
+exec np claim $EPIC --author epic-agent --json
+np-capture EPIC_CLAIM1 claim_id
+! exec np close --claim $EPIC_CLAIM1 --reason 'test close' --json
+
+# Release the epic claim so we can reclaim after closing the second child.
+exec np issue release --claim $EPIC_CLAIM1 --json
+
+# Close the second child.
+exec np claim $CHILD2 --author epic-agent --json
+np-capture CHILD2_CLAIM claim_id
+exec np close --claim $CHILD2_CLAIM --reason 'test close' --json
+
+# Now the epic can be closed.
+exec np claim $EPIC --author epic-agent --json
+np-capture EPIC_CLAIM2 claim_id
+exec np close --claim $EPIC_CLAIM2 --reason 'test close' --json
+
+exec np show $EPIC --json
+np-json-has state closed

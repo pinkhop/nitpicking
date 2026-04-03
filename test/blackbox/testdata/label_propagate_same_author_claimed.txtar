@@ -1,0 +1,20 @@
+# Label propagate succeeds when a descendant is claimed by the same author
+# that is performing the propagation.
+
+np-init LPSC
+np-seed epic 'Propagate epic' prop-agent EPIC --claim
+np-seed task 'Claimed child' prop-agent CHILD_A --parent $EPIC --claim
+np-seed task 'Unclaimed child' prop-agent CHILD_B --parent $EPIC
+
+exec np label add env:prod --claim $EPIC_CLAIM
+
+# Propagate with the same author that claimed CHILD_A.
+exec np label propagate env --issue $EPIC --author prop-agent --json
+np-json-has propagated 2
+
+# Both children should have the label.
+exec np show $CHILD_A --json
+stdout '"env": "prod"'
+
+exec np show $CHILD_B --json
+stdout '"env": "prod"'

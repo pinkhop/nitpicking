@@ -1,0 +1,11 @@
+# Verify that blocked_by relationships are rendered as dashed edges with
+# labels in DOT graph output.
+
+np-init TEST
+np-seed task 'Blocker' test-agent BLOCKER
+np-seed task 'Blocked' test-agent BLOCKED
+np-seed-rel BLOCKED blocked_by BLOCKER test-agent
+
+exec np rel graph --format dot
+stdout 'blocked_by'
+stdout 'dashed'

@@ -1,0 +1,7 @@
+# Verify that an epic with no children (needs decomposition) is ready.
+
+np-init RDY
+np-seed epic 'Needs decomposition' readiness-agent EPIC
+
+exec np show $EPIC --json
+np-json-has is_ready true

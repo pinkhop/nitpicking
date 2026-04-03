@@ -1,0 +1,5 @@
+# Verify that 'np admin where' prints the .np directory path.
+
+np-init WH
+exec np admin where
+stdout '.np'

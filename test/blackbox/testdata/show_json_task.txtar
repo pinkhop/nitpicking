@@ -1,0 +1,15 @@
+# Show JSON for a task: snake_case keys, valid id/role/state, UTC
+# millisecond timestamp, no is_deleted, child_count present at 0.
+
+np-init SJ
+np-seed task 'Show JSON audit task' show-json-agent TASK
+
+exec np show $TASK --json
+np-json-has role task
+np-json-has state open
+np-json-has child_count 0
+np-json-no-field is_deleted
+! stdout 'issueId'
+! stdout 'isDeleted'
+stdout '"created_at":'
+stdout '"id":'

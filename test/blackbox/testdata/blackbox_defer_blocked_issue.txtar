@@ -1,0 +1,12 @@
+# Verify that deferring a blocked, claimed issue succeeds and results in
+# state=deferred with is_ready=false.
+
+np-init EDGE
+np-seed task 'Blocked and deferred' edge-agent TASK --claim
+np-seed task 'Blocker' edge-agent BLOCKER
+np-seed-rel TASK blocked_by BLOCKER edge-agent
+
+exec np issue defer --claim $TASK_CLAIM --json
+exec np show $TASK --json
+np-json-has state deferred
+np-json-has is_ready false

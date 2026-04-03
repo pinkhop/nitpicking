@@ -1,0 +1,9 @@
+# Verify that 'np agent prime' text output includes core workflow sections.
+
+np-init PRIME
+exec np agent prime
+stdout 'issue tracking'
+stdout 'Core Workflow'
+stdout 'claim ready'
+stdout 'json comment'
+stdout 'Key Rules'

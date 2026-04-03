@@ -1,0 +1,19 @@
+# Update command JSON output: snake_case keys, issue_id matches,
+# updated is true, no is_deleted field.
+
+np-init UJ
+np-seed task 'Update JSON audit' update-agent TASK --claim
+
+stdin update.json
+exec np json update --claim $TASK_CLAIM
+np-json-has issue_id $TASK
+np-json-has updated true
+np-json-no-field is_deleted
+
+# All keys must be snake_case (spot-check: issue_id already asserted;
+# verify no camelCase keys appear).
+! stdout 'issueId'
+! stdout 'isDeleted'
+
+-- update.json --
+{"title": "Updated title"}

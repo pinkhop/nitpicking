@@ -1,0 +1,16 @@
+# Undefer restores readiness for a previously deferred task.
+
+np-init UDR
+np-seed task 'Ready after undefer' undefer-agent TASK --claim
+
+exec np issue defer --claim $TASK_CLAIM --until 2026-07-01 --json
+
+# Verify not ready while deferred.
+exec np show $TASK --json
+np-json-has is_ready false
+
+exec np issue undefer $TASK --author undefer-agent --json
+
+exec np show $TASK --json
+np-json-has state open
+np-json-has is_ready true

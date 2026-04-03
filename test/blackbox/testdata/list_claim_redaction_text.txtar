@@ -1,0 +1,18 @@
+# Verify that list-style text commands never leak the claim ID value.
+
+np-init TXTRED
+np-seed task 'Claimed text redaction' redact-agent TASK --claim
+np-seed task 'Text blocked task' redact-agent BLOCKED
+np-seed-rel BLOCKED blocked_by TASK redact-agent
+
+# list (text)
+exec np list
+! stdout $TASK_CLAIM
+
+# list --state claimed (text)
+exec np list --state claimed
+! stdout $TASK_CLAIM
+
+# search (text)
+exec np issue search Claimed
+! stdout $TASK_CLAIM

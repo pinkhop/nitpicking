@@ -1,0 +1,5 @@
+# Verify that the np binary is accessible via testscript and responds to
+# the version command.
+
+exec np version
+stdout 'dev'

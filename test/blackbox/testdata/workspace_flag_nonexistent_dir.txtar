@@ -1,0 +1,5 @@
+# Verify that --workspace flag with a non-existent directory fails with an
+# appropriate error.
+
+! exec np --workspace /nonexistent/dir/that/does/not/exist list --json
+stderr 'no .np directory found'

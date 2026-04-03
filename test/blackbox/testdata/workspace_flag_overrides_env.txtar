@@ -1,0 +1,10 @@
+# Verify that --workspace flag takes precedence over NP_WORKSPACE env var.
+# NP_WORKSPACE points to a valid workspace, but --workspace points to a
+# directory without .np/ — the flag should win and the command should fail.
+
+np-init WS
+mkdir empty
+
+env NP_WORKSPACE=$WORK
+! exec np --workspace empty list --json
+stderr 'no .np directory found'

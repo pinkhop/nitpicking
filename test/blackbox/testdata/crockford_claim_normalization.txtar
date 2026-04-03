@@ -1,0 +1,23 @@
+# Verify that claim tokens with Crockford-confusable characters normalize
+# and hash correctly. Using confusable substitutions (1→L, 0→O) on the
+# claim token should still match the stored SHA-512 hash.
+
+np-init NP
+
+# Seed an issue in claimed state with a known claim token.
+# Canonical token: 10a10b00c11d0e1f0g1h0j1k10 (26 chars).
+# SHA-512 of that token: 5a862c5a...
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''NP-ab0cd'', ''task'', ''Claim normalization test'', ''claimed'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''NP-ab0cd'', ''Claim normalization test'', '''', '''')'
+np-seed-sql 'INSERT INTO claims (claim_sha512, issue_id, author, stale_threshold, last_activity) VALUES (''5a862c5ab037644eb491332fe07cfd9d3644cfce48efb250152d31c4bd109ce79b72e8d2f8042be22029a29a0889c54e4be33d2740da0292ec2038d490437182'', ''NP-ab0cd'', ''test-agent'', 7200000000000, datetime(''now''))'
+
+# Update using confusable token: LOaLObOOcLLdOeLfOgLhOjLkLO
+# This should normalize to 10a10b00c11d0e1f0g1h0j1k10 and match the hash.
+stdin update.json
+exec np json update --claim LOaLObOOcLLdOeLfOgLhOjLkLO
+
+exec np show NP-ab0cd --json
+np-json-has title 'Updated via confusable claim'
+
+-- update.json --
+{"title": "Updated via confusable claim"}

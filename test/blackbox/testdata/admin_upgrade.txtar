@@ -1,0 +1,12 @@
+# Admin upgrade on an initialized database succeeds in both text and
+# JSON modes.
+
+np-init AU
+
+# Text mode: exit 0 with non-empty output.
+exec np admin upgrade
+stdout .
+
+# JSON mode: exit 0 with status "up_to_date".
+exec np admin upgrade --json
+np-json-has status up_to_date

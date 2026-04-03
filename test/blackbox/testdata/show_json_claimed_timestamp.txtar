@@ -1,0 +1,9 @@
+# Show JSON for a claimed task includes claim_stale_at timestamp.
+
+np-init SC
+np-seed task 'Claimed show JSON' claim-agent TASK --claim
+
+exec np show $TASK --json
+np-json-has state claimed
+! np-json-no-field claim_stale_at
+stdout '"claim_stale_at":'

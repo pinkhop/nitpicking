@@ -1,0 +1,17 @@
+# Verify that database discovery walks up from a subdirectory to find the
+# .np directory in an ancestor, and that issues created from the subdirectory
+# are visible from the parent.
+
+np-init DISC
+mkdir sub/deep
+cp input.json sub/deep/input.json
+cd sub/deep
+stdin input.json
+exec np json create --author discovery-agent
+np-capture ISSUE id
+cd $WORK
+exec np show $ISSUE --json
+np-json-has title 'Created from subdir'
+
+-- input.json --
+{"role":"task","title":"Created from subdir"}

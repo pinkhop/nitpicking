@@ -1,0 +1,16 @@
+# Admin reset step 1: key generation produces a key, warning with issue
+# count, and writes a hash file to .np/.
+
+np-init AR
+np-seed task 'Task A' reset-agent TASK_A
+np-seed task 'Task B' reset-agent TASK_B
+
+exec np admin reset --json
+np-json-has action reset_key_generated
+np-json-has issue_count 2
+! np-json-no-field reset_key
+! np-json-no-field warning
+stdout '"warning":'
+
+# The hash file must exist in .np/ after step 1.
+exists .np/reset-key-hash.txt

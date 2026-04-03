@@ -1,0 +1,20 @@
+# After a reset, the database is still functional: new issues can be
+# created and the original prefix is preserved.
+
+np-init MYPREFIX
+np-seed task 'Old task' reset-agent TASK_OLD
+
+exec np admin reset --json
+np-capture KEY reset_key
+
+exec np admin reset --reset-key $KEY --json
+
+# Creating a new issue after reset must succeed.
+stdin input.json
+exec np json create --author reset-agent
+
+# The preserved prefix appears in the new issue's ID.
+stdout '"id": "MYPREFIX-'
+
+-- input.json --
+{"role":"task","title":"New task"}

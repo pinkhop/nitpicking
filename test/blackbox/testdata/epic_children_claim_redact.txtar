@@ -1,0 +1,8 @@
+# Epic children JSON output does not expose claim_id for claimed children.
+
+np-init ER
+np-seed epic 'Children redaction epic' redact-children-agent EPIC
+np-seed task 'Claimed child' redact-children-agent CHILD --parent $EPIC --claim
+
+exec np epic children $EPIC --json
+! stdout '"claim_id"'

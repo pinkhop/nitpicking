@@ -1,0 +1,10 @@
+# Show JSON for a claimed task omits claim_id (bearer token) but
+# includes claim_author and claim_stale_at.
+
+np-init CR
+np-seed task 'Claim redaction task' redact-agent TASK --claim
+
+exec np show $TASK --json
+np-json-no-field claim_id
+! np-json-no-field claim_author
+! np-json-no-field claim_stale_at

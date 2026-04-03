@@ -1,0 +1,8 @@
+# Verify that a claim conflict error mentions the current holder and issue ID.
+
+np-init ERR
+np-seed task 'Contested task' alice TASK --claim
+
+! exec np claim $TASK --author bob
+stderr 'alice'
+stderr $TASK

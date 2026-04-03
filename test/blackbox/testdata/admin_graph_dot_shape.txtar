@@ -1,0 +1,9 @@
+# Verify that 'np rel graph --format dot' produces valid Graphviz DOT output
+# containing the expected structural elements.
+
+np-init GR
+np-seed task 'Graph audit task' graph-audit TASK
+
+exec np rel graph --format dot
+stdout 'digraph issues'
+stdout 'Graph audit task'

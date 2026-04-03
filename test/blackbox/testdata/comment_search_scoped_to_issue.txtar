@@ -1,0 +1,12 @@
+# Verify that --issue scopes comment search to a specific issue.
+
+np-init CS
+np-seed task 'Issue A' cs-agent A
+np-seed task 'Issue B' cs-agent B
+np-seed-comment A 'Deploy fix for login' cs-agent
+np-seed-comment B 'Deploy fix for logout' cs-agent
+
+exec np comment search deploy --issue $A --json
+np-json-array-len comments 1
+stdout 'login'
+! stdout 'logout'

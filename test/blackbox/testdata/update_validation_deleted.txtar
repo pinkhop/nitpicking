@@ -1,0 +1,12 @@
+# Update on a deleted issue fails because the claim is invalidated.
+
+np-init UVAL
+np-seed task 'To delete' val-agent TASK --claim
+
+exec np issue delete --claim $TASK_CLAIM --confirm --json
+
+stdin update.json
+! exec np json update --claim $TASK_CLAIM
+
+-- update.json --
+{"title": "Should fail"}

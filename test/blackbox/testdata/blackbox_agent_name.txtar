@@ -1,0 +1,5 @@
+# Verify that 'np agent name' produces a three-part hyphenated name
+# without requiring a database.
+
+exec np agent name
+stdout '^[a-z]+-[a-z]+-[a-z]+$'

@@ -1,0 +1,9 @@
+# Verify that admin doctor reports no virtual label issues when the database
+# is clean (idempotency-key labels are in the column, not the labels table).
+
+np-init VL
+np-seed task 'Task with idem key' vl-agent TASK --label idempotency-key:abc123
+
+exec np admin doctor --json --verbose
+stdout '"virtual_labels"'
+stdout '"pass"'

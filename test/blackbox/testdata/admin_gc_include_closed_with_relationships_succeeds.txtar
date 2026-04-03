@@ -1,0 +1,10 @@
+# admin gc --include-closed succeeds when closed issue has relationships.
+
+np-init GR
+np-seed task 'will close' gc-agent CLOSED --claim
+np-seed task 'stays open' gc-agent OPEN
+np-seed-rel OPEN blocked_by CLOSED gc-agent
+np-seed-rel CLOSED refs OPEN gc-agent
+exec np close --claim $CLOSED_CLAIM --reason done
+
+exec np admin gc --confirm --include-closed --json

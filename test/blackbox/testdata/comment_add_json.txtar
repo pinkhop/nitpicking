@@ -1,0 +1,19 @@
+# Comment add JSON output: comment_id, issue_id, author present,
+# no is_deleted or PascalCase keys.
+
+np-init CA
+np-seed task 'Comment task' comment-audit TASK
+
+# np json comment
+stdin comment1.json
+exec np json comment $TASK --author comment-audit
+np-json-has issue_id $TASK
+! np-json-no-field comment_id
+! np-json-no-field author
+np-json-no-field is_deleted
+! stdout 'CommentID'
+! stdout 'IssueID'
+! stdout 'Author'
+
+-- comment1.json --
+{"body": "Audit comment body"}

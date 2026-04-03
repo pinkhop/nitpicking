@@ -1,0 +1,16 @@
+# Label propagate fails when a descendant is claimed by a different author.
+# The failure must be atomic — no labels are set on any descendant.
+
+np-init LPDF
+np-seed epic 'Propagate epic' prop-agent EPIC --claim
+np-seed task 'Unclaimed child' prop-agent CHILD_A --parent $EPIC
+np-seed task 'Other-claimed child' other-agent CHILD_B --parent $EPIC --claim
+
+exec np label add env:staging --claim $EPIC_CLAIM
+
+# Propagate should fail because CHILD_B is claimed by other-agent.
+! exec np label propagate env --issue $EPIC --author prop-agent --json
+
+# Verify atomicity: the unclaimed child must NOT have the label.
+exec np show $CHILD_A --json
+! stdout '"env"'

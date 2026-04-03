@@ -1,0 +1,9 @@
+# Verify that 'comment search' finds comments matching a text query.
+
+np-init CS
+np-seed task 'Search target' cs-agent TASK
+np-seed-comment TASK 'Authentication fix applied successfully' cs-agent
+
+exec np comment search authentication --json
+np-json-array-len comments 1
+stdout 'Authentication fix applied successfully'

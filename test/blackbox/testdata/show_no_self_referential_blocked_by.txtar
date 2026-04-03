@@ -1,0 +1,21 @@
+# ShowIssue must not display a self-referential "Blocked by" section when the
+# issue is the TARGET of someone else's blocked_by relationship.
+#
+# Regression: when issue A is blocked_by issue B, calling show on B would
+# incorrectly display "Blocked by: B" because the blocker-detail loop did not
+# verify that SourceID matched the queried issue.
+
+np-init SR
+np-seed task 'Blocked task' self-ref-agent BLOCKED
+np-seed task 'Blocker task' self-ref-agent BLOCKER
+
+# BLOCKED is blocked_by BLOCKER.
+np-seed-rel BLOCKED blocked_by BLOCKER self-ref-agent
+
+# Show the BLOCKER (text mode) — it must NOT have a "Blocked by" section.
+exec np show $BLOCKER
+! stdout 'Blocked by'
+
+# Show the BLOCKED issue (text mode) — it SHOULD show the blocker.
+exec np show $BLOCKED
+stdout 'Blocked by'

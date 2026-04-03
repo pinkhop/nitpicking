@@ -1,0 +1,12 @@
+# Verify that 'np json create' with role epic produces JSON with correct role
+# and UTC millisecond timestamp.
+
+np-init CE
+stdin input.json
+exec np json create --author create-agent
+
+np-json-has role epic
+stdout '"created_at": "\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z"'
+
+-- input.json --
+{"role":"epic","title":"Create JSON audit epic"}

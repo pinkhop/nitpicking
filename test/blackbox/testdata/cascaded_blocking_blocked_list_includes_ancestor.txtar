@@ -1,0 +1,13 @@
+# Verify that 'np blocked --json' includes tasks whose ancestors (not the
+# tasks themselves) are blocked.
+
+np-init BL
+np-seed epic 'Blocking epic' cascade-agent EPIC_A
+np-seed epic 'Blocked epic' cascade-agent EPIC_B
+np-seed-rel EPIC_B blocked_by EPIC_A cascade-agent
+np-seed task 'Ancestor-blocked task' cascade-agent TASK --parent $EPIC_B
+
+exec np blocked --json
+stdout 'Ancestor-blocked task'
+stdout '"display_status": "open \(blocked\)"'
+stdout '"secondary_state": "blocked"'

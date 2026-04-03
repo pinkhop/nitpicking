@@ -1,0 +1,10 @@
+# Verify that np import --json reports validation errors as structured JSON.
+
+np-init IJ
+
+exec np import jsonl testdata/invalid.jsonl --author import-agent --json
+stdout '"action": "validation_failed"'
+stdout 'idempotency_key is required'
+
+-- testdata/invalid.jsonl --
+{"role":"task","title":"Missing key"}

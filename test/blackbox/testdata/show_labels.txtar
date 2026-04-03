@@ -1,0 +1,12 @@
+# Show JSON includes labels as a map when labels are present.
+
+np-init SL
+np-seed task 'Show labels task' label-agent TASK --claim
+
+exec np label add kind:bug --claim $TASK_CLAIM
+exec np label add area:auth --claim $TASK_CLAIM
+
+exec np show $TASK --json
+stdout '"labels":'
+stdout '"kind": "bug"'
+stdout '"area": "auth"'

@@ -1,0 +1,34 @@
+# Rel add JSON output shapes for all relationship types.
+
+np-init RA
+np-seed task 'Blocker' rel-audit TASK_A
+np-seed task 'Blocked' rel-audit TASK_B
+np-seed task 'Ref target' rel-audit TASK_C
+np-seed epic 'Parent epic' rel-audit EPIC
+np-seed task 'Child task' rel-audit CHILD --claim
+
+# blocked_by: source/target/type fields.
+exec np rel add $TASK_B blocked_by $TASK_A --author rel-audit --json
+np-json-has source $TASK_B
+np-json-has target $TASK_A
+np-json-has type blocked_by
+np-json-no-field is_deleted
+
+# blocks: reverse direction.
+exec np rel add $TASK_A blocks $TASK_C --author rel-audit --json
+np-json-has type blocks
+
+# refs
+exec np rel add $TASK_A refs $TASK_B --author rel-audit --json
+np-json-has type refs
+
+# parent_of: returns child/parent/action.
+exec np rel add $EPIC parent_of $CHILD --claim $CHILD_CLAIM --author rel-audit --json
+np-json-has child $CHILD
+np-json-has parent $EPIC
+
+# child_of: same child/parent response.
+np-seed task 'Another child' rel-audit CHILD2 --claim
+exec np rel add $CHILD2 child_of $EPIC --claim $CHILD2_CLAIM --author rel-audit --json
+np-json-has child $CHILD2
+np-json-has parent $EPIC

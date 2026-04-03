@@ -1,0 +1,10 @@
+# Labels and filtering: create tasks with different labels and verify that
+# list --label filters correctly.
+
+np-init WF
+np-seed task 'Fix login bug' label-agent FIX --label kind:fix
+np-seed task 'Add dashboard feature' label-agent FEAT --label kind:feature
+
+exec np list --ready --label kind:fix --json
+np-json-array-len items 1
+stdout 'Fix login bug'

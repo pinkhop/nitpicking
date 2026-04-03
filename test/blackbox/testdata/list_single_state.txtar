@@ -1,0 +1,11 @@
+# Verify backward compatibility: a single --state flag returns only issues
+# in that state.
+
+np-init SS
+np-seed task 'Open task' single-agent OPEN_TASK
+np-seed task 'Claimed task' single-agent CLAIM_TASK
+
+exec np claim $CLAIM_TASK --author single-agent --json
+
+exec np list --state claimed --json
+np-json-array-len items 1

@@ -1,0 +1,25 @@
+# Verify that 'np epic close-completed --dry-run --json' produces valid JSON
+# with snake_case keys, a results array containing completed epics with
+# closed=false (dry-run), and no is_deleted field.
+
+np-init EC
+np-seed epic 'Completed epic' ce-agent EPIC
+np-seed task 'Child to close' ce-agent CHILD --parent $EPIC --claim
+
+exec np close --claim $CHILD_CLAIM --reason done
+
+exec np epic close-completed --author ce-agent --dry-run --json
+
+# Results array exists and is non-empty.
+! np-json-array-len results 0
+
+# Dry-run: completed epics are NOT closed.
+stdout '"closed": false'
+
+# No PascalCase key leaks.
+! stdout '"Id"'
+! stdout '"Results"'
+! stdout '"Closed"'
+
+# No is_deleted field in items.
+! stdout '"is_deleted"'

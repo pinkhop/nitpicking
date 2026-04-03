@@ -1,0 +1,5 @@
+# Verify that initializing twice produces an error about the existing database.
+
+np-init ERR
+! exec np init ERR
+stderr 'existing'

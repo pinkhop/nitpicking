@@ -1,0 +1,19 @@
+# Verify that 'np admin tally --json' produces valid JSON with snake_case keys,
+# numeric counts for open/claimed/deferred/closed/ready/blocked/total,
+# and no is_deleted.
+
+np-init ST
+np-seed task 'Tally audit task' tally-agent TASK --claim
+
+exec np close --claim $TASK_CLAIM --reason done
+np-seed task 'Open tally task' tally-agent OPEN
+
+exec np admin tally --json
+np-json-no-field is_deleted
+! np-json-no-field open
+! np-json-no-field closed
+! np-json-no-field total
+
+# At least 1 open and 1 closed.
+! np-json-has open 0
+! np-json-has closed 0

@@ -1,0 +1,12 @@
+# Doctor text output for stale claims must not expose claim IDs.
+
+np-init DRTXT
+np-seed task 'Stale for text doctor' doctor-redact TASK
+
+# Claim with a 1ms duration so the claim is immediately stale.
+exec np claim $TASK --author doctor-redact --duration 1ms --json
+np-capture CLAIM claim_id
+
+# Doctor text output must not contain the claim ID.
+exec np admin doctor
+! stdout $CLAIM@R

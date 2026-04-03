@@ -1,0 +1,10 @@
+# Defer JSON output: action is "defer", no until field when omitted.
+
+np-init DF
+np-seed task 'Defer target' defer-agent TASK --claim
+
+exec np issue defer --claim $TASK_CLAIM --json
+np-json-has action defer
+! np-json-no-field issue_id
+np-json-no-field until
+np-json-no-field is_deleted

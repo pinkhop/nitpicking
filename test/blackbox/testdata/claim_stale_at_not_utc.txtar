@@ -1,0 +1,8 @@
+# Verify that --stale-at rejects non-UTC timestamps (not ending in Z).
+
+np-init NU
+np-seed task 'Non-UTC task' nu-author TASK
+
+! exec np claim $TASK --author nu-author --stale-at 2099-01-01T00:00:00+05:00
+stderr 'UTC'
+stderr 'ending in Z'

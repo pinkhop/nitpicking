@@ -1,0 +1,10 @@
+# Verify that list JSON items never contain claim-related keys, even for
+# unclaimed issues.
+
+np-init SHAPE
+np-seed task 'Shape check task' shape-agent TASK
+
+exec np list --json
+! stdout '"claim_id"'
+! stdout '"claim_author"'
+! stdout '"claim_stale_at"'

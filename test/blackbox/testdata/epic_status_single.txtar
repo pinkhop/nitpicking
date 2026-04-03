@@ -1,0 +1,10 @@
+# Epic status JSON for a specific epic ID.
+
+np-init ES
+np-seed epic 'Single epic' epic-single-audit EPIC
+np-seed task 'Only child' epic-single-audit CHILD --parent $EPIC
+
+exec np epic status $EPIC --json
+stdout '"epics":'
+stdout '"count":'
+stdout $EPIC

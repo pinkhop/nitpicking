@@ -1,0 +1,17 @@
+# Undefer an epic restores descendant readiness.
+
+np-init UDE
+np-seed epic 'Epic to undefer' undefer-agent EPIC --claim
+np-seed task 'Child task' undefer-agent CHILD --parent $EPIC
+
+exec np issue defer --claim $EPIC_CLAIM --json
+
+# Child not ready while epic is deferred.
+exec np show $CHILD --json
+np-json-has is_ready false
+
+exec np issue undefer $EPIC --author undefer-agent --json
+
+# Child is now ready.
+exec np show $CHILD --json
+np-json-has is_ready true

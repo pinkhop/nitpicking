@@ -1,0 +1,10 @@
+# Verify that an epic with child tasks is not ready — it has already been
+# decomposed and its completion is determined by the completed secondary state.
+
+np-init RDY
+np-seed epic 'Decomposed epic' readiness-agent EPIC
+np-seed task 'Child task A' readiness-agent CHILDA --parent $EPIC
+np-seed task 'Child task B' readiness-agent CHILDB --parent $EPIC
+
+exec np show $EPIC --json
+np-json-has is_ready false

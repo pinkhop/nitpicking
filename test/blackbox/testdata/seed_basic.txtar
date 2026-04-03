@@ -1,0 +1,9 @@
+# Verify that np-init and np-seed work together to create an issue
+# and set the environment variable to the issue ID.
+
+np-init TEST
+np-seed task 'Seeded task' test-agent TASK
+
+exec np show $TASK --json
+stdout '"role": "task"'
+stdout '"title": "Seeded task"'

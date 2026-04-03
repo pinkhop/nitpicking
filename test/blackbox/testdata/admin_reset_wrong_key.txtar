@@ -1,0 +1,13 @@
+# Admin reset step 2 with a wrong key: the reset is rejected and all
+# data is preserved.
+
+np-init AR
+np-seed task 'Task' reset-agent TASK
+
+exec np admin reset --json
+
+! exec np admin reset --reset-key 00000000000000000000000000 --json
+
+# Data is still present.
+exec np list --json
+np-json-array-len items 1

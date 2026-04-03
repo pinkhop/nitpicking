@@ -1,0 +1,8 @@
+# Verify that removing a non-existent relationship is idempotent.
+
+np-init REDGE
+np-seed task 'Task A' rel-agent TASK_A
+np-seed task 'Task B' rel-agent TASK_B
+
+# No relationship exists between them — removal should still succeed.
+exec np rel blocks unblock $TASK_A $TASK_B --author rel-agent --json

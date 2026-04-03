@@ -1,0 +1,5 @@
+# admin gc --json: deleted_issues_removed is a number.
+
+np-init GC
+exec np admin gc --confirm --json
+np-json-has deleted_issues_removed 0

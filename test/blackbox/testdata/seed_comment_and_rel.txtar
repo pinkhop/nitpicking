@@ -1,0 +1,22 @@
+# Verify that np-seed-comment and np-seed-rel work correctly.
+
+np-init TEST
+
+# Create two tasks to work with.
+np-seed task 'Task A' test-agent TASK_A
+np-seed task 'Task B' test-agent TASK_B
+
+# Add a comment to Task A.
+np-seed-comment TASK_A 'This is a comment on Task A.' test-agent
+
+# Verify the comment exists.
+exec np comment list $TASK_A --json
+stdout 'This is a comment on Task A.'
+
+# Add a blocked_by relationship: Task B is blocked by Task A.
+np-seed-rel TASK_B blocked_by TASK_A test-agent
+
+# Verify the relationship exists.
+exec np rel list $TASK_B --json
+stdout 'blocked_by'
+stdout $TASK_A

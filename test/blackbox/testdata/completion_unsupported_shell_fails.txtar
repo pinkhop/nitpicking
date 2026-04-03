@@ -1,0 +1,4 @@
+# Verify that 'np admin completion powershell' fails and names the unsupported shell.
+
+! exec np admin completion powershell
+stderr 'powershell'

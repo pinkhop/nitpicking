@@ -1,0 +1,25 @@
+# Claim-release-reclaim lifecycle: agent-alpha claims and releases, then
+# agent-beta claims and closes. History should record both agents' actions.
+
+np-init WF
+np-seed task 'Refactor logging' agent-alpha TASK
+
+exec np claim $TASK --author agent-alpha --json
+np-capture CLAIM1 claim_id
+
+exec np issue release --claim $CLAIM1 --json
+
+exec np claim $TASK --author agent-beta --json
+np-capture CLAIM2 claim_id
+
+exec np close --claim $CLAIM2 --reason 'test close' --json
+
+exec np show $TASK --json
+np-json-has state closed
+
+# History should record create, claim, release, claim, and close events.
+exec np issue history $TASK --json
+stdout '"event_type": "created"'
+stdout '"event_type": "claimed"'
+stdout '"event_type": "released"'
+stdout '"event_type": "state_changed"'

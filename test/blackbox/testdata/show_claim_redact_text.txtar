@@ -1,0 +1,8 @@
+# Show text for a claimed issue redacts the claim ID and shows the author.
+
+np-init SR
+np-seed task 'Redact claim ID test' redact-agent TASK --claim
+
+exec np show $TASK
+! stdout $TASK_CLAIM@R
+stdout 'Claimed by:  redact-agent'

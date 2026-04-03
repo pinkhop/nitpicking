@@ -1,0 +1,20 @@
+# Relationships and search: establish blocked_by and refs relationships,
+# then verify readiness gating and search finds related issues.
+
+np-init WF
+np-seed task 'Fix database migration' relate-agent BLOCKER
+np-seed task 'Deploy new schema' relate-agent BLOCKED
+np-seed task 'Document migration steps' relate-agent REFERENCE
+
+np-seed-rel BLOCKED blocked_by BLOCKER relate-agent
+np-seed-rel REFERENCE refs BLOCKER relate-agent
+
+# The blocked issue should not be ready.
+exec np show $BLOCKED --json
+np-json-has is_ready false
+stdout '"type": "blocked_by"'
+
+# Search for "migration" should find at least 2 issues.
+exec np issue search migration --json
+stdout 'Fix database migration'
+stdout 'Document migration steps'

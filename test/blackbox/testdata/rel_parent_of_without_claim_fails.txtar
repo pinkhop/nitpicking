@@ -1,0 +1,8 @@
+# Verify that adding a parent_of relationship without a --claim flag fails.
+
+np-init REDGE
+np-seed epic 'Parent epic' rel-agent EPIC
+np-seed task 'Child task' rel-agent CHILD
+
+! exec np rel add $EPIC parent_of $CHILD --author rel-agent --json
+stderr 'claim'

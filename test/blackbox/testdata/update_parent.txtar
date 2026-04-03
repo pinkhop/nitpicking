@@ -1,0 +1,10 @@
+# Update parent reparents an issue under an epic.
+
+np-init UFLAG
+np-seed epic 'Target epic' flag-agent EPIC
+np-seed task 'Orphan task' flag-agent TASK --claim
+
+exec sh -c 'echo "{\"parent\": \"$EPIC\"}" | np json update --claim $TASK_CLAIM'
+
+exec np show $TASK --json
+np-json-has parent_id $EPIC

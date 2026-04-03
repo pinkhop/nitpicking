@@ -1,0 +1,13 @@
+# Verify that update accepts lowercase priority and normalizes to canonical.
+
+np-init PRIO
+np-seed task 'Priority update test' prio-agent TASK --claim
+
+stdin update.json
+exec np json update --claim $TASK_CLAIM
+
+exec np show $TASK --json
+np-json-has priority P0
+
+-- update.json --
+{"priority": "p0"}

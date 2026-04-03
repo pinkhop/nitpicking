@@ -1,0 +1,9 @@
+# Verify that issue orphans --json output conforms to JSON standards:
+# snake_case keys, non-empty id, valid role/state, no is_deleted field.
+
+np-init OJ
+np-seed task 'Orphan JSON audit task' orphan-agent TASK
+
+exec np issue orphans --json
+np-json-array-len items 1
+np-json-no-field is_deleted

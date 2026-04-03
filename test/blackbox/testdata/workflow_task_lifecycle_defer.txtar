@@ -1,0 +1,9 @@
+# Defer lifecycle: create a task, claim it, and defer it.
+
+np-init WF
+np-seed task 'Low priority polish' lifecycle-agent TASK --claim
+
+exec np issue defer --claim $TASK_CLAIM --json
+
+exec np show $TASK --json
+np-json-has state deferred

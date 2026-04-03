@@ -1,0 +1,15 @@
+# Release JSON output: action is "release", issue_id matches,
+# no is_deleted, state returns to open.
+
+np-init RL
+np-seed task 'Release target' release-agent TASK --claim
+
+exec np issue release --claim $TASK_CLAIM --json
+np-json-has action release
+np-json-has issue_id $TASK
+np-json-no-field is_deleted
+! stdout 'IssueID'
+! stdout 'ClaimID'
+
+exec np show $TASK --json
+np-json-has state open

@@ -1,0 +1,9 @@
+# Verify that np import jsonl reports validation errors without creating issues.
+
+np-init IV
+
+! exec np import jsonl testdata/invalid.jsonl --author import-agent
+stderr 'idempotency_key is required'
+
+-- testdata/invalid.jsonl --
+{"role":"task","title":"Missing idempotency key"}

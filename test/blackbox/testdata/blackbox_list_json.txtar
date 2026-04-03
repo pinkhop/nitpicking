@@ -1,0 +1,8 @@
+# Verify that list --json returns all created issues with correct count.
+
+np-init TEST
+np-seed task 'Task A' alice TASK_A
+np-seed task 'Task B' bob TASK_B
+
+exec np list --json
+np-json-array-len items 2

@@ -1,0 +1,27 @@
+# Verify that 'np admin doctor --json' produces valid JSON output with the
+# expected top-level shape: snake_case keys, boolean 'healthy', array 'findings'
+# with category/severity/message fields, and no PascalCase key leaks.
+
+np-init DR
+np-seed task 'Healthy task' doctor-audit TASK
+
+exec np admin doctor --json
+
+# Top-level shape: healthy (boolean) and findings (array) present.
+! np-json-no-field healthy
+! np-json-no-field findings
+
+# No is_deleted field leaks into doctor output.
+np-json-no-field is_deleted
+
+# Findings contain expected snake_case fields.
+stdout '"category"'
+stdout '"severity"'
+stdout '"message"'
+
+# No PascalCase key leaks.
+! stdout '"Category"'
+! stdout '"Severity"'
+! stdout '"Message"'
+! stdout '"IssueIDs"'
+! stdout '"Suggestion"'

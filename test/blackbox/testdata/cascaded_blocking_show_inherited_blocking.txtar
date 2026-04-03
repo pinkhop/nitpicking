@@ -1,0 +1,15 @@
+# Verify that 'np show --json' surfaces inherited_blocking with the correct
+# ancestor_id and blocker_ids when a task is under a blocked epic.
+
+np-init SB
+np-seed epic 'Epic A (blocker for show)' cascade-agent EPIC_A
+np-seed epic 'Epic B (blocked for show)' cascade-agent EPIC_B
+np-seed-rel EPIC_B blocked_by EPIC_A cascade-agent
+np-seed task 'Task for show audit' cascade-agent TASK --parent $EPIC_B
+
+exec np show $TASK --json
+! np-json-no-field inherited_blocking
+stdout '"ancestor_id"'
+stdout '"blocker_ids"'
+stdout $EPIC_B
+stdout $EPIC_A

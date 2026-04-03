@@ -1,0 +1,21 @@
+# Regression test for NP-vbxge: a closed epic with all children closed must
+# NOT be reported as completed for closure by "epic status" or
+# "epic close-completed".
+
+np-init WF
+np-seed epic 'Parent epic' epic-regression EPIC
+np-seed task 'Child task' epic-regression CHILD --parent $EPIC --claim
+
+# Close the child.
+exec np close --claim $CHILD_CLAIM --reason done
+
+# Close the epic via close-completed.
+exec np epic close-completed --author epic-regression --json
+
+# Epic status should report the closed epic as NOT completed for closure.
+exec np epic status $EPIC --json
+stdout '"completed": false'
+
+# close-completed should not list the already-closed epic.
+exec np epic close-completed --author epic-regression --json
+np-json-has closed 0

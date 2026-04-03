@@ -1,0 +1,7 @@
+# admin gc --json output uses only snake_case keys.
+
+np-init GC
+exec np admin gc --confirm --json
+stdout '"deleted_issues_removed"'
+stdout '"closed_issues_removed"'
+! stdout '[A-Z]'

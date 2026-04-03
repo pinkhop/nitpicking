@@ -1,0 +1,15 @@
+# Verify that comments with special characters (unicode, ampersands, angle
+# brackets) roundtrip correctly through json comment and list.
+
+np-init CEDGE
+np-seed task 'Special chars comment' comment-agent TASK
+
+stdin comment.json
+exec np json comment $TASK --author comment-agent
+
+exec np comment list $TASK --json
+stdout 'こんにちは'
+stdout 'ampersand'
+
+-- comment.json --
+{"body": "unicode: こんにちは and ampersand & and angle < >"}

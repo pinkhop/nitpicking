@@ -1,0 +1,18 @@
+# Claim mismatch on update: using task A's claim to update task B
+# fails because the claim resolves to task A, not task B.
+# The error should not expose either claim ID.
+
+np-init CMERR
+np-seed task 'Task A' mismatch-agent TASK_A --claim
+np-seed task 'Task B' mismatch-agent TASK_B --claim
+
+# Task A's claim resolves to task A, so this updates task A — not task B.
+# The test verifies task B is unchanged.
+stdin update.json
+exec np json update --claim $TASK_A_CLAIM
+
+exec np show $TASK_B --json
+np-json-has title 'Task B'
+
+-- update.json --
+{"title": "Should not appear on task B"}

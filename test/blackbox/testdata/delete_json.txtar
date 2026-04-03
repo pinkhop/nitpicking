@@ -1,0 +1,11 @@
+# Delete JSON output: issue_id matches, deleted=true, no is_deleted.
+
+np-init DEL
+np-seed task 'Delete target' del-agent TASK --claim
+
+exec np issue delete --claim $TASK_CLAIM --confirm --json
+np-json-has issue_id $TASK
+np-json-has deleted true
+np-json-no-field is_deleted
+! stdout 'IssueID'
+! stdout 'Deleted'

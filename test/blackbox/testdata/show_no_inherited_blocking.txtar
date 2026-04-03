@@ -1,0 +1,8 @@
+# Show JSON does not include inherited_blocking when ancestor is not blocked.
+
+np-init IB
+np-seed epic 'Normal epic' no-blocking EPIC
+np-seed task 'Normal child' no-blocking CHILD --parent $EPIC
+
+exec np show $CHILD --json
+np-json-no-field inherited_blocking

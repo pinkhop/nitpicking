@@ -1,0 +1,14 @@
+# Verify that commenting on a soft-deleted issue fails with an error
+# mentioning 'deleted'.
+
+np-init CEDGE
+np-seed task 'Delete then comment' comment-agent TASK --claim
+
+exec np issue delete --claim $TASK_CLAIM --confirm --json
+
+stdin comment.json
+! exec np json comment $TASK --author comment-agent
+stderr 'deleted'
+
+-- comment.json --
+{"body": "Should fail"}

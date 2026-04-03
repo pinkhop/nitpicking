@@ -1,0 +1,13 @@
+# Verify that 'np label propagate --json' produces valid JSON with snake_case
+# keys, issue_id, propagated count >= 1, and no is_deleted.
+
+np-init LP
+np-seed epic 'Propagate audit epic' prop-agent EPIC --claim
+np-seed task 'Child for propagation' prop-agent CHILD --parent $EPIC
+
+exec np label add team:platform --claim $EPIC_CLAIM
+
+exec np label propagate team --issue $EPIC --author prop-agent --json
+np-json-has issue_id $EPIC
+! np-json-has propagated 0
+np-json-no-field is_deleted

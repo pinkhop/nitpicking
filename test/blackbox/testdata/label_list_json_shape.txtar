@@ -1,0 +1,15 @@
+# Verify that 'np label list --json' produces valid JSON with snake_case keys,
+# issue_id, labels array with key/value strings, and no is_deleted.
+
+np-init LL
+np-seed task 'Label list JSON audit' label-agent TASK --claim
+
+exec np label add kind:feature --claim $TASK_CLAIM
+
+exec np label list $TASK --json
+np-json-has issue_id $TASK
+! np-json-array-len labels 0
+
+stdout '"key"'
+stdout '"value"'
+np-json-no-field is_deleted

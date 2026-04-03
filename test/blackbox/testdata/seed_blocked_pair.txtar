@@ -1,0 +1,12 @@
+# Verify that two tasks connected by a blocked_by relationship result in
+# the blocked task being not ready and having the correct relationship.
+
+np-init SEED
+np-seed task 'Blocker' seed-agent BLOCKER
+np-seed task 'Blocked' seed-agent BLOCKED
+np-seed-rel BLOCKED blocked_by BLOCKER seed-agent
+
+exec np show $BLOCKED --json
+np-json-has is_ready false
+stdout '"type": "blocked_by"'
+stdout '"target_id":'

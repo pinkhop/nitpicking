@@ -1,0 +1,9 @@
+# Tree text output includes root ID and indentation characters.
+
+np-init TT
+np-seed epic 'Tree root epic' tree-agent EPIC
+np-seed task 'Direct child' tree-agent CHILD --parent $EPIC
+
+exec np rel parent tree $EPIC
+stdout $EPIC
+stdout 'Direct child'

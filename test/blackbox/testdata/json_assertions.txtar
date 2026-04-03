@@ -1,0 +1,31 @@
+# Verify np-capture, np-json-has, np-json-array-len, and np-json-no-field.
+
+np-init TEST
+np-seed task 'Assertion test' test-agent TASK
+
+# np-capture: extract the issue ID from show output.
+exec np show $TASK --json
+np-capture CAPTURED_ID id
+exec np show $CAPTURED_ID --json
+np-json-has title 'Assertion test'
+
+# np-json-has: verify field values of different types.
+exec np show $TASK --json
+np-json-has role task
+np-json-has is_ready true
+np-json-has child_count 0
+np-json-has priority P2
+
+# np-json-has with negation: verify a field does NOT have a value.
+exec np show $TASK --json
+! np-json-has role epic
+
+# np-json-no-field: verify claim_id is absent for unclaimed issue.
+exec np show $TASK --json
+np-json-no-field claim_id
+np-json-no-field claim_author
+
+# np-json-no-field with negation: verify a field IS present.
+exec np show $TASK --json
+! np-json-no-field id
+! np-json-no-field role

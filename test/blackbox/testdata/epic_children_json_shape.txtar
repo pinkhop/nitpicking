@@ -1,0 +1,22 @@
+# Verify that 'np epic children --json' produces valid JSON with an items array
+# containing the correct number of children.
+
+np-init EC
+np-seed epic 'Parent epic' children-audit EPIC
+np-seed task 'Child task A' children-audit CHILD_A --parent $EPIC
+np-seed task 'Child task B' children-audit CHILD_B --parent $EPIC
+
+exec np epic children $EPIC --json
+np-json-array-len items 2
+
+# Items contain expected snake_case fields.
+stdout '"id"'
+stdout '"role"'
+stdout '"state"'
+stdout '"title"'
+
+# No PascalCase leaks.
+! stdout '"Id"'
+! stdout '"Role"'
+! stdout '"State"'
+! stdout '"Title"'

@@ -1,0 +1,11 @@
+# Verify that 'np rel cycles --json' reports no cycles when there are none.
+
+np-init RC
+np-seed task 'Task A' cycles-audit TASK_A
+np-seed task 'Task B' cycles-audit TASK_B
+np-seed-rel TASK_A blocked_by TASK_B cycles-audit
+
+exec np rel cycles --json
+np-json-array-len findings 0
+np-json-has count 0
+np-json-no-field is_deleted

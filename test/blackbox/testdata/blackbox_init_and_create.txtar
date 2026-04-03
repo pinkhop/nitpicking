@@ -1,0 +1,7 @@
+# Verify that init creates a .np directory and create produces a task with
+# the expected title in JSON output.
+
+np-init TEST
+np-seed task 'Blackbox task' test-agent TASK
+exec np show $TASK --json
+np-json-has title 'Blackbox task'

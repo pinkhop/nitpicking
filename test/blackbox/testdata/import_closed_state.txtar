@@ -1,0 +1,13 @@
+# Verify that np import can create issues in closed state.
+
+np-init IS
+
+exec np import jsonl testdata/closed.jsonl --author import-agent --json
+stdout '"created": 1'
+
+# Verify the issue is closed.
+exec np list --state closed --json
+! np-json-array-len items 0
+
+-- testdata/closed.jsonl --
+{"idempotency_key":"closed-1","role":"task","title":"Already closed","state":"closed"}

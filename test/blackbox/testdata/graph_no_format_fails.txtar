@@ -1,0 +1,6 @@
+# Verify that 'np rel graph' without --format fails with a non-zero exit code.
+
+np-init TEST
+np-seed task 'Some task' test-agent TASK
+
+! exec np rel graph

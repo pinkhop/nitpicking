@@ -1,0 +1,22 @@
+# Verify that an epic with child tasks is created correctly — the epic has
+# role "epic" and each child references the epic as its parent.
+
+np-init SEED
+np-seed epic 'Parent epic' seed-agent EPIC
+np-seed task 'Child A' seed-agent CHILDA --parent $EPIC
+np-seed task 'Child B' seed-agent CHILDB --parent $EPIC
+np-seed task 'Child C' seed-agent CHILDC --parent $EPIC
+
+# The epic has the correct role.
+exec np show $EPIC --json
+np-json-has role epic
+
+# Each child references the epic as parent.
+exec np show $CHILDA --json
+np-json-has parent_id $EPIC
+
+exec np show $CHILDB --json
+np-json-has parent_id $EPIC
+
+exec np show $CHILDC --json
+np-json-has parent_id $EPIC

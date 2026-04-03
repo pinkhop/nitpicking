@@ -1,0 +1,7 @@
+# Verify that 'np list --timestamps' includes date timestamps in text output.
+
+np-init TS
+np-seed task 'Timestamped task' ts-agent TASK
+
+exec np list --timestamps
+stdout '2026-'

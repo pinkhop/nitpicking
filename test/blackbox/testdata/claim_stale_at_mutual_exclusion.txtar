@@ -1,0 +1,7 @@
+# Verify that --stale-at and --duration are mutually exclusive.
+
+np-init ME
+np-seed task 'Mutex task' me-author TASK
+
+! exec np claim $TASK --author me-author --duration 1h --stale-at 2099-01-01T00:00:00Z
+stderr 'mutually exclusive'

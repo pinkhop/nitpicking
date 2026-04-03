@@ -1,0 +1,17 @@
+# Verify that issues with the same priority are sorted deterministically
+# by issue ID. Running the same list command twice must produce identical
+# output — the issue ID tiebreaker ensures stable ordering.
+
+np-init SS
+np-seed task 'Task Alpha' sort-agent A
+np-seed task 'Task Beta' sort-agent B
+np-seed task 'Task Gamma' sort-agent C
+
+# List all issues twice — output must be identical.
+exec np list --json
+cp stdout first.json
+
+exec np list --json
+cp stdout second.json
+
+cmp first.json second.json

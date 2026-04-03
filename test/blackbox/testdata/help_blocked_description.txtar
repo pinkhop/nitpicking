@@ -1,0 +1,4 @@
+# Verify that the blocked command's help description uses user-friendly language.
+
+exec np --help
+stdout 'List open and deferred issues that are blocked'

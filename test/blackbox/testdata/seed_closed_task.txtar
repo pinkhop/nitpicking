@@ -1,0 +1,10 @@
+# Verify that a task can be created, claimed, and closed in sequence,
+# resulting in a closed state.
+
+np-init SEED
+np-seed task 'Closed task' seed-agent TASK --claim
+
+exec np close --claim $TASK_CLAIM --reason 'test close' --json
+
+exec np show $TASK --json
+np-json-has state closed

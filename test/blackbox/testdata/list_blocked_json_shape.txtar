@@ -1,0 +1,13 @@
+# Verify that 'np blocked --json' returns only blocked issues with
+# display_status showing the secondary state format.
+
+np-init LJ
+np-seed task 'Blocker' audit-agent TASK_A
+np-seed task 'Blocked task' audit-agent TASK_B
+np-seed-rel TASK_B blocked_by TASK_A audit-agent
+
+exec np blocked --json
+np-json-array-len items 1
+stdout 'Blocked task'
+stdout '"display_status": "open \(blocked\)"'
+stdout '"secondary_state": "blocked"'

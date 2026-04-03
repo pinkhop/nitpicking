@@ -1,0 +1,14 @@
+# Verify that admin reset creates a backup file (ending in .jsonl.gz)
+# before destroying the database.
+
+np-init RST
+np-seed task 'Issue one' reset-agent T1
+np-seed task 'Issue two' reset-agent T2
+
+exec np admin reset --json
+np-capture RESET_KEY reset_key
+
+exec np admin reset --reset-key $RESET_KEY --json
+np-json-has action reset
+stdout 'backup_path'
+stdout '\.jsonl\.gz'

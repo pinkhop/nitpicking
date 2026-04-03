@@ -1,0 +1,11 @@
+# Verify that --author filters comment search by author name.
+
+np-init CS
+np-seed task 'Author filter test' cs-agent TASK
+np-seed-comment TASK 'Database migration completed' alice
+np-seed-comment TASK 'Database migration verified' bob
+
+exec np comment search migration --author alice --json
+np-json-array-len comments 1
+stdout 'completed'
+! stdout 'verified'

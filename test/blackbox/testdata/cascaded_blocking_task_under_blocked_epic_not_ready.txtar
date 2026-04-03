@@ -1,0 +1,11 @@
+# Verify that a task under a blocked epic inherits the blocked status
+# and is not ready.
+
+np-init CB
+np-seed epic 'Epic A (blocker)' cascade-agent EPIC_A
+np-seed epic 'Epic B (blocked)' cascade-agent EPIC_B
+np-seed-rel EPIC_B blocked_by EPIC_A cascade-agent
+np-seed task 'Task under blocked epic' cascade-agent TASK --parent $EPIC_B
+
+exec np show $TASK --json
+np-json-has is_ready false

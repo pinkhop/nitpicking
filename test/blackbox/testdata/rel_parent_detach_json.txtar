@@ -1,0 +1,10 @@
+# Rel parent detach JSON: child/parent fields, action is "detached".
+
+np-init PD
+np-seed epic 'Detach audit epic' detach-agent EPIC
+np-seed task 'Child to detach' detach-agent CHILD --parent $EPIC
+
+exec np rel parent detach $EPIC $CHILD --author detach-agent --json
+np-json-has action detached
+! np-json-no-field child
+! np-json-no-field parent

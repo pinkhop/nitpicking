@@ -1,0 +1,7 @@
+# Verify that the author field survives the create → show round-trip.
+
+np-init TEST
+np-seed task 'Author round-trip' sweet-anchor-jump TASK
+
+exec np show $TASK --json
+np-json-has author sweet-anchor-jump

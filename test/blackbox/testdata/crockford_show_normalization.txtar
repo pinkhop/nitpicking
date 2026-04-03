@@ -1,0 +1,13 @@
+# Verify that issue IDs with Crockford-confusable characters normalize
+# correctly. NP-LOIoA should resolve to NP-1010a (L→1, O→0, I→1, o→0).
+
+np-init NP
+
+# Seed an issue with a known ID containing Crockford-confusable digits.
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''NP-1010a'', ''task'', ''Crockford test issue'', ''open'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''NP-1010a'', ''Crockford test issue'', '''', '''')'
+
+# Show using confusable substitutions: L→1, O→0, I→1, o→0.
+exec np show NP-LOIoA --json
+np-json-has title 'Crockford test issue'
+np-json-has id NP-1010a

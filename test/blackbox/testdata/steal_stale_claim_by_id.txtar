@@ -1,0 +1,23 @@
+# Verify that agent B can steal a stale claim from agent A using 'np claim
+# <ID> --steal'. The stolen response has a new claim_id, stolen=true, and the
+# issue shows agent B as the current claimer.
+
+np-init STEAL
+np-seed task 'Stealable task' agent-alpha TASK
+
+# Agent A claims with 1ms duration so it's immediately stale.
+exec np claim $TASK --author agent-alpha --duration 1ms --json
+np-capture CLAIM_A claim_id
+
+# Agent B steals the stale claim.
+exec np claim $TASK --author agent-beta --steal --json
+np-json-has stolen true
+np-capture CLAIM_B claim_id
+
+# Verify the new claim differs from the old.
+! np-json-has claim_id $CLAIM_A
+
+# Issue is now claimed by agent B.
+exec np show $TASK --json
+np-json-has state claimed
+np-json-has claim_author agent-beta

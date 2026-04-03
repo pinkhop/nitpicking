@@ -1,0 +1,16 @@
+# Verify that 'np list --include-closed --json' returns both open and closed
+# issues, while the default excludes closed.
+
+np-init LJ
+np-seed task 'Open task' audit-agent TASK_OPEN
+np-seed task 'Closed task' audit-agent TASK_CLOSED --claim
+
+exec np close --claim $TASK_CLOSED_CLAIM --reason done
+
+# Default: only open.
+exec np list --json
+np-json-array-len items 1
+
+# With --include-closed: both.
+exec np list --include-closed --json
+np-json-array-len items 2

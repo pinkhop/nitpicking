@@ -1,0 +1,23 @@
+# Verify that a stolen claim allows the full lifecycle: update the issue and
+# close it using the stolen claim ID.
+
+np-init STEAL
+np-seed task 'Lifecycle after steal' agent-alpha TASK
+
+# Agent A claims, then agent B steals.
+exec np claim $TASK --author agent-alpha --duration 1ms --json
+exec np claim $TASK --author agent-beta --steal --json
+np-capture CLAIM_B claim_id
+
+# Agent B updates and closes using the stolen claim.
+stdin update.json
+exec np json update --claim $CLAIM_B
+exec np close --claim $CLAIM_B --reason 'test close' --json
+
+# Verify the issue is closed with agent B's changes.
+exec np show $TASK --json
+np-json-has state closed
+np-json-has title 'Fixed by agent B'
+
+-- update.json --
+{"title": "Fixed by agent B"}

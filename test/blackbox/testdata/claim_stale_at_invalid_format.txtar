@@ -1,0 +1,7 @@
+# Verify that --stale-at rejects invalid RFC3339 timestamps.
+
+np-init IF
+np-seed task 'Invalid format task' if-author TASK
+
+! exec np claim $TASK --author if-author --stale-at not-a-timestamp
+stderr 'UTC'

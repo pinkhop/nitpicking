@@ -1,0 +1,7 @@
+# Verify that 'np list' without --timestamps does NOT include dates in output.
+
+np-init TS
+np-seed task 'No timestamp task' ts-agent TASK
+
+exec np list
+! stdout '2026-'

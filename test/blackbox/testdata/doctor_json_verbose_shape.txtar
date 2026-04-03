@@ -1,0 +1,26 @@
+# Verify that 'np admin doctor --verbose --json' includes a non-empty 'checks'
+# array with snake_case keys and name/status string fields.
+
+np-init DR
+np-seed task 'Healthy task' doctor-audit TASK
+
+exec np admin doctor --verbose --json
+
+# Standard shape assertions.
+! np-json-no-field healthy
+! np-json-no-field findings
+
+# Verbose mode includes a non-empty checks array.
+! np-json-no-field checks
+! np-json-array-len checks 0
+
+# Checks contain expected snake_case fields.
+stdout '"name"'
+stdout '"status"'
+
+# No PascalCase key leaks.
+! stdout '"Category"'
+! stdout '"Severity"'
+! stdout '"Message"'
+! stdout '"Name"'
+! stdout '"Status"'

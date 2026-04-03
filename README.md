@@ -35,7 +35,51 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project, 
 
 ## Installation
 
-Today, `np` is built from source.
+### Download a release binary
+
+Prebuilt static binaries are available on the [Releases page](https://github.com/pinkhop/nitpicking/releases).
+
+**macOS (Apple Silicon):**
+
+```bash
+curl -fsSL https://github.com/pinkhop/nitpicking/releases/latest/download/nitpicking_0.1.1_darwin_arm64.tar.gz -o np.tar.gz
+tar xzf np.tar.gz np
+xattr -d com.apple.quarantine np
+sudo mv np /usr/local/bin/
+rm np.tar.gz
+```
+
+**macOS (Intel):**
+
+```bash
+curl -fsSL https://github.com/pinkhop/nitpicking/releases/latest/download/nitpicking_0.1.1_darwin_amd64.tar.gz -o np.tar.gz
+tar xzf np.tar.gz np
+xattr -d com.apple.quarantine np
+sudo mv np /usr/local/bin/
+rm np.tar.gz
+```
+
+Remove the quarantine attribute that macOS GateKeeper applies to downloaded files by running `xattr -d com.apple.quarantine /usr/local/bin/np` after moving the binary into place. Without this step, macOS will block `np` with an "unidentified developer" warning. The commands above already include this step before the `mv`; if you move the binary to a different location, run `xattr -d com.apple.quarantine /path/to/np` against the final path.
+
+**Linux (x86_64):**
+
+```bash
+curl -fsSL https://github.com/pinkhop/nitpicking/releases/latest/download/nitpicking_0.1.1_linux_amd64.tar.gz -o np.tar.gz
+tar xzf np.tar.gz np
+sudo mv np /usr/local/bin/
+rm np.tar.gz
+```
+
+**Linux (ARM64):**
+
+```bash
+curl -fsSL https://github.com/pinkhop/nitpicking/releases/latest/download/nitpicking_0.1.1_linux_arm64.tar.gz -o np.tar.gz
+tar xzf np.tar.gz np
+sudo mv np /usr/local/bin/
+rm np.tar.gz
+```
+
+### Build from source
 
 Prerequisites:
 

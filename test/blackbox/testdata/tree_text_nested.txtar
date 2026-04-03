@@ -1,0 +1,11 @@
+# Tree text output for nested hierarchy: all three levels appear.
+
+np-init TN
+np-seed epic 'Grandparent epic' tree-agent EPIC
+np-seed epic 'Child epic' tree-agent CHILD_EPIC --parent $EPIC
+np-seed task 'Grandchild task' tree-agent GRANDCHILD --parent $CHILD_EPIC
+
+exec np rel parent tree $EPIC
+stdout $EPIC
+stdout $CHILD_EPIC
+stdout 'Grandchild task'

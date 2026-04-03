@@ -1,0 +1,28 @@
+# Verify that 'np json create' with role task produces JSON conforming to
+# standards: snake_case keys, non-empty ID, correct role/state, UTC
+# millisecond timestamp, and no is_deleted field.
+
+np-init CJ
+stdin input.json
+exec np json create --author create-agent
+
+# Core fields.
+np-json-has role task
+np-json-has state open
+! np-json-no-field id
+! np-json-no-field created_at
+
+# No is_deleted field.
+np-json-no-field is_deleted
+
+# Snake_case keys only — no PascalCase leaks.
+! stdout '"Role"'
+! stdout '"State"'
+! stdout '"Title"'
+! stdout '"Id"'
+
+# Timestamp is UTC millisecond with Z suffix.
+stdout '"created_at": "\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z"'
+
+-- input.json --
+{"role":"task","title":"Create JSON audit task"}

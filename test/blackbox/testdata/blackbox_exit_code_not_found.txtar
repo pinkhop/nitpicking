@@ -1,0 +1,4 @@
+# Verify that showing a non-existent issue exits with a non-zero code.
+
+np-init TEST
+! exec np show TEST-zzzzz --json

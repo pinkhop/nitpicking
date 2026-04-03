@@ -1,0 +1,12 @@
+# Update on a closed issue fails because the claim is invalidated.
+
+np-init UVAL
+np-seed task 'To close' val-agent TASK --claim
+
+exec np close --claim $TASK_CLAIM --reason 'test close' --json
+
+stdin update.json
+! exec np json update --claim $TASK_CLAIM
+
+-- update.json --
+{"title": "Should fail"}

@@ -1,0 +1,11 @@
+# Epic close-completed JSON output does not expose claim_id.
+
+np-init ER
+np-seed epic 'Completed redaction epic' redact-completed-agent EPIC
+np-seed task 'Close me' redact-completed-agent CHILD --parent $EPIC --claim
+
+exec np close --claim $CHILD_CLAIM --reason done --json
+
+exec np epic close-completed --dry-run --author redact-completed-agent --json
+! stdout '"claim_id"'
+stdout $EPIC

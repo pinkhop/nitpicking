@@ -1,0 +1,18 @@
+# Verify that 'np list --label kind:bug --json' only returns issues matching
+# the label filter.
+
+np-init LJ
+stdin input1.json
+exec np json create --author audit-agent
+stdin input2.json
+exec np json create --author audit-agent
+
+exec np list --label kind:bug --json
+np-json-array-len items 1
+stdout 'Bug task'
+! stdout 'Feature task'
+
+-- input1.json --
+{"role":"task","title":"Bug task","labels":["kind:bug"]}
+-- input2.json --
+{"role":"task","title":"Feature task","labels":["kind:feature"]}

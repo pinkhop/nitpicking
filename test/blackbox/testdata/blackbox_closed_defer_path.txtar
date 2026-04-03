@@ -1,0 +1,19 @@
+# Verify the closed → defer path: deferring with a released claim fails,
+# but re-claiming and then deferring succeeds.
+
+np-init EDGE
+np-seed task 'Close then defer' edge-agent TASK --claim
+
+# Close the issue (releases the claim).
+exec np close --claim $TASK_CLAIM --reason 'Done.' --json
+
+# Defer with the now-released claim fails.
+! exec np issue defer --claim $TASK_CLAIM --json
+
+# Re-claim the closed issue and defer it.
+exec np claim $TASK --author edge-agent --json
+np-capture NEW_CLAIM claim_id
+exec np issue defer --claim $NEW_CLAIM --json
+
+exec np show $TASK --json
+np-json-has state deferred

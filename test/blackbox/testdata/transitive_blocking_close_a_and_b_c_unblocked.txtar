@@ -1,0 +1,20 @@
+# Verify that closing both A and B in a chain makes C ready.
+
+np-init TB
+np-seed task 'Task A (root blocker)' transitive-agent TASK_A --claim
+np-seed task 'Task B (middle)' transitive-agent TASK_B
+np-seed task 'Task C (end of chain)' transitive-agent TASK_C
+np-seed-rel TASK_B blocked_by TASK_A transitive-agent
+np-seed-rel TASK_C blocked_by TASK_B transitive-agent
+
+# Close A.
+exec np close --claim $TASK_A_CLAIM --reason done
+
+# Claim and close B.
+exec np claim $TASK_B --author transitive-agent --json
+np-capture TASK_B_CLAIM claim_id
+exec np close --claim $TASK_B_CLAIM --reason done
+
+# C is now ready.
+exec np show $TASK_C --json
+np-json-has is_ready true

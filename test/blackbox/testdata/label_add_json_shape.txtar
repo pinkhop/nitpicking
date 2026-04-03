@@ -1,0 +1,12 @@
+# Verify that 'np label add --json' produces valid JSON with snake_case keys,
+# correct key/value/action fields, and no is_deleted.
+
+np-init LA
+np-seed task 'Label add JSON audit' label-agent TASK --claim
+
+exec np label add kind:bug --claim $TASK_CLAIM --json
+np-json-has key kind
+np-json-has value bug
+np-json-has action set
+np-json-has issue_id $TASK
+np-json-no-field is_deleted

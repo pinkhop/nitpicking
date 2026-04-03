@@ -1,0 +1,12 @@
+# Verify that 'np json create' rejects the removed 'deferred' field.
+
+np-init DF
+
+# The deferred field was removed from json create. Attempting to use it
+# should fail because DisallowUnknownFields rejects unrecognized fields.
+stdin input1.json
+! exec np json create --author test-agent
+stderr 'unknown field "deferred"'
+
+-- input1.json --
+{"role":"task","title":"Deferred at birth","deferred":true}

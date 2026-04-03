@@ -1,0 +1,13 @@
+# Verify that labels provided in the JSON body are attached to the created issue.
+
+np-init FENV
+
+stdin input.json
+exec np json create --author label-agent
+np-capture TASK id
+
+exec np list --label repo:auth --json
+stdout 'Label env test'
+
+-- input.json --
+{"role":"task","title":"Label env test","labels":["repo:auth","kind:feature"]}

@@ -1,0 +1,17 @@
+# Verify that 'np admin completion bash' emits a non-empty script containing
+# core commands and subcommand families.
+
+exec np admin completion bash
+stdout 'claim'
+stdout 'list'
+stdout 'create'
+stdout 'show'
+stdout 'search'
+stdout 'close'
+stdout 'ready'
+stdout 'blocked'
+stdout 'issue'
+stdout 'epic'
+stdout 'admin'
+stdout 'rel'
+stdout 'comment'

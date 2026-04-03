@@ -1,0 +1,7 @@
+# Verify that --workspace flag with a directory that exists but lacks .np/
+# fails with an appropriate error.
+
+mkdir subdir
+
+! exec np --workspace subdir list --json
+stderr 'no .np directory found'

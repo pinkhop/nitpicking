@@ -1,0 +1,24 @@
+# Verify that 'np rel cycles --json' detects a cycle when one exists and
+# returns findings with snake_case keys and no PascalCase leaks.
+
+np-init RC
+np-seed task 'Task A' cycles-audit TASK_A
+np-seed task 'Task B' cycles-audit TASK_B
+np-seed-rel TASK_A blocked_by TASK_B cycles-audit
+np-seed-rel TASK_B blocked_by TASK_A cycles-audit
+
+exec np rel cycles --json
+! np-json-array-len findings 0
+! np-json-has count 0
+
+# Findings contain expected fields.
+stdout '"category"'
+stdout '"severity"'
+stdout '"message"'
+
+# No PascalCase key leaks.
+! stdout '"Category"'
+! stdout '"Severity"'
+! stdout '"Message"'
+! stdout '"IssueIDs"'
+! stdout '"Suggestion"'

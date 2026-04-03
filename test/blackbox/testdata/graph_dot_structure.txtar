@@ -1,0 +1,11 @@
+# Verify that 'np rel graph --format dot' produces valid Graphviz DOT output
+# containing the digraph header and all issue titles.
+
+np-init TEST
+np-seed task 'Task Alpha' test-agent TASK_A
+np-seed task 'Task Beta' test-agent TASK_B
+
+exec np rel graph --format dot
+stdout 'digraph issues'
+stdout 'Task Alpha'
+stdout 'Task Beta'

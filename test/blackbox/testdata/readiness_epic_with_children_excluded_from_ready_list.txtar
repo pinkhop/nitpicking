@@ -1,0 +1,15 @@
+# Verify that an epic with children does not appear in --ready lists and
+# that 'claim ready' claims a task instead of the epic.
+
+np-init RDY
+np-seed epic 'Has children' readiness-agent EPIC
+np-seed task 'Child A' readiness-agent CHILD --parent $EPIC
+np-seed task 'Standalone task' readiness-agent STANDALONE
+
+# Ready list should not include the epic.
+exec np list --ready --json
+! stdout '"role": "epic"'
+
+# Claim ready should pick a task, not the epic.
+exec np claim ready --author readiness-agent --json
+! np-json-has issue_id $EPIC

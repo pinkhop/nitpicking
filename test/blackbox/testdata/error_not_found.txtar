@@ -1,0 +1,5 @@
+# Verify that showing a non-existent issue produces a not-found error.
+
+np-init ERR
+! exec np show ERR-zzzzz
+stderr 'not found'

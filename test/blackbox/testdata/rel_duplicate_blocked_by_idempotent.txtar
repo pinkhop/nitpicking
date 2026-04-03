@@ -1,0 +1,9 @@
+# Verify that adding a duplicate blocked_by relationship is idempotent.
+
+np-init REDGE
+np-seed task 'Blocker' rel-agent BLOCKER
+np-seed task 'Blocked' rel-agent BLOCKED
+np-seed-rel BLOCKED blocked_by BLOCKER rel-agent
+
+# Adding the same relationship again should succeed.
+exec np rel add $BLOCKED blocked_by $BLOCKER --author rel-agent --json

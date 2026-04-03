@@ -1,0 +1,18 @@
+# Verify that 'np claim' is visible in root help output under
+# Core Workflow, and is NOT listed under 'np issue'.
+
+# np --help must list claim in the Core Workflow section.
+exec np --help
+stdout 'claim'
+
+# np claim --help must work and show the positional argument usage.
+exec np claim --help
+stdout '<ISSUE-ID | ready>'
+stdout '--stale-at'
+stdout '--duration'
+
+# np issue --help must NOT list a claim subcommand.
+# Match "claim" as a command name (indented, followed by whitespace) —
+# "claimed" in descriptions is not a match.
+exec np issue --help
+! stdout '^\s+claim\s'

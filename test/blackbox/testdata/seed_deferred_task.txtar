@@ -1,0 +1,10 @@
+# Verify that a task can be created, claimed, and deferred in sequence,
+# resulting in a deferred state.
+
+np-init SEED
+np-seed task 'Deferred task' seed-agent TASK --claim
+
+exec np issue defer --claim $TASK_CLAIM --json
+
+exec np show $TASK --json
+np-json-has state deferred

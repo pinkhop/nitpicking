@@ -1,0 +1,19 @@
+# Verify that labels provided in the JSON body are correctly applied and
+# that only the specified labels appear on the issue.
+
+np-init FOVR
+
+stdin input.json
+exec np json create --author label-agent
+np-capture TASK id
+
+# Issue appears with kind:fix.
+exec np list --label kind:fix --json
+stdout 'Label override test'
+
+# Issue does NOT appear with kind:feature (not in the labels array).
+exec np list --label kind:feature --json
+! stdout 'Label override test'
+
+-- input.json --
+{"role":"task","title":"Label override test","labels":["kind:fix","repo:auth"]}

@@ -1,0 +1,17 @@
+# Verify that 'np issue search --json' produces valid JSON with snake_case keys,
+# items array with id/role/state/created_at fields, and no is_deleted.
+
+np-init SQ
+np-seed task 'Searchable audit task' search-agent TASK
+
+exec np issue search Searchable --json
+! np-json-array-len items 0
+
+stdout '"id"'
+stdout '"role"'
+stdout '"state"'
+stdout '"created_at"'
+np-json-no-field is_deleted
+
+! stdout '"IsDeleted"'
+! stdout '"ID"'

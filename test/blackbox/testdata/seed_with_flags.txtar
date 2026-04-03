@@ -1,0 +1,23 @@
+# Verify that np-seed supports --parent, --claim, --priority, and --label
+# flags, and correctly sets environment variables for value threading.
+
+np-init TEST
+
+# Create an epic as the parent.
+np-seed epic 'Parent epic' test-agent EPIC
+
+# Create a claimed child task with priority and label.
+np-seed task 'Child task' test-agent TASK --parent $EPIC --claim --priority P0 --label kind:bug
+
+# Verify the task was created with the correct attributes.
+exec np show $TASK --json
+stdout '"priority": "P0"'
+stdout '"state": "claimed"'
+
+# Verify the claim ID was set.
+exec np show $TASK --json
+stdout '"claim_author": "test-agent"'
+
+# Verify the parent relationship.
+exec np show $TASK --json
+stdout '"parent_id":'

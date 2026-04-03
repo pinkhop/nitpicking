@@ -1,0 +1,11 @@
+# Verify that 'np list --state closed --json' only returns closed issues.
+
+np-init LJ
+np-seed task 'Open task' audit-agent TASK_OPEN
+np-seed task 'Closed task' audit-agent TASK_CLOSED --claim
+
+exec np close --claim $TASK_CLOSED_CLAIM --reason done
+
+exec np list --state closed --json
+np-json-array-len items 1
+stdout '"state": "closed"'

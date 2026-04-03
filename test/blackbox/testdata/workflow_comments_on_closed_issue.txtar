@@ -1,0 +1,24 @@
+# Comments on a closed issue: comments do not require claiming and can be
+# added after an issue is closed. Verify that post-close comments are
+# preserved alongside the close-reason comment.
+
+np-init WF
+np-seed task 'Closed task' comments-agent TASK --claim
+
+exec np close --claim $TASK_CLAIM --reason 'test close' --json
+
+stdin comment1.json
+exec np json comment $TASK --author comments-agent
+
+stdin comment2.json
+exec np json comment $TASK --author other-agent
+
+# Expect 3 comments: 1 close reason + 2 post-close.
+exec np comment list $TASK --json
+np-json-array-len comments 3
+
+-- comment1.json --
+{"body": "Post-mortem: root cause was a race condition"}
+
+-- comment2.json --
+{"body": "Follow-up issue created for monitoring"}

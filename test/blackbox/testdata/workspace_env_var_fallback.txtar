@@ -1,0 +1,12 @@
+# Verify that NP_WORKSPACE environment variable works as a fallback when
+# --workspace flag is not provided.
+
+np-init WS
+
+# Change to a subdirectory that does not have .np/.
+mkdir subdir
+cd subdir
+
+env NP_WORKSPACE=$WORK
+exec np list --json
+np-json-array-len items 0

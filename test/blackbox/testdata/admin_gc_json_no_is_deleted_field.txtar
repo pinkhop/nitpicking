@@ -1,0 +1,5 @@
+# admin gc --json: is_deleted field must not be present.
+
+np-init GC
+exec np admin gc --confirm --json
+np-json-no-field is_deleted

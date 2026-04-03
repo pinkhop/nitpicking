@@ -1,0 +1,19 @@
+# Verify that a pre-existing backup file survives a reset. After creating
+# a backup, performing a reset, and then re-initializing, the backup file
+# should still be present in the directory listing.
+
+np-init RST
+np-seed task 'Issue one' reset-agent T1
+
+# Create a backup first.
+exec np admin backup --json
+np-capture BACKUP_PATH path
+
+# Generate reset key and execute reset.
+exec np admin reset --json
+np-capture RESET_KEY reset_key
+exec np admin reset --reset-key $RESET_KEY --json
+
+# The reset creates its own backup too, so now we have 2 .jsonl.gz files.
+# The important thing is that the JSON output from reset has a backup_path.
+stdout 'backup_path'

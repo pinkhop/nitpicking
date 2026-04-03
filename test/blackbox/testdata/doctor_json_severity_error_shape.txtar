@@ -1,0 +1,19 @@
+# Verify that 'np admin doctor --severity error --json' produces valid JSON
+# with the expected shape when filtering by error severity.
+
+np-init DR
+np-seed task 'Healthy task' doctor-audit TASK
+
+exec np admin doctor --severity error --json
+
+# Top-level shape.
+! np-json-no-field healthy
+! np-json-no-field findings
+
+# No is_deleted field leaks.
+np-json-no-field is_deleted
+
+# No PascalCase key leaks.
+! stdout '"Category"'
+! stdout '"Severity"'
+! stdout '"Message"'

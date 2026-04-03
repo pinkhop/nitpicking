@@ -1,0 +1,6 @@
+# Admin reset step 2 without a prior step 1: providing a key when no
+# hash file exists must fail.
+
+np-init AR
+
+! exec np admin reset --reset-key 00000000000000000000000000

@@ -1,0 +1,25 @@
+# Verify that 'np comment list --json' produces valid JSON with snake_case
+# keys, non-empty comment fields, and no is_deleted leak.
+
+np-init CL
+np-seed task 'Comment JSON audit' comment-agent TASK
+np-seed-comment TASK 'Test comment for JSON audit' comment-agent
+
+exec np comment list $TASK --json
+! np-json-array-len comments 0
+
+# Comment fields are snake_case.
+stdout '"comment_id"'
+stdout '"issue_id"'
+stdout '"author"'
+stdout '"body"'
+stdout '"created_at"'
+
+# No PascalCase leaks or is_deleted.
+! stdout '"is_deleted"'
+! stdout '"CommentId"'
+! stdout '"IssueId"'
+! stdout '"Author"'
+
+# Timestamp is UTC millisecond with Z suffix.
+stdout '"created_at": "\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z"'

@@ -1,0 +1,9 @@
+# Verify that the JSON output of issue history does not leak the claim ID
+# (bearer token) while still including the claimed event type.
+
+np-init HJ
+np-seed task 'History JSON claim redact' hist-agent TASK --claim
+
+exec np issue history $TASK --json
+stdout '"event_type": "claimed"'
+! stdout $TASK_CLAIM

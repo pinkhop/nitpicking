@@ -1,0 +1,10 @@
+# Verify that creating without a title produces a validation error mentioning
+# the missing field.
+
+np-init ERR
+stdin input.json
+! exec np json create --author alice
+stderr 'title'
+
+-- input.json --
+{"role":"task"}

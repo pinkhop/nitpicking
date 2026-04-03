@@ -1,0 +1,15 @@
+# Rel parent children JSON: items array with snake_case keys,
+# id/role/state/created_at fields, no is_deleted.
+
+np-init PC
+np-seed epic 'Parent children audit' parent-agent EPIC
+np-seed task 'Child for children list' parent-agent CHILD --parent $EPIC
+
+exec np rel parent children $EPIC --json
+stdout '"items":'
+stdout '"id":'
+stdout '"role": "task"'
+stdout '"state":'
+stdout '"created_at":'
+! stdout '"is_deleted"'
+! stdout '"IsDeleted"'

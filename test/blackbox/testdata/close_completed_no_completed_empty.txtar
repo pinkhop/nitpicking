@@ -1,0 +1,8 @@
+# Verify that 'np epic close-completed --json' returns an empty results array
+# when no epics are completed for closure.
+
+np-init EN
+np-seed task 'No completed epic' ce-agent TASK
+
+exec np epic close-completed --author ce-agent --json
+np-json-array-len results 0

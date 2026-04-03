@@ -1,0 +1,7 @@
+# Verify that 'np admin where' from a subdirectory still prints the root .np path.
+
+np-init WH
+mkdir sub/deep
+cd sub/deep
+exec np admin where
+stdout '.np'

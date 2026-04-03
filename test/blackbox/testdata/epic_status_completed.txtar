@@ -1,0 +1,15 @@
+# Epic status --completed-only filters to completed epics only.
+
+np-init ES
+np-seed epic 'Completed epic' completed-audit EPIC1
+np-seed task 'E1 child' completed-audit CHILD1 --parent $EPIC1 --claim
+
+exec np close --claim $CHILD1_CLAIM --reason done --json
+
+np-seed epic 'Non-completed epic' completed-audit EPIC2
+np-seed task 'E2 child' completed-audit CHILD2 --parent $EPIC2
+
+exec np epic status --completed-only --json
+stdout $EPIC1
+! stdout $EPIC2
+stdout '"completed": true'

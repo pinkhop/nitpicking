@@ -1,0 +1,17 @@
+# Show JSON surfaces inherited_blocking when an ancestor epic is blocked.
+
+np-init IB
+np-seed task 'Blocker task' inherited-blocking BLOCKER
+np-seed epic 'Blocked epic' inherited-blocking EPIC
+
+# Block the epic.
+np-seed-rel EPIC blocked_by BLOCKER inherited-blocking
+
+# Create a child task under the blocked epic.
+np-seed task 'Child of blocked epic' inherited-blocking CHILD --parent $EPIC
+
+exec np show $CHILD --json
+np-json-has is_ready false
+! np-json-no-field inherited_blocking
+stdout '"ancestor_id":'
+stdout '"blocker_ids":'

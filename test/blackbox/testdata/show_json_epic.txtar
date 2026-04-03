@@ -1,0 +1,11 @@
+# Show JSON for an epic with a child: role is "epic", child_count >= 1,
+# created_at present.
+
+np-init SE
+np-seed epic 'Epic for show JSON audit' epic-agent EPIC
+np-seed task 'Child task' epic-agent CHILD --parent $EPIC
+
+exec np show $EPIC --json
+np-json-has role epic
+np-json-has child_count 1
+stdout '"created_at":'

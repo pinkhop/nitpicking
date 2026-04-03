@@ -1,0 +1,10 @@
+# Update with an invalid priority exits with validation error (code 4).
+
+np-init UVAL
+np-seed task 'Priority validation' val-agent TASK --claim
+
+stdin update.json
+! exec np json update --claim $TASK_CLAIM
+
+-- update.json --
+{"priority": "P99"}

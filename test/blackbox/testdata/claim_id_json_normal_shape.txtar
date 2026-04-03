@@ -1,0 +1,19 @@
+# Verify that 'np claim --json' produces valid JSON with expected shape:
+# snake_case keys, issue_id matching the claimed issue, non-empty claim_id,
+# stolen=false, no is_deleted, no PascalCase leaks.
+
+np-init CI
+np-seed task 'Task for claim audit' claim-audit TASK
+
+exec np claim $TASK --author claim-audit --json
+np-json-has issue_id $TASK
+! np-json-no-field claim_id
+np-json-has stolen false
+
+# No is_deleted field.
+np-json-no-field is_deleted
+
+# No PascalCase key leaks.
+! stdout '"IssueID"'
+! stdout '"ClaimID"'
+! stdout '"Stolen"'

@@ -1,0 +1,4 @@
+# Verify that the close command's help description uses user-friendly language.
+
+exec np --help
+stdout 'Close an issue that you have claimed'

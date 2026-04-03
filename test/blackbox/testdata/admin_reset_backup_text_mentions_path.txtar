@@ -1,0 +1,10 @@
+# Verify that admin reset in text mode mentions the backup file path.
+
+np-init RST
+np-seed task 'Issue for text backup' reset-agent T1
+
+exec np admin reset --json
+np-capture RESET_KEY reset_key
+
+exec np admin reset --reset-key $RESET_KEY
+stdout 'backup|\.jsonl\.gz'

@@ -1,0 +1,4 @@
+# Verify that json update does not expose a --role flag (role is immutable).
+
+exec np json update --help
+! stdout '--role'

@@ -1,0 +1,17 @@
+# Epic status JSON for all epics: correct shape, counts, and fields.
+
+np-init ES
+np-seed epic 'Audit epic' epic-status-audit EPIC
+np-seed task 'Child A' epic-status-audit CHILD1 --parent $EPIC --claim
+np-seed task 'Child B' epic-status-audit CHILD2 --parent $EPIC
+
+exec np close --claim $CHILD1_CLAIM --reason done --json
+
+exec np epic status --json
+stdout '"epics":'
+stdout '"count":'
+stdout $EPIC
+stdout '"total_children": 2'
+stdout '"closed_children": 1'
+! stdout '"is_deleted"'
+! stdout '"ID"'

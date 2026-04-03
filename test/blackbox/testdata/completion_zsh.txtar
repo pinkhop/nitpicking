@@ -1,0 +1,7 @@
+# Verify that 'np admin completion zsh' emits a non-empty script with core commands.
+
+exec np admin completion zsh
+stdout 'list'
+stdout 'create'
+stdout 'claim'
+stdout 'show'

@@ -1,0 +1,7 @@
+# Verify that 'np agent prime --json' includes a non-empty instructions field
+# containing key workflow guidance.
+
+np-init PRIME
+exec np agent prime --json
+! np-json-no-field instructions
+stdout 'claim ready'

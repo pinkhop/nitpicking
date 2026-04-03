@@ -1,0 +1,14 @@
+# Rel parent tree JSON: items array with snake_case keys,
+# id/role/state/created_at, no is_deleted.
+
+np-init PT
+np-seed epic 'Parent tree audit' tree-agent EPIC
+np-seed task 'Descendant for tree' tree-agent CHILD --parent $EPIC
+
+exec np rel parent tree $EPIC --json
+stdout '"items":'
+stdout '"id":'
+stdout '"role":'
+stdout '"state":'
+stdout '"created_at":'
+! stdout '"is_deleted"'

@@ -1,0 +1,107 @@
+# Verify that 'np json create' correctly handles all supported fields:
+# role, title, description, acceptance_criteria, priority, parent, labels,
+# --with-claim flag, comment, and schema compatibility fields (label_remove,
+# claim in JSON).
+
+np-init JC
+
+# --- Task with content fields and parent ---
+
+np-seed epic 'Parent epic' jc-agent EPIC
+
+# Create a task with description, acceptance_criteria, priority, and parent.
+# Parent ID is dynamic, so pipe the JSON via shell.
+exec sh -c 'echo "{\"role\":\"task\",\"title\":\"Full task\",\"description\":\"A detailed description\",\"acceptance_criteria\":\"All tests pass\",\"priority\":\"P0\",\"parent\":\"$EPIC\"}" | np json create --author jc-agent'
+
+# Verify create output shape.
+np-json-has role task
+np-json-has state open
+np-json-has title 'Full task'
+np-json-has priority P0
+! np-json-no-field id
+! np-json-no-field created_at
+np-json-no-field is_deleted
+
+np-capture TASK_ID id
+
+# Verify persisted fields via show.
+exec np show $TASK_ID --json
+np-json-has role task
+np-json-has title 'Full task'
+np-json-has priority P0
+np-json-has state open
+np-json-has description 'A detailed description'
+np-json-has acceptance_criteria 'All tests pass'
+np-json-has parent_id $EPIC
+
+# --- Task with --with-claim ---
+
+stdin claim_task.json
+exec np json create --author jc-agent --with-claim
+
+np-json-has state claimed
+! np-json-no-field claim_id
+np-capture CLAIMED_ID id
+
+exec np show $CLAIMED_ID --json
+np-json-has state claimed
+
+# --- Task with labels ---
+
+stdin labeled_task.json
+exec np json create --author jc-agent
+
+np-capture LABELED_ID id
+
+exec np label list $LABELED_ID --json
+np-json-array-len labels 2
+
+# --- claim in JSON is silently ignored ---
+
+stdin claim_in_json.json
+exec np json create --author jc-agent
+
+np-json-has state open
+np-json-no-field claim_id
+
+# --- label_remove in JSON is silently ignored ---
+
+stdin label_remove_task.json
+exec np json create --author jc-agent
+
+np-json-has state open
+
+# --- comment creates a comment on the new issue ---
+
+stdin comment_task.json
+exec np json create --author jc-agent
+
+np-capture COMMENT_TASK_ID id
+
+exec np show $COMMENT_TASK_ID --json
+np-json-has comment_count 1
+
+# --- role defaults to task when omitted ---
+
+stdin no_role_task.json
+exec np json create --author jc-agent
+
+np-json-has role task
+
+-- claim_task.json --
+{"title": "Claimed task"}
+
+-- labeled_task.json --
+{"role": "task", "title": "Labeled task", "labels": ["kind:feat", "area:auth"]}
+
+-- claim_in_json.json --
+{"role": "task", "title": "Claim ignored", "claim": true}
+
+-- label_remove_task.json --
+{"title": "Label remove ignored", "label_remove": ["kind"]}
+
+-- comment_task.json --
+{"title": "Task with comment", "comment": "Initial reasoning"}
+
+-- no_role_task.json --
+{"title": "Role defaults to task"}

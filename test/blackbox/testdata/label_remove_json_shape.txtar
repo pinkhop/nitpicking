@@ -1,0 +1,11 @@
+# Verify that 'np label remove --json' produces valid JSON with snake_case keys,
+# correct key/action fields, and no is_deleted.
+
+np-init LR
+np-seed task 'Labeled task' label-rm-audit TASK --claim --label kind:bug
+
+exec np label remove kind --claim $TASK_CLAIM --json
+np-json-has key kind
+np-json-has action removed
+! np-json-no-field issue_id
+np-json-no-field is_deleted

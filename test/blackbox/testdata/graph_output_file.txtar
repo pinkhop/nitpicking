@@ -1,0 +1,12 @@
+# Verify that 'np rel graph --format dot --output FILE' writes DOT output to
+# the specified file instead of stdout.
+
+np-init TEST
+np-seed task 'File test' test-agent TASK
+
+exec np rel graph --format dot --output issues.dot
+
+# Verify the file was written with expected content.
+exec cat issues.dot
+stdout 'digraph issues'
+stdout 'File test'

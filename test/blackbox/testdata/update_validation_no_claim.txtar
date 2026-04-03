@@ -1,0 +1,11 @@
+# Update without --claim flag is rejected by the CLI framework.
+
+np-init UVAL
+np-seed task 'No claim update' val-agent TASK
+
+stdin update.json
+! exec np json update
+stderr 'claim'
+
+-- update.json --
+{"title": "Should fail"}

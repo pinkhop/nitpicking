@@ -1,0 +1,4 @@
+# Verify that 'np admin completion' without a shell argument fails.
+
+! exec np admin completion
+stderr 'shell argument is required'

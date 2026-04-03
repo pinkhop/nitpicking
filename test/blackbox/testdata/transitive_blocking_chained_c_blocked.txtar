@@ -1,0 +1,12 @@
+# Verify that in a chain A blocks B, B blocks C, task C is not ready while B
+# is still open.
+
+np-init TB
+np-seed task 'Task A (root blocker)' transitive-agent TASK_A
+np-seed task 'Task B (blocked by A)' transitive-agent TASK_B
+np-seed task 'Task C (blocked by B)' transitive-agent TASK_C
+np-seed-rel TASK_B blocked_by TASK_A transitive-agent
+np-seed-rel TASK_C blocked_by TASK_B transitive-agent
+
+exec np show $TASK_C --json
+np-json-has is_ready false

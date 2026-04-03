@@ -1,0 +1,11 @@
+# Verify that 'np version --json' produces valid JSON with snake_case keys,
+# non-empty name and version fields, and no is_deleted.
+
+exec np version --json
+! np-json-no-field name
+! np-json-no-field version
+np-json-no-field is_deleted
+
+# No PascalCase leaks.
+! stdout '"Name"'
+! stdout '"Version"'

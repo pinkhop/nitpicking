@@ -1,0 +1,11 @@
+# Reopen JSON output: action is "reopen", issue_id matches, no is_deleted.
+
+np-init RO
+np-seed task 'Reopen target' reopen-agent TASK --claim
+
+exec np close --claim $TASK_CLAIM --reason 'closing for reopen test' --json
+
+exec np issue reopen $TASK --author reopen-agent --json
+np-json-has action reopen
+np-json-has issue_id $TASK
+np-json-no-field is_deleted

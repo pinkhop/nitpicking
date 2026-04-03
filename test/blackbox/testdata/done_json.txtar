@@ -1,0 +1,19 @@
+# Close JSON output: action is "close", issue_id matches,
+# no is_deleted.
+
+np-init DJ
+np-seed task 'Close task' done-agent TASK1 --claim
+np-seed task 'Close alias' done-agent TASK2 --claim
+
+# np close (primary form)
+exec np close --claim $TASK1_CLAIM --reason 'Completed: all tests pass.' --json
+np-json-has issue_id $TASK1
+np-json-has action close
+np-json-no-field is_deleted
+! stdout 'IssueID'
+! stdout 'Action'
+
+# np close (same command, different task)
+exec np close --claim $TASK2_CLAIM --reason 'Done via close alias.' --json
+np-json-has issue_id $TASK2
+np-json-has action close

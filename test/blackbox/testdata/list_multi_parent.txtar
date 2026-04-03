@@ -1,0 +1,12 @@
+# Verify that np list accepts multiple --parent flags and returns children
+# from all specified parent epics, excluding orphan tasks.
+
+np-init MP
+np-seed epic 'Epic A' parent-agent EPIC_A
+np-seed epic 'Epic B' parent-agent EPIC_B
+np-seed task 'Child of A' parent-agent CHILD_A --parent $EPIC_A
+np-seed task 'Child of B' parent-agent CHILD_B --parent $EPIC_B
+np-seed task 'Orphan task' parent-agent ORPHAN
+
+exec np list --parent $EPIC_A --parent $EPIC_B --json
+np-json-array-len items 2

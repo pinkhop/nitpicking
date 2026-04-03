@@ -1,0 +1,28 @@
+# Verify that closing an epic (by closing all its children + close-completed)
+# unblocks a target epic's children.
+
+np-init TE
+np-seed epic 'Epic A (blocker)' transitive-agent EPIC_A
+np-seed epic 'Epic B (blocked)' transitive-agent EPIC_B
+np-seed-rel EPIC_B blocked_by EPIC_A transitive-agent
+
+np-seed task 'Child of A - 1' transitive-agent CHILD_A1 --parent $EPIC_A --claim
+np-seed task 'Child of A - 2' transitive-agent CHILD_A2 --parent $EPIC_A --claim
+np-seed task 'Child of B - 1' transitive-agent CHILD_B1 --parent $EPIC_B
+
+# B's child is initially not ready.
+exec np show $CHILD_B1 --json
+np-json-has is_ready false
+
+# Close all children of A, then close Epic A via close-completed.
+exec np close --claim $CHILD_A1_CLAIM --reason done
+exec np close --claim $CHILD_A2_CLAIM --reason done
+exec np epic close-completed --author transitive-agent --json
+
+# Verify Epic A is closed.
+exec np show $EPIC_A --json
+np-json-has state closed
+
+# B's child is now ready.
+exec np show $CHILD_B1 --json
+np-json-has is_ready true

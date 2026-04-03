@@ -1,0 +1,7 @@
+# Verify that np init fails when an ancestor directory already has .np/.
+
+np-init ANC
+mkdir subproject
+cd subproject
+! exec np init CHILD
+stderr 'existing|found'

@@ -1,0 +1,21 @@
+# Verify that 'np admin backup --workspace' writes the backup to the
+# specified workspace's .np/ directory, not the one discovered from cwd.
+
+mkdir workspace-a
+cd workspace-a
+np-init BA
+np-seed task 'Issue in A' tester TASK_A
+cd $WORK
+
+mkdir workspace-b
+cd workspace-b
+np-init BB
+np-seed task 'Issue in B' tester TASK_B
+cd $WORK
+
+# From workspace-a, backup workspace-b without --output.
+cd workspace-a
+exec np --workspace $WORK/workspace-b admin backup --json
+np-json-has issue_count 1
+stdout 'workspace-b'
+! stdout 'workspace-a'

@@ -1,0 +1,28 @@
+# Verify that list-style JSON commands never leak claim_id, claim_author,
+# or claim_stale_at fields for claimed issues.
+
+np-init REDACT
+np-seed task 'Claimed for redaction test' redact-agent TASK --claim
+np-seed task 'Blocked by claimed' redact-agent BLOCKED
+np-seed-rel BLOCKED blocked_by TASK redact-agent
+
+# list --json
+exec np list --json
+! stdout '"claim_id"'
+! stdout '"claim_author"'
+! stdout '"claim_stale_at"'
+
+# list --state claimed --json
+exec np list --state claimed --json
+! stdout '"claim_id"'
+! stdout '"claim_author"'
+
+# blocked --json
+exec np blocked --json
+! stdout '"claim_id"'
+! stdout '"claim_author"'
+
+# search --json
+exec np issue search Claimed --json
+! stdout '"claim_id"'
+! stdout '"claim_author"'

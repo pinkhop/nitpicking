@@ -1,0 +1,13 @@
+# Verify that NP_AUTHOR environment variable substitutes for the --author
+# flag when adding a comment via json comment.
+
+np-init AENV
+np-seed task 'Author env test' setup-agent TASK
+
+env NP_AUTHOR=env-author
+stdin comment.json
+exec np json comment $TASK
+np-json-has author env-author
+
+-- comment.json --
+{"body": "Comment from env author"}

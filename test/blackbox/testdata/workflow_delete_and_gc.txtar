@@ -1,0 +1,14 @@
+# Delete and GC: soft-delete a task, verify it disappears from list, then
+# run garbage collection.
+
+np-init WF
+np-seed task 'Ephemeral task' gc-agent TASK --claim
+
+exec np issue delete --claim $TASK_CLAIM --confirm --json
+
+# The deleted issue should not appear in list.
+exec np list --json
+np-json-array-len items 0
+
+# GC should succeed.
+exec np admin gc --confirm --json

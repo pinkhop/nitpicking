@@ -1,0 +1,12 @@
+# Verify that acceptance_criteria round-trips through json create and show.
+
+np-init FLAG
+stdin input.json
+exec np json create --author flag-agent
+np-capture TASK id
+
+exec np show $TASK --json
+stdout 'Unit tests pass'
+
+-- input.json --
+{"role":"task","title":"With AC","acceptance_criteria":"1. Unit tests pass\n2. Blackbox component tests pass"}

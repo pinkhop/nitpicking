@@ -1,0 +1,13 @@
+# Update with comment adds a comment inline during the update.
+
+np-init UFLAG
+np-seed task 'Comment test' flag-agent TASK --claim
+
+stdin update.json
+exec np json update --claim $TASK_CLAIM
+
+exec np comment list $TASK --json
+stdout 'Progress update: halfway done'
+
+-- update.json --
+{"comment": "Progress update: halfway done"}

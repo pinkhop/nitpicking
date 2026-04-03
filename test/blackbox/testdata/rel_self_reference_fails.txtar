@@ -1,0 +1,7 @@
+# Verify that adding a blocked_by relationship from an issue to itself fails.
+
+np-init REDGE
+np-seed task 'Self-reference test' rel-agent TASK
+
+! exec np rel add $TASK blocked_by $TASK --author rel-agent --json
+stderr 'itself'

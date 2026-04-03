@@ -1,0 +1,22 @@
+# Verify that a task under a blocked epic becomes ready when the blocker
+# epic is closed (via close-completed after its children are closed).
+
+np-init CR
+np-seed epic 'Epic A (to close)' cascade-agent EPIC_A
+np-seed epic 'Epic B (blocked then unblocked)' cascade-agent EPIC_B
+np-seed-rel EPIC_B blocked_by EPIC_A cascade-agent
+np-seed task 'Task awaiting unblock' cascade-agent TASK --parent $EPIC_B
+
+# Verify task is initially not ready.
+exec np show $TASK --json
+np-json-has is_ready false
+
+# Close Epic A: create child, close it, then close-completed.
+np-seed task 'Child of A' cascade-agent CHILD_A --parent $EPIC_A --claim
+exec np close --claim $CHILD_A_CLAIM --reason done
+exec np epic close-completed --author cascade-agent
+
+# Task under B is now ready.
+exec np show $TASK --json
+np-json-has is_ready true
+np-json-no-field inherited_blocking

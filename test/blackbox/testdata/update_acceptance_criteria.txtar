@@ -1,0 +1,13 @@
+# Update acceptance_criteria round-trips through show.
+
+np-init UFLAG
+np-seed task 'AC test' flag-agent TASK --claim
+
+stdin update.json
+exec np json update --claim $TASK_CLAIM
+
+exec np show $TASK --json
+np-json-has acceptance_criteria 'All unit tests pass'
+
+-- update.json --
+{"acceptance_criteria": "All unit tests pass"}

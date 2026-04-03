@@ -1,0 +1,13 @@
+# Doctor verbose JSON output for stale claims must not expose claim IDs.
+
+np-init DRVRB
+np-seed task 'Stale for verbose doctor' doctor-redact TASK
+
+# Claim with a 1ms duration so the claim is immediately stale.
+exec np claim $TASK --author doctor-redact --duration 1ms --json
+np-capture CLAIM claim_id
+
+# Verbose doctor output must not contain the claim ID.
+exec np admin doctor --verbose --json
+! stdout $CLAIM@R
+! stdout '"claim_id"'

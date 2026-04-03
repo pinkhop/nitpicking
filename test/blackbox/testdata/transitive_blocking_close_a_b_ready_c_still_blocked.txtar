@@ -1,0 +1,20 @@
+# Verify that closing A unblocks B, but C remains blocked because B is
+# still open.
+
+np-init TB
+np-seed task 'Task A (to close)' transitive-agent TASK_A --claim
+np-seed task 'Task B (blocked by A)' transitive-agent TASK_B
+np-seed task 'Task C (blocked by B)' transitive-agent TASK_C
+np-seed-rel TASK_B blocked_by TASK_A transitive-agent
+np-seed-rel TASK_C blocked_by TASK_B transitive-agent
+
+# Close A.
+exec np close --claim $TASK_A_CLAIM --reason done
+
+# B is now ready.
+exec np show $TASK_B --json
+np-json-has is_ready true
+
+# C is still blocked (B is open).
+exec np show $TASK_C --json
+np-json-has is_ready false

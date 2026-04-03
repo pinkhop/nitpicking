@@ -1,0 +1,26 @@
+# Verify that the unified create command works in pipe mode (non-TTY stdin),
+# creating an issue from a JSON object piped to stdin.
+
+np-init TEST
+
+# Create a task via piped JSON to the unified create command.
+exec sh -c 'echo ''{"role":"task","title":"Piped create task","priority":"P1"}'' | np create --author pipe-agent'
+np-json-has role task
+np-json-has title 'Piped create task'
+np-json-has priority P1
+np-json-has state open
+np-capture TASK_ID id
+
+# Verify the created issue persists and can be retrieved.
+exec np show $TASK_ID --json
+np-json-has title 'Piped create task'
+np-json-has priority P1
+np-json-has role task
+
+# Create an epic via piped JSON to verify both roles work.
+exec sh -c 'echo ''{"role":"epic","title":"Piped create epic"}'' | np create --author pipe-agent'
+np-json-has role epic
+np-json-has title 'Piped create epic'
+
+# Verify that --author is required in pipe mode.
+! exec sh -c 'echo ''{"role":"task","title":"No author"}'' | np create'

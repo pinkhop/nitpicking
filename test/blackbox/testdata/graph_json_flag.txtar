@@ -1,0 +1,10 @@
+# Verify that 'np rel graph --json' produces valid JSON output (alias for
+# --format json). The output is a JSON array of root issues.
+
+np-init TEST
+np-seed task 'JSON test' test-agent TASK
+
+exec np rel graph --json
+stdout '\['
+stdout '\]'
+stdout 'JSON test'

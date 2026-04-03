@@ -1,0 +1,8 @@
+# Doctor diagnostics: verify that "admin doctor" succeeds on a healthy
+# database with open issues.
+
+np-init WF
+np-seed task 'Healthy task A' doctor-agent TASKA
+np-seed task 'Healthy task B' doctor-agent TASKB
+
+exec np admin doctor --json

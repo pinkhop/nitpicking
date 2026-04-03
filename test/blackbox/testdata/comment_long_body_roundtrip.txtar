@@ -1,0 +1,7 @@
+# Verify that comments with very long bodies (>10KB) persist and display
+# correctly through a create → list round-trip.
+
+np-init CEDGE
+np-seed task 'Long comment test' comment-agent TASK
+
+np-comment-long TASK comment-agent 10000

@@ -1,0 +1,7 @@
+# Show text for a task with no children displays "Children: 0".
+
+np-init SCT
+np-seed task 'Childless text task' show-child-agent TASK
+
+exec np show $TASK
+stdout 'Children \(0\):'

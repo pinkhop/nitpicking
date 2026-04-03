@@ -1,0 +1,20 @@
+# Blocked-by readiness gating: a task blocked by another task becomes ready
+# only after the blocker is closed.
+
+np-init WF
+np-seed task 'Prerequisite work' block-agent BLOCKER
+np-seed task 'Dependent work' block-agent BLOCKED
+np-seed-rel BLOCKED blocked_by BLOCKER block-agent
+
+# Before closing the blocker: blocked issue is not ready.
+exec np show $BLOCKED --json
+np-json-has is_ready false
+
+# Close the blocker.
+exec np claim $BLOCKER --author block-agent --json
+np-capture BLOCKER_CLAIM claim_id
+exec np close --claim $BLOCKER_CLAIM --reason 'test close' --json
+
+# After closing the blocker: blocked issue becomes ready.
+exec np show $BLOCKED --json
+np-json-has is_ready true

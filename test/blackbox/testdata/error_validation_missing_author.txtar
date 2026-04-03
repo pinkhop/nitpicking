@@ -1,0 +1,10 @@
+# Verify that creating without --author produces a validation error mentioning
+# the missing field.
+
+np-init ERR
+stdin input.json
+! exec np json create
+stderr 'author'
+
+-- input.json --
+{"role":"task","title":"No author"}

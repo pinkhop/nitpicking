@@ -1,0 +1,34 @@
+# Verify that issue history JSON output conforms to structural standards:
+# snake_case keys, required fields present, UTC millisecond timestamps with
+# Z suffix, and no is_deleted field.
+
+np-init HJ
+np-seed task 'History JSON audit' history-agent TASK --claim
+
+stdin update.json
+exec np json update --claim $TASK_CLAIM
+
+exec np issue history $TASK --json
+
+# Top-level structure.
+stdout '"issue_id":'
+stdout '"entries":'
+
+# Entry structure: event_type, author, and timestamp present.
+stdout '"event_type": "created"'
+stdout '"event_type": "updated"'
+stdout '"author": "history-agent"'
+
+# Timestamps use UTC millisecond Z format (YYYY-MM-DDTHH:MM:SS.mmmZ).
+stdout '"timestamp": "\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z"'
+
+# Changes have snake_case field names.
+stdout '"field": "title"'
+stdout '"before":'
+stdout '"after":'
+
+# No is_deleted field anywhere in the output.
+! stdout 'is_deleted'
+
+-- update.json --
+{"title": "Updated for history"}

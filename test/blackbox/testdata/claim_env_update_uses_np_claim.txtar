@@ -1,0 +1,15 @@
+# Verify that the NP_CLAIM environment variable can be used in place of the
+# --claim flag when running 'np json update'.
+
+np-init CLENV
+np-seed task 'Env claim test' env-agent TASK --claim
+
+env NP_CLAIM=$TASK_CLAIM
+stdin update.json
+exec np json update
+
+exec np show $TASK --json
+np-json-has title 'Updated via env'
+
+-- update.json --
+{"title": "Updated via env"}

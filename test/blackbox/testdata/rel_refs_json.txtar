@@ -1,0 +1,18 @@
+# Rel refs list JSON shape and unref operation.
+
+np-init RR
+np-seed task 'Task A' refslist-audit TASK_A
+np-seed task 'Task B' refslist-audit TASK_B
+
+exec np rel add $TASK_A refs $TASK_B --author refslist-audit --json
+
+# List refs.
+exec np rel refs list $TASK_A --json
+np-json-has issue_id $TASK_A
+np-json-array-len relationships 1
+np-json-no-field is_deleted
+
+# Unref.
+exec np rel refs unref $TASK_A $TASK_B --author refslist-audit --json
+np-json-has action unrefed
+np-json-no-field is_deleted

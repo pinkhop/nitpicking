@@ -1,0 +1,26 @@
+# Full task lifecycle: create a task, claim it, update fields, add a
+# comment, and close it. Verify the final state reflects all mutations.
+
+np-init WF
+np-seed task 'Implement feature X' workflow-agent TASK --claim
+
+stdin update.json
+exec np json update --claim $TASK_CLAIM
+
+stdin comment.json
+exec np json comment $TASK --author workflow-agent
+
+exec np close --claim $TASK_CLAIM --reason 'test close' --json
+np-json-has action close
+
+exec np show $TASK --json
+np-json-has state closed
+np-json-has title 'Implement feature X (revised)'
+np-json-has priority P1
+np-json-has description 'Updated after investigation'
+
+-- update.json --
+{"title": "Implement feature X (revised)", "description": "Updated after investigation", "priority": "P1"}
+
+-- comment.json --
+{"body": "Root cause found in auth module"}

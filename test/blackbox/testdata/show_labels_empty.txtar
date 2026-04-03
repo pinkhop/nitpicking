@@ -1,0 +1,7 @@
+# Show JSON omits labels when the issue has none (omitempty behavior).
+
+np-init SN
+np-seed task 'No labels task' label-agent TASK
+
+exec np show $TASK --json
+np-json-no-field labels

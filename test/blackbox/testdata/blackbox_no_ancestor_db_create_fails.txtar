@@ -1,0 +1,7 @@
+# Verify that creating an issue without a prior init fails (no prefix set).
+
+stdin input.json
+! exec np json create --author ghost
+
+-- input.json --
+{"role":"task","title":"Should fail"}

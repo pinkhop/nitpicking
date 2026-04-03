@@ -1,0 +1,18 @@
+# Verify that 'np admin where --workspace' reports the specified workspace,
+# not the .np/ discovered from the current directory.
+
+mkdir workspace-a
+cd workspace-a
+np-init WA
+cd $WORK
+
+mkdir workspace-b
+cd workspace-b
+np-init WB
+cd $WORK
+
+# From workspace-a, ask where workspace-b is.
+cd workspace-a
+exec np --workspace $WORK/workspace-b admin where
+stdout 'workspace-b/.np'
+! stdout 'workspace-a'

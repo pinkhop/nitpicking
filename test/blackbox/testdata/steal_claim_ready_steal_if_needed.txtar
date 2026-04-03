@@ -1,0 +1,13 @@
+# Verify that 'np claim ready --steal' steals a stale claim when no
+# unclaimed ready issues are available.
+
+np-init STEAL
+np-seed task 'Only issue' agent-alpha TASK
+
+# Agent A claims with a very short duration.
+exec np claim $TASK --author agent-alpha --duration 1ms --json
+
+# Agent B uses claim ready with --steal.
+exec np claim ready --author agent-beta --steal --json
+np-json-has issue_id $TASK
+np-json-has stolen true

@@ -1,0 +1,11 @@
+# Verify that 'np rel graph --format text' renders an ASCII tree with
+# parent-child hierarchy.
+
+np-init TEST
+np-seed epic 'My Epic' test-agent EPIC
+np-seed task 'Child Task' test-agent CHILD --parent $EPIC
+
+exec np rel graph --format text
+stdout 'My Epic'
+stdout 'Child Task'
+stdout '└──'

@@ -1,0 +1,12 @@
+# Verify that 'np json create' with --with-claim includes a non-empty claim_id
+# in the JSON output and the timestamp still conforms.
+
+np-init CC
+stdin input.json
+exec np json create --author create-agent --with-claim
+
+! np-json-no-field claim_id
+stdout '"created_at": "\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z"'
+
+-- input.json --
+{"role":"task","title":"Claimed at creation"}

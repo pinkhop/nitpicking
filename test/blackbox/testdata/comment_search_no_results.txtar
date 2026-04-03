@@ -1,0 +1,8 @@
+# Verify that comment search with no matches returns empty results.
+
+np-init CS
+np-seed task 'No match test' cs-agent TASK
+np-seed-comment TASK 'Hello world' cs-agent
+
+exec np comment search nonexistent --json
+np-json-array-len comments 0

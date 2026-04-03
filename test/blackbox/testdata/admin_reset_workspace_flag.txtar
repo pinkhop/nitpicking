@@ -1,0 +1,32 @@
+# Verify that 'np admin reset --workspace' targets the specified workspace,
+# not the .np/ discovered from the current directory.
+
+mkdir workspace-a
+cd workspace-a
+np-init RA
+cd $WORK
+
+mkdir workspace-b
+cd workspace-b
+np-init RB
+np-seed task 'Target issue' tester TASK
+cd $WORK
+
+# From workspace-a, initiate reset on workspace-b.
+cd workspace-a
+exec np --workspace $WORK/workspace-b admin reset --json
+np-capture KEY reset_key
+
+# Hash file should be in workspace-b, not workspace-a.
+exists $WORK/workspace-b/.np/reset-key-hash.txt
+! exists $WORK/workspace-a/.np/reset-key-hash.txt
+
+# Execute the reset targeting workspace-b.
+exec np --workspace $WORK/workspace-b admin reset --reset-key $KEY --json
+np-json-has action reset
+
+# Hash file removed from workspace-b after successful reset.
+! exists $WORK/workspace-b/.np/reset-key-hash.txt
+
+# Backup created in workspace-b.
+stdout 'workspace-b'

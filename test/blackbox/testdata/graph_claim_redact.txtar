@@ -1,0 +1,9 @@
+# DOT graph output for a claimed issue must not expose the claim ID
+# bearer token while still showing the issue node.
+
+np-init GR
+np-seed task 'Graph claim redact' graph-agent TASK --claim
+
+exec np rel graph --format dot
+stdout $TASK
+! stdout $TASK_CLAIM@R

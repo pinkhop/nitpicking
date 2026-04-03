@@ -1,0 +1,7 @@
+# Verify that --stale-at rejects timestamps in the past.
+
+np-init IP
+np-seed task 'Past timestamp task' ip-author TASK
+
+! exec np claim $TASK --author ip-author --stale-at 2020-01-01T00:00:00Z
+stderr 'future'

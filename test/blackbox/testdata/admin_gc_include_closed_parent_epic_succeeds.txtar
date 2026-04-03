@@ -1,0 +1,10 @@
+# admin gc --include-closed succeeds when parent epic is closed via
+# the completed secondary state (all children closed).
+
+np-init GP
+np-seed epic 'parent epic' gc-agent EPIC
+np-seed task 'child task' gc-agent CHILD --parent $EPIC --claim
+exec np close --claim $CHILD_CLAIM --reason done
+
+# The epic auto-closes when all children close.
+exec np admin gc --confirm --include-closed --json

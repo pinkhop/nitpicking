@@ -178,6 +178,12 @@ env.secret.*
 mise.local.toml
 
 
+####################
+# NITPICKING (NP)
+
+.np/
+
+
 ################################################################################
 # PROJECT LANGUAGES
 
@@ -223,3 +229,5 @@ dist/
 # Coverage reports (created by `make coverage`)
 coverage/
 
+cmd/explore/
+explore

@@ -1,0 +1,5 @@
+# Verify that np init fails when the same directory is already initialized.
+
+np-init SAME
+! exec np init DIFF
+stderr 'existing|found'

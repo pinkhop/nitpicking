@@ -1,0 +1,21 @@
+# Verify np-json-array-len with relationship arrays.
+
+np-init TEST
+np-seed task 'Task A' test-agent TASK_A
+np-seed task 'Task B' test-agent TASK_B
+
+# Add a blocked_by relationship from A to B.
+exec np rel add $TASK_A blocked_by $TASK_B --author test-agent
+
+# Show the issue with relationships and assert array length.
+exec np show $TASK_A --json
+np-json-array-len relationships 1
+
+# Negated assertion: array length is NOT 0.
+exec np show $TASK_A --json
+! np-json-array-len relationships 0
+
+# Issue with no relationships should have no relationships field
+# (omitzero), but let's verify on the other issue.
+exec np show $TASK_B --json
+np-json-array-len relationships 1

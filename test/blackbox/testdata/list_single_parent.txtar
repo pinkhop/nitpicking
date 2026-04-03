@@ -1,0 +1,10 @@
+# Verify backward compatibility: a single --parent flag returns only children
+# of that parent.
+
+np-init SP
+np-seed epic 'Solo Epic' single-parent-agent EPIC
+np-seed task 'Child task' single-parent-agent CHILD --parent $EPIC
+np-seed task 'Orphan' single-parent-agent ORPHAN
+
+exec np list --parent $EPIC --json
+np-json-array-len items 1

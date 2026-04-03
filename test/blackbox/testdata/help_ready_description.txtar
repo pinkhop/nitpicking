@@ -1,0 +1,4 @@
+# Verify that the ready command's help description uses user-friendly language.
+
+exec np --help
+stdout 'List the open issues with no blockers'

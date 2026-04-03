@@ -1,0 +1,11 @@
+# Verify that np list accepts multiple --state flags and returns issues
+# matching any of the specified states.
+
+np-init MS
+np-seed task 'Open task' multi-agent OPEN_TASK
+np-seed task 'Claimed task' multi-agent CLAIM_TASK
+
+exec np claim $CLAIM_TASK --author multi-agent --json
+
+exec np list --state open --state claimed --json
+np-json-array-len items 2

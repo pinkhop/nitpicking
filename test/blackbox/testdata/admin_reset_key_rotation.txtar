@@ -1,0 +1,14 @@
+# Admin reset step 1 called twice: the second call generates a different
+# key and the first key is no longer accepted.
+
+np-init AR
+np-seed task 'Task' reset-agent TASK
+
+exec np admin reset --json
+np-capture KEY1 reset_key
+
+exec np admin reset --json
+np-capture KEY2 reset_key
+
+# Old key must be rejected after regeneration.
+! exec np admin reset --reset-key $KEY1 --json

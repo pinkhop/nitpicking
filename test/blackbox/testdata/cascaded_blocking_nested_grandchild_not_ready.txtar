@@ -1,0 +1,16 @@
+# Verify that blocking cascades through nested epics: if A blocks B and C is
+# a child of B, a task under C is not ready.
+
+np-init NC
+np-seed epic 'Epic A (root blocker)' cascade-agent EPIC_A
+np-seed epic 'Epic B (blocked)' cascade-agent EPIC_B
+np-seed-rel EPIC_B blocked_by EPIC_A cascade-agent
+np-seed epic 'Epic C (child of B)' cascade-agent EPIC_C --parent $EPIC_B
+np-seed task 'Grandchild task' cascade-agent TASK --parent $EPIC_C
+
+exec np show $TASK --json
+np-json-has is_ready false
+
+# inherited_blocking references Epic B (the directly blocked ancestor).
+stdout '"ancestor_id"'
+stdout $EPIC_B

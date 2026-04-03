@@ -1,0 +1,11 @@
+# Verify that 'np list --ready --json' only returns ready issues.
+
+np-init LJ
+np-seed task 'Ready task' audit-agent TASK_A
+np-seed task 'Blocked task' audit-agent TASK_B
+np-seed-rel TASK_B blocked_by TASK_A audit-agent
+
+exec np list --ready --json
+np-json-array-len items 1
+stdout 'Ready task'
+! stdout 'Blocked task'

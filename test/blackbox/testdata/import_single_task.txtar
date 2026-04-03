@@ -1,0 +1,14 @@
+# Verify that np import creates a single task from a JSONL file.
+
+np-init IM
+
+exec np import jsonl testdata/single_task.jsonl --author import-agent --json
+stdout '"action": "imported"'
+stdout '"created": 1'
+
+# Verify the issue exists.
+exec np issue search "Imported task one" --json
+! np-json-array-len items 0
+
+-- testdata/single_task.jsonl --
+{"idempotency_key":"import-t1","role":"task","title":"Imported task one","priority":"P3"}

@@ -1,0 +1,22 @@
+# Verify that np import creates an epic with child tasks linked by
+# intra-file idempotency key references (including forward references).
+# The epic appears last to test forward reference support.
+
+np-init IC
+
+exec np import jsonl testdata/epic_children.jsonl --author import-agent --json
+stdout '"action": "imported"'
+stdout '"created": 3'
+
+# Verify the epic exists.
+exec np issue search "Auth overhaul" --json
+! np-json-array-len items 0
+
+# Verify child tasks exist.
+exec np issue search "Unit tests" --json
+! np-json-array-len items 0
+
+-- testdata/epic_children.jsonl --
+{"idempotency_key":"auth-epic","role":"epic","title":"Auth overhaul","priority":"P1"}
+{"idempotency_key":"auth-tests","role":"task","title":"Unit tests for auth","parent":"auth-epic","priority":"P1"}
+{"idempotency_key":"auth-integration","role":"task","title":"Integration tests","parent":"auth-epic","priority":"P1"}

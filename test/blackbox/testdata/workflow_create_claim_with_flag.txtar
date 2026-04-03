@@ -1,0 +1,9 @@
+# Create with --claim flag: atomic create-and-claim in a single command.
+# The response includes a claim_id and the issue is immediately claimed.
+
+np-init WF
+np-seed task 'Urgent hotfix' flag-agent TASK --claim
+
+exec np show $TASK --json
+np-json-has state claimed
+np-json-has claim_author flag-agent

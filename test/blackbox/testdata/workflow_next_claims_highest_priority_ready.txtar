@@ -1,0 +1,10 @@
+# Priority ordering: "claim ready" should claim the highest-priority ready
+# issue (P0 before P2 before P3).
+
+np-init WF
+np-seed task 'Low priority' priority-agent LOW --priority P3
+np-seed task 'High priority' priority-agent HIGH --priority P0
+np-seed task 'Medium priority' priority-agent MED --priority P2
+
+exec np claim ready --author priority-agent --json
+np-json-has issue_id $HIGH

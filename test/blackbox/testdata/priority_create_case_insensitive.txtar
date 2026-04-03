@@ -1,0 +1,31 @@
+# Verify that json create accepts case-insensitive and bare-number priority formats.
+
+np-init PRIO
+
+# Canonical uppercase.
+stdin input1.json
+exec np json create --author prio-agent
+np-capture TASK_P3 id
+exec np show $TASK_P3 --json
+np-json-has priority P3
+
+# Lowercase.
+stdin input2.json
+exec np json create --author prio-agent
+np-capture TASK_P1 id
+exec np show $TASK_P1 --json
+np-json-has priority P1
+
+# Bare number.
+stdin input3.json
+exec np json create --author prio-agent
+np-capture TASK_P4 id
+exec np show $TASK_P4 --json
+np-json-has priority P4
+
+-- input1.json --
+{"role":"task","title":"Priority P3","priority":"P3"}
+-- input2.json --
+{"role":"task","title":"Priority p1","priority":"p1"}
+-- input3.json --
+{"role":"task","title":"Priority 4","priority":"4"}

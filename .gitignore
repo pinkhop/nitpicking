@@ -139,6 +139,7 @@ $RECYCLE.BIN/
 # CLAUDE CODE
 
 .claude/settings.local.json
+.remember/
 CLAUDE.local.md
 
 ####################

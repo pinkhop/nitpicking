@@ -102,6 +102,244 @@ func TestRun_DefaultPath_JSON_ReturnsStructuredOutput(t *testing.T) {
 	}
 }
 
+func TestRun_DefaultPath_WithPrefix_IncludesPrefixInFilename(t *testing.T) {
+	t.Parallel()
+
+	// Given — a temporary .np/ directory and a prefix.
+	tmpDir := t.TempDir()
+	npDir := filepath.Join(tmpDir, ".np")
+	if err := os.MkdirAll(npDir, 0o755); err != nil {
+		t.Fatalf("creating .np dir: %v", err)
+	}
+	dbPath := filepath.Join(npDir, "np.db")
+
+	var buf bytes.Buffer
+	input := backupcmd.RunInput{
+		DiscoverFunc: func() (string, error) { return dbPath, nil },
+		Prefix:       "PKHP",
+		BackupFunc:   func(w io.WriteCloser) (int, error) { return 3, nil },
+		WriteTo:      &buf,
+	}
+
+	// When
+	err := backupcmd.Run(t.Context(), input)
+	// Then — backup filename includes lowercase prefix.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entries, err := os.ReadDir(npDir)
+	if err != nil {
+		t.Fatalf("reading .np dir: %v", err)
+	}
+
+	var found bool
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "backup-pkhp.") && strings.HasSuffix(e.Name(), ".jsonl.gz") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("expected backup file with prefix in .np/ directory, found: %v", names)
+	}
+}
+
+func TestRun_DefaultPath_WithPrefix_JSON_IncludesPrefixInPath(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	tmpDir := t.TempDir()
+	npDir := filepath.Join(tmpDir, ".np")
+	if err := os.MkdirAll(npDir, 0o755); err != nil {
+		t.Fatalf("creating .np dir: %v", err)
+	}
+	dbPath := filepath.Join(npDir, "np.db")
+
+	var buf bytes.Buffer
+	input := backupcmd.RunInput{
+		DiscoverFunc: func() (string, error) { return dbPath, nil },
+		Prefix:       "TST",
+		BackupFunc:   func(w io.WriteCloser) (int, error) { return 5, nil },
+		WriteTo:      &buf,
+		JSON:         true,
+	}
+
+	// When
+	err := backupcmd.Run(t.Context(), input)
+	// Then — JSON output path includes the prefix.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var result map[string]any
+	if jsonErr := json.Unmarshal(buf.Bytes(), &result); jsonErr != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", jsonErr, buf.String())
+	}
+	path, ok := result["path"].(string)
+	if !ok {
+		t.Fatalf("path not a string: %v", result["path"])
+	}
+	if !strings.Contains(path, "backup-tst.") {
+		t.Errorf("path should contain 'backup-tst.', got: %s", path)
+	}
+}
+
+func TestRun_DefaultPath_EmptyPrefix_FallsBackToOriginalFormat(t *testing.T) {
+	t.Parallel()
+
+	// Given — no prefix provided.
+	tmpDir := t.TempDir()
+	npDir := filepath.Join(tmpDir, ".np")
+	if err := os.MkdirAll(npDir, 0o755); err != nil {
+		t.Fatalf("creating .np dir: %v", err)
+	}
+	dbPath := filepath.Join(npDir, "np.db")
+
+	var buf bytes.Buffer
+	input := backupcmd.RunInput{
+		DiscoverFunc: func() (string, error) { return dbPath, nil },
+		BackupFunc:   func(w io.WriteCloser) (int, error) { return 1, nil },
+		WriteTo:      &buf,
+	}
+
+	// When
+	err := backupcmd.Run(t.Context(), input)
+	// Then — backup filename uses the original format without prefix.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entries, err := os.ReadDir(npDir)
+	if err != nil {
+		t.Fatalf("reading .np dir: %v", err)
+	}
+
+	var found bool
+	for _, e := range entries {
+		// Original format: backup.<timestamp>.jsonl.gz (no prefix dash).
+		if strings.HasPrefix(e.Name(), "backup.") && strings.HasSuffix(e.Name(), ".jsonl.gz") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected backup file with original format in .np/ directory")
+	}
+}
+
+// --- Tests: prefix sanitization ---
+
+func TestRun_DefaultPath_MaliciousPrefix_SanitizedInFilename(t *testing.T) {
+	t.Parallel()
+
+	// Given — a prefix containing path traversal characters.
+	tmpDir := t.TempDir()
+	npDir := filepath.Join(tmpDir, ".np")
+	if err := os.MkdirAll(npDir, 0o755); err != nil {
+		t.Fatalf("creating .np dir: %v", err)
+	}
+	dbPath := filepath.Join(npDir, "np.db")
+
+	var buf bytes.Buffer
+	input := backupcmd.RunInput{
+		DiscoverFunc: func() (string, error) { return dbPath, nil },
+		BackupFunc:   func(w io.WriteCloser) (int, error) { return 1, nil },
+		WriteTo:      &buf,
+		Prefix:       "../../etc/NP",
+	}
+
+	// When
+	err := backupcmd.Run(t.Context(), input)
+	// Then — backup stays inside .np/ and path traversal characters are stripped.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entries, err := os.ReadDir(npDir)
+	if err != nil {
+		t.Fatalf("reading .np dir: %v", err)
+	}
+
+	var found bool
+	for _, e := range entries {
+		// Path-unsafe characters stripped, only letters remain: "etcnp"
+		if strings.HasPrefix(e.Name(), "backup-etcnp.") && strings.HasSuffix(e.Name(), ".jsonl.gz") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("expected sanitized backup file in .np/ directory, found: %v", names)
+	}
+
+	// Verify no files were created outside .np/.
+	parentEntries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatalf("reading parent dir: %v", err)
+	}
+	for _, e := range parentEntries {
+		if e.Name() != ".np" {
+			t.Errorf("unexpected file outside .np/: %s", e.Name())
+		}
+	}
+}
+
+func TestRun_OutputFlagDirectory_MaliciousPrefix_StaysInDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Given — a directory output with a malicious prefix.
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "backups")
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatalf("creating output dir: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := backupcmd.RunInput{
+		DiscoverFunc: func() (string, error) { return "", nil },
+		BackupFunc:   func(w io.WriteCloser) (int, error) { return 1, nil },
+		WriteTo:      &buf,
+		Output:       outputDir,
+		Prefix:       "../../../tmp/EVIL",
+	}
+
+	// When
+	err := backupcmd.Run(t.Context(), input)
+	// Then — backup stays inside the output directory.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entries, err := os.ReadDir(outputDir)
+	if err != nil {
+		t.Fatalf("reading output dir: %v", err)
+	}
+
+	var found bool
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "backup-tmpevil.") && strings.HasSuffix(e.Name(), ".jsonl.gz") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("expected sanitized backup file in output directory, found: %v", names)
+	}
+}
+
 // --- Tests: --output flag ---
 
 func TestRun_OutputFlag_WritesToSpecifiedPath(t *testing.T) {
@@ -264,5 +502,139 @@ func TestRun_OutputFlag_InvalidPath_ReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "creating backup file") {
 		t.Errorf("error should mention file creation, got: %v", err)
+	}
+}
+
+// --- Tests: --output flag with directory ---
+
+func TestRun_OutputFlagDirectory_UsesDefaultFilenameInDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Given — a directory as the output path.
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "backups")
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatalf("creating output dir: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := backupcmd.RunInput{
+		DiscoverFunc: func() (string, error) { return "", nil },
+		BackupFunc:   func(w io.WriteCloser) (int, error) { return 4, nil },
+		WriteTo:      &buf,
+		Output:       outputDir,
+		Prefix:       "TST",
+	}
+
+	// When
+	err := backupcmd.Run(t.Context(), input)
+	// Then — backup file created in the specified directory with the default filename.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entries, err := os.ReadDir(outputDir)
+	if err != nil {
+		t.Fatalf("reading output dir: %v", err)
+	}
+
+	var found bool
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "backup-tst.") && strings.HasSuffix(e.Name(), ".jsonl.gz") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("expected backup file with prefix in output directory, found: %v", names)
+	}
+}
+
+func TestRun_OutputFlagDirectory_NoPrefix_UsesOriginalFilename(t *testing.T) {
+	t.Parallel()
+
+	// Given — a directory as the output path, no prefix.
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "backups")
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatalf("creating output dir: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := backupcmd.RunInput{
+		DiscoverFunc: func() (string, error) { return "", nil },
+		BackupFunc:   func(w io.WriteCloser) (int, error) { return 2, nil },
+		WriteTo:      &buf,
+		Output:       outputDir,
+	}
+
+	// When
+	err := backupcmd.Run(t.Context(), input)
+	// Then — backup file uses original format without prefix.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entries, err := os.ReadDir(outputDir)
+	if err != nil {
+		t.Fatalf("reading output dir: %v", err)
+	}
+
+	var found bool
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "backup.") && strings.HasSuffix(e.Name(), ".jsonl.gz") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected backup file with original format in output directory")
+	}
+}
+
+func TestRun_OutputFlagDirectory_JSON_PathIncludesDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Given — a directory as the output path with JSON output.
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "backups")
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatalf("creating output dir: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := backupcmd.RunInput{
+		DiscoverFunc: func() (string, error) { return "", nil },
+		BackupFunc:   func(w io.WriteCloser) (int, error) { return 3, nil },
+		WriteTo:      &buf,
+		Output:       outputDir,
+		Prefix:       "NP",
+		JSON:         true,
+	}
+
+	// When
+	err := backupcmd.Run(t.Context(), input)
+	// Then — JSON output path is inside the specified directory.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var result map[string]any
+	if jsonErr := json.Unmarshal(buf.Bytes(), &result); jsonErr != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", jsonErr, buf.String())
+	}
+	path, ok := result["path"].(string)
+	if !ok {
+		t.Fatalf("path not a string: %v", result["path"])
+	}
+	if !strings.HasPrefix(path, outputDir) {
+		t.Errorf("path should start with output dir %q, got: %s", outputDir, path)
+	}
+	if !strings.Contains(path, "backup-np.") {
+		t.Errorf("path should contain 'backup-np.', got: %s", path)
 	}
 }

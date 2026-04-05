@@ -1984,7 +1984,7 @@ np admin backup [options]
 
 | Flag | Description |
 |------|-------------|
-| `--output`, `-o` | Destination path for the backup file. Default: `.np/backup.<timestamp>.jsonl.gz`. |
+| `--output`, `-o` | Destination file or directory for the backup. If a directory, the default filename is used inside it. Default: `.np/backup-<prefix>.<timestamp>.jsonl.gz`. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**
@@ -1995,6 +1995,10 @@ $ np admin backup
 
 ```
 $ np admin backup -o my-backup.jsonl.gz
+```
+
+```
+$ np admin backup -o /tmp/backups/
 ```
 
 **Exit codes:**
@@ -2195,7 +2199,7 @@ np admin restore [options] <backup-file>
 **Examples:**
 
 ```
-$ np admin restore .np/backup.20260401T120000Z.jsonl.gz
+$ np admin restore .np/backup-np.20260401T120000Z.jsonl.gz
 ```
 
 **Exit codes:**

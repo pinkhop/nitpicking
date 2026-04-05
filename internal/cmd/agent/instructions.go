@@ -153,9 +153,14 @@ If no ready issues exist, steal a stale one:
 np claim ready --steal --author <your-name>
 ` + "```" + `
 
+## Backups
+
+Run ` + "`np admin backup`" + ` before any destructive operation (resets, restores, schema experiments). The backup is a gzip-compressed JSONL file written to ` + "`.np/`" + ` by default. Use ` + "`--output`" + ` to specify a file or directory.
+
 ## Diagnostics
 
 ` + "```" + `
+np admin backup    # create a backup in .np/ (default filename includes the database prefix)
 np admin doctor    # detect stale claims, no-ready-issues analysis, suggest unblock actions
 np show <ID>       # full issue detail including readiness and relationships
 np issue history <ID> # audit trail of all changes

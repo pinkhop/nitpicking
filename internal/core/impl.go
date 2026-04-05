@@ -2834,6 +2834,13 @@ func (s *serviceImpl) restoreV1(ctx context.Context, header domain.BackupHeader,
 		records = append(records, rec)
 	}
 
+	// Validate the backup header's prefix before performing any destructive
+	// operations. A corrupt or malicious backup could contain path-unsafe
+	// characters in the prefix, which downstream code embeds in filenames.
+	if err := domain.ValidatePrefix(header.Prefix); err != nil {
+		return fmt.Errorf("invalid prefix in backup header: %w", err)
+	}
+
 	return s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
 		db := uow.Database()
 

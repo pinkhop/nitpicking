@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/urfave/cli/v3"
 
@@ -229,10 +228,15 @@ func resetExecute(ctx context.Context, f *cmdutil.Factory, svc driving.Service, 
 }
 
 // createBackup writes a JSONL backup to the .np/ directory and returns the
-// file path. Mirrors the logic in backupcmd but without CLI flag plumbing.
+// file path. Delegates filename generation to backupcmd.DefaultBackupFilename
+// to keep the format consistent across all backup commands.
 func createBackup(ctx context.Context, svc driving.Service, npDir string) (string, error) {
-	filename := fmt.Sprintf("backup.%d.jsonl.gz", time.Now().Unix())
-	backupPath := filepath.Join(npDir, filename)
+	prefix, err := svc.GetPrefix(ctx)
+	if err != nil {
+		return "", fmt.Errorf("reading database prefix: %w", err)
+	}
+
+	backupPath := filepath.Join(npDir, backupcmd.DefaultBackupFilename(prefix))
 
 	file, err := os.OpenFile(backupPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) // #nosec G304 -- path constructed from discovered .np/ directory
 	if err != nil {

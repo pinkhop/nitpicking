@@ -42,9 +42,18 @@ changelog:
   filters:
     exclude:
       - "^docs:"
+      - "^docs\\("
       - "^test:"
+      - "^test\\("
       - "^chore:"
+      - "^chore\\("
       - "^ci:"
+      - "^ci\\("
+      - "^style:"
+      - "^style\\("
+      # PR merge commits are empty two-parent commits with no meaningful content
+      - "^Merge pull request "
+      - "^Merge branch "
 
 release:
   github:

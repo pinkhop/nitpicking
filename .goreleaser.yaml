@@ -34,6 +34,21 @@ archives:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
+sboms:
+  - artifacts: archive
+    documents:
+      - "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.spdx.json"
+
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    output: true
+    args:
+      - sign-blob
+      - --yes
+      - "${artifact}"
+      - --bundle=${signature}
+
 checksum:
   name_template: "checksums.txt"
 
@@ -42,9 +57,18 @@ changelog:
   filters:
     exclude:
       - "^docs:"
+      - "^docs\\("
       - "^test:"
+      - "^test\\("
       - "^chore:"
+      - "^chore\\("
       - "^ci:"
+      - "^ci\\("
+      - "^style:"
+      - "^style\\("
+      # PR merge commits are empty two-parent commits with no meaningful content
+      - "^Merge pull request "
+      - "^Merge branch "
 
 release:
   github:

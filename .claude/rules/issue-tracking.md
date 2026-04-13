@@ -77,21 +77,15 @@ JSONEND
 
 Use the `parent` field to attach children to the epic. For large epics, decompose into sub-epics and leave further planning to a future implementor. Add `blocked_by` relationships between children to indicate required ordering.
 
-To create a deferred issue (so it does not appear as ready work until explicitly undeferred), use a three-step workflow:
-
-1. Create the issue and immediately claim it using `--with-claim`
-2. Defer it: `np issue defer --claim <CLAIM-ID>`
-3. Release it: `np issue release --claim <CLAIM-ID>`
+To create a deferred issue (so it does not appear as ready work until explicitly undeferred), use the `--deferred` flag:
 
 ```
-np json create --author <your-name> --with-claim <<'JSONEND'
+np json create --deferred --author <your-name> <<'JSONEND'
 {
   "title": "Step 2",
   "parent": "<EPIC-ID>"
 }
 JSONEND
-np issue defer --claim <CLAIM-ID>
-np issue release --claim <CLAIM-ID>
 ```
 
 ### 3. Document your work with comments
@@ -176,7 +170,7 @@ np json create --author <your-name> <<'JSONEND'
 JSONEND
 ```
 
-**CLI flags:** `--author` (required), `--with-claim` (optional, immediately claims the new issue).
+**CLI flags:** `--author` (required), `--with-claim` (optional, immediately claims the new issue), `--deferred` (optional, creates the issue in the deferred state; mutually exclusive with `--with-claim`).
 **JSON fields:** `title` (required), `role` (defaults to `task`), `description`, `acceptance_criteria`, `priority`, `parent`, `labels` (array of `key:value` strings). Unknown fields are rejected.
 
 ### json update

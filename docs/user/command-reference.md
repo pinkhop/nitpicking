@@ -1600,6 +1600,8 @@ np comment search [options] <QUERY>
 | `--parent` | Scope to comments on an issue and its direct children. Repeatable. |
 | `--tree` | Scope to comments on all issues in a tree. Repeatable. |
 | `--follow-refs` | Expand scope to include referenced issues. |
+| `--limit N`, `-n N` | Maximum number of results (default 20). |
+| `--no-limit` | Return all matching results. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**

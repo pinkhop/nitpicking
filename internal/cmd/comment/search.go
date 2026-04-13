@@ -3,10 +3,12 @@ package comment
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/urfave/cli/v3"
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
+	"github.com/pinkhop/nitpicking/internal/iostreams"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
@@ -25,6 +27,77 @@ type searchOutput struct {
 	HasMore  bool                  `json:"has_more"`
 }
 
+// RunSearchInput holds the parameters for the comment search operation,
+// decoupled from CLI flag parsing so it can be tested directly.
+type RunSearchInput struct {
+	Service     driving.Service
+	Query       string
+	Filter      driving.CommentFilterInput
+	Limit       int
+	JSON        bool
+	WriteTo     io.Writer
+	ColorScheme *iostreams.ColorScheme
+}
+
+// RunSearch executes the comment search workflow: searches comments matching the
+// query and writes the result to WriteTo. Limit controls the maximum number of
+// results; -1 means unbounded.
+func RunSearch(ctx context.Context, input RunSearchInput) error {
+	output, err := input.Service.SearchComments(ctx, driving.SearchCommentsInput{
+		Query:  input.Query,
+		Filter: input.Filter,
+		Limit:  input.Limit,
+	})
+	if err != nil {
+		return fmt.Errorf("searching comments: %w", err)
+	}
+
+	if input.JSON {
+		out := searchOutput{
+			Comments: make([]searchCommentOutput, 0, len(output.Comments)),
+			HasMore:  output.HasMore,
+		}
+		for _, c := range output.Comments {
+			out.Comments = append(out.Comments, searchCommentOutput{
+				CommentID: c.DisplayID,
+				IssueID:   c.IssueID,
+				Author:    c.Author,
+				CreatedAt: c.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z"),
+				Body:      c.Body,
+			})
+		}
+		return cmdutil.WriteJSON(input.WriteTo, out)
+	}
+
+	// Text output.
+	w := input.WriteTo
+	cs := input.ColorScheme
+	if cs == nil {
+		cs = iostreams.NewColorScheme(false)
+	}
+
+	if len(output.Comments) == 0 {
+		_, _ = fmt.Fprintln(w, "No matching comments found.")
+		return nil
+	}
+
+	for _, c := range output.Comments {
+		authorStr := truncate(c.Author, 24)
+		snippet := truncate(c.Body, 80)
+		_, _ = fmt.Fprintf(w, "%s  %s  %s\n",
+			cs.Cyan(c.IssueID),
+			cs.Dim(authorStr),
+			snippet,
+		)
+	}
+
+	if output.HasMore {
+		_, _ = fmt.Fprintf(w, "%s\n", cs.Dim("(more results available)"))
+	}
+
+	return nil
+}
+
 // newSearchCmd constructs "comment search" which performs full-text search
 // across comment bodies with optional issue-scoping flags.
 func newSearchCmd(f *cmdutil.Factory) *cli.Command {
@@ -36,6 +109,8 @@ func newSearchCmd(f *cmdutil.Factory) *cli.Command {
 		authorArgs []string
 		labelArgs  []string
 		followRefs bool
+		limit      int
+		noLimit    bool
 	)
 
 	return &cli.Command{
@@ -51,7 +126,10 @@ area of the tracker — for example, searching for prior discussion about a
 specific module, error message, or design decision. The --tree flag scopes
 to an entire epic hierarchy, and --follow-refs expands the scope to include
 referenced issues, making it easy to find related context across loosely
-connected issues.`,
+connected issues.
+
+By default, results are limited to a reasonable page size; use --no-limit or
+--limit to adjust.`,
 		ArgsUsage: "<query>",
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
@@ -92,6 +170,20 @@ connected issues.`,
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &followRefs,
 			},
+			&cli.IntFlag{
+				Name:        "limit",
+				Aliases:     []string{"n"},
+				Usage:       "Maximum number of results",
+				Value:       cmdutil.DefaultLimit,
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "no-limit",
+				Usage:       "Return all matching results",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &noLimit,
+			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON",
@@ -117,56 +209,20 @@ connected issues.`,
 				return err
 			}
 
-			output, err := svc.SearchComments(ctx, driving.SearchCommentsInput{
-				Query:  query,
-				Filter: filter,
-				Limit:  50,
-			})
+			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
 			if err != nil {
-				return fmt.Errorf("searching comments: %w", err)
+				return cmdutil.FlagErrorf("%s", err)
 			}
 
-			if jsonOutput {
-				out := searchOutput{
-					Comments: make([]searchCommentOutput, 0, len(output.Comments)),
-					HasMore:  output.HasMore,
-				}
-				for _, c := range output.Comments {
-					out.Comments = append(out.Comments, searchCommentOutput{
-						CommentID: c.DisplayID,
-						IssueID:   c.IssueID,
-						Author:    c.Author,
-						CreatedAt: c.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z"),
-						Body:      c.Body,
-					})
-				}
-				return cmdutil.WriteJSON(f.IOStreams.Out, out)
-			}
-
-			// Text output.
-			w := f.IOStreams.Out
-			cs := f.IOStreams.ColorScheme()
-
-			if len(output.Comments) == 0 {
-				_, _ = fmt.Fprintln(w, "No matching comments found.")
-				return nil
-			}
-
-			for _, c := range output.Comments {
-				authorStr := truncate(c.Author, 24)
-				snippet := truncate(c.Body, 80)
-				_, _ = fmt.Fprintf(w, "%s  %s  %s\n",
-					cs.Cyan(c.IssueID),
-					cs.Dim(authorStr),
-					snippet,
-				)
-			}
-
-			if output.HasMore {
-				_, _ = fmt.Fprintf(w, "%s\n", cs.Dim("(more results available)"))
-			}
-
-			return nil
+			return RunSearch(ctx, RunSearchInput{
+				Service:     svc,
+				Query:       query,
+				Filter:      filter,
+				Limit:       effectiveLimit,
+				JSON:        jsonOutput,
+				WriteTo:     f.IOStreams.Out,
+				ColorScheme: f.IOStreams.ColorScheme(),
+			})
 		},
 	}
 }

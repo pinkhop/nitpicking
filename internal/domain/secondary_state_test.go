@@ -14,6 +14,7 @@ func TestSecondaryState_String_AllValues(t *testing.T) {
 		want  string
 	}{
 		{domain.SecondaryNone, ""},
+		{domain.SecondaryClaimed, "claimed"},
 		{domain.SecondaryReady, "ready"},
 		{domain.SecondaryBlocked, "blocked"},
 		{domain.SecondaryUnplanned, "unplanned"},
@@ -58,6 +59,7 @@ func TestSecondaryState_ParseRoundTrips(t *testing.T) {
 	t.Parallel()
 
 	cases := []domain.SecondaryState{
+		domain.SecondaryClaimed,
 		domain.SecondaryReady,
 		domain.SecondaryBlocked,
 		domain.SecondaryUnplanned,

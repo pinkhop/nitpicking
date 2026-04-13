@@ -54,7 +54,6 @@ func TestIssueListItem_DisplayStatus_NoSecondaryState_ReturnsPrimaryOnly(t *test
 		state domain.State
 		want  string
 	}{
-		{"claimed", domain.StateClaimed, "claimed"},
 		{"closed", domain.StateClosed, "closed"},
 		{"open none", domain.StateOpen, "open"},
 		{"deferred none", domain.StateDeferred, "deferred"},

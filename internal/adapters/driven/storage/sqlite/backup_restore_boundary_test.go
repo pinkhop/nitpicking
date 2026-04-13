@@ -41,7 +41,7 @@ func newBoundaryEnv(t *testing.T, prefix string) *boundaryEnv {
 		_ = store.Close()
 	})
 
-	svc := core.New(store)
+	svc := core.New(store, store)
 	ctx := t.Context()
 	if err := svc.Init(ctx, prefix); err != nil {
 		t.Fatalf("initializing database: %v", err)
@@ -531,9 +531,12 @@ func TestBoundary_BackupRestore_CommentSearchAfterRestore(t *testing.T) {
 	}
 }
 
-// --- Test: Backup preserves claim state ---
+// --- Test: Backup excludes claim data (v2 format) ---
 
-func TestBoundary_BackupRestore_ClaimedIssuePreserved(t *testing.T) {
+// TestBoundary_BackupRestore_ClaimedIssueRestoredAsOpen verifies that a claimed
+// issue backed up in v2 format is restored as open with no active claim. Claims
+// are transient and excluded from v2 backups.
+func TestBoundary_BackupRestore_ClaimedIssueRestoredAsOpen(t *testing.T) {
 	// Given — a database with a claimed task.
 	env := newBoundaryEnv(t, "CLM")
 	taskID := env.createTask(t, "Task to be claimed", func(in *driving.CreateIssueInput) {
@@ -543,26 +546,139 @@ func TestBoundary_BackupRestore_ClaimedIssuePreserved(t *testing.T) {
 
 	backupPath, _ := env.doBackup(t)
 
-	// When — restore.
+	// When — restore to a fresh database.
 	env2 := newBoundaryEnv(t, "TMP")
 	env2.doRestore(t, backupPath)
 
-	// Then — issue should show as claimed.
+	// Then — issue should be open with no active claim (v2 backups exclude
+	// claim data; claims are transient and not carried across restore).
 	show, err := env2.svc.ShowIssue(env2.ctx, taskID.String())
 	if err != nil {
 		t.Fatalf("showing issue after restore: %v", err)
 	}
-	if show.ClaimAuthor != "claim-owner" {
-		t.Errorf("claim author after restore = %q, want %q", show.ClaimAuthor, "claim-owner")
+	if show.State != domain.StateOpen {
+		t.Errorf("issue state after restore = %v, want open", show.State)
 	}
-	if show.State != domain.StateClaimed {
-		t.Errorf("issue state after restore = %v, want %v", show.State, domain.StateClaimed)
+	if show.ClaimAuthor != "" {
+		t.Errorf("claim author after restore = %q, want empty (claims are excluded from v2 backups)", show.ClaimAuthor)
 	}
+}
+
+// TestBoundary_BackupRestore_V1BackupClaimedRestoredAsOpen verifies that a v1
+// backup containing an issue with state="claimed" is restored as open in the
+// v2 database. This covers the migration path: v1 backup → v2 database.
+func TestBoundary_BackupRestore_V1BackupClaimedRestoredAsOpen(t *testing.T) {
+	// Given — a hand-crafted v1 backup containing a claimed-state issue.
+	// The prefix uses only uppercase ASCII letters to satisfy validation.
+	const v1Backup = `{"prefix":"OLD","timestamp":"2026-01-01T00:00:00Z","version":1}
+{"issue_id":"OLD-aaaaa","role":"task","title":"Claimed task","state":"claimed","priority":"P2","created_at":"2026-01-01T00:00:00Z","labels":[],"comments":[],"relationships":[],"claims":[{"claim_sha512":"deadbeef","author":"claimant","stale_threshold":7200000000000,"last_activity":"2026-01-01T00:00:00Z"}],"history":[]}
+`
+	env := newBoundaryEnv(t, "TEMP")
+
+	// Write the backup to a gzip-compressed file.
+	backupPath := writeGZIPBackup(t, env.tmpDir, v1Backup)
+
+	// When — restore the v1 backup.
+	env.doRestore(t, backupPath)
+
+	// Then — the claimed issue should be open with no claim row.
+	show, err := env.svc.ShowIssue(env.ctx, "OLD-aaaaa")
+	if err != nil {
+		t.Fatalf("showing issue after v1 restore: %v", err)
+	}
+	if show.State != domain.StateOpen {
+		t.Errorf("issue state after v1 restore = %v, want open", show.State)
+	}
+	if show.ClaimAuthor != "" {
+		t.Errorf("claim author after v1 restore = %q, want empty", show.ClaimAuthor)
+	}
+	if show.Title != "Claimed task" {
+		t.Errorf("title after v1 restore = %q, want %q", show.Title, "Claimed task")
+	}
+}
+
+// TestBoundary_BackupRestore_V1BackupClaimedReleasedHistoryFiltered verifies
+// that restoring a v1 backup drops history entries with event_type="claimed"
+// or event_type="released". Those event types were removed from the EventType
+// enum in v2; without filtering, ParseEventType returns EventType(0) and
+// np issue history renders garbled "EventType(0)" output.
+//
+// The test uses a hand-crafted v1 backup with three history entries:
+// one "created" (must survive), one "claimed" (must be dropped), and one
+// "released" (must be dropped). After restore, only the "created" entry
+// should appear in the issue history.
+func TestBoundary_BackupRestore_V1BackupClaimedReleasedHistoryFiltered(t *testing.T) {
+	// Given — a hand-crafted v1 backup containing history entries with
+	// event_type="claimed" and event_type="released" alongside a valid
+	// "created" entry. The prefix uses only uppercase ASCII letters.
+	const v1Backup = `{"prefix":"HIS","timestamp":"2026-01-01T00:00:00Z","version":1}
+{"issue_id":"HIS-aaaaa","role":"task","title":"History test task","state":"open","priority":"P2","created_at":"2026-01-01T00:00:00Z","labels":[],"comments":[],"relationships":[],"claims":[],"history":[{"entry_id":1,"revision":0,"author":"seeder","timestamp":"2026-01-01T00:00:00Z","event_type":"created","changes":[]},{"entry_id":2,"revision":1,"author":"claimer","timestamp":"2026-01-01T01:00:00Z","event_type":"claimed","changes":[]},{"entry_id":3,"revision":2,"author":"claimer","timestamp":"2026-01-01T02:00:00Z","event_type":"released","changes":[]}]}
+`
+	env := newBoundaryEnv(t, "TEMP")
+
+	backupPath := writeGZIPBackup(t, env.tmpDir, v1Backup)
+
+	// When — restore the v1 backup into a fresh database.
+	env.doRestore(t, backupPath)
+
+	// Then — history must contain only the "created" entry; the "claimed" and
+	// "released" entries must be absent so that np issue history renders cleanly.
+	histOut, err := env.svc.ShowHistory(env.ctx, driving.ListHistoryInput{
+		IssueID: "HIS-aaaaa",
+		Limit:   -1,
+	})
+	if err != nil {
+		t.Fatalf("ShowHistory after v1 restore: %v", err)
+	}
+
+	if len(histOut.Entries) != 1 {
+		t.Errorf("history entry count = %d, want 1 (only the 'created' entry)", len(histOut.Entries))
+	}
+
+	for _, e := range histOut.Entries {
+		if e.EventType == "claimed" || e.EventType == "released" {
+			t.Errorf("history entry with event_type=%q survived restore; it should have been filtered", e.EventType)
+		}
+		if e.EventType == "EventType(0)" {
+			t.Errorf("history entry has garbled event_type %q; ParseEventType returned zero value", e.EventType)
+		}
+	}
+
+	if len(histOut.Entries) > 0 && histOut.Entries[0].EventType != "created" {
+		t.Errorf("first history event = %q, want %q", histOut.Entries[0].EventType, "created")
+	}
+}
+
+// writeGZIPBackup writes raw JSONL content to a gzip-compressed file and
+// returns the file path.
+func writeGZIPBackup(t *testing.T, tmpDir, content string) string {
+	t.Helper()
+
+	backupPath := filepath.Join(tmpDir, "v1backup.jsonl.gz")
+	f, err := os.Create(backupPath)
+	if err != nil {
+		t.Fatalf("creating v1 backup file: %v", err)
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	gzw := gzip.NewWriter(f)
+	if _, err := gzw.Write([]byte(content)); err != nil {
+		t.Fatalf("writing v1 backup content: %v", err)
+	}
+	if err := gzw.Close(); err != nil {
+		t.Fatalf("closing gzip writer: %v", err)
+	}
+
+	return backupPath
 }
 
 // --- State capture and comparison ---
 
-// issueSnapshot holds all observable data for a single domain.
+// issueSnapshot holds all observable data for a single issue that is
+// expected to survive a backup/restore cycle. Claims are intentionally
+// excluded — they are transient and not preserved in v2 backups.
 type issueSnapshot struct {
 	id                 string
 	role               string
@@ -578,7 +694,6 @@ type issueSnapshot struct {
 	commentBodies      []string
 	relationshipCount  int
 	historyCount       int
-	claimAuthor        string
 }
 
 // databaseState is a map of issue ID to snapshot.
@@ -644,7 +759,6 @@ func captureState(t *testing.T, env *boundaryEnv, seed seedResult) databaseState
 			commentBodies:      bodies,
 			relationshipCount:  len(show.Relationships),
 			historyCount:       len(histOut.Entries),
-			claimAuthor:        show.ClaimAuthor,
 		}
 
 		state[show.ID] = snap
@@ -699,9 +813,6 @@ func compareStates(t *testing.T, expected, actual databaseState) {
 		}
 		if exp.historyCount != act.historyCount {
 			t.Errorf("issue %s history count: expected %d, got %d", id, exp.historyCount, act.historyCount)
-		}
-		if exp.claimAuthor != act.claimAuthor {
-			t.Errorf("issue %s claim author: expected %q, got %q", id, exp.claimAuthor, act.claimAuthor)
 		}
 
 		// Compare labels.

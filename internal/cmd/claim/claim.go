@@ -15,15 +15,14 @@ import (
 )
 
 // claimOutput is the JSON representation of a claim result, since both
-// claim-by-ID and claim-ready return an issue ID, claim ID, author,
-// timestamps, and stolen flag.
+// claim-by-ID and claim-ready return an issue ID, claim ID, author, and
+// timestamps.
 type claimOutput struct {
 	IssueID   string `json:"issue_id"`
 	ClaimID   string `json:"claim_id"`
 	Author    string `json:"author"`
 	CreatedAt string `json:"created_at"`
 	StaleAt   string `json:"stale_at"`
-	Stolen    bool   `json:"stolen"`
 }
 
 // RunClaimByIDInput holds the parameters for claiming an issue by ID,
@@ -32,7 +31,6 @@ type RunClaimByIDInput struct {
 	Service      driving.Service
 	IssueID      string
 	Author       string
-	AllowSteal   bool
 	Duration     time.Duration
 	StaleAt      time.Time
 	LabelFilters []driving.LabelFilterInput
@@ -56,7 +54,6 @@ func RunClaimByID(ctx context.Context, input RunClaimByIDInput) error {
 	result, err := input.Service.ClaimByID(ctx, driving.ClaimInput{
 		IssueID:        input.IssueID,
 		Author:         input.Author,
-		AllowSteal:     input.AllowSteal,
 		StaleThreshold: input.Duration,
 		StaleAt:        input.StaleAt,
 		LabelFilters:   input.LabelFilters,
@@ -76,7 +73,6 @@ type RunClaimReadyInput struct {
 	Author       string
 	Role         string
 	LabelFilters []driving.LabelFilterInput
-	AllowSteal   bool
 	Duration     time.Duration
 	StaleAt      time.Time
 	JSON         bool
@@ -98,7 +94,6 @@ func RunClaimReady(ctx context.Context, input RunClaimReadyInput) error {
 		Author:         input.Author,
 		Role:           roleFilter,
 		LabelFilters:   input.LabelFilters,
-		StealIfNeeded:  input.AllowSteal,
 		StaleThreshold: input.Duration,
 		StaleAt:        input.StaleAt,
 	})
@@ -117,7 +112,6 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		jsonOutput bool
 		author     string
 		role       string
-		steal      bool
 		duration   string
 		staleAtRaw string
 	)
@@ -136,10 +130,8 @@ know about. Pass the literal word "ready" to let np pick the highest-priority
 ready issue for you — this is the standard starting point for agents that need
 work. Use --with-role and --with-label to narrow what "ready" considers.
 
-Claims expire after a configurable duration (default 2 hours). If another
-agent's claim has gone stale, use --steal to take it over. With "ready",
---steal causes np to fall back to stealable issues when no unclaimed ready
-issues remain.`,
+Claims expire after a configurable duration (default 2 hours). Stale claims
+are treated as nonexistent: any agent can overwrite them by claiming normally.`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "author",
@@ -160,12 +152,6 @@ issues remain.`,
 				Name:     "with-label",
 				Usage:    "Label filter in key:value or key:* format (repeatable, AND semantics)",
 				Category: cmdutil.FlagCategorySupplemental,
-			},
-			&cli.BoolFlag{
-				Name:        "steal",
-				Usage:       "Steal a stale claim (by ID: steal that issue; ready: fall back to stealable issues)",
-				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &steal,
 			},
 			&cli.StringFlag{
 				Name:        "duration",
@@ -233,7 +219,6 @@ issues remain.`,
 					Author:       author,
 					Role:         role,
 					LabelFilters: labelFilters,
-					AllowSteal:   steal,
 					Duration:     dur,
 					StaleAt:      staleAt,
 					JSON:         jsonOutput,
@@ -251,7 +236,6 @@ issues remain.`,
 				Service:      svc,
 				IssueID:      issueID.String(),
 				Author:       author,
-				AllowSteal:   steal,
 				Duration:     dur,
 				StaleAt:      staleAt,
 				LabelFilters: labelFilters,
@@ -331,7 +315,6 @@ func writeClaimOutput(w io.Writer, jsonOut bool, result driving.ClaimOutput) err
 			Author:    result.Author,
 			CreatedAt: result.CreatedAt.Format(time.RFC3339),
 			StaleAt:   result.StaleAt.Format(time.RFC3339),
-			Stolen:    result.Stolen,
 		})
 	}
 

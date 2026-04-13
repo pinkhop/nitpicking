@@ -126,11 +126,11 @@ esac
 
 ### Handle Claim Conflicts Gracefully
 
-When `np claim <ID>` returns exit code 3, the issue is already claimed by another agent. Options:
+When `np claim <ID>` returns exit code 3, the issue is already claimed by another agent and the claim is not yet stale. Options:
 
 - **Try another issue** — use `np claim ready` to claim the next available.
-- **Wait** — the claim will expire after the stale duration (default 2 hours).
-- **Steal** — if the other agent is gone, use `--steal` (works for both `np claim <ID>` and `np claim ready`).
+- **Wait** — the claim will expire after the stale duration (default 2 hours). Once stale, claim the issue normally — no special flag is required.
+- **Check the stale time** — inspect `claim_stale_at` to know when you can retry: `np show <ID> --json | jq '.claim_stale_at'`.
 
 ### Always Close When Done
 
@@ -189,13 +189,13 @@ task management — do not use any other task-tracking mechanism.
 
 ### Lost Claim ID
 
-If an agent loses its claim ID mid-session (e.g., due to context compaction), the claim ID cannot be recovered from command output — it is a bearer token that is only revealed at claim time. The agent must wait for the stale duration (default 2 hours) to expire and then reclaim or steal the issue:
+If an agent loses its claim ID mid-session (e.g., due to context compaction), the claim ID cannot be recovered from command output — it is a bearer token that is only revealed at claim time. The agent must wait for the stale duration (default 2 hours) to expire, then reclaim the issue normally:
 
 ```bash
-np claim <ISSUE-ID> --author <name> --steal
+np claim <ISSUE-ID> --author <name>
 ```
 
-To check when the claim becomes stealable, inspect the `claim_stale_at` field:
+To check when the claim goes stale, inspect the `claim_stale_at` field:
 
 ```bash
 np show <ISSUE-ID> --json | jq '.claim_stale_at'
@@ -203,10 +203,10 @@ np show <ISSUE-ID> --json | jq '.claim_stale_at'
 
 ### Claim Abandonment
 
-If an agent crashes or is terminated without closing its claim, the issue remains claimed until the stale duration expires. Another agent can then steal it:
+If an agent crashes or is terminated without closing its claim, the issue remains claimed until the stale duration expires. Once stale, any agent can claim the issue normally — stale claims are automatically overwritten:
 
 ```bash
-np claim <ISSUE-ID> --author <name> --steal
+np claim <ISSUE-ID> --author <name>
 ```
 
 Or use `np admin doctor` to identify stale claims across the database.

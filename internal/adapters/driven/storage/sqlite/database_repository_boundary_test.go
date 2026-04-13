@@ -280,7 +280,16 @@ func TestBoundary_GC_ClosedParent_ClearsOpenChildParentID(t *testing.T) {
 		t.Fatalf("precondition: close epic failed: %v", err)
 	}
 
-	// Now re-claim child B and defer it so it survives IncludeClosed GC.
+	// Reopen child B (closed → open), then claim and defer it so it survives
+	// IncludeClosed GC as a deferred issue.
+	err = svc.ReopenIssue(ctx, driving.ReopenInput{
+		IssueID: childBOut.Issue.ID().String(),
+		Author:  author(t, "alice"),
+	})
+	if err != nil {
+		t.Fatalf("precondition: reopen child B failed: %v", err)
+	}
+
 	childBClaim2, err := svc.ClaimByID(ctx, driving.ClaimInput{
 		IssueID: childBOut.Issue.ID().String(), Author: author(t, "alice"),
 	})

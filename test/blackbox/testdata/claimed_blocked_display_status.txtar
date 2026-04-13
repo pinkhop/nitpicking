@@ -1,4 +1,4 @@
-# Verify that when an issue is both claimed and blocked, its display_status
+# Verify that when an issue is both claimed and blocked, its secondary_state
 # is "claimed" rather than "blocked" — claiming is an explicit agent action
 # and takes precedence over the blocked secondary state.
 
@@ -9,5 +9,6 @@ np-seed-rel TASK_B blocked_by TASK_A display-agent
 
 exec np claim $TASK_B --author display-agent --json
 
-exec np list --state claimed --json
-np-json-array-len items 1
+exec np show $TASK_B --json
+np-json-has state open
+np-json-has secondary_state claimed

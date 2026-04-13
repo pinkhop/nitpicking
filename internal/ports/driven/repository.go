@@ -46,7 +46,7 @@ type IssueListItem struct {
 
 // DisplayStatus returns the human-readable status for display purposes in the
 // format "primary (secondary)" — e.g., "open (ready)", "open (blocked)",
-// "deferred (blocked)". When no secondary state applies (claimed, closed), it
+// "deferred (blocked)". When no secondary state applies (e.g., closed), it
 // returns just the primary state string.
 func (item IssueListItem) DisplayStatus() string {
 	if item.SecondaryState == domain.SecondaryNone {
@@ -156,9 +156,11 @@ type HistoryFilter struct {
 // IssueSummary holds aggregate counts of issues grouped by primary state and
 // computed readiness/blocked status. Designed for dashboard display — avoids
 // loading individual issues into memory.
+//
+// The three primary states are open, closed, and deferred. Claimed is not a
+// primary state; it is a transient secondary state of open (see SecondaryActive).
 type IssueSummary struct {
 	Open     int
-	Claimed  int
 	Deferred int
 	Closed   int
 	Ready    int
@@ -167,7 +169,7 @@ type IssueSummary struct {
 
 // Total returns the total number of issues across all primary states.
 func (s IssueSummary) Total() int {
-	return s.Open + s.Claimed + s.Deferred + s.Closed
+	return s.Open + s.Deferred + s.Closed
 }
 
 // IssueRepository defines the persistence interface for issues.
@@ -273,6 +275,11 @@ type ClaimRepository interface {
 	// ListActiveClaims returns all claims that are not stale as of the given
 	// time.
 	ListActiveClaims(ctx context.Context, now time.Time) ([]domain.Claim, error)
+
+	// DeleteExpiredClaims removes all claim rows whose stale-at timestamp is
+	// on or before now. Returns the number of rows deleted. Active claims
+	// (stale-at is in the future) are not touched.
+	DeleteExpiredClaims(ctx context.Context, now time.Time) (int, error)
 }
 
 // RelationshipRepository defines the persistence interface for relationships.
@@ -338,6 +345,18 @@ type DatabaseRepository interface {
 	// Virtual labels should be stored in their respective columns, not in
 	// the labels table — any rows found indicate data integrity issues.
 	CountVirtualLabelsInTable(ctx context.Context) (int, error)
+
+	// GetSchemaVersion returns the schema version stored in the metadata table.
+	// Returns 0 when the database has no schema_version key (v1 schema), and
+	// 2 when the database has been migrated to v2. The doctor command uses this
+	// to report schema_migration_required when the database is v1.
+	GetSchemaVersion(ctx context.Context) (int, error)
+
+	// SetSchemaVersion writes the given version to the metadata table, inserting
+	// the key if absent or updating it when already present. Used by the upgrade
+	// command to record a successful v1→v2 migration within the migration
+	// transaction.
+	SetSchemaVersion(ctx context.Context, version int) error
 
 	// ClearAllData removes all data from every table (issues, comments,
 	// claims, relationships, history, labels, FTS, and metadata).
@@ -423,4 +442,36 @@ type Transactor interface {
 	// Vacuum reclaims disk space and defragments the database file. Must be
 	// called outside any transaction.
 	Vacuum(ctx context.Context) error
+}
+
+// MigrationResult carries the counts of changes made by a schema migration.
+type MigrationResult struct {
+	// ClaimedIssuesConverted is the number of issues whose state was changed
+	// from "claimed" to "open" during the v1→v2 migration.
+	ClaimedIssuesConverted int
+
+	// HistoryRowsRemoved is the number of history rows deleted because their
+	// event_type was "claimed" or "released" — event types removed in v2.
+	HistoryRowsRemoved int
+}
+
+// Migrator exposes schema migration operations. It is implemented by the
+// SQLite storage adapter and is a separate interface from Transactor because
+// migration is a storage-specific concern that runs outside the normal
+// unit-of-work lifecycle. The core service delegates to this interface so
+// that driving adapters (CLI commands) never need to import the concrete
+// storage adapter package.
+type Migrator interface {
+	// CheckSchemaVersion returns nil when the database schema is at the
+	// current version (v2). It returns a wrapped domain.ErrSchemaMigrationRequired
+	// when the schema is at an older version. Callers use this to determine
+	// whether a migration is needed before issuing regular database commands.
+	CheckSchemaVersion(ctx context.Context) error
+
+	// MigrateV1ToV2 upgrades a v1 database to v2 schema in a single atomic
+	// transaction. It is safe to call on a v2 database but CheckSchemaVersion
+	// should be used first so the caller can distinguish the "already current"
+	// case from a migration that made changes. Returns a MigrationResult
+	// describing the number of rows affected by each migration step.
+	MigrateV1ToV2(ctx context.Context) (MigrationResult, error)
 }

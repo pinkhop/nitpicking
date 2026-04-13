@@ -5,7 +5,12 @@ import "time"
 // BackupAlgorithmVersion identifies the backup format version. Restore
 // implementations dispatch on this value to select the correct
 // deserialisation path.
-const BackupAlgorithmVersion = 1
+//
+// Version history:
+//
+//	1 — initial format; included claim rows in the backup.
+//	2 — claims are transient and excluded from backup.
+const BackupAlgorithmVersion = 2
 
 // BackupHeader is the first record in a backup file. It contains metadata
 // about the backup itself — when it was taken, from which database

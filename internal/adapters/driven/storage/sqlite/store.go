@@ -148,12 +148,27 @@ func (u *connUnitOfWork) Database() driven.DatabaseRepository          { return 
 
 type dbRepo struct{ conn *sqlite.Conn }
 
+// currentSchemaVersion is the schema version written to the metadata table when
+// a new database is initialised. Existing databases without a schema_version
+// key are treated as v1 and must be upgraded with 'np admin upgrade'.
+const currentSchemaVersion = 2
+
 func (r *dbRepo) InitDatabase(_ context.Context, prefix string) error {
+	// Insert the prefix.
 	err := sqlitex.Execute(r.conn, `INSERT INTO metadata (key, value) VALUES ('prefix', ?)`, &sqlitex.ExecOptions{
 		Args: []any{prefix},
 	})
 	if err != nil {
 		return &domain.DatabaseError{Op: "init database", Err: err}
+	}
+
+	// Record the current schema version so the upgrade check can distinguish
+	// freshly created databases (v2) from old databases (v1, no key).
+	err = sqlitex.Execute(r.conn, `INSERT INTO metadata (key, value) VALUES ('schema_version', ?)`, &sqlitex.ExecOptions{
+		Args: []any{currentSchemaVersion},
+	})
+	if err != nil {
+		return &domain.DatabaseError{Op: "init database schema version", Err: err}
 	}
 	return nil
 }
@@ -164,6 +179,117 @@ func (r *dbRepo) GetPrefix(_ context.Context) (string, error) {
 		return "", &domain.DatabaseError{Op: "get prefix", Err: err}
 	}
 	return prefix, nil
+}
+
+// GetSchemaVersion returns the schema version from the metadata table. When the
+// schema_version key is absent (v1 database), it returns 0. When present with
+// value "2", it returns 2.
+func (r *dbRepo) GetSchemaVersion(_ context.Context) (int, error) {
+	var version int
+	var found bool
+
+	err := sqlitex.Execute(r.conn, `SELECT value FROM metadata WHERE key = 'schema_version'`, &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			found = true
+			version = stmt.ColumnInt(0)
+			return nil
+		},
+	})
+	if err != nil {
+		return 0, &domain.DatabaseError{Op: "get schema version", Err: err}
+	}
+
+	if !found {
+		// Absent schema_version key means v1 schema.
+		return 0, nil
+	}
+	return version, nil
+}
+
+// SetSchemaVersion writes version to the metadata table's schema_version key,
+// inserting the row when absent or replacing it when already present. Used by
+// the upgrade command to record a completed v1→v2 migration within the same
+// transaction as the data changes.
+func (r *dbRepo) SetSchemaVersion(_ context.Context, version int) error {
+	err := sqlitex.Execute(r.conn,
+		`INSERT INTO metadata (key, value) VALUES ('schema_version', ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		&sqlitex.ExecOptions{Args: []any{version}})
+	if err != nil {
+		return &domain.DatabaseError{Op: "set schema version", Err: err}
+	}
+	return nil
+}
+
+// CheckSchemaVersion opens a read transaction, fetches the schema version, and
+// returns domain.ErrSchemaMigrationRequired (wrapped in a DatabaseError) when
+// the version is below 2. Callers — typically root-command startup hooks —
+// use this to gate all database-touching commands on a migrated database.
+func (s *Store) CheckSchemaVersion(ctx context.Context) error {
+	conn, err := s.pool.Take(ctx)
+	if err != nil {
+		return &domain.DatabaseError{Op: "take connection for schema check", Err: err}
+	}
+	defer s.pool.Put(conn)
+
+	repo := &dbRepo{conn: conn}
+	version, err := repo.GetSchemaVersion(ctx)
+	if err != nil {
+		return err
+	}
+
+	if version < 2 {
+		return &domain.DatabaseError{
+			Op:  "schema version check",
+			Err: fmt.Errorf("%w: database is at v1 schema — run 'np admin upgrade' to migrate", domain.ErrSchemaMigrationRequired),
+		}
+	}
+	return nil
+}
+
+// MigrateV1ToV2 upgrades a v1 database to v2 schema in a single atomic
+// transaction, satisfying the driven.Migrator interface. It is safe to call on
+// a v2 database — CheckSchemaVersion should be called first so that callers
+// can report "up to date" without executing the migration body.
+//
+// The migration performs three steps within one IMMEDIATE transaction:
+//  1. Updates every issue with state="claimed" to state="open", so that the
+//     primary state column contains only lifecycle states. The active claims
+//     are already stored in the claims table and remain untouched.
+//  2. Deletes history rows whose event_type is "claimed" or "released" — these
+//     event types were removed in v2; the claims table replaces them.
+//  3. Sets schema_version=2 in the metadata table via SetSchemaVersion, marking
+//     the migration as complete.
+//
+// If any step fails the transaction is rolled back and the database is
+// unchanged. Returns a driven.MigrationResult with the number of rows affected
+// by each step.
+func (s *Store) MigrateV1ToV2(ctx context.Context) (driven.MigrationResult, error) {
+	var result driven.MigrationResult
+
+	err := s.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
+		conn := uow.(*connUnitOfWork).conn
+
+		// Step 1: Convert claimed→open on the issues table.
+		if err := sqlitex.Execute(conn, `UPDATE issues SET state = 'open' WHERE state = 'claimed'`, nil); err != nil {
+			return &domain.DatabaseError{Op: "migrate: convert claimed issues", Err: err}
+		}
+		result.ClaimedIssuesConverted = int(conn.Changes())
+
+		// Step 2: Remove history rows for removed event types.
+		if err := sqlitex.Execute(conn, `DELETE FROM history WHERE event_type IN ('claimed', 'released')`, nil); err != nil {
+			return &domain.DatabaseError{Op: "migrate: remove history rows", Err: err}
+		}
+		result.HistoryRowsRemoved = int(conn.Changes())
+
+		// Step 3: Record the completed migration.
+		return uow.Database().SetSchemaVersion(ctx, 2)
+	})
+	if err != nil {
+		return driven.MigrationResult{}, err
+	}
+
+	return result, nil
 }
 
 func (r *dbRepo) GC(_ context.Context, includeClosed bool) (int, int, error) {
@@ -918,13 +1044,20 @@ func (r *issueRepo) GetIssueByIdempotencyKey(_ context.Context, key string) (dom
 func (r *issueRepo) GetIssueSummary(_ context.Context) (driven.IssueSummary, error) {
 	var s driven.IssueSummary
 
+	// Claims are transient local bookkeeping; a claimed issue retains its open
+	// primary state in the issues table. The query therefore counts only the
+	// three canonical lifecycle states.
 	query := `SELECT
 		COALESCE(SUM(CASE WHEN state = 'open' THEN 1 ELSE 0 END), 0),
-		COALESCE(SUM(CASE WHEN state = 'claimed' THEN 1 ELSE 0 END), 0),
 		COALESCE(SUM(CASE WHEN state = 'deferred' THEN 1 ELSE 0 END), 0),
 		COALESCE(SUM(CASE WHEN state = 'closed' THEN 1 ELSE 0 END), 0),
-		-- Ready: open + (task OR childless epic) + no unresolved blockers + no blocked/deferred ancestors
+		-- Ready: open + no active claim + (task OR childless epic) + no unresolved blockers + no blocked/deferred ancestors
 		COALESCE(SUM(CASE WHEN state = 'open'
+			AND NOT EXISTS (
+				SELECT 1 FROM claims cl
+				WHERE cl.issue_id = t.issue_id
+				  AND datetime(cl.last_activity, '+' || (cl.stale_threshold / 1000000000) || ' seconds') > datetime('now')
+			)
 			AND (role = 'task' OR NOT EXISTS (
 				SELECT 1 FROM issues c WHERE c.parent_id = t.issue_id AND c.deleted = 0
 			))
@@ -988,11 +1121,10 @@ func (r *issueRepo) GetIssueSummary(_ context.Context) (driven.IssueSummary, err
 	err := sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			s.Open = stmt.ColumnInt(0)
-			s.Claimed = stmt.ColumnInt(1)
-			s.Deferred = stmt.ColumnInt(2)
-			s.Closed = stmt.ColumnInt(3)
-			s.Ready = stmt.ColumnInt(4)
-			s.Blocked = stmt.ColumnInt(5)
+			s.Deferred = stmt.ColumnInt(1)
+			s.Closed = stmt.ColumnInt(2)
+			s.Ready = stmt.ColumnInt(3)
+			s.Blocked = stmt.ColumnInt(4)
 			return nil
 		},
 	})
@@ -1362,6 +1494,29 @@ func (r *claimRepo) UpdateClaimStaleAt(_ context.Context, claimID string, staleA
 		return domain.ErrNotFound
 	}
 	return nil
+}
+
+// DeleteExpiredClaims removes all claim rows whose stale-at timestamp (computed
+// as last_activity + stale_threshold) is on or before now. Returns the number
+// of rows deleted. Active claims are left untouched.
+func (r *claimRepo) DeleteExpiredClaims(_ context.Context, now time.Time) (int, error) {
+	// The stale_threshold column stores nanoseconds; SQLite's strftime('%s', …)
+	// works in whole seconds. Integer division truncates sub-second remainders,
+	// so a claim may expire up to ~1 second earlier in SQL than in Go's
+	// domain.Claim.IsStale. This is acceptable because claim thresholds are
+	// always measured in hours (minimum 1h, default 2h, maximum 24h).
+	err := sqlitex.Execute(r.conn,
+		`DELETE FROM claims
+		 WHERE CAST(strftime('%s', last_activity) AS INTEGER) + stale_threshold / 1000000000
+		       <= CAST(strftime('%s', ?) AS INTEGER)`,
+		&sqlitex.ExecOptions{
+			Args: []any{now.UTC().Format(time.RFC3339Nano)},
+		},
+	)
+	if err != nil {
+		return 0, &domain.DatabaseError{Op: "delete expired claims", Err: err}
+	}
+	return r.conn.Changes(), nil
 }
 
 func (r *claimRepo) ListStaleClaims(_ context.Context, now time.Time) ([]domain.Claim, error) {
@@ -1878,11 +2033,23 @@ func buildIssueWhere(filter driven.IssueFilter) (string, []any) {
 	}
 
 	if filter.Ready {
-		// Ready means: correct state, no unresolved blockers, no deferred
-		// ancestors, and (for epics) no children.
+		// Ready means: correct state, no active (non-stale) claim, no
+		// unresolved blockers, no deferred ancestors, and (for epics) no
+		// children.
 		//
 		// State: all issues must be open.
 		conditions = append(conditions, `t.state = 'open'`)
+
+		// No active (non-stale) claim. Claimed issues remain open but are
+		// not available for new claims until the existing claim expires.
+		// The stale_threshold is stored in nanoseconds; integer division to
+		// seconds truncates sub-second remainders, which is acceptable
+		// because claim thresholds are always measured in hours.
+		conditions = append(conditions, `NOT EXISTS (
+			SELECT 1 FROM claims c
+			WHERE c.issue_id = t.issue_id
+			  AND datetime(c.last_activity, '+' || (c.stale_threshold / 1000000000) || ' seconds') > datetime('now')
+		)`)
 
 		// Epics with children are already decomposed — not ready.
 		conditions = append(conditions, `(t.role = 'task' OR NOT EXISTS (

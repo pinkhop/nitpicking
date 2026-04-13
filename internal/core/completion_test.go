@@ -37,11 +37,12 @@ func TestComputeEpicProgress_AllClosed_ReturnsCompleted(t *testing.T) {
 func TestComputeEpicProgress_Partial_ReturnsNotCompleted(t *testing.T) {
 	t.Parallel()
 
-	// Given — three children, one closed, one open, one claimed.
+	// Given — three children: one closed, one open, one open+claimed (secondary).
+	// Claimed is a secondary state of open — it counts under Open, not a separate bucket.
 	children := []domain.ChildStatus{
 		{State: domain.StateClosed},
 		{State: domain.StateOpen},
-		{State: domain.StateClaimed},
+		{State: domain.StateOpen}, // open+claimed secondary state is still StateOpen
 	}
 
 	// When — computing progress.
@@ -54,11 +55,8 @@ func TestComputeEpicProgress_Partial_ReturnsNotCompleted(t *testing.T) {
 	if p.Closed != 1 {
 		t.Errorf("closed: got %d, want 1", p.Closed)
 	}
-	if p.Claimed != 1 {
-		t.Errorf("claimed: got %d, want 1", p.Claimed)
-	}
-	if p.Open != 1 {
-		t.Errorf("open: got %d, want 1", p.Open)
+	if p.Open != 2 {
+		t.Errorf("open: got %d, want 2", p.Open)
 	}
 	if p.Completed {
 		t.Error("expected not completed when children are not all closed")
@@ -71,10 +69,11 @@ func TestComputeEpicProgress_Partial_ReturnsNotCompleted(t *testing.T) {
 func TestComputeEpicProgress_AllStates_CountsEachState(t *testing.T) {
 	t.Parallel()
 
-	// Given — six children covering all states including blocked.
+	// Given — five children covering open, deferred, blocked, and closed states.
+	// Claimed is now a secondary state of open and counts under Open.
 	children := []domain.ChildStatus{
 		{State: domain.StateClosed},
-		{State: domain.StateClaimed},
+		{State: domain.StateOpen}, // open (claimed secondary state also maps here)
 		{State: domain.StateOpen},
 		{State: domain.StateOpen, IsBlocked: true},
 		{State: domain.StateDeferred},
@@ -92,11 +91,8 @@ func TestComputeEpicProgress_AllStates_CountsEachState(t *testing.T) {
 	if p.Closed != 1 {
 		t.Errorf("closed: got %d, want 1", p.Closed)
 	}
-	if p.Claimed != 1 {
-		t.Errorf("claimed: got %d, want 1", p.Claimed)
-	}
-	if p.Open != 2 {
-		t.Errorf("open: got %d, want 2", p.Open)
+	if p.Open != 3 {
+		t.Errorf("open: got %d, want 3", p.Open)
 	}
 	if p.Blocked != 1 {
 		t.Errorf("blocked: got %d, want 1", p.Blocked)

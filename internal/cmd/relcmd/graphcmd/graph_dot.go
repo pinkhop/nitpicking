@@ -27,7 +27,6 @@ type GraphEdge struct {
 // graphStateColors maps issue states to Graphviz fill colors.
 var graphStateColors = map[domain.State]string{
 	domain.StateOpen:     "white",
-	domain.StateClaimed:  "yellow",
 	domain.StateClosed:   "gray",
 	domain.StateDeferred: "lightyellow",
 }

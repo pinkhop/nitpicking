@@ -39,8 +39,6 @@ func ColorStateText(cs *iostreams.ColorScheme, state domain.State, text string) 
 	switch state {
 	case domain.StateClosed:
 		return cs.Color256(colorClosed, text)
-	case domain.StateClaimed:
-		return cs.Color256(colorClaimed, text)
 	case domain.StateOpen:
 		return cs.Color256(colorOpen, text)
 	case domain.StateDeferred:
@@ -102,8 +100,6 @@ func colorPrimary(cs *iostreams.ColorScheme, state domain.State) string {
 	switch state {
 	case domain.StateClosed:
 		return cs.Color256(colorClosed, str)
-	case domain.StateClaimed:
-		return cs.Color256(colorClaimed, str)
 	case domain.StateOpen:
 		return cs.Color256(colorOpen, str)
 	case domain.StateDeferred:
@@ -118,6 +114,8 @@ func colorPrimary(cs *iostreams.ColorScheme, state domain.State) string {
 // itself — e.g., wrapping a label like "[blocked]" in the blocked color.
 func ColorSecondaryText(cs *iostreams.ColorScheme, s domain.SecondaryState, text string) string {
 	switch s {
+	case domain.SecondaryClaimed:
+		return cs.Color256(colorClaimed, text)
 	case domain.SecondaryReady, domain.SecondaryUnplanned:
 		return cs.Color256(colorOpen, text)
 	case domain.SecondaryBlocked:
@@ -133,11 +131,13 @@ func ColorSecondaryText(cs *iostreams.ColorScheme, s domain.SecondaryState, text
 
 // colorSecondary applies the appropriate 256-color to a secondary state value.
 // Secondary states inherit colors from their closest primary-state analogue:
-// ready/unplanned → open (71), blocked → blocked (134), active → claimed (172),
-// completed → closed (246).
+// claimed → claimed (172), ready/unplanned → open (71), blocked → blocked (134),
+// active → claimed (172), completed → closed (246).
 func colorSecondary(cs *iostreams.ColorScheme, s domain.SecondaryState) string {
 	str := s.String()
 	switch s {
+	case domain.SecondaryClaimed:
+		return cs.Color256(colorClaimed, str)
 	case domain.SecondaryReady, domain.SecondaryUnplanned:
 		return cs.Color256(colorOpen, str)
 	case domain.SecondaryBlocked:

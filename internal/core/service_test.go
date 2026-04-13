@@ -19,7 +19,7 @@ func setupService(t *testing.T) (driving.Service, *memory.Repository) {
 	t.Helper()
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	ctx := context.Background()
 	if err := svc.Init(ctx, "NP"); err != nil {
@@ -46,7 +46,7 @@ func TestInit_ValidPrefix_Succeeds(t *testing.T) {
 	// Given
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	// When
 	err := svc.Init(t.Context(), "NP")
@@ -62,7 +62,7 @@ func TestInit_InvalidPrefix_Fails(t *testing.T) {
 	// Given
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	// When
 	err := svc.Init(t.Context(), "np")
@@ -2649,100 +2649,22 @@ func TestDoctor_DeferredIssueBlocking_ReportsBlockerDeferred(t *testing.T) {
 	}
 }
 
-func TestDoctor_StaleClaim_ReportsStealable(t *testing.T) {
+func TestDoctor_V2Schema_NoSchemaMigrationFinding(t *testing.T) {
 	t.Parallel()
 
-	// Given — a task with a stale claim (last activity >2h ago with default
-	// threshold).
-	svc, repo := setupService(t)
+	// Given — a fresh in-memory repository, which always reports schema version 2.
+	svc, _ := setupService(t)
 	ctx := t.Context()
-	author := mustAuthor(t, "doctor-test")
-
-	out, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role:   domain.RoleTask,
-		Title:  "Stale claim task",
-		Author: author,
-	})
-	if err != nil {
-		t.Fatalf("precondition: create task: %v", err)
-	}
-
-	// Insert a claim with old last_activity directly into the repo.
-	parsedAuthor, _ := domain.NewAuthor(author)
-	staleClaimedAt := time.Now().Add(-3 * time.Hour) // 3h ago — past 2h threshold
-	staleClaim := domain.ReconstructClaim(
-		"stale-claim-id-1234",
-		out.Issue.ID(),
-		parsedAuthor,
-		staleClaimedAt,
-		staleClaimedAt.Add(domain.DefaultStaleThreshold),
-	)
-	if err := repo.CreateClaim(ctx, staleClaim); err != nil {
-		t.Fatalf("precondition: create stale claim: %v", err)
-	}
 
 	// When
 	result, err := svc.Doctor(ctx, driving.DoctorInput{})
-	// Then — stale_claim finding should say "stealable".
+	// Then — no schema_migration_required finding; in-memory store is always v2.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	finding := findingByCategory(result.Findings, "stale_claim")
-	if finding == nil {
-		t.Fatal("expected 'stale_claim' finding")
-	}
-	if !strings.Contains(finding.Message, "stealable") {
-		t.Errorf("expected message to contain 'stealable', got %q", finding.Message)
-	}
-	if finding.Action == nil || finding.Action.Kind != driving.ActionKindStealClaim {
-		t.Errorf("expected action kind %q, got %v", driving.ActionKindStealClaim, finding.Action)
-	}
-}
-
-func TestDoctor_LongClaim_ReportsLongHeld(t *testing.T) {
-	t.Parallel()
-
-	// Given — a task with a claim held for >2× default threshold (>4h) but
-	// with a custom 24h threshold so it's not yet stale.
-	svc, repo := setupService(t)
-	ctx := t.Context()
-	author := mustAuthor(t, "doctor-test")
-
-	out, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role:   domain.RoleTask,
-		Title:  "Long claim task",
-		Author: author,
-	})
-	if err != nil {
-		t.Fatalf("precondition: create task: %v", err)
-	}
-
-	// Insert a claim with old last_activity but long threshold.
-	parsedAuthor2, _ := domain.NewAuthor(author)
-	longClaimedAt := time.Now().Add(-5 * time.Hour) // 5h ago — >2× default 2h but <24h threshold
-	longClaim := domain.ReconstructClaim(
-		"long-claim-id-5678",
-		out.Issue.ID(),
-		parsedAuthor2,
-		longClaimedAt,
-		longClaimedAt.Add(24*time.Hour), // custom 24h threshold
-	)
-	if err := repo.CreateClaim(ctx, longClaim); err != nil {
-		t.Fatalf("precondition: create long claim: %v", err)
-	}
-
-	// When
-	result, err := svc.Doctor(ctx, driving.DoctorInput{})
-	// Then — long_claim finding should appear.
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	finding := findingByCategory(result.Findings, "long_claim")
-	if finding == nil {
-		t.Fatal("expected 'long_claim' finding")
-	}
-	if !strings.Contains(finding.Message, "not yet stealable") {
-		t.Errorf("expected message to contain 'not yet stealable', got %q", finding.Message)
+	finding := findingByCategory(result.Findings, "schema_migration_required")
+	if finding != nil {
+		t.Errorf("unexpected schema_migration_required finding on v2 database: %v", finding.Message)
 	}
 }
 
@@ -3464,6 +3386,115 @@ func TestGC_PreservesOpenAndClaimedIssues(t *testing.T) {
 	}
 	if len(list.Items) != 2 {
 		t.Errorf("expected 2 issues after GC, got %d", len(list.Items))
+	}
+}
+
+func TestGC_DeletesExpiredClaims(t *testing.T) {
+	t.Parallel()
+
+	// Given — one issue claimed with a 1 ns threshold so the claim expires immediately.
+	ctx := t.Context()
+	svc, repo := setupService(t)
+	author := mustAuthor(t, "gc-agent")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Stale-claimed task", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+	_, err = svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID:        created.Issue.ID().String(),
+		Author:         author,
+		StaleThreshold: 1 * time.Nanosecond,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim issue: %v", err)
+	}
+
+	// Let the claim go stale.
+	time.Sleep(2 * time.Millisecond)
+
+	// Confirm the claim exists in the store before GC.
+	staleClaims, err := repo.ListStaleClaims(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("precondition: list stale claims: %v", err)
+	}
+	if len(staleClaims) != 1 {
+		t.Fatalf("precondition: expected 1 stale claim, got %d", len(staleClaims))
+	}
+
+	// When — run GC.
+	output, err := svc.GC(ctx, driving.GCInput{})
+	// Then — the expired claim is removed and reported in the output.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.ExpiredClaimsDeleted != 1 {
+		t.Errorf("expired claims deleted = %d, want 1", output.ExpiredClaimsDeleted)
+	}
+	if output.DeletedIssuesRemoved != 0 {
+		t.Errorf("deleted issues removed = %d, want 0", output.DeletedIssuesRemoved)
+	}
+
+	// The issue itself is still open and visible.
+	list, err := svc.ListIssues(ctx, driving.ListIssuesInput{})
+	if err != nil {
+		t.Fatalf("unexpected error listing: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 issue after GC, got %d", len(list.Items))
+	}
+
+	// No stale claims remain in the store.
+	staleClaims, err = repo.ListStaleClaims(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("list stale claims after GC: %v", err)
+	}
+	if len(staleClaims) != 0 {
+		t.Errorf("expected 0 stale claims after GC, got %d", len(staleClaims))
+	}
+}
+
+func TestGC_PreservesActiveClaims(t *testing.T) {
+	t.Parallel()
+
+	// Given — one issue with an active (non-stale) claim.
+	ctx := t.Context()
+	svc, repo := setupService(t)
+	author := mustAuthor(t, "gc-agent")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Actively claimed task", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+	_, err = svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID: created.Issue.ID().String(),
+		Author:  author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim issue: %v", err)
+	}
+
+	// When — run GC.
+	output, err := svc.GC(ctx, driving.GCInput{})
+	// Then — the active claim is untouched and the count is zero.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.ExpiredClaimsDeleted != 0 {
+		t.Errorf("expired claims deleted = %d, want 0", output.ExpiredClaimsDeleted)
+	}
+
+	// The active claim is still present.
+	active, err := repo.ListActiveClaims(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("list active claims: %v", err)
+	}
+	if len(active) != 1 {
+		t.Errorf("expected 1 active claim after GC, got %d", len(active))
 	}
 }
 
@@ -4766,8 +4797,8 @@ func TestDeferIssue_InvalidClaim_ReturnsError(t *testing.T) {
 	if showErr != nil {
 		t.Fatalf("show issue: %v", showErr)
 	}
-	if show.State != domain.StateClaimed {
-		t.Errorf("state should remain claimed, got %v", show.State)
+	if show.State != domain.StateOpen {
+		t.Errorf("state should remain open (claimed), got %v", show.State)
 	}
 }
 
@@ -4928,11 +4959,10 @@ func TestGetIssueSummary_CountsByState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if summary.Open != 2 {
-		t.Errorf("open: got %d, want 2", summary.Open)
-	}
-	if summary.Claimed != 1 {
-		t.Errorf("claimed: got %d, want 1", summary.Claimed)
+	// Claimed is now a secondary state of open; the claimed issue's primary
+	// state remains open, so Open counts both unclaimed and claimed open issues.
+	if summary.Open != 3 {
+		t.Errorf("open: got %d, want 3 (2 unclaimed + 1 claimed)", summary.Open)
 	}
 	if summary.Closed != 1 {
 		t.Errorf("closed: got %d, want 1", summary.Closed)
@@ -4944,7 +4974,8 @@ func TestGetIssueSummary_CountsByState(t *testing.T) {
 		t.Errorf("total: got %d, want 5", summary.Total)
 	}
 
-	// The 2 open tasks should be ready (no blockers).
+	// The 2 unclaimed open tasks should be ready; the claimed task is not
+	// ready because it has an active non-stale claim.
 	if summary.Ready != 2 {
 		t.Errorf("ready: got %d, want 2", summary.Ready)
 	}
@@ -4954,8 +4985,7 @@ func TestGetIssueSummary_CountsByState(t *testing.T) {
 		t.Errorf("blocked: got %d, want 0", summary.Blocked)
 	}
 
-	// Verify the claimed task is counted correctly — it should NOT be ready
-	// (only open issues can be ready).
+	// Verify the claimed task variable is consumed.
 	_ = claimed
 }
 
@@ -5299,5 +5329,342 @@ func TestShowIssue_InheritedBlocking_NoSelfReferentialBlockerIDs(t *testing.T) {
 	}
 	if !slices.Contains(blockerIDs, blockerIDStr) {
 		t.Errorf("InheritedBlocking.BlockerIDs missing expected blocker %s; got %v", blockerIDStr, blockerIDs)
+	}
+}
+
+// --- Edge cases: claim precedence, expired claims, concurrent claims, and deletion ---
+
+// TestShowIssue_ClaimedAndBlocked_ClaimedTakesPrecedence verifies that an open
+// issue with an active claim and an unresolved blocker displays as open
+// (claimed), not open (blocked). The claimed secondary state takes precedence
+// over blocked in the display model.
+func TestShowIssue_ClaimedAndBlocked_ClaimedTakesPrecedence(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task that is both actively claimed AND blocked by another open task.
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+
+	blocker, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Open blocker", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create blocker: %v", err)
+	}
+
+	// Create the claimed issue and also add it as blocked_by the blocker.
+	claimedAndBlocked, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Claimed and blocked task", Author: author, Claim: true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create claimed issue: %v", err)
+	}
+
+	err = svc.AddRelationship(ctx, claimedAndBlocked.Issue.ID().String(), driving.RelationshipInput{
+		Type:     domain.RelBlockedBy,
+		TargetID: blocker.Issue.ID().String(),
+	}, author)
+	if err != nil {
+		t.Fatalf("precondition: add blocked_by: %v", err)
+	}
+
+	// When
+	show, err := svc.ShowIssue(ctx, claimedAndBlocked.Issue.ID().String())
+	// Then — primary state is open and secondary state is claimed (not blocked).
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if show.State != domain.StateOpen {
+		t.Errorf("state: got %v, want open", show.State)
+	}
+	if show.SecondaryState != domain.SecondaryClaimed {
+		t.Errorf("secondary state: got %v, want claimed", show.SecondaryState)
+	}
+}
+
+// TestCloseWithReason_ExpiredClaim_Fails verifies that close fails with a clear
+// error when the claim used as authorization has gone stale. Callers must
+// re-claim the issue before retrying.
+func TestCloseWithReason_ExpiredClaim_Fails(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task claimed with a 1 ns stale threshold so it expires immediately.
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:   domain.RoleTask,
+		Title:  "Task to close",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+
+	claimOut, err := svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID:        created.Issue.ID().String(),
+		Author:         author,
+		StaleThreshold: 1 * time.Nanosecond,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim issue: %v", err)
+	}
+
+	// Let the claim go stale.
+	time.Sleep(2 * time.Millisecond)
+
+	// When — attempt to close using the stale claim.
+	closeErr := svc.CloseWithReason(ctx, driving.CloseWithReasonInput{
+		IssueID: created.Issue.ID().String(),
+		ClaimID: claimOut.ClaimID,
+		Reason:  "done",
+	})
+
+	// Then — must fail with ErrStaleClaim so the caller knows to re-claim.
+	if !errors.Is(closeErr, domain.ErrStaleClaim) {
+		t.Errorf("expected ErrStaleClaim, got %v", closeErr)
+	}
+}
+
+// TestUpdateIssue_ExpiredClaim_Fails verifies that json update fails with a
+// clear error when the claim has gone stale.
+func TestUpdateIssue_ExpiredClaim_Fails(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task claimed with a 1 ns stale threshold so it expires immediately.
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:   domain.RoleTask,
+		Title:  "Task to update",
+		Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+
+	claimOut, err := svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID:        created.Issue.ID().String(),
+		Author:         author,
+		StaleThreshold: 1 * time.Nanosecond,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim issue: %v", err)
+	}
+
+	// Let the claim go stale.
+	time.Sleep(2 * time.Millisecond)
+
+	// When — attempt to update using the stale claim.
+	revisedTitle := "Revised title"
+	updateErr := svc.UpdateIssue(ctx, driving.UpdateIssueInput{
+		IssueID: created.Issue.ID().String(),
+		ClaimID: claimOut.ClaimID,
+		Title:   &revisedTitle,
+	})
+
+	// Then — must fail with ErrStaleClaim so the caller knows to re-claim.
+	if !errors.Is(updateErr, domain.ErrStaleClaim) {
+		t.Errorf("expected ErrStaleClaim, got %v", updateErr)
+	}
+}
+
+// TestClaimByID_ClosedIssue_Fails verifies that closed issues cannot be claimed.
+// Reopen is a claim-free operation; there is no need to claim a closed issue.
+func TestClaimByID_ClosedIssue_Fails(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task that has been closed.
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Closed task", Author: author, Claim: true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+
+	err = svc.CloseWithReason(ctx, driving.CloseWithReasonInput{
+		IssueID: created.Issue.ID().String(),
+		ClaimID: created.ClaimID,
+		Reason:  "done",
+	})
+	if err != nil {
+		t.Fatalf("precondition: close issue: %v", err)
+	}
+
+	// When — try to claim the closed issue.
+	bob := mustAuthor(t, "bob")
+	_, claimErr := svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID: created.Issue.ID().String(),
+		Author:  bob,
+	})
+
+	// Then
+	if !errors.Is(claimErr, domain.ErrIllegalTransition) {
+		t.Errorf("expected ErrIllegalTransition for closed issue, got %v", claimErr)
+	}
+}
+
+// TestClaimByID_DeferredIssue_Fails verifies that deferred issues cannot be
+// claimed. Undefer is a claim-free operation.
+func TestClaimByID_DeferredIssue_Fails(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task that has been deferred.
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Task to defer", Author: author, Claim: true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+
+	err = svc.DeferIssue(ctx, driving.DeferIssueInput{
+		IssueID: created.Issue.ID().String(),
+		ClaimID: created.ClaimID,
+	})
+	if err != nil {
+		t.Fatalf("precondition: defer issue: %v", err)
+	}
+
+	// When — try to claim the deferred issue.
+	bob := mustAuthor(t, "bob")
+	_, claimErr := svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID: created.Issue.ID().String(),
+		Author:  bob,
+	})
+
+	// Then
+	if !errors.Is(claimErr, domain.ErrIllegalTransition) {
+		t.Errorf("expected ErrIllegalTransition for deferred issue, got %v", claimErr)
+	}
+}
+
+// TestClaimByID_SelfReclaimActiveClaim_Fails verifies that the same author
+// cannot re-claim an issue they already hold an active claim on. There is no
+// special bypass for the current claim holder; callers must use
+// ExtendStaleThreshold or wait for the claim to expire.
+func TestClaimByID_SelfReclaimActiveClaim_Fails(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task actively claimed by alice.
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Active task", Author: author, Claim: true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+
+	// When — alice tries to claim again (self-re-claim).
+	_, claimErr := svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID: created.Issue.ID().String(),
+		Author:  author,
+	})
+
+	// Then — conflict even for the same author.
+	if !errors.Is(claimErr, &domain.ClaimConflictError{}) {
+		t.Errorf("expected ClaimConflictError for self-re-claim, got %v", claimErr)
+	}
+}
+
+// TestDeleteIssue_WithActiveClaim_DeletesClaimAssSideEffect verifies that
+// deleting an issue with an active claim removes the claim row, preventing
+// orphaned claim records that would pollute the claims table.
+func TestDeleteIssue_WithActiveClaim_DeletesClaimAsSideEffect(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task with an active claim.
+	ctx := t.Context()
+	svc, repo := setupService(t)
+	author := mustAuthor(t, "alice")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Task to delete", Author: author, Claim: true,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+
+	// Confirm the claim exists before deletion.
+	issueID, parseErr := domain.ParseID(created.Issue.ID().String())
+	if parseErr != nil {
+		t.Fatalf("precondition: parse issue ID: %v", parseErr)
+	}
+	if _, claimErr := repo.GetClaimByIssue(ctx, issueID); claimErr != nil {
+		t.Fatalf("precondition: expected active claim before deletion, got err: %v", claimErr)
+	}
+
+	// When
+	err = svc.DeleteIssue(ctx, driving.DeleteInput{
+		IssueID: created.Issue.ID().String(),
+		ClaimID: created.ClaimID,
+	})
+	// Then — delete succeeds.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify the claim row has been removed as a side effect.
+	_, claimAfterErr := repo.GetClaimByIssue(ctx, issueID)
+	if !errors.Is(claimAfterErr, domain.ErrNotFound) {
+		t.Errorf("expected claim to be deleted as side effect of issue deletion, got %v", claimAfterErr)
+	}
+}
+
+// TestConcurrentClaims_ExactlyOneSucceeds simulates two sequential claims
+// against the same issue and verifies that only the first succeeds. True
+// concurrent access is enforced at the database layer; this test verifies the
+// service-level conflict detection logic that backs it.
+func TestConcurrentClaims_ExactlyOneSucceeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — a single ready task.
+	ctx := t.Context()
+	svc, _ := setupService(t)
+
+	alice := mustAuthor(t, "alice")
+	bob := mustAuthor(t, "bob")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:   domain.RoleTask,
+		Title:  "Contested task",
+		Author: alice,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+
+	// When — alice claims first, then bob tries to claim the same issue.
+	_, err = svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID: created.Issue.ID().String(),
+		Author:  alice,
+	})
+	if err != nil {
+		t.Fatalf("first claim (alice): unexpected error: %v", err)
+	}
+
+	_, bobErr := svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID: created.Issue.ID().String(),
+		Author:  bob,
+	})
+
+	// Then — bob's claim fails with ClaimConflictError because alice holds an
+	// active claim. Exactly one caller wins the claim race.
+	if !errors.Is(bobErr, &domain.ClaimConflictError{}) {
+		t.Errorf("expected ClaimConflictError for concurrent claim attempt, got %v", bobErr)
 	}
 }

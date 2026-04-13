@@ -22,7 +22,7 @@ func setupBoundarySvc(t *testing.T) driving.Service {
 	}
 	t.Cleanup(func() { store.Close() })
 
-	svc := core.New(store)
+	svc := core.New(store, store)
 	if err := svc.Init(t.Context(), "TEST"); err != nil {
 		t.Fatalf("initializing database: %v", err)
 	}

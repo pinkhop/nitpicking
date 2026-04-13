@@ -206,6 +206,7 @@ func TestSentinelErrors_AreDistinct(t *testing.T) {
 		domain.ErrCycleDetected,
 		domain.ErrDeletedIssue,
 		domain.ErrTerminalState,
+		domain.ErrStaleClaim,
 	}
 
 	// Then — each sentinel is distinct from every other
@@ -231,6 +232,7 @@ func TestSentinelErrors_MatchWhenWrapped(t *testing.T) {
 		{"ErrDeletedIssue", domain.ErrDeletedIssue},
 		{"ErrTerminalState", domain.ErrTerminalState},
 		{"ErrDepthExceeded", domain.ErrDepthExceeded},
+		{"ErrStaleClaim", domain.ErrStaleClaim},
 	}
 
 	for _, tc := range cases {

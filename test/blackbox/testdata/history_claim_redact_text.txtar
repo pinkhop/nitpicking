@@ -1,9 +1,10 @@
 # Verify that the text output of issue history does not leak the claim ID
-# (bearer token) while still showing the claimed event type.
+# (bearer token). Claiming no longer produces a history event; the history
+# only records "created" for a newly seeded issue.
 
 np-init HC
 np-seed task 'History claim redact' hist-agent TASK --claim
 
 exec np issue history $TASK
-stdout 'claimed'
+stdout 'created'
 ! stdout $TASK_CLAIM

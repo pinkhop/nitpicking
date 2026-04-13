@@ -26,7 +26,7 @@ func setupStoreAndSvc(t *testing.T) (*sqlite.Store, driving.Service) {
 	}
 	t.Cleanup(func() { store.Close() })
 
-	svc := core.New(store)
+	svc := core.New(store, store)
 	if err := svc.Init(t.Context(), "TEST"); err != nil {
 		t.Fatalf("initializing database: %v", err)
 	}
@@ -44,7 +44,7 @@ func setupStoreAndSvcAtPath(t *testing.T) (string, *sqlite.Store, driving.Servic
 	}
 	t.Cleanup(func() { store.Close() })
 
-	svc := core.New(store)
+	svc := core.New(store, store)
 	if err := svc.Init(t.Context(), "TEST"); err != nil {
 		t.Fatalf("initializing database: %v", err)
 	}

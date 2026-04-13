@@ -21,7 +21,7 @@ func setupCommentService(t *testing.T) driving.Service {
 	t.Helper()
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	if err := svc.Init(t.Context(), "NP"); err != nil {
 		t.Fatalf("precondition: init failed: %v", err)

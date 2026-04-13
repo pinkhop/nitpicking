@@ -130,6 +130,8 @@ func TestParseEventType_InvalidInput_ReturnsError(t *testing.T) {
 		{"numeric string", "42"},
 		{"partial match", "create"},
 		{"uppercase variant", "CREATED"},
+		{"removed claimed event", "claimed"},
+		{"removed released event", "released"},
 	}
 
 	for _, tc := range cases {
@@ -152,8 +154,6 @@ func TestEventType_StringRoundTrips(t *testing.T) {
 
 	cases := []history.EventType{
 		history.EventCreated,
-		history.EventClaimed,
-		history.EventReleased,
 		history.EventUpdated,
 		history.EventStateChanged,
 		history.EventDeleted,

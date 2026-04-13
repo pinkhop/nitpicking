@@ -23,7 +23,7 @@ func newUninitializedService(t *testing.T) driving.Service {
 	t.Helper()
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	return core.New(tx)
+	return core.New(tx, nil)
 }
 
 func noColor() *iostreams.ColorScheme {

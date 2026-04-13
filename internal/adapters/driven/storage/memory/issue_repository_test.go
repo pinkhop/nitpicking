@@ -1760,11 +1760,14 @@ func TestGetIssueSummary_AggregatesCounts(t *testing.T) {
 	ctx := context.Background()
 	repo := memory.NewRepository()
 
-	// Given
+	// Given — one issue in each primary state plus a deleted issue (excluded
+	// from counts) and an open issue with an active claim (still counts as open
+	// because claimed is a transient secondary state, not a primary lifecycle state).
 	now := time.Now()
 
 	openTask := mustTask(t, mustIssueID(t), "Open", now)
-	claimedTask := mustTask(t, mustIssueID(t), "Claimed", now).WithState(domain.StateClaimed)
+	claimedTaskID := mustIssueID(t)
+	claimedTask := mustTask(t, claimedTaskID, "Open with active claim", now)
 	deferredTask := mustTask(t, mustIssueID(t), "Deferred", now).WithState(domain.StateDeferred)
 	closedTask := mustTask(t, mustIssueID(t), "Closed", now).WithState(domain.StateClosed)
 	deletedTask := mustTask(t, mustIssueID(t), "Deleted", now).WithDeleted()
@@ -1775,17 +1778,29 @@ func TestGetIssueSummary_AggregatesCounts(t *testing.T) {
 		}
 	}
 
+	// Create a claim row for claimedTask — it should still count as Open.
+	claim, err := domain.NewClaim(domain.NewClaimParams{
+		IssueID: claimedTaskID,
+		Author:  mustAuthor(t, "alice"),
+		Now:     now,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create claim: %v", err)
+	}
+	if err := repo.CreateClaim(ctx, claim); err != nil {
+		t.Fatalf("precondition: persist claim: %v", err)
+	}
+
 	// When
 	summary, err := repo.GetIssueSummary(ctx)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if summary.Open != 1 {
-		t.Errorf("expected Open=1, got %d", summary.Open)
-	}
-	if summary.Claimed != 1 {
-		t.Errorf("expected Claimed=1, got %d", summary.Claimed)
+	// Two open issues: one without a claim, one with an active claim.
+	// Claims are transient secondary state; both count as Open.
+	if summary.Open != 2 {
+		t.Errorf("expected Open=2, got %d", summary.Open)
 	}
 	if summary.Deferred != 1 {
 		t.Errorf("expected Deferred=1, got %d", summary.Deferred)

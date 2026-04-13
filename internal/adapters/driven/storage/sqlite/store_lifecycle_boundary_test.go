@@ -23,7 +23,7 @@ func TestBoundary_CreateThenOpen_PreservesPrefix(t *testing.T) {
 		t.Fatalf("precondition: create database failed: %v", err)
 	}
 
-	svc := core.New(store)
+	svc := core.New(store, store)
 	ctx := t.Context()
 	if err := svc.Init(ctx, "LIFE"); err != nil {
 		t.Fatalf("precondition: init failed: %v", err)
@@ -47,7 +47,7 @@ func TestBoundary_CreateThenOpen_PreservesPrefix(t *testing.T) {
 	}
 	t.Cleanup(func() { store2.Close() })
 
-	svc2 := core.New(store2)
+	svc2 := core.New(store2, store2)
 
 	// Then — the prefix and issue data survive the close→open cycle.
 	showOut, err := svc2.ShowIssue(ctx, issueID.String())

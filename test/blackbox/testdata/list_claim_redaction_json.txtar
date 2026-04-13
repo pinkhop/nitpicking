@@ -12,8 +12,8 @@ exec np list --json
 ! stdout '"claim_author"'
 ! stdout '"claim_stale_at"'
 
-# list --state claimed --json
-exec np list --state claimed --json
+# list --state open --json — claimed issues are open in primary state
+exec np list --state open --json
 ! stdout '"claim_id"'
 ! stdout '"claim_author"'
 

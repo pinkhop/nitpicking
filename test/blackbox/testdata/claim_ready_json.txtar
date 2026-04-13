@@ -1,5 +1,5 @@
 # Claim ready JSON output: snake_case keys, issue_id and claim_id
-# present, stolen=false, no is_deleted field.
+# present, no stolen field (stealing mechanics removed), no is_deleted field.
 
 np-init CR
 np-seed task 'Claim ready JSON audit' claim-agent TASK
@@ -7,7 +7,7 @@ np-seed task 'Claim ready JSON audit' claim-agent TASK
 exec np claim ready --author claim-agent --json
 ! np-json-no-field issue_id
 ! np-json-no-field claim_id
-np-json-has stolen false
+np-json-no-field stolen
 np-json-no-field is_deleted
 ! stdout 'issueId'
 ! stdout 'claimId'

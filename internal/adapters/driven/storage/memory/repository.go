@@ -301,11 +301,11 @@ func (r *Repository) GetIssueSummary(_ context.Context) (driven.IssueSummary, er
 		if t.IsDeleted() {
 			continue
 		}
+		// Claims are transient local bookkeeping; a claimed issue remains open
+		// as its primary state.
 		switch t.State() {
 		case domain.StateOpen:
 			s.Open++
-		case domain.StateClaimed:
-			s.Claimed++
 		case domain.StateDeferred:
 			s.Deferred++
 		case domain.StateClosed:
@@ -535,6 +535,23 @@ func (r *Repository) ListActiveClaims(_ context.Context, now time.Time) ([]domai
 	return active, nil
 }
 
+// DeleteExpiredClaims removes all claim rows whose stale-at timestamp is on or
+// before now. Returns the count of deleted rows. Active claims are preserved.
+func (r *Repository) DeleteExpiredClaims(_ context.Context, now time.Time) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var count int
+	for id, c := range r.claims {
+		if c.IsStale(now) {
+			delete(r.claimsByIssue, c.IssueID().String())
+			delete(r.claims, id)
+			count++
+		}
+	}
+	return count, nil
+}
+
 // --- RelationshipRepository ---
 
 func (r *Repository) CreateRelationship(_ context.Context, rel domain.Relationship) (bool, error) {
@@ -752,6 +769,20 @@ func (r *Repository) CountVirtualLabelsInTable(_ context.Context) (int, error) {
 	return 0, nil
 }
 
+// GetSchemaVersion always returns 2 in the in-memory adapter because the
+// in-memory store is always freshly initialized at v2. There is no on-disk
+// v1 schema to migrate.
+func (r *Repository) GetSchemaVersion(_ context.Context) (int, error) {
+	return 2, nil
+}
+
+// SetSchemaVersion is a no-op in the in-memory adapter. The in-memory store
+// always operates at v2 and has no on-disk schema to migrate; this method
+// exists to satisfy the DatabaseRepository interface.
+func (r *Repository) SetSchemaVersion(_ context.Context, _ int) error {
+	return nil
+}
+
 func (r *Repository) CountDeletedRatio(_ context.Context) (total, deleted int, err error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -873,12 +904,25 @@ func (r *Repository) matchesFilter(t domain.Issue, f driven.IssueFilter) bool {
 func (r *Repository) isIssueReady(t domain.Issue) bool {
 	blockers := r.getBlockerStatusesInternal(t.ID())
 	ancestors := r.getAncestorStatusesInternal(t.ID())
+	hasActiveClaim := r.hasActiveClaimInternal(t.ID())
 
 	if t.IsTask() {
-		return core.IsTaskReady(t.State(), blockers, ancestors)
+		return core.IsTaskReady(t.State(), hasActiveClaim, blockers, ancestors)
 	}
 	hasChildren := r.hasChildrenInternal(t.ID())
-	return core.IsEpicReady(t.State(), hasChildren, blockers, ancestors)
+	return core.IsEpicReady(t.State(), hasActiveClaim, hasChildren, blockers, ancestors)
+}
+
+// hasActiveClaimInternal reports whether the issue has an active (non-stale)
+// claim. A stale claim is treated as nonexistent for readiness and display
+// purposes.
+func (r *Repository) hasActiveClaimInternal(id domain.ID) bool {
+	claimID, ok := r.claimsByIssue[id.String()]
+	if !ok {
+		return false
+	}
+	c, exists := r.claims[claimID]
+	return exists && !c.IsStale(time.Now())
 }
 
 func (r *Repository) isIssueBlocked(t domain.Issue) bool {

@@ -13,11 +13,15 @@ type ValidatedRecord struct {
 	State              State
 	Author             string
 	Comment            string
-	Labels             []Label
-	Parent             string
-	BlockedBy          []string
-	Blocks             []string
-	Refs               []string
+	// Claim indicates the imported issue should be immediately claimed after
+	// creation. Only valid when State is open; the import service returns an
+	// error if Claim is true for a non-open record.
+	Claim     bool
+	Labels    []Label
+	Parent    string
+	BlockedBy []string
+	Blocks    []string
+	Refs      []string
 }
 
 // ValidationResult holds the outcome of validating an entire import file.

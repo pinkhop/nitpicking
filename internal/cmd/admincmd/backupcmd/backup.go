@@ -207,7 +207,7 @@ before operations they cannot undo.`,
 				return fmt.Errorf("opening database: %w", err)
 			}
 
-			svc := core.New(store)
+			svc := core.New(store, store)
 			cs := f.IOStreams.ColorScheme()
 
 			prefix, err := svc.GetPrefix(ctx)

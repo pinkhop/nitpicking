@@ -88,7 +88,6 @@ func TestRenderGraphDOT_StateColors_MatchExpected(t *testing.T) {
 		color string
 	}{
 		{"open", domain.StateOpen, "white"},
-		{"claimed", domain.StateClaimed, "yellow"},
 		{"closed", domain.StateClosed, "gray"},
 		{"deferred", domain.StateDeferred, "lightyellow"},
 	}

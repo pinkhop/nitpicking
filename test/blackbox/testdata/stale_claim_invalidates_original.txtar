@@ -1,0 +1,18 @@
+# Verify that after agent B claims a stale claim from agent A, agent A's
+# original claim ID is invalidated — using it for an update fails.
+
+np-init STEAL
+np-seed task 'Will be reclaimed' agent-alpha TASK
+
+# Agent A claims, then agent B reclaims after the claim goes stale.
+exec np claim $TASK --author agent-alpha --duration 1ms --json
+np-capture CLAIM_A claim_id
+
+exec np claim $TASK --author agent-beta --json
+
+# Agent A's update with the old claim fails.
+stdin update.json
+! exec np json update --claim $CLAIM_A
+
+-- update.json --
+{"title": "Agent A update"}

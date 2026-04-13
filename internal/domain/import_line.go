@@ -14,6 +14,7 @@ type RawLine struct {
 	State              string            `json:"state"`
 	Author             string            `json:"author"`
 	Comment            string            `json:"comment"`
+	Claim              bool              `json:"claim"`
 	Labels             map[string]string `json:"labels"`
 	Parent             string            `json:"parent"`
 	BlockedBy          []string          `json:"blocked_by"`

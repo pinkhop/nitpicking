@@ -33,8 +33,7 @@ The key command for multi-agent workflows is `np claim ready`:
 $ np claim ready --author blue-seal-echo --json
 {
   "issue_id": "MYAPP-2e22n",
-  "claim_id": "a4dace30e46eb1ec14019c79a59c6b27",
-  "stolen": false
+  "claim_id": "a4dace30e46eb1ec14019c79a59c6b27"
 }
 ```
 
@@ -54,14 +53,14 @@ $ np claim MYAPP-2e22n --author kind-comet-quest
 **What to do:**
 
 - **Try another issue** — use `np claim ready` to claim the next available.
-- **Wait** — the claim expires after the stale duration (default 2 hours).
-- **Steal** — if the other agent is gone, use `--steal` (see below).
+- **Wait** — the claim expires after the stale duration (default 2 hours), after which you can claim the issue normally.
+- **Claim a different issue** — use `np claim ready` to find the next unclaimed ready issue.
 
 ---
 
-## Stale Claims and Stealing
+## Stale Claims and Automatic Recovery
 
-Claims expire after a duration (default: 2 hours). If an agent crashes or is terminated without releasing its claim, the claim goes stale and other agents can steal it.
+Claims expire after a duration (default: 2 hours). If an agent crashes or is terminated without releasing its claim, the claim goes stale. Stale claims are treated as nonexistent — any agent can overwrite them by claiming normally, with no special flag.
 
 ### Checking for Stale Claims
 
@@ -69,21 +68,21 @@ Claims expire after a duration (default: 2 hours). If an agent crashes or is ter
 $ np admin doctor
 ```
 
-The doctor diagnostic reports stale claims.
+The doctor diagnostic reports stale claims and explains why issues may not appear as ready.
 
-### Stealing a Stale Claim
+### Recovering a Stale Claim
 
-```
-$ np claim MYAPP-2e22n --author kind-comet-quest --steal
-```
-
-Or, when claiming the next ready issue:
+Once a claim has gone stale, claim the issue normally:
 
 ```
-$ np claim ready --author kind-comet-quest --steal
+$ np claim MYAPP-2e22n --author kind-comet-quest
 ```
 
-The `--steal` flag with `ready` first tries to find an unclaimed ready issue. Only if none exist does it fall back to stealing a stale claim.
+Or let `np claim ready` handle it automatically — it will overwrite a stale claim if the stale issue is the highest-priority ready choice:
+
+```
+$ np claim ready --author kind-comet-quest
+```
 
 ### Adjusting the Duration
 
@@ -234,17 +233,17 @@ Multi-agent setups need mechanisms to recover from agent failures, premature clo
 
 ### Stale Claim Recovery
 
-When an agent crashes or is terminated without releasing its claim, the claim goes stale after the duration (default 2 hours). Another agent recovers the work:
+When an agent crashes or is terminated without releasing its claim, the claim goes stale after the duration (default 2 hours). Stale claims are treated as nonexistent. Another agent recovers the work by claiming normally:
 
 ```
-# Check if the claim is stealable:
+# Check when the claim goes stale:
 np show MYAPP-2e22n --json | jq '.claim_stale_at'
 
-# Steal the stale claim:
-np claim MYAPP-2e22n --author kind-comet-quest --steal
+# Once stale, claim normally — no special flag needed:
+np claim MYAPP-2e22n --author kind-comet-quest
 ```
 
-Or let `np claim ready --steal` handle it automatically — it steals a stale claim only when no unclaimed ready issues exist.
+Or let `np claim ready` handle it automatically — if the stale-claimed issue is the highest-priority ready choice, it will be claimed and the old stale claim overwritten.
 
 ### Deferring Work That Cannot Proceed
 

@@ -1,0 +1,9 @@
+# Verify that claiming an issue with an active (non-stale) claim held by
+# another author fails with a claim conflict error.
+
+np-init CACT
+np-seed task 'Actively claimed' agent-alpha TASK --claim
+
+# Agent B attempts to claim — should fail because the claim is active (non-stale).
+! exec np claim $TASK --author agent-beta --json
+stderr 'claim conflict'

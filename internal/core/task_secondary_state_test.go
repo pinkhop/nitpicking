@@ -10,10 +10,10 @@ import (
 func TestTaskSecondaryState_OpenNotBlocked_Ready(t *testing.T) {
 	t.Parallel()
 
-	// Given — open task, no blockers, no blocked/deferred ancestors.
+	// Given — open task, no active claim, no blockers, no blocked/deferred ancestors.
 
 	// When
-	result := core.TaskSecondaryState(domain.StateOpen, nil, nil)
+	result := core.TaskSecondaryState(domain.StateOpen, false, nil, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryReady {
@@ -21,6 +21,44 @@ func TestTaskSecondaryState_OpenNotBlocked_Ready(t *testing.T) {
 	}
 	if len(result.DetailStates) != 1 || result.DetailStates[0] != domain.SecondaryReady {
 		t.Errorf("DetailStates = %v, want [ready]", result.DetailStates)
+	}
+}
+
+func TestTaskSecondaryState_OpenWithActiveClaim_Claimed(t *testing.T) {
+	t.Parallel()
+
+	// Given — open task with an active (non-stale) claim.
+
+	// When — claimed takes priority over ready.
+	result := core.TaskSecondaryState(domain.StateOpen, true, nil, nil)
+
+	// Then
+	if result.ListState != domain.SecondaryClaimed {
+		t.Errorf("ListState = %v, want claimed", result.ListState)
+	}
+	if len(result.DetailStates) != 1 || result.DetailStates[0] != domain.SecondaryClaimed {
+		t.Errorf("DetailStates = %v, want [claimed]", result.DetailStates)
+	}
+}
+
+func TestTaskSecondaryState_OpenWithActiveClaimAndBlocker_Claimed(t *testing.T) {
+	t.Parallel()
+
+	// Given — open task with an active claim and an unresolved blocker.
+	// Claimed takes priority over blocked in display — the issue is being worked on.
+	blockers := []domain.BlockerStatus{
+		{IsClosed: false, IsDeleted: false},
+	}
+
+	// When
+	result := core.TaskSecondaryState(domain.StateOpen, true, blockers, nil)
+
+	// Then — claimed wins over blocked.
+	if result.ListState != domain.SecondaryClaimed {
+		t.Errorf("ListState = %v, want claimed", result.ListState)
+	}
+	if len(result.DetailStates) != 1 || result.DetailStates[0] != domain.SecondaryClaimed {
+		t.Errorf("DetailStates = %v, want [claimed]", result.DetailStates)
 	}
 }
 
@@ -33,7 +71,7 @@ func TestTaskSecondaryState_OpenWithUnresolvedBlocker_Blocked(t *testing.T) {
 	}
 
 	// When
-	result := core.TaskSecondaryState(domain.StateOpen, blockers, nil)
+	result := core.TaskSecondaryState(domain.StateOpen, false, blockers, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryBlocked {
@@ -53,7 +91,7 @@ func TestTaskSecondaryState_OpenWithBlockedAncestor_Blocked(t *testing.T) {
 	}
 
 	// When
-	result := core.TaskSecondaryState(domain.StateOpen, nil, ancestors)
+	result := core.TaskSecondaryState(domain.StateOpen, false, nil, ancestors)
 
 	// Then
 	if result.ListState != domain.SecondaryBlocked {
@@ -70,7 +108,7 @@ func TestTaskSecondaryState_OpenWithDeferredAncestor_Blocked(t *testing.T) {
 	}
 
 	// When
-	result := core.TaskSecondaryState(domain.StateOpen, nil, ancestors)
+	result := core.TaskSecondaryState(domain.StateOpen, false, nil, ancestors)
 
 	// Then
 	if result.ListState != domain.SecondaryBlocked {
@@ -87,7 +125,7 @@ func TestTaskSecondaryState_OpenWithResolvedBlocker_Ready(t *testing.T) {
 	}
 
 	// When
-	result := core.TaskSecondaryState(domain.StateOpen, blockers, nil)
+	result := core.TaskSecondaryState(domain.StateOpen, false, blockers, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryReady {
@@ -104,7 +142,7 @@ func TestTaskSecondaryState_DeferredAndBlocked_Blocked(t *testing.T) {
 	}
 
 	// When
-	result := core.TaskSecondaryState(domain.StateDeferred, blockers, nil)
+	result := core.TaskSecondaryState(domain.StateDeferred, false, blockers, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryBlocked {
@@ -121,22 +159,7 @@ func TestTaskSecondaryState_DeferredNotBlocked_None(t *testing.T) {
 	// Given — deferred task with no blockers.
 
 	// When
-	result := core.TaskSecondaryState(domain.StateDeferred, nil, nil)
-
-	// Then
-	if result.ListState != domain.SecondaryNone {
-		t.Errorf("ListState = %v, want none", result.ListState)
-	}
-	if len(result.DetailStates) != 0 {
-		t.Errorf("DetailStates = %v, want empty", result.DetailStates)
-	}
-}
-
-func TestTaskSecondaryState_Claimed_None(t *testing.T) {
-	t.Parallel()
-
-	// When
-	result := core.TaskSecondaryState(domain.StateClaimed, nil, nil)
+	result := core.TaskSecondaryState(domain.StateDeferred, false, nil, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryNone {
@@ -151,7 +174,7 @@ func TestTaskSecondaryState_Closed_None(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := core.TaskSecondaryState(domain.StateClosed, nil, nil)
+	result := core.TaskSecondaryState(domain.StateClosed, false, nil, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryNone {
@@ -171,7 +194,7 @@ func TestTaskSecondaryState_DeferredWithBlockedAncestor_Blocked(t *testing.T) {
 	}
 
 	// When
-	result := core.TaskSecondaryState(domain.StateDeferred, nil, ancestors)
+	result := core.TaskSecondaryState(domain.StateDeferred, false, nil, ancestors)
 
 	// Then
 	if result.ListState != domain.SecondaryBlocked {

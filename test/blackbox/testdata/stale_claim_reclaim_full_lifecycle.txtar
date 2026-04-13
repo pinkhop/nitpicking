@@ -1,15 +1,15 @@
-# Verify that a stolen claim allows the full lifecycle: update the issue and
-# close it using the stolen claim ID.
+# Verify that reclaiming a stale claim allows the full lifecycle: update the
+# issue and close it using the new claim ID.
 
 np-init STEAL
-np-seed task 'Lifecycle after steal' agent-alpha TASK
+np-seed task 'Lifecycle after reclaim' agent-alpha TASK
 
-# Agent A claims, then agent B steals.
+# Agent A claims, then agent B reclaims after the claim goes stale.
 exec np claim $TASK --author agent-alpha --duration 1ms --json
-exec np claim $TASK --author agent-beta --steal --json
+exec np claim $TASK --author agent-beta --json
 np-capture CLAIM_B claim_id
 
-# Agent B updates and closes using the stolen claim.
+# Agent B updates and closes using the new claim.
 stdin update.json
 exec np json update --claim $CLAIM_B
 exec np close --claim $CLAIM_B --reason 'test close' --json

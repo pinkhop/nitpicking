@@ -79,7 +79,7 @@ Use the `parent` field to attach children to the epic. For large epics, decompos
 
 To create a deferred issue (so it does not appear as ready work until explicitly undeferred), use a three-step workflow:
 
-1. Create the issue in the claimed state using `--with-claim`
+1. Create the issue and immediately claim it using `--with-claim`
 2. Defer it: `np issue defer --claim <CLAIM-ID>`
 3. Release it: `np issue release --claim <CLAIM-ID>`
 
@@ -115,7 +115,7 @@ Comments do not require claiming and can be added to any issue, including closed
 | Transition | When to use |
 |------------|-------------|
 | `np close --claim <CID> --reason "..."` | Task is complete (can be reopened if needed) |
-| `np issue release --claim <CID>` | Epic has been decomposed; or task cannot be completed now |
+| `np issue release --claim <CID>` | Epic has been decomposed; or task cannot be completed now — deletes the local claim record without changing the issue's primary state |
 | `np issue defer --claim <CID>` | Shelve for later (can be restored with undefer) |
 
 ## Handling Incidentals
@@ -136,12 +136,14 @@ JSONEND
 3. If the incidental blocks your current work, add a relationship:
    `np rel add <YOUR-ISSUE> blocked_by <BLOCKER-ID> --author <your-name>`
 
-## Stale Claims and Stealing
+## Stale Claims
 
-If no ready issues exist, steal a stale one:
+If no ready issues exist and there are stale claims, stale claims are automatically
+overwritten when you run the normal claim command. Run `np admin doctor` to identify
+stale claims blocking ready work, then claim normally:
 
 ```
-np claim ready --steal --author <your-name>
+np claim ready --author <your-name>
 ```
 
 ## Backups
@@ -175,7 +177,7 @@ JSONEND
 ```
 
 **CLI flags:** `--author` (required), `--with-claim` (optional, immediately claims the new issue).
-**JSON fields:** `title` (required), `role` (defaults to `task`), `description`, `acceptance_criteria`, `priority`, `parent`, `labels` (array of `key:value` strings), `label_remove` (accepted, ignored), `comment` (creates a comment on the new issue), `claim` (accepted, ignored — use `--with-claim` CLI flag instead).
+**JSON fields:** `title` (required), `role` (defaults to `task`), `description`, `acceptance_criteria`, `priority`, `parent`, `labels` (array of `key:value` strings), `comment` (creates a comment on the new issue). Unknown fields are rejected.
 
 ### json update
 
@@ -191,7 +193,7 @@ JSONEND
 ```
 
 **CLI flags:** `--claim` (required).
-**JSON fields:** `title`, `description`, `acceptance_criteria`, `priority`, `parent`, `labels` (array of `key:value` strings), `label_remove` (array of key strings), `comment`, `role` (accepted; errors if different from current role), `claim` (accepted, ignored). All fields are optional.
+**JSON fields:** `title`, `description`, `acceptance_criteria`, `priority`, `parent`, `labels` (array of `key:value` strings), `label_remove` (array of key strings), `comment`, `role` (errors if different from current role). All fields are optional. Unknown fields are rejected.
 
 ### json comment
 

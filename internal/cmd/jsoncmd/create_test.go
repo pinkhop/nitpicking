@@ -21,7 +21,7 @@ func setupCreateService(t *testing.T) driving.Service {
 	t.Helper()
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	if err := svc.Init(t.Context(), "NP"); err != nil {
 		t.Fatalf("precondition: init failed: %v", err)
@@ -295,10 +295,11 @@ func TestRunCreate_InvalidLabels_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestRunCreate_LabelRemove_SilentlyIgnored(t *testing.T) {
+func TestRunCreate_LabelRemove_Rejected(t *testing.T) {
 	t.Parallel()
 
-	// Given: JSON with label_remove, which is a json update field.
+	// Given: JSON with label_remove, which is an update-only field and unknown
+	// to json create.
 	svc := setupCreateService(t)
 
 	stdin := strings.NewReader(`{"title": "Task with label_remove", "label_remove": ["kind"]}`)
@@ -313,9 +314,10 @@ func TestRunCreate_LabelRemove_SilentlyIgnored(t *testing.T) {
 
 	// When
 	err := jsoncmd.RunCreate(t.Context(), input)
-	// Then: no error — label_remove is accepted and silently ignored.
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+
+	// Then: an error is returned — label_remove is not a valid field for json create.
+	if err == nil {
+		t.Fatal("expected error for label_remove field, got nil")
 	}
 }
 
@@ -366,10 +368,11 @@ func TestRunCreate_Comment_CreatesCommentOnNewIssue(t *testing.T) {
 	}
 }
 
-func TestRunCreate_ClaimInJSON_SilentlyIgnored(t *testing.T) {
+func TestRunCreate_ClaimInJSON_ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	// Given: JSON with claim=true, but WithClaim is false.
+	// Given: JSON with claim=true in the body (claiming is done via --with-claim,
+	// not the JSON body).
 	svc := setupCreateService(t)
 
 	stdin := strings.NewReader(`{"title": "Task with claim in JSON", "claim": true}`)
@@ -385,20 +388,10 @@ func TestRunCreate_ClaimInJSON_SilentlyIgnored(t *testing.T) {
 
 	// When
 	err := jsoncmd.RunCreate(t.Context(), input)
-	// Then: no error, and the issue is NOT claimed (claim in JSON is ignored).
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
-	var result map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
-		t.Fatalf("invalid JSON output: %v\nraw: %s", err, stdout.String())
-	}
-	if result["state"] != "open" {
-		t.Errorf("state: got %q, want %q (claim in JSON should be ignored)", result["state"], "open")
-	}
-	if _, ok := result["claim_id"]; ok {
-		t.Error("claim_id should not be present when WithClaim is false")
+	// Then: an error is returned because claim is not accepted in JSON input.
+	if err == nil {
+		t.Fatal("expected error for claim in JSON, got nil")
 	}
 }
 
@@ -430,11 +423,38 @@ func TestRunCreate_WithClaimFlag_ClaimsIssue(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON output: %v\nraw: %s", err, stdout.String())
 	}
-	if result["state"] != "claimed" {
-		t.Errorf("state: got %q, want %q", result["state"], "claimed")
+	// Claiming creates a claim row but leaves the issue state as open.
+	if result["state"] != "open" {
+		t.Errorf("state: got %q, want %q", result["state"], "open")
 	}
 	if _, ok := result["claim_id"]; !ok {
 		t.Error("expected claim_id in JSON output when WithClaim=true")
+	}
+}
+
+func TestRunCreate_StateInJSON_Rejected(t *testing.T) {
+	t.Parallel()
+
+	// Given: JSON with a state field — state is an unknown field for json create
+	// and is rejected by the decoder.
+	svc := setupCreateService(t)
+
+	stdin := strings.NewReader(`{"title": "Task with state", "state": "open"}`)
+	var stdout bytes.Buffer
+
+	input := jsoncmd.RunCreateInput{
+		Service: svc,
+		Author:  "alice",
+		Stdin:   stdin,
+		WriteTo: &stdout,
+	}
+
+	// When
+	err := jsoncmd.RunCreate(t.Context(), input)
+
+	// Then: an error is returned because state is an unknown field.
+	if err == nil {
+		t.Fatal("expected error for state field, got nil")
 	}
 }
 
@@ -463,11 +483,10 @@ func TestRunCreate_IdempotencyKey_Rejected(t *testing.T) {
 	}
 }
 
-func TestRunCreate_UnifiedSchema_AllFieldsAccepted(t *testing.T) {
+func TestRunCreate_AllFields_Accepted(t *testing.T) {
 	t.Parallel()
 
-	// Given: a JSON object with all fields that appear in either json create
-	// or json update, to verify that a single object can be piped to both.
+	// Given: a JSON object with all content fields accepted by json create.
 	svc := setupCreateService(t)
 
 	stdinJSON := `{
@@ -477,9 +496,7 @@ func TestRunCreate_UnifiedSchema_AllFieldsAccepted(t *testing.T) {
 		"acceptance_criteria": "ac",
 		"priority": "P2",
 		"labels": ["kind:test"],
-		"label_remove": ["old-key"],
-		"comment": "unified comment",
-		"claim": true
+		"comment": "unified comment"
 	}`
 	stdin := strings.NewReader(stdinJSON)
 	var stdout bytes.Buffer

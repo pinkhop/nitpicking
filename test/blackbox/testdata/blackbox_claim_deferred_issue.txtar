@@ -1,13 +1,17 @@
-# Verify that a deferred issue can be re-claimed, transitioning to the
-# claimed state.
+# Verify that a deferred issue cannot be claimed. Under the new model, claims
+# are only valid on open issues; deferred issues must be undeferred before they
+# can be claimed again.
 
 np-init EDGE
 np-seed task 'Deferred then reclaimed' edge-agent TASK --claim
 
 exec np issue defer --claim $TASK_CLAIM --json
 
-exec np claim $TASK --author edge-agent --json
-np-capture NEW_CLAIM claim_id
+# Claiming a deferred issue must fail.
+! exec np claim $TASK --author edge-agent --json
+stderr 'illegal state transition'
 
+# The issue state should still be deferred and unclaimed.
 exec np show $TASK --json
-np-json-has state claimed
+np-json-has state deferred
+np-json-no-field claim_id

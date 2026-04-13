@@ -254,7 +254,7 @@ func setupServiceWithStore(t *testing.T) (driving.Service, *sqlite.Store) {
 		}
 	})
 
-	svc := core.New(store)
+	svc := core.New(store, store)
 	if err := svc.Init(t.Context(), "NP"); err != nil {
 		t.Fatalf("init store: %v", err)
 	}

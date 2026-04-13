@@ -372,7 +372,8 @@ func writeBlockedBySection(w io.Writer, cs *iostreams.ColorScheme, blockers []dr
 	_, _ = fmt.Fprintf(w, "\n%s\n", cs.Bold(fmt.Sprintf("Blocked by (%d):", len(blockers))))
 	for _, b := range blockers {
 		line := fmt.Sprintf("  %s  %s  %s", b.ID, cmdutil.ColorState(cs, b.State), b.Title)
-		if b.State == domain.StateClaimed && b.ClaimAuthor != "" {
+		// For open issues with an active claim, append the claim author to indicate work is in progress.
+		if b.State == domain.StateOpen && b.ClaimAuthor != "" {
 			line += fmt.Sprintf(" (%s)", b.ClaimAuthor)
 		}
 		if b.State == domain.StateDeferred {
@@ -383,17 +384,15 @@ func writeBlockedBySection(w io.Writer, cs *iostreams.ColorScheme, blockers []dr
 }
 
 // blockerSortOrder returns a numeric sort key for a blocker's state.
-// Lower values sort first: claimed (0), open (1), deferred (2), closed (3).
+// Lower values sort first: open (including claimed) (0), deferred (1), closed/other (2).
 func blockerSortOrder(b driving.BlockerDetail) int {
 	switch b.State {
-	case domain.StateClaimed:
-		return 0
 	case domain.StateOpen:
-		return 1
+		return 0
 	case domain.StateDeferred:
-		return 2
+		return 1
 	default:
-		return 3
+		return 2
 	}
 }
 

@@ -172,7 +172,7 @@ Claimed MYAPP-f7kkd
   Stale at: 2026-03-28 16:30:00
 ```
 
-The claim ID is a bearer token. Save it. You will need it for every subsequent mutation on this issue. If you lose it, you can steal the claim back after it goes stale, which defaults to 2 hours.
+The claim ID is a bearer token. Save it. You will need it for every subsequent mutation on this issue. If you lose it, wait for the claim to go stale (default: 2 hours), then reclaim the issue normally.
 
 ### Adding comments
 
@@ -268,12 +268,11 @@ JSONEND
 
 ## Issue States
 
-Every issue has one of four primary states:
+Every issue has one of three primary states:
 
 | State | Meaning |
 |-------|---------|
-| **open** | Available for work. This is the initial state. |
-| **claimed** | Someone is actively working on it. |
+| **open** | Available for work. This is the initial state. An open issue may show a secondary state: `claimed` (someone has an active claim) or `ready` (no active claim). |
 | **closed** | Done. Can be reopened if needed. |
 | **deferred** | Shelved for later. Not lost, just not now. |
 

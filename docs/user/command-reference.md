@@ -321,7 +321,6 @@ np claim [options] <ISSUE-ID | ready>
 | Flag | Description |
 |------|-------------|
 | `--author`, `-a` | Author name for the claim. Required. Env: `NP_AUTHOR`. |
-| `--steal` | Steal a stale claim. By ID: steal that issue's stale claim. With `ready`: fall back to stealable (stale) claimed issues when no unclaimed ready issues match. |
 | `--with-label` | Label filter in `key:value` or `key:*` format. Repeatable, AND semantics. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
 | `--with-role` | Filter by role: `task` or `epic`. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
 | `--duration` | Duration after which the claim becomes stale (e.g., `30m`, `1h`, `4h`). Default: `2h`. Mutually exclusive with `--stale-at`. |
@@ -348,21 +347,11 @@ $ np claim MYAPP-g6ff8 --author alice --json
   "author": "alice",
   "created_at": "2026-03-28T09:30:00Z",
   "stale_at": "2026-03-28T10:30:00Z",
-  "stolen": false
 }
 ```
 
-Steal a stale claim by ID:
+Claim next ready issue (also overwrites a stale claim if one exists on the chosen issue):
 
-```
-$ np claim MYAPP-g6ff8 --author bob --steal
-[ok] Claimed MYAPP-g6ff8 (stolen from alice)
-  Claim ID: b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0
-  Author: bob
-  Stale at: 2026-03-28 11:00:00
-```
-
-Claim next ready issue:
 
 ```
 $ np claim ready --author alice
@@ -381,8 +370,7 @@ $ np claim ready --author alice --with-role task --with-label kind:bug --json
   "claim_id": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8",
   "author": "alice",
   "created_at": "2026-03-28T09:30:00Z",
-  "stale_at": "2026-03-28T10:30:00Z",
-  "stolen": false
+  "stale_at": "2026-03-28T10:30:00Z"
 }
 ```
 
@@ -392,16 +380,16 @@ $ np claim ready --author alice --with-role task --with-label kind:bug --json
 |------|---------|
 | 0 | Claim acquired successfully. |
 | 2 | Issue not found (by ID) or no ready issues found (with `ready`). |
-| 3 | Claim conflict — the issue is already claimed and not stale, and `--steal` was not passed. |
+| 3 | Claim conflict — the issue is already claimed and the claim is not yet stale. |
 | 4 | Guard-rail assertion failed — the issue does not match `--with-label` or `--with-role`. |
 
 **Notes:**
 
 - The claim ID is a bearer token. Anyone with the claim ID can use it — there is no per-author verification on subsequent operations. Guard it accordingly.
-- Without `--steal`, attempting to claim an already-claimed issue returns exit code 3. Use this to branch workflow logic.
+- Claiming an issue that has a stale claim succeeds automatically — the stale claim is overwritten. No special flag is required.
+- Attempting to claim an issue with an active (non-stale) claim held by another author returns exit code 3. The correct response is to wait until the claim expires or to claim a different issue with `np claim ready`.
 - The `--duration` flag sets the duration after which the claim expires. Pass a longer value for long-running work.
-- An issue is "ready" when it is `open`, has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred`. For epics, readiness additionally requires having no children — a childless epic signals a planning gap that needs decomposition.
-- Use `--steal` with `ready` when no unclaimed ready issues exist but stale claims may be available.
+- An issue is "ready" when it is `open`, has no active non-stale claim, has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred`. For epics, readiness additionally requires having no children — a childless epic signals a planning gap that needs decomposition.
 
 ---
 

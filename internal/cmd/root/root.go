@@ -2,6 +2,7 @@ package root
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os/signal"
 	"syscall"
@@ -56,11 +57,84 @@ func init() {
 	}
 }
 
+// schemaCheckExemptArgs identifies the two-part command paths that must operate
+// on pre-migration (v1) databases and are therefore exempt from the startup
+// schema version check. All other commands that find an existing database have
+// the schema version verified before proceeding.
+//
+// "admin upgrade" performs the migration itself; it must accept v1 databases.
+// "admin doctor" diagnoses workspace health; it explicitly reports the
+// schema_migration_required finding and must operate on v1 databases to do so.
+var schemaCheckExemptArgs = map[[2]string]bool{
+	{"admin", "upgrade"}: true,
+	{"admin", "doctor"}:  true,
+}
+
+// isSchemaCheckExempt reports whether the command described by args is exempt
+// from the startup schema version check. args contains the positional arguments
+// remaining after the root command's own flags have been parsed — equivalent to
+// cmd.Args().Slice() in the root Before hook.
+//
+// It extracts the first two non-flag positional arguments to identify the
+// two-part command path and checks them against schemaCheckExemptArgs. Flags
+// (arguments starting with '-') are skipped so that interleaved flags such as
+// "np admin --json doctor" resolve correctly.
+func isSchemaCheckExempt(args []string) bool {
+	// Collect the first two non-flag positional arguments to identify the
+	// command path (e.g., ["admin", "upgrade"] for "np admin upgrade").
+	var parts [2]string
+	n := 0
+	for _, a := range args {
+		if len(a) == 0 || a[0] == '-' {
+			continue
+		}
+		parts[n] = a
+		n++
+		if n == 2 {
+			break
+		}
+	}
+
+	if n < 2 {
+		// Single-part or no-arg invocation: "np admin" shows help; neither
+		// sub-path is exempt so always run the check for any real command.
+		return false
+	}
+
+	return schemaCheckExemptArgs[parts]
+}
+
+// checkSchemaVersion opens the existing database (if any) and verifies that
+// the schema version meets the minimum required version. It is a no-op when no
+// database is found in the workspace — commands that require a database will
+// report the missing-database error themselves.
+//
+// Returns an error (wrapping domain.ErrSchemaMigrationRequired) when the
+// database is at v1 schema, directing the user to run "np admin upgrade".
+func checkSchemaVersion(ctx context.Context, f *cmdutil.Factory) error {
+	// Probe for a database without creating one. Commands that need a
+	// database — but find none — will report their own "no database found"
+	// error when they later call f.Store() or f.DatabasePath().
+	if _, err := f.DatabasePath(); err != nil {
+		return nil
+	}
+
+	// Open the existing database (memoised; subsequent f.Store() calls in the
+	// command's Action return the same connection).
+	store, err := f.Store()
+	if err != nil {
+		return fmt.Errorf("opening database for schema check: %w", err)
+	}
+
+	return store.CheckSchemaVersion(ctx)
+}
+
 // NewRootCmd constructs the root command with all subcommands registered.
 // The Factory is passed to each subcommand constructor, allowing them to
 // extract only the dependencies they need. The Before hook runs before
-// every subcommand and enriches the context with cross-cutting concerns;
-// the After hook tears down infrastructure started in Before.
+// every subcommand and enriches the context with cross-cutting concerns
+// (signal handling and schema version gating); the After hook tears down
+// infrastructure started in Before.
 func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 	// stopSignals deregisters the signal handler installed in Before.
 	// Declared here so the After hook can call it during teardown.
@@ -86,6 +160,17 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			// Tests that call run() directly bypass Before entirely and
 			// pass their own cancellable context.
 			ctx, stopSignals = signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+
+			// Schema version check: every command that reads or writes the
+			// database must operate on a v2-or-later schema. Commands that
+			// manage schema (admin upgrade, admin doctor) are exempt.
+			// When no database is found, the check is skipped — the command
+			// itself will surface a "no database found" error if it needs one.
+			if !isSchemaCheckExempt(cmd.Args().Slice()) {
+				if err := checkSchemaVersion(ctx, f); err != nil {
+					return ctx, err
+				}
+			}
 
 			return ctx, nil
 		},

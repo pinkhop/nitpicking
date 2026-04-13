@@ -18,37 +18,55 @@ type IssueClaimStatus struct {
 	ActiveClaim domain.Claim
 }
 
-// ValidateClaim checks whether an issue can be claimed per §6.1.
+// ValidateClaim checks whether an issue can be claimed.
+//
+// Claims are only valid on open issues. Closed and deferred issues cannot be
+// claimed — reopen operations are claim-free. A stale claim is treated as
+// nonexistent — the caller is responsible for deleting or overwriting the
+// expired row before creating the new claim. An active (non-stale) claim
+// always produces a ClaimConflictError, because steal mechanics have been
+// removed; callers must wait for the existing claim to expire.
+//
 // Returns nil if the issue is claimable, or an appropriate error.
-func ValidateClaim(status IssueClaimStatus, allowSteal bool, now time.Time) error {
+func ValidateClaim(status IssueClaimStatus, now time.Time) error {
 	if status.IsDeleted {
 		return fmt.Errorf("cannot claim deleted issue: %w", domain.ErrTerminalState)
 	}
 
-	if status.ActiveClaim.ID() != "" {
-		if !allowSteal {
-			return &domain.ClaimConflictError{
-				IssueID:       status.ActiveClaim.IssueID().String(),
-				CurrentHolder: status.ActiveClaim.Author().String(),
-				StaleAt:       status.ActiveClaim.StaleAt(),
-			}
-		}
-
-		if !status.ActiveClaim.IsStale(now) {
-			return &domain.ClaimConflictError{
-				IssueID:       status.ActiveClaim.IssueID().String(),
-				CurrentHolder: status.ActiveClaim.Author().String(),
-				StaleAt:       status.ActiveClaim.StaleAt(),
-			}
-		}
-
-		// Claim is stale and steal is allowed — proceed.
+	if status.State != domain.StateOpen {
+		return fmt.Errorf("cannot claim %s issue: only open issues can be claimed: %w",
+			status.State, domain.ErrIllegalTransition)
 	}
 
-	return nil
+	if status.ActiveClaim.ID() == "" {
+		// No claim present — always claimable.
+		return nil
+	}
+
+	if status.ActiveClaim.IsStale(now) {
+		// Stale claims are treated as nonexistent; the caller will overwrite
+		// the expired row when creating the new claim.
+		return nil
+	}
+
+	return &domain.ClaimConflictError{
+		IssueID:       status.ActiveClaim.IssueID().String(),
+		CurrentHolder: status.ActiveClaim.Author().String(),
+		StaleAt:       status.ActiveClaim.StaleAt(),
+	}
 }
 
-// StealComment generates the auto-comment body added when an issue is stolen.
-func StealComment(previousHolder string) string {
-	return fmt.Sprintf("Stolen from %q.", previousHolder)
+// ValidateActiveClaim checks that a claim retrieved from storage has not yet
+// gone stale. Operations that mutate an issue (update, close, defer, delete)
+// must call this after loading the claim so that expired claims are rejected
+// with a clear error rather than silently accepted.
+//
+// Returns nil if the claim is still active, or ErrStaleClaim if it has
+// passed its stale-at timestamp.
+func ValidateActiveClaim(c domain.Claim, now time.Time) error {
+	if c.IsStale(now) {
+		return fmt.Errorf("claim %s expired at %s; re-claim the issue before retrying: %w",
+			c.ID(), c.StaleAt().Format(time.RFC3339), domain.ErrStaleClaim)
+	}
+	return nil
 }

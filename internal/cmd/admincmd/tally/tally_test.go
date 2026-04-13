@@ -20,7 +20,7 @@ func setupService(t *testing.T) driving.Service {
 	t.Helper()
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	ctx := t.Context()
 	if err := svc.Init(ctx, "NP"); err != nil {
@@ -131,7 +131,7 @@ func TestRun_EmptyDatabase_AllCountsZero(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	for _, field := range []string{"open", "claimed", "deferred", "closed", "ready", "blocked", "total"} {
+	for _, field := range []string{"open", "deferred", "closed", "ready", "blocked", "total"} {
 		v, ok := result[field]
 		if !ok {
 			t.Errorf("expected field %q in JSON output", field)
@@ -147,17 +147,16 @@ func TestRun_CountsByState_MatchesIssueStates(t *testing.T) {
 	t.Parallel()
 
 	// Given — issues in various states:
-	//   2 open (unclaimed, not closed/deferred)
-	//   1 claimed
+	//   3 open (2 unclaimed + 1 claimed; claiming no longer changes primary state)
 	//   1 deferred
 	//   1 closed
 	svc := setupService(t)
 
-	// Two open tasks (one will remain open, one will remain open).
+	// Two open tasks (remain open).
 	_ = createTask(t, svc, "Open task 1")
 	_ = createTask(t, svc, "Open task 2")
 
-	// One claimed task.
+	// One claimed task — state stays open; claiming creates a claim row only.
 	claimedID := createTask(t, svc, "Claimed task")
 	_ = claimIssue(t, svc, claimedID)
 
@@ -185,7 +184,6 @@ func TestRun_CountsByState_MatchesIssueStates(t *testing.T) {
 	}
 	var result struct {
 		Open     int `json:"open"`
-		Claimed  int `json:"claimed"`
 		Deferred int `json:"deferred"`
 		Closed   int `json:"closed"`
 		Total    int `json:"total"`
@@ -193,11 +191,9 @@ func TestRun_CountsByState_MatchesIssueStates(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if result.Open != 2 {
-		t.Errorf("open: got %d, want 2", result.Open)
-	}
-	if result.Claimed != 1 {
-		t.Errorf("claimed: got %d, want 1", result.Claimed)
+	// Claimed issues remain open — all three unclaimed+claimed tasks appear under open.
+	if result.Open != 3 {
+		t.Errorf("open: got %d, want 3", result.Open)
 	}
 	if result.Deferred != 1 {
 		t.Errorf("deferred: got %d, want 1", result.Deferred)
@@ -235,7 +231,6 @@ func TestRun_TotalIsSumOfStateCounts(t *testing.T) {
 	}
 	var result struct {
 		Open     int `json:"open"`
-		Claimed  int `json:"claimed"`
 		Deferred int `json:"deferred"`
 		Closed   int `json:"closed"`
 		Total    int `json:"total"`
@@ -243,7 +238,7 @@ func TestRun_TotalIsSumOfStateCounts(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	expectedTotal := result.Open + result.Claimed + result.Deferred + result.Closed
+	expectedTotal := result.Open + result.Deferred + result.Closed
 	if result.Total != expectedTotal {
 		t.Errorf("total: got %d, want sum of state counts %d", result.Total, expectedTotal)
 	}
@@ -364,7 +359,7 @@ func TestRun_JSONOutput_ContainsAllExpectedFields(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	requiredFields := []string{"open", "claimed", "deferred", "closed", "ready", "blocked", "total"}
+	requiredFields := []string{"open", "deferred", "closed", "ready", "blocked", "total"}
 	for _, field := range requiredFields {
 		if _, ok := result[field]; !ok {
 			t.Errorf("expected field %q in JSON output", field)
@@ -397,7 +392,7 @@ func TestRun_TextOutput_IncludesStateLabelsAndCounts(t *testing.T) {
 	output := buf.String()
 
 	// Verify state labels are present.
-	for _, label := range []string{"Open", "Claimed", "Deferred", "Closed", "Ready", "Blocked"} {
+	for _, label := range []string{"Open", "Deferred", "Closed", "Ready", "Blocked"} {
 		if !strings.Contains(output, label) {
 			t.Errorf("expected %q label in text output, got: %s", label, output)
 		}

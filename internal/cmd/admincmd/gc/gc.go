@@ -15,6 +15,7 @@ import (
 type gcOutput struct {
 	DeletedIssuesRemoved int `json:"deleted_issues_removed"`
 	ClosedIssuesRemoved  int `json:"closed_issues_removed"`
+	ExpiredClaimsDeleted int `json:"expired_claims_deleted"`
 }
 
 // NewCmd constructs the "gc" command, which physically removes soft-deleted
@@ -74,7 +75,7 @@ since gc is irreversible.`,
 			if err != nil {
 				return fmt.Errorf("opening database: %w", err)
 			}
-			svc := core.New(store)
+			svc := core.New(store, store)
 			result, err := svc.GC(ctx, input)
 			if err != nil {
 				return fmt.Errorf("running garbage collection: %w", err)
@@ -89,6 +90,7 @@ since gc is irreversible.`,
 				return cmdutil.WriteJSON(f.IOStreams.Out, gcOutput{
 					DeletedIssuesRemoved: result.DeletedIssuesRemoved,
 					ClosedIssuesRemoved:  result.ClosedIssuesRemoved,
+					ExpiredClaimsDeleted: result.ExpiredClaimsDeleted,
 				})
 			}
 
@@ -100,6 +102,7 @@ since gc is irreversible.`,
 			if includeClosed {
 				_, _ = fmt.Fprintf(w, "  Closed issues removed:  %d\n", result.ClosedIssuesRemoved)
 			}
+			_, _ = fmt.Fprintf(w, "  Expired claims deleted: %d\n", result.ExpiredClaimsDeleted)
 
 			return nil
 		},

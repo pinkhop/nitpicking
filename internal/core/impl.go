@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"slices"
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain"
@@ -20,12 +20,17 @@ const gcThresholdRatio = 0.20
 
 // serviceImpl implements the driving.Service interface.
 type serviceImpl struct {
-	tx driven.Transactor
+	tx       driven.Transactor
+	migrator driven.Migrator
 }
 
-// New creates a new driving.Service backed by the given Transactor.
-func New(tx driven.Transactor) driving.Service {
-	return &serviceImpl{tx: tx}
+// New creates a new driving.Service backed by the given Transactor and
+// optional Migrator. When migrator is nil, calls to CheckSchemaVersion and
+// MigrateV1ToV2 return an error indicating that migration is not supported
+// by the backing store (e.g., in-memory stores used in tests). In production
+// the SQLite store satisfies both interfaces and both arguments are provided.
+func New(tx driven.Transactor, migrator driven.Migrator) driving.Service {
+	return &serviceImpl{tx: tx, migrator: migrator}
 }
 
 // parseAuthor converts a raw author string into a validated domain Author.
@@ -209,7 +214,7 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 			}
 		}
 
-		// Optionally claim.
+		// Optionally claim. Claiming creates a claims row; state remains open.
 		if input.Claim {
 			c, err := domain.NewClaim(domain.NewClaimParams{
 				IssueID: id,
@@ -220,23 +225,7 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 				return err
 			}
 
-			t = t.WithState(domain.StateClaimed)
-			if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-				return err
-			}
 			if err := uow.Claims().CreateClaim(ctx, c); err != nil {
-				return err
-			}
-
-			revision, _ := uow.History().CountHistory(ctx, id)
-			_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-				IssueID:   id,
-				Revision:  revision,
-				Author:    author,
-				Timestamp: now,
-				EventType: history.EventClaimed,
-			}))
-			if err != nil {
 				return err
 			}
 
@@ -345,31 +334,15 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow driven.UnitOfWork, 
 		ActiveClaim: activeClaim,
 	}
 
-	if err := ValidateClaim(status, input.AllowSteal, now); err != nil {
+	if err := ValidateClaim(status, now); err != nil {
 		return output, err
 	}
 
-	// Steal if needed.
+	// Invalidate any stale claim before creating the new one. ValidateClaim
+	// treats stale claims as nonexistent, so if we reach here with an active
+	// claim it is guaranteed to be stale.
 	if activeClaim.ID() != "" {
-		output.Stolen = true
-		previousHolder := activeClaim.Author().String()
-
-		// Invalidate old claim.
 		if err := uow.Claims().InvalidateClaim(ctx, activeClaim.ID()); err != nil {
-			return output, err
-		}
-
-		// Add steal comment.
-		stealComment, err := domain.NewComment(domain.NewCommentParams{
-			IssueID:   issueID,
-			Author:    author,
-			CreatedAt: now,
-			Body:      StealComment(previousHolder),
-		})
-		if err != nil {
-			return output, err
-		}
-		if _, err := uow.Comments().CreateComment(ctx, stealComment); err != nil {
 			return output, err
 		}
 	}
@@ -386,25 +359,9 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow driven.UnitOfWork, 
 		return output, err
 	}
 
-	// Update issue state to claimed.
-	t = t.WithState(domain.StateClaimed)
-	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-		return output, err
-	}
+	// Create the claim row. Issue state remains open; claiming is transient
+	// bookkeeping and does not alter the primary lifecycle state.
 	if err := uow.Claims().CreateClaim(ctx, c); err != nil {
-		return output, err
-	}
-
-	// Record claim history.
-	revision, _ := uow.History().CountHistory(ctx, issueID)
-	_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-		IssueID:   issueID,
-		Revision:  revision,
-		Author:    author,
-		Timestamp: now,
-		EventType: history.EventClaimed,
-	}))
-	if err != nil {
 		return output, err
 	}
 
@@ -433,76 +390,21 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input driving.ClaimNex
 			return err
 		}
 
-		if len(items) > 0 {
-			result, err := s.claimWithinTx(ctx, uow, driving.ClaimInput{
-				IssueID:        items[0].ID.String(),
-				Author:         input.Author,
-				StaleThreshold: input.StaleThreshold,
-				StaleAt:        input.StaleAt,
-			})
-			if err != nil {
-				return err
-			}
-			output = result
-			return nil
-		}
-
-		// No ready issues — try stealing a stale claim if requested.
-		if !input.StealIfNeeded {
+		if len(items) == 0 {
 			return domain.ErrNotFound
 		}
 
-		staleClaims, err := uow.Claims().ListStaleClaims(ctx, time.Now())
+		result, err := s.claimWithinTx(ctx, uow, driving.ClaimInput{
+			IssueID:        items[0].ID.String(),
+			Author:         input.Author,
+			StaleThreshold: input.StaleThreshold,
+			StaleAt:        input.StaleAt,
+		})
 		if err != nil {
 			return err
 		}
-
-		if len(staleClaims) == 0 {
-			return domain.ErrNotFound
-		}
-
-		// Build a set of issue IDs with stale claims for fast lookup.
-		staleIssueIDs := make(map[domain.ID]struct{}, len(staleClaims))
-		for _, c := range staleClaims {
-			staleIssueIDs[c.IssueID()] = struct{}{}
-		}
-
-		// Query claimed issues with the same label/role filters, ordered by
-		// priority. This reuses the repository's filter logic rather than
-		// reimplementing label/role matching in the core.
-		stealFilter := driven.IssueFilter{
-			States:       []domain.State{domain.StateClaimed},
-			LabelFilters: toPortLabelFilters(input.LabelFilters),
-		}
-		if input.Role != 0 {
-			stealFilter.Roles = []domain.Role{input.Role}
-		}
-
-		candidates, _, err := uow.Issues().ListIssues(ctx, stealFilter, driven.OrderByPriority, 0)
-		if err != nil {
-			return err
-		}
-
-		// Find the highest-priority candidate that also has a stale claim.
-		for _, candidate := range candidates {
-			if _, ok := staleIssueIDs[candidate.ID]; !ok {
-				continue
-			}
-			result, err := s.claimWithinTx(ctx, uow, driving.ClaimInput{
-				IssueID:        candidate.ID.String(),
-				Author:         input.Author,
-				AllowSteal:     true,
-				StaleThreshold: input.StaleThreshold,
-				StaleAt:        input.StaleAt,
-			})
-			if err != nil {
-				return err
-			}
-			output = result
-			return nil
-		}
-
-		return domain.ErrNotFound
+		output = result
+		return nil
 	})
 
 	return output, err
@@ -561,6 +463,9 @@ func (s *serviceImpl) UpdateIssue(ctx context.Context, input driving.UpdateIssue
 		}
 		if c.IssueID() != parsedID {
 			return fmt.Errorf("claim does not match issue %s", input.IssueID)
+		}
+		if err := ValidateActiveClaim(c, now); err != nil {
+			return err
 		}
 
 		fields, err := updateFieldsFromInput(input)
@@ -633,6 +538,9 @@ func (s *serviceImpl) CloseWithReason(ctx context.Context, input driving.CloseWi
 		}
 		if c.IssueID() != issueID {
 			return fmt.Errorf("claim does not match issue %s", issueID)
+		}
+		if err := ValidateActiveClaim(c, now); err != nil {
+			return err
 		}
 		author := c.Author()
 
@@ -712,7 +620,7 @@ func (s *serviceImpl) CloseWithReason(ctx context.Context, input driving.CloseWi
 			Timestamp: now,
 			EventType: history.EventStateChanged,
 			Changes: []history.FieldChange{
-				{Field: "state", Before: domain.StateClaimed.String(), After: domain.StateClosed.String()},
+				{Field: "state", Before: domain.StateOpen.String(), After: domain.StateClosed.String()},
 			},
 		}))
 		return err
@@ -734,6 +642,9 @@ func (s *serviceImpl) TransitionState(ctx context.Context, input driving.Transit
 		}
 		if c.IssueID() != issueID {
 			return fmt.Errorf("claim does not match issue %s", issueID)
+		}
+		if err := ValidateActiveClaim(c, now); err != nil {
+			return err
 		}
 
 		t, err := uow.Issues().GetIssue(ctx, issueID, false)
@@ -775,6 +686,9 @@ func (s *serviceImpl) DeferIssue(ctx context.Context, input driving.DeferIssueIn
 		}
 		if c.IssueID() != issueID {
 			return fmt.Errorf("claim does not match issue %s", issueID)
+		}
+		if err := ValidateActiveClaim(c, now); err != nil {
+			return err
 		}
 
 		t, err := uow.Issues().GetIssue(ctx, issueID, false)
@@ -832,8 +746,9 @@ func (s *serviceImpl) DeferIssue(ctx context.Context, input driving.DeferIssueIn
 }
 
 // ReopenIssue transitions a closed or deferred issue back to the open state.
-// The operation is atomic: validate, claim, transition to open, release the
-// claim, and record the appropriate semantic event — all in one transaction.
+// No claim is required — reopen is a claim-free operation that directly
+// writes the state transition and records the appropriate semantic event, all
+// within a single transaction.
 func (s *serviceImpl) ReopenIssue(ctx context.Context, input driving.ReopenInput) error {
 	issueID, err := domain.ParseID(input.IssueID)
 	if err != nil {
@@ -859,27 +774,9 @@ func (s *serviceImpl) ReopenIssue(ctx context.Context, input driving.ReopenInput
 				issueID, previousState, domain.ErrIllegalTransition)
 		}
 
-		// Create a transient claim for the reopen operation.
-		c, claimErr := domain.NewClaim(domain.NewClaimParams{
-			IssueID:       issueID,
-			Author:        author,
-			StaleDuration: 5 * time.Minute,
-			Now:           now,
-		})
-		if claimErr != nil {
-			return claimErr
-		}
-		if err := uow.Claims().CreateClaim(ctx, c); err != nil {
-			return err
-		}
-
-		// Transition directly to open and invalidate the transient claim.
-		openState := domain.ReleaseState()
-		t = t.WithState(openState)
+		// Transition directly to open — no claim required.
+		t = t.WithState(domain.StateOpen)
 		if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-			return err
-		}
-		if err := uow.Claims().InvalidateClaim(ctx, c.Token()); err != nil {
 			return err
 		}
 
@@ -898,7 +795,7 @@ func (s *serviceImpl) ReopenIssue(ctx context.Context, input driving.ReopenInput
 			Timestamp: now,
 			EventType: eventType,
 			Changes: []history.FieldChange{
-				{Field: "state", Before: previousState.String(), After: openState.String()},
+				{Field: "state", Before: previousState.String(), After: domain.StateOpen.String()},
 			},
 		}))
 		return err
@@ -920,6 +817,9 @@ func (s *serviceImpl) DeleteIssue(ctx context.Context, input driving.DeleteInput
 		}
 		if c.IssueID() != issueID {
 			return fmt.Errorf("claim does not match issue %s", issueID)
+		}
+		if err := ValidateActiveClaim(c, now); err != nil {
+			return err
 		}
 
 		t, err := uow.Issues().GetIssue(ctx, issueID, false)
@@ -1056,16 +956,23 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id string) (driving.ShowIss
 		blockers, _ := uow.Relationships().GetBlockerStatuses(ctx, parsedID)
 		ancestors, _ := uow.Issues().GetAncestorStatuses(ctx, parsedID)
 
+		// Determine whether there is an active (non-stale) claim on this issue.
+		// A stale claim is treated as absent for readiness and display purposes.
+		hasActiveClaim := false
+		if ac, claimErr := uow.Claims().GetClaimByIssue(ctx, parsedID); claimErr == nil {
+			hasActiveClaim = !ac.IsStale(time.Now())
+		}
+
 		if t.IsTask() {
-			output.IsReady = IsTaskReady(t.State(), blockers, ancestors)
-			ssResult := TaskSecondaryState(t.State(), blockers, ancestors)
+			output.IsReady = IsTaskReady(t.State(), hasActiveClaim, blockers, ancestors)
+			ssResult := TaskSecondaryState(t.State(), hasActiveClaim, blockers, ancestors)
 			output.SecondaryState = ssResult.ListState
 			output.DetailStates = ssResult.DetailStates
 		} else {
 			hasChildren, _ := uow.Issues().HasChildren(ctx, parsedID)
-			output.IsReady = IsEpicReady(t.State(), hasChildren, blockers, ancestors)
+			output.IsReady = IsEpicReady(t.State(), hasActiveClaim, hasChildren, blockers, ancestors)
 			allChildrenClosed := epicAllChildrenClosed(ctx, uow, parsedID)
-			ssResult := EpicSecondaryState(t.State(), hasChildren, allChildrenClosed, blockers, ancestors)
+			ssResult := EpicSecondaryState(t.State(), hasActiveClaim, hasChildren, allChildrenClosed, blockers, ancestors)
 			output.SecondaryState = ssResult.ListState
 			output.DetailStates = ssResult.DetailStates
 		}
@@ -1173,17 +1080,9 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id string) (driving.ShowIss
 			output.ClaimID = activeClaim.ID()
 			output.ClaimAuthor = activeClaim.Author().String()
 			output.ClaimStaleAt = activeClaim.StaleAt()
-
-			// Derive claimed_at from the most recent EventClaimed history entry.
-			allHistory, _, histErr := uow.History().ListHistory(ctx, parsedID, driven.HistoryFilter{}, -1)
-			if histErr == nil {
-				for i := len(allHistory) - 1; i >= 0; i-- {
-					if allHistory[i].EventType() == history.EventClaimed {
-						output.ClaimedAt = allHistory[i].Timestamp()
-						break
-					}
-				}
-			}
+			// claimed_at is stored directly on the claim row — no history
+			// lookup required now that EventClaimed is removed.
+			output.ClaimedAt = activeClaim.ClaimedAt()
 		}
 
 		return nil
@@ -1250,7 +1149,6 @@ func (s *serviceImpl) GetIssueSummary(ctx context.Context) (driving.IssueSummary
 		}
 		output = driving.IssueSummaryOutput{
 			Open:     summary.Open,
-			Claimed:  summary.Claimed,
 			Deferred: summary.Deferred,
 			Closed:   summary.Closed,
 			Ready:    summary.Ready,
@@ -1472,7 +1370,6 @@ func (s *serviceImpl) EpicProgress(ctx context.Context, input driving.EpicProgre
 				SecondaryState: ss,
 				Total:          progress.Total,
 				Closed:         progress.Closed,
-				Claimed:        progress.Claimed,
 				Open:           progress.Open,
 				Blocked:        progress.Blocked,
 				Deferred:       progress.Deferred,
@@ -1951,43 +1848,20 @@ func (s *serviceImpl) Doctor(ctx context.Context, input driving.DoctorInput) (dr
 	err := s.tx.WithReadTransaction(ctx, func(uow driven.UnitOfWork) error {
 		now := time.Now()
 
-		// Check stale claims (stealable).
-		staleClaims, err := uow.Claims().ListStaleClaims(ctx, now)
-		if err != nil {
-			return err
+		// Check schema version. A v1 database (no schema_version key in the
+		// metadata table) must be upgraded with 'np admin upgrade' before most
+		// commands will operate correctly. Doctor is one of the few commands
+		// that runs on both v1 and v2 databases so it can report this finding.
+		schemaVersion, schemaErr := uow.Database().GetSchemaVersion(ctx)
+		if schemaErr != nil {
+			return schemaErr
 		}
-		if len(staleClaims) > 0 {
-			for _, c := range staleClaims {
-				output.Findings = append(output.Findings, driving.DoctorFinding{
-					Category: "stale_claim",
-					Severity: "warning",
-					Message:  fmt.Sprintf("%s: claimed by %q since %s (stealable)", c.IssueID(), c.Author(), c.ClaimedAt().Format(time.RFC3339)),
-					IssueIDs: []string{c.IssueID().String()},
-					Action:   &driving.ActionHint{Kind: driving.ActionKindStealClaim, IssueID: c.IssueID().String()},
-				})
-			}
-		}
-
-		// Check long-held claims: active claims where idle time exceeds
-		// 2× the default stale threshold but the claim is not yet stealable
-		// (e.g. due to a custom longer threshold).
-		activeClaims, err := uow.Claims().ListActiveClaims(ctx, now)
-		if err != nil {
-			return err
-		}
-		longThreshold := 2 * domain.DefaultStaleThreshold
-		for _, c := range activeClaims {
-			heldDuration := now.Sub(c.ClaimedAt())
-			if heldDuration > longThreshold {
-				claimDuration := c.StaleAt().Sub(c.ClaimedAt())
-				output.Findings = append(output.Findings, driving.DoctorFinding{
-					Category: "long_claim",
-					Severity: "info",
-					Message: fmt.Sprintf("%s has been claimed for %s (stale threshold: %s, not yet stealable)",
-						c.IssueID(), heldDuration.Truncate(time.Minute), claimDuration),
-					IssueIDs: []string{c.IssueID().String()},
-				})
-			}
+		if schemaVersion < 2 {
+			output.Findings = append(output.Findings, driving.DoctorFinding{
+				Category: "schema_migration_required",
+				Severity: "error",
+				Message:  "Database is at v1 schema and must be upgraded — run 'np admin upgrade' to migrate",
+			})
 		}
 
 		// Check blocker graph health.
@@ -2071,10 +1945,6 @@ func (s *serviceImpl) Doctor(ctx context.Context, input driving.DoctorInput) (dr
 			return hErr
 		}
 		output.Findings = append(output.Findings, humanFindings...)
-
-		// Check for authors with multiple active claims.
-		multiClaimFindings := s.checkMultiClaimAuthors(activeClaims)
-		output.Findings = append(output.Findings, multiClaimFindings...)
 
 		// Check for virtual labels stored in the labels table.
 		virtualLabelCount, vlErr := uow.Database().CountVirtualLabelsInTable(ctx)
@@ -2219,11 +2089,6 @@ func (s *serviceImpl) checkBlockerHealth(ctx context.Context, uow driven.UnitOfW
 					})
 				}
 				return false
-			}
-
-			// Terminal conditions: issue is claimed or open+unblocked.
-			if info.state == domain.StateClaimed {
-				return true
 			}
 
 			// Dead end: deferred blocker.
@@ -2609,42 +2474,29 @@ func (s *serviceImpl) checkBlockedByHuman(ctx context.Context, uow driven.UnitOf
 	return findings, nil
 }
 
-// checkMultiClaimAuthors detects authors that have multiple active claims open
-// simultaneously. Each finding lists the author and their claimed issues.
-func (s *serviceImpl) checkMultiClaimAuthors(activeClaims []domain.Claim) []driving.DoctorFinding {
-	// Group active claims by author.
-	byAuthor := make(map[string][]string)
-	for _, c := range activeClaims {
-		authorStr := c.Author().String()
-		byAuthor[authorStr] = append(byAuthor[authorStr], c.IssueID().String())
-	}
-
-	var findings []driving.DoctorFinding
-	for authorStr, issueIDs := range byAuthor {
-		if len(issueIDs) < 2 {
-			continue
-		}
-		findings = append(findings, driving.DoctorFinding{
-			Category: "multi_claim_author",
-			Severity: "info",
-			Message:  fmt.Sprintf("%q has %d active claims: %s", authorStr, len(issueIDs), strings.Join(issueIDs, ", ")),
-			IssueIDs: issueIDs,
-		})
-	}
-
-	return findings
-}
-
 func (s *serviceImpl) GC(ctx context.Context, input driving.GCInput) (driving.GCOutput, error) {
 	var output driving.GCOutput
 
+	now := time.Now()
+
 	err := s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
+		// Remove soft-deleted issues (and optionally closed issues).
 		deleted, closed, gcErr := uow.Database().GC(ctx, input.IncludeClosed)
 		if gcErr != nil {
 			return gcErr
 		}
 		output.DeletedIssuesRemoved = deleted
 		output.ClosedIssuesRemoved = closed
+
+		// Remove expired claim rows; expired claims are treated as
+		// nonexistent by every other operation, so purging them keeps the
+		// claims table lean.
+		expired, claimErr := uow.Claims().DeleteExpiredClaims(ctx, now)
+		if claimErr != nil {
+			return claimErr
+		}
+		output.ExpiredClaimsDeleted = expired
+
 		return nil
 	})
 
@@ -2762,18 +2614,11 @@ func (s *serviceImpl) buildIssueRecord(ctx context.Context, uow driven.UnitOfWor
 		})
 	}
 
-	// Claims.
-	activeClaim, err := uow.Claims().GetClaimByIssue(ctx, t.ID())
+	// Claims are transient, local-only bookkeeping and are intentionally
+	// excluded from v2 backups. The Claims field is retained in the record
+	// type for v1 restore compatibility, but new backups always write an
+	// empty slice.
 	rec.Claims = make([]domain.BackupClaimRecord, 0)
-	if err == nil {
-		claimDuration := activeClaim.StaleAt().Sub(activeClaim.ClaimedAt())
-		rec.Claims = append(rec.Claims, domain.BackupClaimRecord{
-			ClaimSHA512:    activeClaim.ID(),
-			Author:         activeClaim.Author().String(),
-			StaleThreshold: int64(claimDuration),
-			LastActivity:   activeClaim.ClaimedAt(),
-		})
-	}
 
 	// History.
 	entries, _, err := uow.History().ListHistory(ctx, t.ID(), driven.HistoryFilter{}, -1)
@@ -2811,27 +2656,27 @@ func (s *serviceImpl) Restore(ctx context.Context, input driving.RestoreInput) e
 
 	switch header.Version {
 	case 1:
+		// v1 backups may include claim rows and issues with state="claimed".
+		// restoreV1 discards claim data and converts claimed issues to open,
+		// producing a v2 database.
 		return s.restoreV1(ctx, header, input.Reader)
+	case 2:
+		// v2 backups exclude claim data entirely; restore is straightforward.
+		return s.restoreV2(ctx, header, input.Reader)
 	default:
 		return fmt.Errorf("unsupported backup version %d", header.Version)
 	}
 }
 
-// restoreV1 implements restore for backup algorithm version 1. All
-// work is performed in a single write transaction for atomicity.
+// restoreV1 implements restore for backup algorithm version 1. It applies a
+// migration step while restoring: claimed-state issues are converted to open
+// (since claimed is no longer a lifecycle state in v2), and claim rows are
+// not restored (claims are transient). The resulting database is a v2 database.
+// All work is performed in a single write transaction for atomicity.
 func (s *serviceImpl) restoreV1(ctx context.Context, header domain.BackupHeader, reader driven.BackupReader) error {
-	// Collect all records first so we can process them in the correct
-	// order within a single transaction.
-	var records []domain.BackupIssueRecord
-	for {
-		rec, ok, err := reader.NextRecord()
-		if err != nil {
-			return fmt.Errorf("reading backup record: %w", err)
-		}
-		if !ok {
-			break
-		}
-		records = append(records, rec)
+	records, err := collectBackupRecords(reader)
+	if err != nil {
+		return err
 	}
 
 	// Validate the backup header's prefix before performing any destructive
@@ -2841,82 +2686,165 @@ func (s *serviceImpl) restoreV1(ctx context.Context, header domain.BackupHeader,
 		return fmt.Errorf("invalid prefix in backup header: %w", err)
 	}
 
+	// Convert any v1-era "claimed" issues to "open" before restoring.
+	// In v2, claimed is a transient secondary state, not a lifecycle state.
+	for i := range records {
+		if records[i].State == "claimed" {
+			records[i].State = "open"
+		}
+	}
+
+	// Remove v1-era history events that no longer exist in v2. The EventClaimed
+	// and EventReleased event types were removed when claimed was demoted from a
+	// lifecycle state to local-only transient bookkeeping. Without this filter,
+	// history entries with event_type='claimed' or event_type='released' would
+	// land in the database and cause ParseEventType to return the zero-value
+	// EventType(0), producing garbled "EventType(0)" output in np issue history.
+	// MigrateV1ToV2 already applies the equivalent DELETE FROM history WHERE
+	// event_type IN ('claimed', 'released'); this filter ensures restoreV1
+	// achieves the same invariant.
+	for i := range records {
+		records[i].History = slices.DeleteFunc(records[i].History, func(h domain.BackupHistoryRecord) bool {
+			return h.EventType == "claimed" || h.EventType == "released"
+		})
+	}
+
 	return s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
 		db := uow.Database()
 
-		// Clear everything.
 		if err := db.ClearAllData(ctx); err != nil {
 			return fmt.Errorf("clearing database: %w", err)
 		}
 
-		// Re-initialize prefix.
 		if err := db.InitDatabase(ctx, header.Prefix); err != nil {
 			return fmt.Errorf("restoring prefix: %w", err)
 		}
 
-		// Insert issues in two passes: first all issues with parent_id
-		// NULL, then update parent_id. This avoids foreign-key ordering
-		// issues.
-		for _, rec := range records {
-			savedParent := rec.ParentID
-			rec.ParentID = ""
-			if err := db.RestoreIssueRaw(ctx, rec); err != nil {
-				return fmt.Errorf("restoring issue %s: %w", rec.IssueID, err)
-			}
-			rec.ParentID = savedParent
+		// Insert issues and their associated data, then rebuild FTS.
+		// Claim data is intentionally not restored — claims are transient.
+		if err := restoreIssues(ctx, db, uow, records); err != nil {
+			return err
 		}
 
-		// Second pass: set parent_id on issues that have one.
-		for _, rec := range records {
-			if rec.ParentID == "" {
-				continue
-			}
-			t, err := uow.Issues().GetIssue(ctx, mustParseID(rec.IssueID), true)
-			if err != nil {
-				return fmt.Errorf("getting restored issue %s for parent update: %w", rec.IssueID, err)
-			}
-			t = t.WithParentID(mustParseID(rec.ParentID))
-			if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-				return fmt.Errorf("setting parent on %s: %w", rec.IssueID, err)
-			}
-		}
-
-		// Insert associated data for each domain.
-		for _, rec := range records {
-			for _, label := range rec.Labels {
-				if err := db.RestoreLabelRaw(ctx, rec.IssueID, label); err != nil {
-					return fmt.Errorf("restoring label on %s: %w", rec.IssueID, err)
-				}
-			}
-			for _, c := range rec.Comments {
-				if err := db.RestoreCommentRaw(ctx, rec.IssueID, c); err != nil {
-					return fmt.Errorf("restoring comment on %s: %w", rec.IssueID, err)
-				}
-			}
-			for _, cl := range rec.Claims {
-				if err := db.RestoreClaimRaw(ctx, rec.IssueID, cl); err != nil {
-					return fmt.Errorf("restoring claim on %s: %w", rec.IssueID, err)
-				}
-			}
-			for _, rel := range rec.Relationships {
-				if err := db.RestoreRelationshipRaw(ctx, rec.IssueID, rel); err != nil {
-					return fmt.Errorf("restoring relationship on %s: %w", rec.IssueID, err)
-				}
-			}
-			for _, h := range rec.History {
-				if err := db.RestoreHistoryRaw(ctx, rec.IssueID, h); err != nil {
-					return fmt.Errorf("restoring history on %s: %w", rec.IssueID, err)
-				}
-			}
-		}
-
-		// Rebuild full-text search indexes.
 		if err := db.RebuildFTS(ctx); err != nil {
 			return fmt.Errorf("rebuilding FTS: %w", err)
 		}
 
 		return nil
 	})
+}
+
+// restoreV2 implements restore for backup algorithm version 2. v2 backups
+// exclude claim data, so restore is straightforward. All work is performed
+// in a single write transaction for atomicity.
+func (s *serviceImpl) restoreV2(ctx context.Context, header domain.BackupHeader, reader driven.BackupReader) error {
+	records, err := collectBackupRecords(reader)
+	if err != nil {
+		return err
+	}
+
+	if err := domain.ValidatePrefix(header.Prefix); err != nil {
+		return fmt.Errorf("invalid prefix in backup header: %w", err)
+	}
+
+	return s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
+		db := uow.Database()
+
+		if err := db.ClearAllData(ctx); err != nil {
+			return fmt.Errorf("clearing database: %w", err)
+		}
+
+		if err := db.InitDatabase(ctx, header.Prefix); err != nil {
+			return fmt.Errorf("restoring prefix: %w", err)
+		}
+
+		// Claim data is not present in v2 backups.
+		if err := restoreIssues(ctx, db, uow, records); err != nil {
+			return err
+		}
+
+		if err := db.RebuildFTS(ctx); err != nil {
+			return fmt.Errorf("rebuilding FTS: %w", err)
+		}
+
+		return nil
+	})
+}
+
+// collectBackupRecords reads all issue records from a backup reader,
+// returning them as a slice. It is used by both restoreV1 and restoreV2
+// to decouple record collection from the restore transaction.
+func collectBackupRecords(reader driven.BackupReader) ([]domain.BackupIssueRecord, error) {
+	var records []domain.BackupIssueRecord
+	for {
+		rec, ok, err := reader.NextRecord()
+		if err != nil {
+			return nil, fmt.Errorf("reading backup record: %w", err)
+		}
+		if !ok {
+			break
+		}
+		records = append(records, rec)
+	}
+	return records, nil
+}
+
+// restoreIssues inserts issues, parents, labels, comments, relationships, and
+// history records from a slice of backup records. Claims are skipped — they
+// are transient and not persisted during restore. Parent IDs are applied in a
+// second pass to avoid foreign-key ordering issues.
+func restoreIssues(ctx context.Context, db driven.DatabaseRepository, uow driven.UnitOfWork, records []domain.BackupIssueRecord) error {
+	// First pass: insert all issues with parent_id NULL, then fix
+	// parent_id in a second pass to avoid FK ordering issues.
+	for _, rec := range records {
+		savedParent := rec.ParentID
+		rec.ParentID = ""
+		if err := db.RestoreIssueRaw(ctx, rec); err != nil {
+			return fmt.Errorf("restoring issue %s: %w", rec.IssueID, err)
+		}
+		rec.ParentID = savedParent
+	}
+
+	// Second pass: set parent_id on issues that have one.
+	for _, rec := range records {
+		if rec.ParentID == "" {
+			continue
+		}
+		t, err := uow.Issues().GetIssue(ctx, mustParseID(rec.IssueID), true)
+		if err != nil {
+			return fmt.Errorf("getting restored issue %s for parent update: %w", rec.IssueID, err)
+		}
+		t = t.WithParentID(mustParseID(rec.ParentID))
+		if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
+			return fmt.Errorf("setting parent on %s: %w", rec.IssueID, err)
+		}
+	}
+
+	// Third pass: insert associated data. Claims are intentionally skipped.
+	for _, rec := range records {
+		for _, label := range rec.Labels {
+			if err := db.RestoreLabelRaw(ctx, rec.IssueID, label); err != nil {
+				return fmt.Errorf("restoring label on %s: %w", rec.IssueID, err)
+			}
+		}
+		for _, c := range rec.Comments {
+			if err := db.RestoreCommentRaw(ctx, rec.IssueID, c); err != nil {
+				return fmt.Errorf("restoring comment on %s: %w", rec.IssueID, err)
+			}
+		}
+		for _, rel := range rec.Relationships {
+			if err := db.RestoreRelationshipRaw(ctx, rec.IssueID, rel); err != nil {
+				return fmt.Errorf("restoring relationship on %s: %w", rec.IssueID, err)
+			}
+		}
+		for _, h := range rec.History {
+			if err := db.RestoreHistoryRaw(ctx, rec.IssueID, h); err != nil {
+				return fmt.Errorf("restoring history on %s: %w", rec.IssueID, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // mustParseID parses an issue ID string, panicking on failure. Used
@@ -2952,34 +2880,11 @@ func (s *serviceImpl) validateParent(ctx context.Context, uow driven.UnitOfWork,
 	return ValidateDepth(parentID, ancestorLookup)
 }
 
-func (s *serviceImpl) releaseIssue(ctx context.Context, uow driven.UnitOfWork, issueID domain.ID, claimID string, author domain.Author, now time.Time) error {
-	t, err := uow.Issues().GetIssue(ctx, issueID, false)
-	if err != nil {
-		return err
-	}
-
-	releaseState := domain.ReleaseState()
-
-	t = t.WithState(releaseState)
-	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-		return err
-	}
-	if err := uow.Claims().InvalidateClaim(ctx, claimID); err != nil {
-		return err
-	}
-
-	revision, _ := uow.History().CountHistory(ctx, issueID)
-	_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-		IssueID:   issueID,
-		Revision:  revision,
-		Author:    author,
-		Timestamp: now,
-		EventType: history.EventReleased,
-		Changes: []history.FieldChange{
-			{Field: "state", Before: domain.StateClaimed.String(), After: releaseState.String()},
-		},
-	}))
-	return err
+// releaseIssue deletes the claim row for issueID without altering the issue's
+// primary state. Issue state remains open; no history event is recorded because
+// releasing is transient bookkeeping, not a lifecycle transition.
+func (s *serviceImpl) releaseIssue(ctx context.Context, uow driven.UnitOfWork, issueID domain.ID, claimID string, _ domain.Author, _ time.Time) error {
+	return uow.Claims().InvalidateClaim(ctx, claimID)
 }
 
 func (s *serviceImpl) closeIssue(ctx context.Context, uow driven.UnitOfWork, t domain.Issue, claimID string, author domain.Author, now time.Time) error {
@@ -3014,7 +2919,7 @@ func (s *serviceImpl) closeIssue(ctx context.Context, uow driven.UnitOfWork, t d
 		Timestamp: now,
 		EventType: history.EventStateChanged,
 		Changes: []history.FieldChange{
-			{Field: "state", Before: domain.StateClaimed.String(), After: domain.StateClosed.String()},
+			{Field: "state", Before: domain.StateOpen.String(), After: domain.StateClosed.String()},
 		},
 	}))
 	return histErr
@@ -3025,6 +2930,7 @@ func (s *serviceImpl) transitionIssue(ctx context.Context, uow driven.UnitOfWork
 		return err
 	}
 
+	previousState := t.State()
 	t = t.WithState(targetState)
 	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
 		return err
@@ -3041,7 +2947,7 @@ func (s *serviceImpl) transitionIssue(ctx context.Context, uow driven.UnitOfWork
 		Timestamp: now,
 		EventType: history.EventStateChanged,
 		Changes: []history.FieldChange{
-			{Field: "state", Before: domain.StateClaimed.String(), After: targetState.String()},
+			{Field: "state", Before: previousState.String(), After: targetState.String()},
 		},
 	}))
 	return err
@@ -3301,6 +3207,40 @@ func (s *serviceImpl) ResetDatabase(ctx context.Context) error {
 	return nil
 }
 
+// --- Schema Migration ---
+
+// errNoMigrator is returned by CheckSchemaVersion and MigrateV1ToV2 when the
+// service was constructed without a Migrator (e.g., in tests backed by the
+// in-memory adapter).
+var errNoMigrator = errors.New("schema migration is not supported by the backing store")
+
+// CheckSchemaVersion delegates to the Migrator port to verify the database
+// schema version. It returns nil on a v2 database and a wrapped
+// domain.ErrSchemaMigrationRequired on a v1 database.
+func (s *serviceImpl) CheckSchemaVersion(ctx context.Context) error {
+	if s.migrator == nil {
+		return errNoMigrator
+	}
+	return s.migrator.CheckSchemaVersion(ctx)
+}
+
+// MigrateV1ToV2 delegates the v1→v2 schema migration to the Migrator port.
+// It converts claimed-state issues to open, removes obsolete history event
+// types, and records schema_version=2 — all within a single atomic transaction.
+func (s *serviceImpl) MigrateV1ToV2(ctx context.Context) (driving.MigrationResult, error) {
+	if s.migrator == nil {
+		return driving.MigrationResult{}, errNoMigrator
+	}
+	r, err := s.migrator.MigrateV1ToV2(ctx)
+	if err != nil {
+		return driving.MigrationResult{}, err
+	}
+	return driving.MigrationResult{
+		ClaimedIssuesConverted: r.ClaimedIssuesConverted,
+		HistoryRowsRemoved:     r.HistoryRowsRemoved,
+	}, nil
+}
+
 // enrichListItemSecondaryStates populates the SecondaryState field on each
 // IssueListItem. For tasks, the secondary state is derived from IsBlocked and
 // State — no extra queries are needed because the SQL already computes blocking
@@ -3313,12 +3253,13 @@ func enrichListItemSecondaryStates(ctx context.Context, uow driven.UnitOfWork, i
 }
 
 // computeListSecondaryState derives the single list-view secondary state for an
-// domain. It uses the pre-computed IsBlocked field (which the repository populates
+// issue. It uses the pre-computed IsBlocked field (which the repository populates
 // via SQL including ancestor blocking) rather than re-querying individual blocker
-// and ancestor statuses.
+// and ancestor statuses. For open issues, it also checks for an active claim —
+// SecondaryClaimed takes display priority over ready and blocked.
 func computeListSecondaryState(ctx context.Context, uow driven.UnitOfWork, item driven.IssueListItem) domain.SecondaryState {
 	switch item.State {
-	case domain.StateClaimed, domain.StateClosed:
+	case domain.StateClosed:
 		return domain.SecondaryNone
 
 	case domain.StateDeferred:
@@ -3328,6 +3269,10 @@ func computeListSecondaryState(ctx context.Context, uow driven.UnitOfWork, item 
 		return domain.SecondaryNone
 
 	case domain.StateOpen:
+		// An active (non-stale) claim takes display priority over ready and blocked.
+		if ac, claimErr := uow.Claims().GetClaimByIssue(ctx, item.ID); claimErr == nil && !ac.IsStale(time.Now()) {
+			return domain.SecondaryClaimed
+		}
 		if item.Role == domain.RoleTask {
 			if item.IsBlocked {
 				return domain.SecondaryBlocked
@@ -3343,7 +3288,8 @@ func computeListSecondaryState(ctx context.Context, uow driven.UnitOfWork, item 
 }
 
 // computeEpicListSecondaryState handles the open-state epic path, which requires
-// querying child statuses to distinguish ready/active/completed/blocked.
+// querying child statuses to distinguish ready/active/completed/blocked. Callers
+// should check for active claims before calling this function.
 func computeEpicListSecondaryState(ctx context.Context, uow driven.UnitOfWork, item driven.IssueListItem) domain.SecondaryState {
 	children, err := uow.Issues().GetChildStatuses(ctx, item.ID)
 	if err != nil {

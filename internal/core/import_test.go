@@ -15,7 +15,7 @@ func setupImportService(t *testing.T) driving.Service {
 	t.Helper()
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	ctx := t.Context()
 	if err := svc.Init(ctx, "NP"); err != nil {
@@ -341,6 +341,55 @@ func TestImportIssues_DeferredState_TransitionsIssue(t *testing.T) {
 	}
 	if showOut.State != domain.StateDeferred {
 		t.Errorf("state: got %v, want %v", showOut.State, domain.StateDeferred)
+	}
+}
+
+func TestImportIssues_WithClaim_CreatesOpenIssueClaimed(t *testing.T) {
+	t.Parallel()
+
+	// Given — a record with Claim: true creates the issue in open state with an
+	// active claim row.
+	svc := setupImportService(t)
+	records := []domain.ValidatedRecord{
+		{
+			IdempotencyKey: "claimed-task",
+			Role:           domain.RoleTask,
+			Title:          "Task to be claimed on import",
+			Priority:       domain.DefaultPriority,
+			State:          domain.StateOpen,
+			Claim:          true,
+		},
+	}
+
+	// When
+	output, err := svc.ImportIssues(t.Context(), driving.ImportInput{
+		Records:       records,
+		DefaultAuthor: mustImportAuthor(t, "import-agent"),
+	})
+	// Then — issue is created successfully in open state.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.Created != 1 {
+		t.Errorf("created: got %d, want 1", output.Created)
+	}
+	if output.Results[0].IssueID.IsZero() {
+		t.Fatal("expected non-zero issue ID")
+	}
+
+	// The import result carries the claim ID so callers can use it.
+	issueID := output.Results[0].IssueID
+	showOut, err := svc.ShowIssue(t.Context(), issueID.String())
+	if err != nil {
+		t.Fatalf("show issue: %v", err)
+	}
+	// Primary state must be open (claims do not change primary state).
+	if showOut.State != domain.StateOpen {
+		t.Errorf("state: got %v, want %v", showOut.State, domain.StateOpen)
+	}
+	// An active claim should be present.
+	if showOut.ClaimID == "" {
+		t.Error("expected an active claim ID on the imported issue")
 	}
 }
 

@@ -11,7 +11,7 @@ func TestIsTaskReady_OpenNoBlockersNoAncestors_Ready(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := core.IsTaskReady(domain.StateOpen, nil, nil)
+	result := core.IsTaskReady(domain.StateOpen, false, nil, nil)
 
 	// Then
 	if !result {
@@ -19,11 +19,22 @@ func TestIsTaskReady_OpenNoBlockersNoAncestors_Ready(t *testing.T) {
 	}
 }
 
+func TestIsTaskReady_OpenWithActiveClaim_NotReady(t *testing.T) {
+	t.Parallel()
+
+	// When — open task with an active (non-stale) claim is not available for new claimants.
+	result := core.IsTaskReady(domain.StateOpen, true, nil, nil)
+
+	// Then
+	if result {
+		t.Error("expected not ready with active claim")
+	}
+}
+
 func TestIsTaskReady_NotOpen_NotReady(t *testing.T) {
 	t.Parallel()
 
 	cases := []domain.State{
-		domain.StateClaimed,
 		domain.StateClosed,
 		domain.StateDeferred,
 	}
@@ -33,7 +44,7 @@ func TestIsTaskReady_NotOpen_NotReady(t *testing.T) {
 			t.Parallel()
 
 			// When
-			result := core.IsTaskReady(state, nil, nil)
+			result := core.IsTaskReady(state, false, nil, nil)
 
 			// Then
 			if result {
@@ -52,7 +63,7 @@ func TestIsTaskReady_UnresolvedBlocker_NotReady(t *testing.T) {
 	}
 
 	// When
-	result := core.IsTaskReady(domain.StateOpen, blockers, nil)
+	result := core.IsTaskReady(domain.StateOpen, false, blockers, nil)
 
 	// Then
 	if result {
@@ -69,7 +80,7 @@ func TestIsTaskReady_ClosedBlocker_Ready(t *testing.T) {
 	}
 
 	// When
-	result := core.IsTaskReady(domain.StateOpen, blockers, nil)
+	result := core.IsTaskReady(domain.StateOpen, false, blockers, nil)
 
 	// Then
 	if !result {
@@ -86,7 +97,7 @@ func TestIsTaskReady_DeletedBlocker_Ready(t *testing.T) {
 	}
 
 	// When
-	result := core.IsTaskReady(domain.StateOpen, blockers, nil)
+	result := core.IsTaskReady(domain.StateOpen, false, blockers, nil)
 
 	// Then
 	if !result {
@@ -103,7 +114,7 @@ func TestIsTaskReady_DeferredAncestor_NotReady(t *testing.T) {
 	}
 
 	// When
-	result := core.IsTaskReady(domain.StateOpen, nil, ancestors)
+	result := core.IsTaskReady(domain.StateOpen, false, nil, ancestors)
 
 	// Then
 	if result {
@@ -115,7 +126,7 @@ func TestIsEpicReady_ActiveNoChildrenNoBlockers_Ready(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := core.IsEpicReady(domain.StateOpen, false, nil, nil)
+	result := core.IsEpicReady(domain.StateOpen, false, false, nil, nil)
 
 	// Then
 	if !result {
@@ -123,11 +134,23 @@ func TestIsEpicReady_ActiveNoChildrenNoBlockers_Ready(t *testing.T) {
 	}
 }
 
+func TestIsEpicReady_OpenWithActiveClaim_NotReady(t *testing.T) {
+	t.Parallel()
+
+	// When — an open epic with an active claim is not available for new claimants.
+	result := core.IsEpicReady(domain.StateOpen, true, false, nil, nil)
+
+	// Then
+	if result {
+		t.Error("expected not ready with active claim")
+	}
+}
+
 func TestIsEpicReady_HasChildren_NotReady(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := core.IsEpicReady(domain.StateOpen, true, nil, nil)
+	result := core.IsEpicReady(domain.StateOpen, false, true, nil, nil)
 
 	// Then
 	if result {
@@ -139,7 +162,6 @@ func TestIsEpicReady_NotActive_NotReady(t *testing.T) {
 	t.Parallel()
 
 	cases := []domain.State{
-		domain.StateClaimed,
 		domain.StateDeferred,
 	}
 
@@ -148,7 +170,7 @@ func TestIsEpicReady_NotActive_NotReady(t *testing.T) {
 			t.Parallel()
 
 			// When
-			result := core.IsEpicReady(state, false, nil, nil)
+			result := core.IsEpicReady(state, false, false, nil, nil)
 
 			// Then
 			if result {
@@ -167,7 +189,7 @@ func TestIsEpicReady_UnresolvedBlocker_NotReady(t *testing.T) {
 	}
 
 	// When
-	result := core.IsEpicReady(domain.StateOpen, false, blockers, nil)
+	result := core.IsEpicReady(domain.StateOpen, false, false, blockers, nil)
 
 	// Then
 	if result {
@@ -184,7 +206,7 @@ func TestIsTaskReady_BlockedAncestor_NotReady(t *testing.T) {
 	}
 
 	// When
-	result := core.IsTaskReady(domain.StateOpen, nil, ancestors)
+	result := core.IsTaskReady(domain.StateOpen, false, nil, ancestors)
 
 	// Then
 	if result {
@@ -201,7 +223,7 @@ func TestIsEpicReady_BlockedAncestor_NotReady(t *testing.T) {
 	}
 
 	// When
-	result := core.IsEpicReady(domain.StateOpen, false, nil, ancestors)
+	result := core.IsEpicReady(domain.StateOpen, false, false, nil, ancestors)
 
 	// Then
 	if result {
@@ -218,7 +240,7 @@ func TestIsTaskReady_AncestorBlockedByResolvedBlocker_Ready(t *testing.T) {
 	}
 
 	// When
-	result := core.IsTaskReady(domain.StateOpen, nil, ancestors)
+	result := core.IsTaskReady(domain.StateOpen, false, nil, ancestors)
 
 	// Then
 	if !result {
@@ -235,7 +257,7 @@ func TestIsTaskReady_OpenBlocker_NotReady(t *testing.T) {
 	}
 
 	// When
-	result := core.IsTaskReady(domain.StateOpen, blockers, nil)
+	result := core.IsTaskReady(domain.StateOpen, false, blockers, nil)
 
 	// Then
 	if result {

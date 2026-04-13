@@ -1,5 +1,5 @@
-# Verify backward compatibility: a single --state flag returns only issues
-# in that state.
+# Verify that a single --state flag returns only issues in that primary state.
+# Claimed issues have primary state "open" and secondary_state "claimed".
 
 np-init SS
 np-seed task 'Open task' single-agent OPEN_TASK
@@ -7,5 +7,10 @@ np-seed task 'Claimed task' single-agent CLAIM_TASK
 
 exec np claim $CLAIM_TASK --author single-agent --json
 
-exec np list --state claimed --json
-np-json-array-len items 1
+# Both tasks are open (claimed is a secondary state, not primary).
+exec np list --state open --json
+np-json-array-len items 2
+
+# Filter by closed returns nothing.
+exec np list --state closed --json
+np-json-array-len items 0

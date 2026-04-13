@@ -45,6 +45,10 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 			Labels:             labelInputs,
 			Author:             author,
 			IdempotencyKey:     rec.IdempotencyKey,
+			// Claim creates a transient claim row immediately after creation,
+			// leaving the issue open but claimed. Only set when rec.Claim is
+			// true; validation ensures Claim is only true for open records.
+			Claim: rec.Claim,
 		}
 
 		// Resolve parent reference if present.
@@ -205,11 +209,14 @@ func (s *serviceImpl) resolveImportRef(ctx context.Context, ref string, keyToID 
 	return id, nil
 }
 
-// transitionImportedIssue claims an issue, transitions it to the target state,
-// then releases the claim. This is needed for importing issues in non-open
-// states (deferred, closed).
+// transitionImportedIssue acquires a transient claim on the issue, transitions
+// it directly from open to the target state, and releases the claim as part of
+// the transition. Claiming does not change the primary state — the issue
+// remains open until the transition completes. This is only called for
+// non-open target states (deferred, closed).
 func (s *serviceImpl) transitionImportedIssue(ctx context.Context, issueID domain.ID, targetState domain.State, author string) error {
-	// Claim the issue to perform the transition.
+	// Acquire a transient claim to authorize the transition. The issue state
+	// remains open; claiming is local-only bookkeeping.
 	claimOut, err := s.ClaimByID(ctx, driving.ClaimInput{
 		IssueID: issueID.String(),
 		Author:  author,
@@ -225,12 +232,15 @@ func (s *serviceImpl) transitionImportedIssue(ctx context.Context, issueID domai
 	case domain.StateClosed:
 		action = driving.ActionClose
 	default:
-		// Release the claim — no transition needed.
-		return s.TransitionState(ctx, driving.TransitionInput{
+		// This path should not be reached: ImportIssues only calls
+		// transitionImportedIssue when rec.State != StateOpen, and the only
+		// non-open importable states are deferred and closed.
+		_ = s.TransitionState(ctx, driving.TransitionInput{
 			IssueID: issueID.String(),
 			ClaimID: claimOut.ClaimID,
 			Action:  driving.ActionRelease,
 		})
+		return fmt.Errorf("unsupported import target state %q", targetState)
 	}
 
 	if err := s.TransitionState(ctx, driving.TransitionInput{
@@ -238,7 +248,8 @@ func (s *serviceImpl) transitionImportedIssue(ctx context.Context, issueID domai
 		ClaimID: claimOut.ClaimID,
 		Action:  action,
 	}); err != nil {
-		// Best effort: try to release the claim even if transition fails.
+		// Best effort: release the claim even if the transition fails, so the
+		// issue does not remain permanently locked.
 		_ = s.TransitionState(ctx, driving.TransitionInput{
 			IssueID: issueID.String(),
 			ClaimID: claimOut.ClaimID,

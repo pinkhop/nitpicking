@@ -1,10 +1,11 @@
-# Verify that np-seed with --claim creates a task in claimed state with the
-# correct claim author. The claim_id is intentionally redacted from show
-# output to prevent bearer token leakage.
+# Verify that np-seed with --claim creates a task in the open state with an
+# active claim. The claim_id is intentionally redacted from show output to
+# prevent bearer token leakage.
 
 np-init SEED
 np-seed task 'Claimed task' seed-agent TASK --claim
 
 exec np show $TASK --json
-np-json-has state claimed
+np-json-has state open
+np-json-has secondary_state claimed
 np-json-has claim_author seed-agent

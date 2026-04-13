@@ -108,7 +108,7 @@ to a known-good state captured by "admin backup".`,
 			if err != nil {
 				return fmt.Errorf("opening database: %w", err)
 			}
-			svc := core.New(store)
+			svc := core.New(store, store)
 			if err := svc.Restore(ctx, driving.RestoreInput{Reader: reader}); err != nil {
 				return fmt.Errorf("restoring database: %w", err)
 			}

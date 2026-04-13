@@ -55,16 +55,12 @@ If this prints a path, the database is found. If it fails, no `.np/` directory e
 $ np show <ISSUE-ID> --json | jq '.state, .claim_author, .claim_stale_at'
 ```
 
-This shows whether the issue is claimed, who holds the claim, and when it becomes stealable.
+This shows whether the issue is claimed, who holds the claim, and when the claim becomes stale.
 
 **Resolution:**
 
-- **Wait** — the claim expires after the stale duration (default 2 hours). Check `claim_stale_at` for the exact time.
-- **Steal** — if the other agent is gone and the claim is stale, steal it:
-  ```
-  $ np claim <ISSUE-ID> --author <name> --steal
-  ```
-- **Work on something else** — use `np claim ready` to find another issue.
+- **Wait** — the claim expires after the stale duration (default 2 hours). Check `claim_stale_at` for the exact time. Once stale, claim the issue normally — no special flag is required.
+- **Work on something else** — use `np claim ready` to find another issue while you wait.
 
 ---
 
@@ -108,7 +104,7 @@ $ np blocked
   ```
   $ np issue undefer <ISSUE-ID> --author <name>
   ```
-- **Steal stale claims** — use `np claim ready --steal` to steal a stale claim.
+- **Claim normally** — stale claims are automatically overwritten. Run `np claim ready` to pick up a stale-claimed issue once its claim has expired.
 
 ---
 
@@ -130,15 +126,17 @@ The doctor identifies stale claims and reports them. You can also check directly
 $ np show <ISSUE-ID> --json | jq '.claim_stale_at'
 ```
 
-If the `claim_stale_at` time is in the past, the claim is stale.
+If the `claim_stale_at` time is in the past, the claim is stale and treated as nonexistent.
 
 **Resolution:**
 
-Steal the stale claim:
+Once the claim is stale, claim the issue normally — stale claims are automatically overwritten:
 
 ```
-$ np claim <ISSUE-ID> --author <name> --steal
+$ np claim <ISSUE-ID> --author <name>
 ```
+
+Or let `np claim ready` pick it up automatically when it becomes the highest-priority ready issue.
 
 To prevent stale claims in the future, set a longer duration when claiming long-running work:
 
@@ -193,10 +191,10 @@ $ np admin doctor --verbose
 
 **What it checks:**
 
-- **Stale claims** — claims past their expiry time.
 - **No ready issues** — analyzes why no issues are ready and which blockers or deferred states are responsible.
 - **Orphaned issues** — issues with no parent epic that might need to be organized.
 - **Cycle detection** — circular dependencies in blocking or parent-child relationships.
+- **Schema version** — whether the database needs migration (v1 databases require `np admin upgrade` before other commands will run).
 
 **Severity filtering:**
 

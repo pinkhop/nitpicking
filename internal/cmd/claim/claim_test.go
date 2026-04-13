@@ -19,7 +19,7 @@ func setupService(t *testing.T) driving.Service {
 	t.Helper()
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	ctx := t.Context()
 	if err := svc.Init(ctx, "NP"); err != nil {
@@ -132,9 +132,6 @@ func TestRunClaimByID_JSONOutput_ReturnsStructuredResult(t *testing.T) {
 	}
 	if _, ok := result["claim_id"]; !ok {
 		t.Error("expected claim_id field in JSON output")
-	}
-	if result["stolen"] != false {
-		t.Errorf("stolen: got %v, want false", result["stolen"])
 	}
 	if result["author"] != "test-agent" {
 		t.Errorf("author: got %q, want %q", result["author"], "test-agent")

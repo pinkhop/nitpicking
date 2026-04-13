@@ -15,10 +15,6 @@ import (
 // createInput is the JSON object read from stdin for the "json create"
 // subcommand. It contains only content fields — the identity flag (--author)
 // and the --with-claim flag remain on the command line.
-//
-// Fields shared with updateInput (label_remove, role, claim) are accepted
-// silently so that the same JSON object can be piped to both json create and
-// json update without triggering DisallowUnknownFields.
 type createInput struct {
 	Role               string   `json:"role"`
 	Title              string   `json:"title"`
@@ -27,12 +23,7 @@ type createInput struct {
 	Priority           string   `json:"priority"`
 	Parent             string   `json:"parent"`
 	Labels             []string `json:"labels"`
-	LabelRemove        []string `json:"label_remove"`
 	Comment            string   `json:"comment"`
-
-	// Claim is accepted in JSON for schema compatibility with json update
-	// but is silently ignored. Use the --with-claim CLI flag instead.
-	Claim bool `json:"claim"`
 }
 
 // createOutput is the JSON representation of a created domain.
@@ -59,9 +50,8 @@ type RunCreateInput struct {
 // RunCreate reads a JSON object from stdin, validates it, and creates an issue
 // via the service layer. Output is always JSON.
 //
-// The role field defaults to "task" when omitted. The claim field in JSON is
-// silently ignored — use WithClaim on RunCreateInput instead. The label_remove
-// field is accepted but ignored (it only applies to updates).
+// The role field defaults to "task" when omitted. Unknown fields are rejected
+// by the JSON decoder.
 func RunCreate(ctx context.Context, input RunCreateInput) error {
 	payload, err := DecodeStdin[createInput](input.Stdin)
 	if err != nil {
@@ -108,8 +98,6 @@ func RunCreate(ctx context.Context, input RunCreateInput) error {
 		}
 	}
 
-	// The claim field in JSON is silently ignored — claiming is controlled by
-	// the --with-claim CLI flag (exposed via input.WithClaim).
 	result, err := input.Service.CreateIssue(ctx, driving.CreateIssueInput{
 		Role:               role,
 		Title:              payload.Title,
@@ -168,9 +156,8 @@ func newCreateCmd(f *cmdutil.Factory) *cli.Command {
 		Description: `Creates a new issue from a JSON object piped to stdin. The JSON object must
 include "title" at minimum. The "role" field defaults to "task" when omitted.
 Optional fields include description, acceptance_criteria, priority, parent
-(issue ID), labels (array of "key:value" strings), label_remove (accepted but
-ignored for schema compatibility with json update), and comment (string to add
-as a comment on the newly created issue).
+(issue ID), labels (array of "key:value" strings), and comment (string to add
+as a comment on the newly created issue). Unknown fields are rejected.
 
 Use --with-claim to immediately claim the new issue. The output will include
 the claim_id.

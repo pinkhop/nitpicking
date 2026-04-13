@@ -14,35 +14,28 @@ const (
 	// EventCreated records issue creation.
 	EventCreated EventType = iota + 1
 
-	// EventClaimed records a claim being taken on an domain.
-	EventClaimed
-
-	// EventReleased records a claim being released (issue returned to
-	// its default unclaimed state).
-	EventReleased
-
-	// EventUpdated records one or more field changes to an domain.
+	// EventUpdated records one or more field changes to an issue.
 	EventUpdated
 
-	// EventStateChanged records a state transition (close, defer, wait).
+	// EventStateChanged records a state transition (close, defer, reopen, undefer).
 	EventStateChanged
 
-	// EventDeleted records soft deletion of an domain.
+	// EventDeleted records soft deletion of an issue.
 	EventDeleted
 
-	// EventRelationshipAdded records a new relationship from this domain.
+	// EventRelationshipAdded records a new relationship from this issue.
 	EventRelationshipAdded
 
-	// EventRelationshipRemoved records removal of a relationship from this domain.
+	// EventRelationshipRemoved records removal of a relationship from this issue.
 	EventRelationshipRemoved
 
-	// EventCommentAdded records the creation of a comment on an domain.
+	// EventCommentAdded records the creation of a comment on an issue.
 	EventCommentAdded
 
-	// EventLabelAdded records a label being attached to an domain.
+	// EventLabelAdded records a label being attached to an issue.
 	EventLabelAdded
 
-	// EventLabelRemoved records a label being removed from an domain.
+	// EventLabelRemoved records a label being removed from an issue.
 	EventLabelRemoved
 
 	// EventRestored records an issue being restored from soft deletion.
@@ -58,8 +51,6 @@ const (
 // eventTypeStrings maps each EventType to its canonical string.
 var eventTypeStrings = map[EventType]string{
 	EventCreated:             "created",
-	EventClaimed:             "claimed",
-	EventReleased:            "released",
 	EventUpdated:             "updated",
 	EventStateChanged:        "state_changed",
 	EventDeleted:             "deleted",

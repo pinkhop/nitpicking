@@ -19,7 +19,7 @@ func setupService(t *testing.T) driving.Service {
 	t.Helper()
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	ctx := t.Context()
 	if err := svc.Init(ctx, "NP"); err != nil {
@@ -488,5 +488,99 @@ func TestRun_TextOutput_IncludesIssueID(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), issueID.String()) {
 		t.Errorf("expected issue ID %s in text output, got: %s", issueID, buf.String())
+	}
+}
+
+// TestRun_JSONOutput_ClaimedIssue_StateIsOpenWithSecondary verifies that a
+// claimed issue appears in JSON list output with state "open" and
+// secondary_state "claimed", not as a separate primary state.
+func TestRun_JSONOutput_ClaimedIssue_StateIsOpenWithSecondary(t *testing.T) {
+	t.Parallel()
+
+	// Given — a claimed task.
+	svc := setupService(t)
+	issueID := createTask(t, svc, "Claimed task for state check")
+	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
+		IssueID: issueID.String(),
+		Author:  mustAuthor(t, "test-agent"),
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := list.RunInput{
+		Service: svc,
+		JSON:    true,
+		WriteTo: &buf,
+	}
+
+	// When
+	err = list.Run(t.Context(), input)
+	// Then — claimed issue must appear as state "open" with secondary_state "claimed".
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result struct {
+		Items []struct {
+			ID             string `json:"id"`
+			State          string `json:"state"`
+			SecondaryState string `json:"secondary_state"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
+	}
+	var found bool
+	for _, item := range result.Items {
+		if item.ID != issueID.String() {
+			continue
+		}
+		found = true
+		if item.State != "open" {
+			t.Errorf("state: got %q, want %q", item.State, "open")
+		}
+		if item.SecondaryState != "claimed" {
+			t.Errorf("secondary_state: got %q, want %q", item.SecondaryState, "claimed")
+		}
+	}
+	if !found {
+		t.Errorf("expected claimed task %s in list results", issueID)
+	}
+}
+
+// TestRun_TextOutput_ClaimedIssue_ShowsOpenClaimed verifies that a claimed
+// issue appears in text output as "open (claimed)", not as a distinct primary
+// state.
+func TestRun_TextOutput_ClaimedIssue_ShowsOpenClaimed(t *testing.T) {
+	t.Parallel()
+
+	// Given — a claimed task.
+	svc := setupService(t)
+	issueID := createTask(t, svc, "Claimed task for display check")
+	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
+		IssueID: issueID.String(),
+		Author:  mustAuthor(t, "test-agent"),
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := list.RunInput{
+		Service: svc,
+		JSON:    false,
+		WriteTo: &buf,
+	}
+
+	// When
+	err = list.Run(t.Context(), input)
+	// Then — text output for the claimed issue must contain "open (claimed)".
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "open (claimed)") {
+		t.Errorf("expected 'open (claimed)' in text output for claimed issue, got:\n%s", output)
 	}
 }

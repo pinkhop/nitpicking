@@ -19,17 +19,13 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/gc"
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/restorecmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/tally"
+	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/upgrade"
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/where"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/core"
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
-
-var validateDatabase = func(f *cmdutil.Factory) error {
-	_, err := cmdutil.NewTracker(f)
-	return err
-}
 
 // NewCmd constructs the "admin" parent command with maintenance subcommands.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
@@ -55,7 +51,7 @@ wipes all data after a two-step key verification.`,
 			newResetCmd(f),
 			restorecmd.NewCmd(f),
 			tally.NewCmd(f),
-			newUpgradeCmd(f),
+			upgrade.NewCmd(f),
 			where.NewCmd(f),
 		},
 	}
@@ -127,7 +123,7 @@ automated script can trigger it accidentally.`,
 			if err != nil {
 				return fmt.Errorf("opening database: %w", err)
 			}
-			svc := core.New(store)
+			svc := core.New(store, store)
 
 			if resetKeyIn == "" {
 				return resetInitiate(ctx, f, svc, npDir, jsonOutput)
@@ -261,49 +257,4 @@ func createBackup(ctx context.Context, svc driving.Service, npDir string) (strin
 	}
 
 	return backupPath, nil
-}
-
-// newUpgradeCmd constructs "admin upgrade" which checks for and applies
-// database schema upgrades. Currently the schema has no versioning, so
-// this always reports the database is up to date.
-func newUpgradeCmd(f *cmdutil.Factory) *cli.Command {
-	var jsonOutput bool
-
-	return &cli.Command{
-		Name:  "upgrade",
-		Usage: "Check for and apply database schema upgrades",
-		Description: `Checks whether the database schema is current and applies any pending
-upgrades. Currently the schema has no versioning, so this command always
-reports the database as up to date. It exists as a placeholder for future
-schema evolution — when new columns, tables, or indexes are introduced,
-this command will apply them non-destructively.
-
-Run this after updating the np binary to a new version to ensure the
-database schema matches the expectations of the new code.`,
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &jsonOutput,
-			},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			// Verify the database exists and is accessible.
-			if err := validateDatabase(f); err != nil {
-				return err
-			}
-
-			if jsonOutput {
-				return cmdutil.WriteJSON(f.IOStreams.Out, map[string]string{
-					"status": "up_to_date",
-				})
-			}
-
-			cs := f.IOStreams.ColorScheme()
-			_, err := fmt.Fprintf(f.IOStreams.Out, "%s Database is up to date\n",
-				cs.SuccessIcon())
-			return err
-		},
-	}
 }

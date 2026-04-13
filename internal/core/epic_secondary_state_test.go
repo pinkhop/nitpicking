@@ -13,7 +13,7 @@ func TestEpicSecondaryState_OpenNoChildrenNotBlocked_Ready(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := core.EpicSecondaryState(domain.StateOpen, false, false, nil, nil)
+	result := core.EpicSecondaryState(domain.StateOpen, false, false, false, nil, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryReady {
@@ -31,7 +31,7 @@ func TestEpicSecondaryState_OpenNoChildrenBlocked_Blocked(t *testing.T) {
 	blockers := []domain.BlockerStatus{{IsClosed: false, IsDeleted: false}}
 
 	// When
-	result := core.EpicSecondaryState(domain.StateOpen, false, false, blockers, nil)
+	result := core.EpicSecondaryState(domain.StateOpen, false, false, false, blockers, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryBlocked {
@@ -44,13 +44,60 @@ func TestEpicSecondaryState_OpenNoChildrenBlocked_Blocked(t *testing.T) {
 	}
 }
 
+// --- Open + Active Claim ---
+
+func TestEpicSecondaryState_OpenActiveClaim_Claimed(t *testing.T) {
+	t.Parallel()
+
+	// When — open epic with an active claim.
+	result := core.EpicSecondaryState(domain.StateOpen, true, false, false, nil, nil)
+
+	// Then — claimed takes priority over ready.
+	if result.ListState != domain.SecondaryClaimed {
+		t.Errorf("ListState = %v, want SecondaryClaimed", result.ListState)
+	}
+	if len(result.DetailStates) != 1 || result.DetailStates[0] != domain.SecondaryClaimed {
+		t.Errorf("DetailStates = %v, want [SecondaryClaimed]", result.DetailStates)
+	}
+}
+
+func TestEpicSecondaryState_OpenActiveClaimWithBlocker_Claimed(t *testing.T) {
+	t.Parallel()
+
+	// Given — an active claim and an unresolved blocker.
+	blockers := []domain.BlockerStatus{{IsClosed: false, IsDeleted: false}}
+
+	// When — claimed takes priority over blocked.
+	result := core.EpicSecondaryState(domain.StateOpen, true, false, false, blockers, nil)
+
+	// Then
+	if result.ListState != domain.SecondaryClaimed {
+		t.Errorf("ListState = %v, want SecondaryClaimed", result.ListState)
+	}
+	if len(result.DetailStates) != 1 || result.DetailStates[0] != domain.SecondaryClaimed {
+		t.Errorf("DetailStates = %v, want [SecondaryClaimed]", result.DetailStates)
+	}
+}
+
+func TestEpicSecondaryState_OpenActiveClaimWithChildren_Claimed(t *testing.T) {
+	t.Parallel()
+
+	// When — open epic with active claim and children.
+	result := core.EpicSecondaryState(domain.StateOpen, true, true, false, nil, nil)
+
+	// Then — claimed takes priority over active.
+	if result.ListState != domain.SecondaryClaimed {
+		t.Errorf("ListState = %v, want SecondaryClaimed", result.ListState)
+	}
+}
+
 // --- Open + Has Children + Not All Closed ---
 
 func TestEpicSecondaryState_OpenHasChildrenNotAllClosedNotBlocked_Active(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := core.EpicSecondaryState(domain.StateOpen, true, false, nil, nil)
+	result := core.EpicSecondaryState(domain.StateOpen, false, true, false, nil, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryActive {
@@ -68,7 +115,7 @@ func TestEpicSecondaryState_OpenHasChildrenNotAllClosedBlocked_Blocked(t *testin
 	blockers := []domain.BlockerStatus{{IsClosed: false, IsDeleted: false}}
 
 	// When
-	result := core.EpicSecondaryState(domain.StateOpen, true, false, blockers, nil)
+	result := core.EpicSecondaryState(domain.StateOpen, false, true, false, blockers, nil)
 
 	// Then — list-view: blocked wins over active.
 	if result.ListState != domain.SecondaryBlocked {
@@ -87,7 +134,7 @@ func TestEpicSecondaryState_OpenAllChildrenClosedNotBlocked_Completed(t *testing
 	t.Parallel()
 
 	// When
-	result := core.EpicSecondaryState(domain.StateOpen, true, true, nil, nil)
+	result := core.EpicSecondaryState(domain.StateOpen, false, true, true, nil, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryCompleted {
@@ -105,7 +152,7 @@ func TestEpicSecondaryState_OpenAllChildrenClosedBlocked_Completed(t *testing.T)
 	blockers := []domain.BlockerStatus{{IsClosed: false, IsDeleted: false}}
 
 	// When — completed wins over blocked in list-view.
-	result := core.EpicSecondaryState(domain.StateOpen, true, true, blockers, nil)
+	result := core.EpicSecondaryState(domain.StateOpen, false, true, true, blockers, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryCompleted {
@@ -127,7 +174,7 @@ func TestEpicSecondaryState_DeferredBlocked_Blocked(t *testing.T) {
 	blockers := []domain.BlockerStatus{{IsClosed: false, IsDeleted: false}}
 
 	// When
-	result := core.EpicSecondaryState(domain.StateDeferred, false, false, blockers, nil)
+	result := core.EpicSecondaryState(domain.StateDeferred, false, false, false, blockers, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryBlocked {
@@ -142,7 +189,7 @@ func TestEpicSecondaryState_DeferredNotBlocked_None(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := core.EpicSecondaryState(domain.StateDeferred, false, false, nil, nil)
+	result := core.EpicSecondaryState(domain.StateDeferred, false, false, false, nil, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryNone {
@@ -153,25 +200,13 @@ func TestEpicSecondaryState_DeferredNotBlocked_None(t *testing.T) {
 	}
 }
 
-// --- Claimed and Closed (no secondary state) ---
-
-func TestEpicSecondaryState_Claimed_None(t *testing.T) {
-	t.Parallel()
-
-	// When
-	result := core.EpicSecondaryState(domain.StateClaimed, false, false, nil, nil)
-
-	// Then
-	if result.HasSecondary() {
-		t.Errorf("expected no secondary state for claimed, got ListState=%v", result.ListState)
-	}
-}
+// --- Closed (no secondary state) ---
 
 func TestEpicSecondaryState_Closed_None(t *testing.T) {
 	t.Parallel()
 
 	// When
-	result := core.EpicSecondaryState(domain.StateClosed, false, false, nil, nil)
+	result := core.EpicSecondaryState(domain.StateClosed, false, false, false, nil, nil)
 
 	// Then
 	if result.HasSecondary() {
@@ -188,7 +223,7 @@ func TestEpicSecondaryState_OpenNoChildrenBlockedAncestor_Blocked(t *testing.T) 
 	ancestors := []domain.AncestorStatus{{State: domain.StateOpen, IsBlocked: true}}
 
 	// When
-	result := core.EpicSecondaryState(domain.StateOpen, false, false, nil, ancestors)
+	result := core.EpicSecondaryState(domain.StateOpen, false, false, false, nil, ancestors)
 
 	// Then
 	if result.ListState != domain.SecondaryBlocked {
@@ -208,7 +243,7 @@ func TestEpicSecondaryState_OpenNoChildrenDeferredAncestor_Blocked(t *testing.T)
 	ancestors := []domain.AncestorStatus{{State: domain.StateDeferred}}
 
 	// When
-	result := core.EpicSecondaryState(domain.StateOpen, false, false, nil, ancestors)
+	result := core.EpicSecondaryState(domain.StateOpen, false, false, false, nil, ancestors)
 
 	// Then
 	if result.ListState != domain.SecondaryBlocked {
@@ -223,7 +258,7 @@ func TestEpicSecondaryState_OpenHasChildrenBlockedAncestor_Blocked(t *testing.T)
 	ancestors := []domain.AncestorStatus{{State: domain.StateOpen, IsBlocked: true}}
 
 	// When
-	result := core.EpicSecondaryState(domain.StateOpen, true, false, nil, ancestors)
+	result := core.EpicSecondaryState(domain.StateOpen, false, true, false, nil, ancestors)
 
 	// Then — blocked takes priority over active in list-view.
 	if result.ListState != domain.SecondaryBlocked {
@@ -248,7 +283,7 @@ func TestEpicSecondaryState_OpenNoChildrenResolvedBlockers_Ready(t *testing.T) {
 	}
 
 	// When
-	result := core.EpicSecondaryState(domain.StateOpen, false, false, blockers, nil)
+	result := core.EpicSecondaryState(domain.StateOpen, false, false, false, blockers, nil)
 
 	// Then
 	if result.ListState != domain.SecondaryReady {

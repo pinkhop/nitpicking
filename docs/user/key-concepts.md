@@ -96,52 +96,43 @@ Advanced note: some commands operate on the underlying parent field more generic
 
 ## State Machine
 
-Every issue moves through four states: `open`, `claimed`, `closed`, and `deferred`. All state changes except claiming require that you hold the active claim.
+Every issue moves through three primary states: `open`, `closed`, and `deferred`.
 
 | State      | Meaning |
 |------------|---------|
-| `open`     | Available for work. This is the default state at creation. |
-| `claimed`  | An agent or human has taken ownership and is actively working on it or updating its fields. |
+| `open`     | Available for work. This is the default state at creation. An open issue may additionally show a secondary state: `claimed` (someone is actively working on it) or `ready` (no active claim). |
 | `closed`   | Fully resolved. Terminal for tasks; reached via the `completed` secondary state for epics. |
 | `deferred` | Shelved — should not be worked on now. Can be restored later. |
 
 ### Transitions
 
-All state changes — except claiming itself — require that you hold the active claim on the issue. This is the central concurrency guarantee in nitpicking.
+Closing, deferring, deleting, and updating an issue require that you hold the active claim — this is the central concurrency guarantee in nitpicking. Reopening and undeferring are claim-free: they take only `--author` because the issue has no active claim to hold (it is closed or deferred).
 
 ```
-                    claim
-           ┌─────────────────────┐
-           │                     ▼
-        ┌──────┐  release   ┌─────────┐  close   ┌────────┐
-  ───▶  │ open │◀───────────│ claimed │────────▶  │ closed │
-        └──────┘            └─────────┘           └────────┘
-           ▲                     │                     │
-           │     defer           │                     │
-           │        ┌────────────┘               reopen│
-           │        ▼                                  │
-        ┌──────────┐                                   │
-        │ deferred │                                   │
-        └──────────┘                                   │
-           ▲    │                                      │
-           │    │  undefer                             │
-           │    └──────────▶ ┌──────┐ ◀────────────────┘
-           │                 │ open │
-           └─────────────────┴──────┘
+        ┌──────┐  close    ┌────────┐
+  ───▶  │ open │─────────▶ │ closed │
+        └──────┘           └────────┘
+           ▲                    │
+           │               reopen│
+           │    defer            │
+           │  ┌──────────┐       │
+           │  │ deferred │       │
+           │  └──────────┘       │
+           │       │             │
+           │       │  undefer    │
+           └───────┴─────────────┘
 ```
 
 Reading the diagram:
 
-- **open → claimed**: Anyone can claim an open issue. No prior claim needed.
-- **claimed → open**: Release the claim without completing the work. The issue returns to the pool.
-- **claimed → closed**: Mark the work as done. For tasks, this is a direct action. For epics, closure happens automatically when all children are resolved.
-- **claimed → deferred**: Shelve the issue for later. Optionally attach a revisit date.
+- **open → closed**: Mark the work as done. Requires an active claim. For tasks, this is a direct action. For epics, closure happens automatically when all children are resolved.
+- **open → deferred**: Shelve the issue for later. Requires an active claim. Optionally attach a revisit date.
 - **deferred → open**: Restore a deferred issue with `undefer`. It becomes available for work again.
 - **closed → open**: Reopen a closed issue if the resolution turns out to be incomplete or incorrect.
 
 ### Tasks vs epics
 
-Both roles use the same states, but they differ in how `closed` is reached:
+Both roles use the same primary states, but they differ in how `closed` is reached:
 
 - **Tasks** are closed directly — you claim the task, do the work, and close it.
 - **Epics** are closed through the `completed` secondary state — an epic is complete when all of its children are closed or recursively complete. The `epic close-completed` command batch-closes epics that meet this criterion.
@@ -164,13 +155,13 @@ Claiming gates all field updates and state transitions. You must claim an issue 
 - Claim before mutating. Every mutation requires the claim ID.
 - Comments and relationships (except parent–child) do not require claiming.
 - Claims go stale after 2 hours of inactivity (configurable up to 24 hours).
-- A stale claim can be stolen by any agent.
+- A stale claim is automatically overwritten by the next agent that claims the issue normally — no special flag required.
 
 ### How claiming works
 
 When you claim an issue, `np` returns a **claim ID** — a random bearer token. Pass this token to every subsequent mutation. There is no login, no session, no user account; possession of the claim ID is the sole proof of ownership.
 
-If you lose the claim ID, it cannot be recovered — it is only revealed at claim time. Wait for the claim's stale time to expire, then reclaim or steal the issue.
+If you lose the claim ID, it cannot be recovered — it is only revealed at claim time. Wait for the claim's stale time to expire, then reclaim the issue normally.
 
 ### What does not require claiming
 
@@ -181,13 +172,7 @@ Parent–child relationships (`parent_of`, `child_of`) are the exception — the
 
 ### Stale claims
 
-Every claim has a stale time (default: 2 hours after claiming; maximum: 24 hours). Set via `--duration` or `--stale-at` when claiming. Once the stale time passes, the claim is considered stale and can be stolen by another agent.
-
-### Stealing
-
-When a claim goes stale, any agent can steal it. Stealing atomically invalidates the old claim and creates a new one. If two agents race to steal, exactly one succeeds; the other receives a claim-conflict error.
-
-You can steal explicitly (`np claim <ID> --steal`) or let the system do it when no ready issues are available (`np claim ready --steal`). Stealing auto-generates an audit comment noting who stole from whom.
+Every claim has a stale time (default: 2 hours after claiming; maximum: 24 hours). Set via `--duration` or `--stale-at` when claiming. Once the stale time passes, the claim is considered stale and treated as nonexistent. Any agent can then claim the issue normally — no special flag or command is needed; `np claim ready` and `np claim <ID>` both overwrite stale claims automatically.
 
 ### Design rationale
 
@@ -215,7 +200,7 @@ Readiness answers the question: "What can I work on right now?" It is a computed
 
 A task is **ready** when all of the following are true:
 
-1. Its state is `open` (not claimed, closed, or deferred).
+1. Its primary state is `open`, it has no active (non-stale) claim, and no ancestor epic is `deferred`.
 2. It has no unresolved blockers — either it has no `blocked_by` relationships, or every blocker has been closed or completed.
 3. No ancestor epic is `deferred`.
 

@@ -458,6 +458,9 @@ func (s *serviceImpl) UpdateIssue(ctx context.Context, input driving.UpdateIssue
 		if c.IssueID() != parsedID {
 			return fmt.Errorf("claim does not match issue %s", input.IssueID)
 		}
+		if err := ValidateActiveClaim(c, now); err != nil {
+			return err
+		}
 
 		fields, err := updateFieldsFromInput(input)
 		if err != nil {
@@ -529,6 +532,9 @@ func (s *serviceImpl) CloseWithReason(ctx context.Context, input driving.CloseWi
 		}
 		if c.IssueID() != issueID {
 			return fmt.Errorf("claim does not match issue %s", issueID)
+		}
+		if err := ValidateActiveClaim(c, now); err != nil {
+			return err
 		}
 		author := c.Author()
 
@@ -631,6 +637,9 @@ func (s *serviceImpl) TransitionState(ctx context.Context, input driving.Transit
 		if c.IssueID() != issueID {
 			return fmt.Errorf("claim does not match issue %s", issueID)
 		}
+		if err := ValidateActiveClaim(c, now); err != nil {
+			return err
+		}
 
 		t, err := uow.Issues().GetIssue(ctx, issueID, false)
 		if err != nil {
@@ -671,6 +680,9 @@ func (s *serviceImpl) DeferIssue(ctx context.Context, input driving.DeferIssueIn
 		}
 		if c.IssueID() != issueID {
 			return fmt.Errorf("claim does not match issue %s", issueID)
+		}
+		if err := ValidateActiveClaim(c, now); err != nil {
+			return err
 		}
 
 		t, err := uow.Issues().GetIssue(ctx, issueID, false)
@@ -799,6 +811,9 @@ func (s *serviceImpl) DeleteIssue(ctx context.Context, input driving.DeleteInput
 		}
 		if c.IssueID() != issueID {
 			return fmt.Errorf("claim does not match issue %s", issueID)
+		}
+		if err := ValidateActiveClaim(c, now); err != nil {
+			return err
 		}
 
 		t, err := uow.Issues().GetIssue(ctx, issueID, false)

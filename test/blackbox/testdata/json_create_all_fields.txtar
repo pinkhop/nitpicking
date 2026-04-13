@@ -57,20 +57,17 @@ np-capture LABELED_ID id
 exec np label list $LABELED_ID --json
 np-json-array-len labels 2
 
-# --- claim in JSON is silently ignored ---
+# --- claim in JSON is rejected (use --with-claim flag instead) ---
 
 stdin claim_in_json.json
-exec np json create --author jc-agent
+! exec np json create --author jc-agent
+stderr 'unknown field'
 
-np-json-has state open
-np-json-no-field claim_id
-
-# --- label_remove in JSON is silently ignored ---
+# --- label_remove in JSON is rejected (update-only field, unknown to create) ---
 
 stdin label_remove_task.json
-exec np json create --author jc-agent
-
-np-json-has state open
+! exec np json create --author jc-agent
+stderr 'unknown field'
 
 # --- comment creates a comment on the new issue ---
 

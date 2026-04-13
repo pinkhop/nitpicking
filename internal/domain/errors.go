@@ -32,6 +32,11 @@ var (
 	// ErrDepthExceeded indicates a parent assignment would exceed the maximum
 	// hierarchy depth (3 levels).
 	ErrDepthExceeded = errors.New("hierarchy depth exceeded")
+
+	// ErrStaleClaim indicates an operation was attempted with a claim that has
+	// passed its stale-at timestamp. The caller must re-claim the issue before
+	// retrying the operation.
+	ErrStaleClaim = errors.New("claim is stale")
 )
 
 // ValidationError carries structured detail about which fields failed

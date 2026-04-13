@@ -54,6 +54,7 @@ func TestFormatState_WithSecondary_ReturnsPrimaryParenSecondary(t *testing.T) {
 		secondary domain.SecondaryState
 		want      string
 	}{
+		{"open claimed", domain.StateOpen, domain.SecondaryClaimed, "open (claimed)"},
 		{"open ready", domain.StateOpen, domain.SecondaryReady, "open (ready)"},
 		{"open blocked", domain.StateOpen, domain.SecondaryBlocked, "open (blocked)"},
 		{"open active", domain.StateOpen, domain.SecondaryActive, "open (active)"},

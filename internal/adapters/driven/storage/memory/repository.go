@@ -873,20 +873,25 @@ func (r *Repository) matchesFilter(t domain.Issue, f driven.IssueFilter) bool {
 func (r *Repository) isIssueReady(t domain.Issue) bool {
 	blockers := r.getBlockerStatusesInternal(t.ID())
 	ancestors := r.getAncestorStatusesInternal(t.ID())
-
-	// An issue with an active (non-stale) claim is not ready — it is already
-	// being worked on. Stale claims are treated as nonexistent.
-	if claimID, ok := r.claimsByIssue[t.ID().String()]; ok {
-		if c, exists := r.claims[claimID]; exists && !c.IsStale(time.Now()) {
-			return false
-		}
-	}
+	hasActiveClaim := r.hasActiveClaimInternal(t.ID())
 
 	if t.IsTask() {
-		return core.IsTaskReady(t.State(), blockers, ancestors)
+		return core.IsTaskReady(t.State(), hasActiveClaim, blockers, ancestors)
 	}
 	hasChildren := r.hasChildrenInternal(t.ID())
-	return core.IsEpicReady(t.State(), hasChildren, blockers, ancestors)
+	return core.IsEpicReady(t.State(), hasActiveClaim, hasChildren, blockers, ancestors)
+}
+
+// hasActiveClaimInternal reports whether the issue has an active (non-stale)
+// claim. A stale claim is treated as nonexistent for readiness and display
+// purposes.
+func (r *Repository) hasActiveClaimInternal(id domain.ID) bool {
+	claimID, ok := r.claimsByIssue[id.String()]
+	if !ok {
+		return false
+	}
+	c, exists := r.claims[claimID]
+	return exists && !c.IsStale(time.Now())
 }
 
 func (r *Repository) isIssueBlocked(t domain.Issue) bool {

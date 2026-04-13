@@ -3,16 +3,23 @@ package core
 import "github.com/pinkhop/nitpicking/internal/domain"
 
 // EpicSecondaryState computes the secondary state for an epic based on its
-// primary state, child status, blockers, and ancestor conditions.
+// primary state, claim status, child status, blockers, and ancestor conditions.
 //
-// The function applies list-view priority rules: completed > blocked > ready >
-// active. Detail-view states capture the full set of applicable conditions
+// Priority rules for open epics (highest to lowest):
+//   - claimed: open + active claim → claimed (regardless of children or blockers)
+//   - completed: all children closed → completed
+//   - blocked: unresolved blocker or blocked/deferred ancestor
+//   - ready: no children (needs decomposition)
+//   - active: has children, not all closed
+//
+// Detail-view states capture the full set of applicable conditions
 // (e.g., [blocked, active] for a blocked epic with in-progress children).
 //
 // Returns a zero-value SecondaryStateResult (ListState = SecondaryNone) for
 // closed epics, or for deferred epics that are not blocked.
 func EpicSecondaryState(
 	state domain.State,
+	hasActiveClaim bool,
 	hasChildren bool,
 	allChildrenClosed bool,
 	blockers []domain.BlockerStatus,
@@ -32,6 +39,14 @@ func EpicSecondaryState(
 		return domain.SecondaryStateResult{}
 
 	case domain.StateOpen:
+		// An active claim takes display priority over all other open-state
+		// qualifiers: the epic is being decomposed, not available for new claimants.
+		if hasActiveClaim {
+			return domain.SecondaryStateResult{
+				ListState:    domain.SecondaryClaimed,
+				DetailStates: []domain.SecondaryState{domain.SecondaryClaimed},
+			}
+		}
 		return epicOpenSecondaryState(hasChildren, allChildrenClosed, blockers, ancestors)
 
 	default:
@@ -40,8 +55,9 @@ func EpicSecondaryState(
 }
 
 // epicOpenSecondaryState handles the open-state branches for epic secondary
-// state computation. Split from EpicSecondaryState for readability — the open
-// state has six distinct paths depending on child status and blockers.
+// state computation when there is no active claim. Split from EpicSecondaryState
+// for readability — the open state has six distinct paths depending on child
+// status and blockers.
 func epicOpenSecondaryState(
 	hasChildren bool,
 	allChildrenClosed bool,

@@ -936,16 +936,23 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id string) (driving.ShowIss
 		blockers, _ := uow.Relationships().GetBlockerStatuses(ctx, parsedID)
 		ancestors, _ := uow.Issues().GetAncestorStatuses(ctx, parsedID)
 
+		// Determine whether there is an active (non-stale) claim on this issue.
+		// A stale claim is treated as absent for readiness and display purposes.
+		hasActiveClaim := false
+		if ac, claimErr := uow.Claims().GetClaimByIssue(ctx, parsedID); claimErr == nil {
+			hasActiveClaim = !ac.IsStale(time.Now())
+		}
+
 		if t.IsTask() {
-			output.IsReady = IsTaskReady(t.State(), blockers, ancestors)
-			ssResult := TaskSecondaryState(t.State(), blockers, ancestors)
+			output.IsReady = IsTaskReady(t.State(), hasActiveClaim, blockers, ancestors)
+			ssResult := TaskSecondaryState(t.State(), hasActiveClaim, blockers, ancestors)
 			output.SecondaryState = ssResult.ListState
 			output.DetailStates = ssResult.DetailStates
 		} else {
 			hasChildren, _ := uow.Issues().HasChildren(ctx, parsedID)
-			output.IsReady = IsEpicReady(t.State(), hasChildren, blockers, ancestors)
+			output.IsReady = IsEpicReady(t.State(), hasActiveClaim, hasChildren, blockers, ancestors)
 			allChildrenClosed := epicAllChildrenClosed(ctx, uow, parsedID)
-			ssResult := EpicSecondaryState(t.State(), hasChildren, allChildrenClosed, blockers, ancestors)
+			ssResult := EpicSecondaryState(t.State(), hasActiveClaim, hasChildren, allChildrenClosed, blockers, ancestors)
 			output.SecondaryState = ssResult.ListState
 			output.DetailStates = ssResult.DetailStates
 		}
@@ -3157,9 +3164,10 @@ func enrichListItemSecondaryStates(ctx context.Context, uow driven.UnitOfWork, i
 }
 
 // computeListSecondaryState derives the single list-view secondary state for an
-// domain. It uses the pre-computed IsBlocked field (which the repository populates
+// issue. It uses the pre-computed IsBlocked field (which the repository populates
 // via SQL including ancestor blocking) rather than re-querying individual blocker
-// and ancestor statuses.
+// and ancestor statuses. For open issues, it also checks for an active claim —
+// SecondaryClaimed takes display priority over ready and blocked.
 func computeListSecondaryState(ctx context.Context, uow driven.UnitOfWork, item driven.IssueListItem) domain.SecondaryState {
 	switch item.State {
 	case domain.StateClosed:
@@ -3172,6 +3180,10 @@ func computeListSecondaryState(ctx context.Context, uow driven.UnitOfWork, item 
 		return domain.SecondaryNone
 
 	case domain.StateOpen:
+		// An active (non-stale) claim takes display priority over ready and blocked.
+		if ac, claimErr := uow.Claims().GetClaimByIssue(ctx, item.ID); claimErr == nil && !ac.IsStale(time.Now()) {
+			return domain.SecondaryClaimed
+		}
 		if item.Role == domain.RoleTask {
 			if item.IsBlocked {
 				return domain.SecondaryBlocked
@@ -3187,7 +3199,8 @@ func computeListSecondaryState(ctx context.Context, uow driven.UnitOfWork, item 
 }
 
 // computeEpicListSecondaryState handles the open-state epic path, which requires
-// querying child statuses to distinguish ready/active/completed/blocked.
+// querying child statuses to distinguish ready/active/completed/blocked. Callers
+// should check for active claims before calling this function.
 func computeEpicListSecondaryState(ctx context.Context, uow driven.UnitOfWork, item driven.IssueListItem) domain.SecondaryState {
 	children, err := uow.Issues().GetChildStatuses(ctx, item.ID)
 	if err != nil {

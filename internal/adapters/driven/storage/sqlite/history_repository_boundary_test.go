@@ -55,7 +55,8 @@ func TestBoundary_AppendHistory_ListHistory_Roundtrip(t *testing.T) {
 // --- CountHistory (via ShowIssue revision) ---
 
 func TestBoundary_CountHistory_IncrementsThroughOperations(t *testing.T) {
-	// Given — create and claim an issue (2 history entries: created + claimed)
+	// Given — create an issue with a claim, then update it.
+	// Claiming no longer creates history, so this generates: created + updated = 2 entries.
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
 
@@ -67,38 +68,69 @@ func TestBoundary_CountHistory_IncrementsThroughOperations(t *testing.T) {
 		t.Fatalf("precondition: create failed: %v", err)
 	}
 
+	newTitle := "Count history updated"
+	if err = svc.UpdateIssue(ctx, driving.UpdateIssueInput{
+		IssueID: createOut.Issue.ID().String(),
+		ClaimID: createOut.ClaimID,
+		Title:   &newTitle,
+	}); err != nil {
+		t.Fatalf("precondition: update failed: %v", err)
+	}
+
 	// When — list all history entries
 	histOut, err := svc.ShowHistory(ctx, driving.ListHistoryInput{
 		IssueID: createOut.Issue.ID().String(),
 	})
-	// Then — should have at least 2 entries (created + claimed)
+	// Then — should have at least 2 entries (created + updated)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(histOut.Entries) < 2 {
-		t.Fatalf("entries: got %d, want >= 2 (created + claimed)", len(histOut.Entries))
+		t.Fatalf("entries: got %d, want >= 2 (created + updated)", len(histOut.Entries))
 	}
 }
 
 // --- GetLatestHistory (via ShowIssue author) ---
 
 func TestBoundary_GetLatestHistory_ReflectsLastActor(t *testing.T) {
-	// Given — alice creates, then bob claims
+	// Given — alice creates with a claim, then bob updates the issue.
+	// Claiming no longer creates history, so the latest actor is determined by
+	// the last mutation (update), not by who holds the claim.
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
 
 	createOut, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
 		Role: domain.RoleTask, Title: "Latest history", Author: author(t, "alice"),
+		Claim: true,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create failed: %v", err)
 	}
 
-	_, err = svc.ClaimByID(ctx, driving.ClaimInput{
+	// Release alice's claim so bob can claim.
+	if err = svc.TransitionState(ctx, driving.TransitionInput{
+		IssueID: createOut.Issue.ID().String(),
+		ClaimID: createOut.ClaimID,
+		Action:  driving.ActionRelease,
+	}); err != nil {
+		t.Fatalf("precondition: release failed: %v", err)
+	}
+
+	bobClaim, err := svc.ClaimByID(ctx, driving.ClaimInput{
 		IssueID: createOut.Issue.ID().String(), Author: author(t, "bob"),
 	})
 	if err != nil {
-		t.Fatalf("precondition: claim failed: %v", err)
+		t.Fatalf("precondition: bob claim failed: %v", err)
+	}
+
+	// Bob updates the issue, creating a history entry attributed to bob.
+	newDesc := "bob's update"
+	if err = svc.UpdateIssue(ctx, driving.UpdateIssueInput{
+		IssueID:     createOut.Issue.ID().String(),
+		ClaimID:     bobClaim.ClaimID,
+		Description: &newDesc,
+	}); err != nil {
+		t.Fatalf("precondition: bob update failed: %v", err)
 	}
 
 	// When — show the issue (author is derived from GetLatestHistory)
@@ -115,21 +147,43 @@ func TestBoundary_GetLatestHistory_ReflectsLastActor(t *testing.T) {
 // --- ListHistory with Author Filter ---
 
 func TestBoundary_ListHistory_FilterByAuthor_OnlyReturnsMatchingEntries(t *testing.T) {
-	// Given — alice creates, bob claims (generating entries from two different authors)
+	// Given — alice creates with a claim; bob claims and updates the issue.
+	// Both produce history entries from different authors. Claiming itself no
+	// longer creates history, so only alice's creation and bob's update appear.
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
 
 	createOut, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
 		Role: domain.RoleTask, Title: "Author filter", Author: author(t, "alice"),
+		Claim: true,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create failed: %v", err)
 	}
-	_, err = svc.ClaimByID(ctx, driving.ClaimInput{
+
+	// Release alice's claim and let bob claim and update.
+	if err = svc.TransitionState(ctx, driving.TransitionInput{
+		IssueID: createOut.Issue.ID().String(),
+		ClaimID: createOut.ClaimID,
+		Action:  driving.ActionRelease,
+	}); err != nil {
+		t.Fatalf("precondition: release failed: %v", err)
+	}
+
+	bobClaim, err := svc.ClaimByID(ctx, driving.ClaimInput{
 		IssueID: createOut.Issue.ID().String(), Author: author(t, "bob"),
 	})
 	if err != nil {
-		t.Fatalf("precondition: claim failed: %v", err)
+		t.Fatalf("precondition: bob claim failed: %v", err)
+	}
+
+	newDesc := "bob's update"
+	if err = svc.UpdateIssue(ctx, driving.UpdateIssueInput{
+		IssueID:     createOut.Issue.ID().String(),
+		ClaimID:     bobClaim.ClaimID,
+		Description: &newDesc,
+	}); err != nil {
+		t.Fatalf("precondition: bob update failed: %v", err)
 	}
 
 	// When — filter history by alice
@@ -137,7 +191,7 @@ func TestBoundary_ListHistory_FilterByAuthor_OnlyReturnsMatchingEntries(t *testi
 		IssueID: createOut.Issue.ID().String(),
 		Filter:  driving.HistoryFilterInput{Author: "alice"},
 	})
-	// Then
+	// Then — only alice's creation entry; bob's update is excluded.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -152,12 +206,14 @@ func TestBoundary_ListHistory_FilterByAuthor_OnlyReturnsMatchingEntries(t *testi
 // --- ListHistory with After and Before Filters ---
 
 func TestBoundary_ListHistory_FilterByAfter_OnlyReturnsNewerEntries(t *testing.T) {
-	// Given — create an issue, record a cutoff, then claim it
+	// Given — create and claim an issue, record a cutoff, then close it.
+	// Claiming no longer creates a history entry; closing does.
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
 
 	createOut, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
 		Role: domain.RoleTask, Title: "After filter", Author: author(t, "alice"),
+		Claim: true,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create failed: %v", err)
@@ -166,11 +222,13 @@ func TestBoundary_ListHistory_FilterByAfter_OnlyReturnsNewerEntries(t *testing.T
 	cutoff := time.Now()
 	time.Sleep(10 * time.Millisecond)
 
-	_, err = svc.ClaimByID(ctx, driving.ClaimInput{
-		IssueID: createOut.Issue.ID().String(), Author: author(t, "alice"),
+	err = svc.TransitionState(ctx, driving.TransitionInput{
+		IssueID: createOut.Issue.ID().String(),
+		ClaimID: createOut.ClaimID,
+		Action:  driving.ActionClose,
 	})
 	if err != nil {
-		t.Fatalf("precondition: claim failed: %v", err)
+		t.Fatalf("precondition: close failed: %v", err)
 	}
 
 	// When — filter history after the cutoff
@@ -178,15 +236,16 @@ func TestBoundary_ListHistory_FilterByAfter_OnlyReturnsNewerEntries(t *testing.T
 		IssueID: createOut.Issue.ID().String(),
 		Filter:  driving.HistoryFilterInput{After: cutoff},
 	})
-	// Then — should only include the claim entry
+	// Then — should only include the state_changed (close) entry. Claiming no
+	// longer creates a history entry so the close is the only post-cutoff event.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(histOut.Entries) != 1 {
-		t.Fatalf("entries: got %d, want 1 (only post-cutoff claim)", len(histOut.Entries))
+		t.Fatalf("entries: got %d, want 1 (only post-cutoff close)", len(histOut.Entries))
 	}
-	if histOut.Entries[0].EventType != history.EventClaimed.String() {
-		t.Errorf("event type: got %s, want %s", histOut.Entries[0].EventType, history.EventClaimed.String())
+	if histOut.Entries[0].EventType != history.EventStateChanged.String() {
+		t.Errorf("event type: got %s, want %s", histOut.Entries[0].EventType, history.EventStateChanged.String())
 	}
 }
 
@@ -232,8 +291,9 @@ func TestBoundary_ListHistory_FilterByBefore_OnlyReturnsOlderEntries(t *testing.
 // --- Revision Numbering Increments Correctly ---
 
 func TestBoundary_HistoryRevision_IncrementsSequentially(t *testing.T) {
-	// Given — create an issue with --claim, then update it and close it
-	// This generates: created (rev 0), claimed (rev 1), updated (rev 2), closed (rev 3)
+	// Given — create an issue with a claim, then update it and close it.
+	// Claiming no longer creates a history entry, so this generates:
+	// created (rev 0), updated (rev 1), closed (rev 2).
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
 
@@ -268,12 +328,12 @@ func TestBoundary_HistoryRevision_IncrementsSequentially(t *testing.T) {
 	histOut, err := svc.ShowHistory(ctx, driving.ListHistoryInput{
 		IssueID: createOut.Issue.ID().String(),
 	})
-	// Then
+	// Then — created + updated + closed = 3 entries; no claim/release history.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(histOut.Entries) < 4 {
-		t.Fatalf("entries: got %d, want >= 4 (created, claimed, updated, closed)", len(histOut.Entries))
+	if len(histOut.Entries) < 3 {
+		t.Fatalf("entries: got %d, want >= 3 (created, updated, closed)", len(histOut.Entries))
 	}
 
 	// Verify revisions are sequential starting from 0.

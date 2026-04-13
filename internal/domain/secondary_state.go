@@ -4,14 +4,18 @@ import "fmt"
 
 // SecondaryState qualifies the primary state with additional context about an
 // issue's readiness, progress, or blocking status. The zero value
-// (SecondaryNone) indicates no secondary qualifier — used for claimed and
-// closed issues.
+// (SecondaryNone) indicates no secondary qualifier — used for closed issues or
+// when the primary state does not warrant a qualifier.
 type SecondaryState int
 
 const (
-	// SecondaryNone indicates no secondary state. Used for claimed and closed
-	// issues, or when the primary state does not warrant a qualifier.
+	// SecondaryNone indicates no secondary state. Used for closed issues or
+	// when the primary state does not warrant a qualifier.
 	SecondaryNone SecondaryState = iota
+
+	// SecondaryClaimed indicates an open issue has an active (non-stale) claim.
+	// Claimed takes precedence over ready and blocked in display priority.
+	SecondaryClaimed
 
 	// SecondaryReady indicates an issue is available for work (tasks) or
 	// decomposition (epics with no children).
@@ -37,6 +41,7 @@ const (
 // SecondaryNone maps to the empty string.
 var secondaryStateStrings = map[SecondaryState]string{
 	SecondaryNone:      "",
+	SecondaryClaimed:   "claimed",
 	SecondaryReady:     "ready",
 	SecondaryBlocked:   "blocked",
 	SecondaryUnplanned: "unplanned",
@@ -74,7 +79,7 @@ func ParseSecondaryState(s string) (SecondaryState, error) {
 // secondary conditions for rich detail views.
 type SecondaryStateResult struct {
 	// ListState is the single secondary state for list views, chosen by
-	// priority: completed > blocked > ready > active.
+	// priority: completed > claimed > blocked > ready > active.
 	ListState SecondaryState
 
 	// DetailStates is the ordered set of secondary conditions applicable in

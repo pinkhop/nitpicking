@@ -1,17 +1,17 @@
-# Doctor JSON output for stale claims must not expose claim IDs.
+# Doctor JSON output must not expose claim IDs regardless of claim state.
 # The claim ID is a bearer token; leaking it would allow unauthorized
-# mutations.
+# mutations. Claims are transient local bookkeeping — doctor no longer
+# reports stale claims as findings; it only reports structural issues.
 
 np-init DRRED
-np-seed task 'Stale for doctor' doctor-redact TASK
+np-seed task 'Claimed task for doctor' doctor-redact TASK
 
-# Claim with a 1ms duration so the claim is immediately stale.
-exec np claim $TASK --author doctor-redact --duration 1ms --json
+# Claim the task.
+exec np claim $TASK --author doctor-redact --json
 np-capture CLAIM claim_id
 
-# Doctor should find the stale claim.
+# Doctor should run successfully and not expose the claim ID.
 exec np admin doctor --json
-stdout 'stale_claim'
 
 # The claim ID bearer token must not appear in the output.
 ! stdout $CLAIM@R

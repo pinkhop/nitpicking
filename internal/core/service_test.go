@@ -2649,101 +2649,22 @@ func TestDoctor_DeferredIssueBlocking_ReportsBlockerDeferred(t *testing.T) {
 	}
 }
 
-func TestDoctor_StaleClaim_ReportsStale(t *testing.T) {
+func TestDoctor_V2Schema_NoSchemaMigrationFinding(t *testing.T) {
 	t.Parallel()
 
-	// Given — a task with a stale claim (last activity >2h ago with default
-	// threshold). Stale claims are treated as nonexistent and can be
-	// overwritten by any agent claiming normally.
-	svc, repo := setupService(t)
+	// Given — a fresh in-memory repository, which always reports schema version 2.
+	svc, _ := setupService(t)
 	ctx := t.Context()
-	author := mustAuthor(t, "doctor-test")
-
-	out, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role:   domain.RoleTask,
-		Title:  "Stale claim task",
-		Author: author,
-	})
-	if err != nil {
-		t.Fatalf("precondition: create task: %v", err)
-	}
-
-	// Insert a claim with old last_activity directly into the repo.
-	parsedAuthor, _ := domain.NewAuthor(author)
-	staleClaimedAt := time.Now().Add(-3 * time.Hour) // 3h ago — past 2h threshold
-	staleClaim := domain.ReconstructClaim(
-		"stale-claim-id-1234",
-		out.Issue.ID(),
-		parsedAuthor,
-		staleClaimedAt,
-		staleClaimedAt.Add(domain.DefaultStaleThreshold),
-	)
-	if err := repo.CreateClaim(ctx, staleClaim); err != nil {
-		t.Fatalf("precondition: create stale claim: %v", err)
-	}
 
 	// When
 	result, err := svc.Doctor(ctx, driving.DoctorInput{})
-	// Then — stale_claim finding should report the stale claim with no steal action.
+	// Then — no schema_migration_required finding; in-memory store is always v2.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	finding := findingByCategory(result.Findings, "stale_claim")
-	if finding == nil {
-		t.Fatal("expected 'stale_claim' finding")
-	}
-	if !strings.Contains(finding.Message, "stale") {
-		t.Errorf("expected message to contain 'stale', got %q", finding.Message)
-	}
-	if finding.Action != nil {
-		t.Errorf("expected no action hint for stale claim, got %v", finding.Action)
-	}
-}
-
-func TestDoctor_LongClaim_ReportsLongHeld(t *testing.T) {
-	t.Parallel()
-
-	// Given — a task with a claim held for >2× default threshold (>4h) but
-	// with a custom 24h threshold so it's not yet stale.
-	svc, repo := setupService(t)
-	ctx := t.Context()
-	author := mustAuthor(t, "doctor-test")
-
-	out, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role:   domain.RoleTask,
-		Title:  "Long claim task",
-		Author: author,
-	})
-	if err != nil {
-		t.Fatalf("precondition: create task: %v", err)
-	}
-
-	// Insert a claim with old last_activity but long threshold.
-	parsedAuthor2, _ := domain.NewAuthor(author)
-	longClaimedAt := time.Now().Add(-5 * time.Hour) // 5h ago — >2× default 2h but <24h threshold
-	longClaim := domain.ReconstructClaim(
-		"long-claim-id-5678",
-		out.Issue.ID(),
-		parsedAuthor2,
-		longClaimedAt,
-		longClaimedAt.Add(24*time.Hour), // custom 24h threshold
-	)
-	if err := repo.CreateClaim(ctx, longClaim); err != nil {
-		t.Fatalf("precondition: create long claim: %v", err)
-	}
-
-	// When
-	result, err := svc.Doctor(ctx, driving.DoctorInput{})
-	// Then — long_claim finding should appear.
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	finding := findingByCategory(result.Findings, "long_claim")
-	if finding == nil {
-		t.Fatal("expected 'long_claim' finding")
-	}
-	if !strings.Contains(finding.Message, "not yet expired") {
-		t.Errorf("expected message to contain 'not yet expired', got %q", finding.Message)
+	finding := findingByCategory(result.Findings, "schema_migration_required")
+	if finding != nil {
+		t.Errorf("unexpected schema_migration_required finding on v2 database: %v", finding.Message)
 	}
 }
 

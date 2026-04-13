@@ -148,12 +148,27 @@ func (u *connUnitOfWork) Database() driven.DatabaseRepository          { return 
 
 type dbRepo struct{ conn *sqlite.Conn }
 
+// currentSchemaVersion is the schema version written to the metadata table when
+// a new database is initialised. Existing databases without a schema_version
+// key are treated as v1 and must be upgraded with 'np admin upgrade'.
+const currentSchemaVersion = 2
+
 func (r *dbRepo) InitDatabase(_ context.Context, prefix string) error {
+	// Insert the prefix.
 	err := sqlitex.Execute(r.conn, `INSERT INTO metadata (key, value) VALUES ('prefix', ?)`, &sqlitex.ExecOptions{
 		Args: []any{prefix},
 	})
 	if err != nil {
 		return &domain.DatabaseError{Op: "init database", Err: err}
+	}
+
+	// Record the current schema version so the upgrade check can distinguish
+	// freshly created databases (v2) from old databases (v1, no key).
+	err = sqlitex.Execute(r.conn, `INSERT INTO metadata (key, value) VALUES ('schema_version', ?)`, &sqlitex.ExecOptions{
+		Args: []any{currentSchemaVersion},
+	})
+	if err != nil {
+		return &domain.DatabaseError{Op: "init database schema version", Err: err}
 	}
 	return nil
 }
@@ -164,6 +179,31 @@ func (r *dbRepo) GetPrefix(_ context.Context) (string, error) {
 		return "", &domain.DatabaseError{Op: "get prefix", Err: err}
 	}
 	return prefix, nil
+}
+
+// GetSchemaVersion returns the schema version from the metadata table. When the
+// schema_version key is absent (v1 database), it returns 0. When present with
+// value "2", it returns 2.
+func (r *dbRepo) GetSchemaVersion(_ context.Context) (int, error) {
+	var version int
+	var found bool
+
+	err := sqlitex.Execute(r.conn, `SELECT value FROM metadata WHERE key = 'schema_version'`, &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			found = true
+			version = stmt.ColumnInt(0)
+			return nil
+		},
+	})
+	if err != nil {
+		return 0, &domain.DatabaseError{Op: "get schema version", Err: err}
+	}
+
+	if !found {
+		// Absent schema_version key means v1 schema.
+		return 0, nil
+	}
+	return version, nil
 }
 
 func (r *dbRepo) GC(_ context.Context, includeClosed bool) (int, int, error) {

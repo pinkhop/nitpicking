@@ -154,25 +154,10 @@ func TestBoundary_ExtendStaleThreshold_UpdatesThreshold(t *testing.T) {
 
 // --- StaleClaims (via Doctor) ---
 
-func TestBoundary_Doctor_DetectsStaleClaims(t *testing.T) {
-	// Given — a task claimed with a very short stale threshold
+func TestBoundary_Doctor_NewDatabase_NoSchemaMigrationRequired(t *testing.T) {
+	// Given — a freshly initialised database which sets schema_version = 2.
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
-
-	taskOut, _ := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role: domain.RoleTask, Title: "Stale claim", Author: author(t, "alice"),
-	})
-	_, err := svc.ClaimByID(ctx, driving.ClaimInput{
-		IssueID:        taskOut.Issue.ID().String(),
-		Author:         author(t, "alice"),
-		StaleThreshold: 1 * time.Millisecond,
-	})
-	if err != nil {
-		t.Fatalf("precondition: claim failed: %v", err)
-	}
-
-	// Wait for the claim to become stale.
-	time.Sleep(10 * time.Millisecond)
 
 	// When
 	doctorOut, err := svc.Doctor(ctx, driving.DoctorInput{})
@@ -181,15 +166,12 @@ func TestBoundary_Doctor_DetectsStaleClaims(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Doctor should report at least one stale claim finding.
-	foundStale := false
+	// Doctor should not report a schema_migration_required finding on a new
+	// database, because InitDatabase writes schema_version = 2.
 	for _, f := range doctorOut.Findings {
-		if f.Category == "stale_claim" {
-			foundStale = true
+		if f.Category == "schema_migration_required" {
+			t.Errorf("unexpected schema_migration_required finding on new database: %s", f.Message)
 		}
-	}
-	if !foundStale {
-		t.Error("expected doctor to report stale_claim finding")
 	}
 }
 

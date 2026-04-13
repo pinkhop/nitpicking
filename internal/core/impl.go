@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain"
@@ -1828,44 +1827,20 @@ func (s *serviceImpl) Doctor(ctx context.Context, input driving.DoctorInput) (dr
 	err := s.tx.WithReadTransaction(ctx, func(uow driven.UnitOfWork) error {
 		now := time.Now()
 
-		// Check stale claims. A stale claim is treated as nonexistent by
-		// ValidateClaim; any agent can overwrite it by claiming the issue
-		// normally. Report these as a warning so agents know to re-claim.
-		staleClaims, err := uow.Claims().ListStaleClaims(ctx, now)
-		if err != nil {
-			return err
+		// Check schema version. A v1 database (no schema_version key in the
+		// metadata table) must be upgraded with 'np admin upgrade' before most
+		// commands will operate correctly. Doctor is one of the few commands
+		// that runs on both v1 and v2 databases so it can report this finding.
+		schemaVersion, schemaErr := uow.Database().GetSchemaVersion(ctx)
+		if schemaErr != nil {
+			return schemaErr
 		}
-		if len(staleClaims) > 0 {
-			for _, c := range staleClaims {
-				output.Findings = append(output.Findings, driving.DoctorFinding{
-					Category: "stale_claim",
-					Severity: "warning",
-					Message:  fmt.Sprintf("%s: claim by %q since %s is stale and can be overwritten", c.IssueID(), c.Author(), c.ClaimedAt().Format(time.RFC3339)),
-					IssueIDs: []string{c.IssueID().String()},
-				})
-			}
-		}
-
-		// Check long-held claims: active claims where idle time exceeds
-		// 2× the default stale threshold but the claim is not yet stealable
-		// (e.g. due to a custom longer threshold).
-		activeClaims, err := uow.Claims().ListActiveClaims(ctx, now)
-		if err != nil {
-			return err
-		}
-		longThreshold := 2 * domain.DefaultStaleThreshold
-		for _, c := range activeClaims {
-			heldDuration := now.Sub(c.ClaimedAt())
-			if heldDuration > longThreshold {
-				claimDuration := c.StaleAt().Sub(c.ClaimedAt())
-				output.Findings = append(output.Findings, driving.DoctorFinding{
-					Category: "long_claim",
-					Severity: "info",
-					Message: fmt.Sprintf("%s has been claimed for %s (stale threshold: %s, not yet expired)",
-						c.IssueID(), heldDuration.Truncate(time.Minute), claimDuration),
-					IssueIDs: []string{c.IssueID().String()},
-				})
-			}
+		if schemaVersion < 2 {
+			output.Findings = append(output.Findings, driving.DoctorFinding{
+				Category: "schema_migration_required",
+				Severity: "error",
+				Message:  "Database is at v1 schema and must be upgraded — run 'np admin upgrade' to migrate",
+			})
 		}
 
 		// Check blocker graph health.
@@ -1949,10 +1924,6 @@ func (s *serviceImpl) Doctor(ctx context.Context, input driving.DoctorInput) (dr
 			return hErr
 		}
 		output.Findings = append(output.Findings, humanFindings...)
-
-		// Check for authors with multiple active claims.
-		multiClaimFindings := s.checkMultiClaimAuthors(activeClaims)
-		output.Findings = append(output.Findings, multiClaimFindings...)
 
 		// Check for virtual labels stored in the labels table.
 		virtualLabelCount, vlErr := uow.Database().CountVirtualLabelsInTable(ctx)
@@ -2480,32 +2451,6 @@ func (s *serviceImpl) checkBlockedByHuman(ctx context.Context, uow driven.UnitOf
 	}
 
 	return findings, nil
-}
-
-// checkMultiClaimAuthors detects authors that have multiple active claims open
-// simultaneously. Each finding lists the author and their claimed issues.
-func (s *serviceImpl) checkMultiClaimAuthors(activeClaims []domain.Claim) []driving.DoctorFinding {
-	// Group active claims by author.
-	byAuthor := make(map[string][]string)
-	for _, c := range activeClaims {
-		authorStr := c.Author().String()
-		byAuthor[authorStr] = append(byAuthor[authorStr], c.IssueID().String())
-	}
-
-	var findings []driving.DoctorFinding
-	for authorStr, issueIDs := range byAuthor {
-		if len(issueIDs) < 2 {
-			continue
-		}
-		findings = append(findings, driving.DoctorFinding{
-			Category: "multi_claim_author",
-			Severity: "info",
-			Message:  fmt.Sprintf("%q has %d active claims: %s", authorStr, len(issueIDs), strings.Join(issueIDs, ", ")),
-			IssueIDs: issueIDs,
-		})
-	}
-
-	return findings
 }
 
 func (s *serviceImpl) GC(ctx context.Context, input driving.GCInput) (driving.GCOutput, error) {

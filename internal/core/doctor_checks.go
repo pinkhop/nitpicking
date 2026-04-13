@@ -34,6 +34,12 @@ var diagnosticChecks = []checkDefinition{
 		PassDetail: "Integrity check passed",
 	},
 	{
+		Name:       "schema_migration_required", // #nosec G101 -- not a credential; diagnostic check name
+		Severity:   driving.SeverityError,
+		Categories: []string{"schema_migration_required"},
+		PassDetail: "Database schema is up to date",
+	},
+	{
 		Name:       "blocker_health",
 		Severity:   driving.SeverityError,
 		Categories: []string{"blocker_cycle", "blocker_deleted", "blocker_deferred", "blocker_close_completed", "blocker_dead_end"},
@@ -52,12 +58,6 @@ var diagnosticChecks = []checkDefinition{
 		PassDetail: "No virtual labels stored in the labels table",
 	},
 	// Warning-level checks.
-	{
-		Name:       "stale_claims", // #nosec G101 -- not a credential; diagnostic check name
-		Severity:   driving.SeverityWarning,
-		Categories: []string{"stale_claim"},
-		PassDetail: "No stale claims found",
-	},
 	{
 		Name:       "close_completed", // #nosec G101 -- not a credential; diagnostic check name
 		Severity:   driving.SeverityWarning,
@@ -96,12 +96,6 @@ var diagnosticChecks = []checkDefinition{
 	},
 	// Info-level checks.
 	{
-		Name:       "long_claims",
-		Severity:   driving.SeverityInfo,
-		Categories: []string{"long_claim"},
-		PassDetail: "No unusually long-held claims",
-	},
-	{
 		Name:       "orphan_tasks", // #nosec G101 -- not a credential; diagnostic check name
 		Severity:   driving.SeverityInfo,
 		Categories: []string{"orphan_task"},
@@ -130,12 +124,6 @@ var diagnosticChecks = []checkDefinition{
 		Severity:   driving.SeverityInfo,
 		Categories: []string{"blocked_by_human"},
 		PassDetail: "No issues waiting on human action",
-	},
-	{
-		Name:       "multi_claim_authors",
-		Severity:   driving.SeverityInfo,
-		Categories: []string{"multi_claim_author"},
-		PassDetail: "No authors have multiple active claims",
 	},
 }
 

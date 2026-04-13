@@ -341,6 +341,12 @@ type DatabaseRepository interface {
 	// the labels table — any rows found indicate data integrity issues.
 	CountVirtualLabelsInTable(ctx context.Context) (int, error)
 
+	// GetSchemaVersion returns the schema version stored in the metadata table.
+	// Returns 0 when the database has no schema_version key (v1 schema), and
+	// 2 when the database has been migrated to v2. The doctor command uses this
+	// to report schema_migration_required when the database is v1.
+	GetSchemaVersion(ctx context.Context) (int, error)
+
 	// ClearAllData removes all data from every table (issues, comments,
 	// claims, relationships, history, labels, FTS, and metadata).
 	// Used by restore to prepare a clean slate before inserting backup

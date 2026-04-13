@@ -752,6 +752,13 @@ func (r *Repository) CountVirtualLabelsInTable(_ context.Context) (int, error) {
 	return 0, nil
 }
 
+// GetSchemaVersion always returns 2 in the in-memory adapter because the
+// in-memory store is always freshly initialized at v2. There is no on-disk
+// v1 schema to migrate.
+func (r *Repository) GetSchemaVersion(_ context.Context) (int, error) {
+	return 2, nil
+}
+
 func (r *Repository) CountDeletedRatio(_ context.Context) (total, deleted int, err error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

@@ -34,21 +34,22 @@ func TestClassifyFindings_NoFindings_AllPass(t *testing.T) {
 	}
 }
 
-func TestClassifyFindings_StaleClaim_FailsClaimCheck(t *testing.T) {
+func TestClassifyFindings_SchemaMigrationRequired_FailsSchemaMigrationCheck(t *testing.T) {
 	t.Parallel()
 
-	// Given — a stale_claim finding.
+	// Given — a schema_migration_required finding, produced when the database
+	// is still at v1 schema and has not been upgraded.
 	findings := []driving.DoctorFinding{
-		{Category: "stale_claim", Severity: "warning", Message: "Issue NP-abc is stale"},
+		{Category: "schema_migration_required", Severity: "error", Message: "Database is at v1 schema; run 'np admin upgrade'"},
 	}
 
 	// When
 	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
 
-	// Then — the stale_claims check should fail.
-	c := checkByName(checks, "stale_claims")
+	// Then — the schema_migration_required check should fail.
+	c := checkByName(checks, "schema_migration_required")
 	if c == nil {
-		t.Fatal("expected 'stale_claims' check")
+		t.Fatal("expected 'schema_migration_required' check")
 	}
 	if c.Status != "fail" {
 		t.Errorf("expected status 'fail', got %q", c.Status)
@@ -142,19 +143,19 @@ func TestClassifyFindings_InstructionsFinding_FailsInstructionsCheck(t *testing.
 func TestClassifyFindings_MultipleFindings_CorrectStatuses(t *testing.T) {
 	t.Parallel()
 
-	// Given — findings for stale claims and instructions, but not blocker health.
+	// Given — findings for schema migration and instructions, but not blocker health.
 	findings := []driving.DoctorFinding{
-		{Category: "stale_claim", Severity: "warning", Message: "Stale claim"},
+		{Category: "schema_migration_required", Severity: "error", Message: "Database is at v1 schema"},
 		{Category: "instructions", Severity: "warning", Message: "No instruction files"},
 	}
 
 	// When
 	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
 
-	// Then — stale_claims and instructions fail; blocker_health passes.
-	staleClaims := checkByName(checks, "stale_claims")
-	if staleClaims == nil || staleClaims.Status != "fail" {
-		t.Error("expected stale_claims to fail")
+	// Then — schema_migration_required and instructions fail; blocker_health passes.
+	schemaMigration := checkByName(checks, "schema_migration_required")
+	if schemaMigration == nil || schemaMigration.Status != "fail" {
+		t.Error("expected schema_migration_required to fail")
 	}
 	blockerHealth := checkByName(checks, "blocker_health")
 	if blockerHealth == nil || blockerHealth.Status != "pass" {
@@ -194,16 +195,16 @@ func TestClassifyFindings_ErrorThreshold_SkipsWarningChecks(t *testing.T) {
 
 	// Given — a warning-level finding.
 	findings := []driving.DoctorFinding{
-		{Category: "stale_claim", Severity: "warning", Message: "Stale claim"},
+		{Category: "instructions", Severity: "warning", Message: "No instruction files"},
 	}
 
 	// When — threshold is error, so warning checks should be skipped.
 	checks, filtered, healthy := classifyFindings(findings, driving.SeverityError)
 
 	// Then — warning-level checks should be skipped; error-level should pass.
-	staleClaims := checkByName(checks, "stale_claims")
-	if staleClaims == nil || staleClaims.Status != "skipped" {
-		t.Error("expected stale_claims to be skipped")
+	instructions := checkByName(checks, "instructions")
+	if instructions == nil || instructions.Status != "skipped" {
+		t.Error("expected instructions to be skipped")
 	}
 	blockerHealth := checkByName(checks, "blocker_health")
 	if blockerHealth == nil || blockerHealth.Status != "pass" {
@@ -222,16 +223,16 @@ func TestClassifyFindings_WarningThreshold_SkipsInfoButKeepsWarningAndError(t *t
 
 	// Given — a warning-level finding.
 	findings := []driving.DoctorFinding{
-		{Category: "stale_claim", Severity: "warning", Message: "Stale claim"},
+		{Category: "instructions", Severity: "warning", Message: "No instruction files"},
 	}
 
 	// When — threshold is warning.
 	checks, _, _ := classifyFindings(findings, driving.SeverityWarning)
 
-	// Then — warning-level checks should run; stale_claims should fail.
-	c := checkByName(checks, "stale_claims")
+	// Then — warning-level checks should run; instructions should fail.
+	c := checkByName(checks, "instructions")
 	if c == nil {
-		t.Fatal("expected 'stale_claims' check")
+		t.Fatal("expected 'instructions' check")
 	}
 	if c.Status != "fail" {
 		t.Errorf("expected status 'fail', got %q", c.Status)
@@ -261,8 +262,8 @@ func TestClassifyFindings_FilterExcludesSkippedCheckCategories(t *testing.T) {
 
 	// Given — findings for warning-level checks.
 	findings := []driving.DoctorFinding{
-		{Category: "stale_claim", Severity: "warning", Message: "Stale claim"},
 		{Category: "instructions", Severity: "warning", Message: "No instructions"},
+		{Category: "close_completed", Severity: "warning", Message: "Epic ready to close"},
 	}
 
 	// When — threshold is error, so warning categories should be excluded.
@@ -279,7 +280,7 @@ func TestClassifyFindings_FilterIncludesActiveCheckCategories(t *testing.T) {
 
 	// Given — findings for warning-level checks.
 	findings := []driving.DoctorFinding{
-		{Category: "stale_claim", Severity: "warning", Message: "Stale claim"},
+		{Category: "instructions", Severity: "warning", Message: "No instructions"},
 	}
 
 	// When — threshold is info (all checks active).
@@ -294,10 +295,10 @@ func TestClassifyFindings_FilterIncludesActiveCheckCategories(t *testing.T) {
 func TestClassifyFindings_FilterIncludesErrorFindings(t *testing.T) {
 	t.Parallel()
 
-	// Given — findings for error-level checks.
+	// Given — findings for error and warning-level checks.
 	findings := []driving.DoctorFinding{
 		{Category: "blocker_cycle", Severity: "error", Message: "Cycle detected"},
-		{Category: "stale_claim", Severity: "warning", Message: "Stale claim"},
+		{Category: "instructions", Severity: "warning", Message: "No instructions"},
 	}
 
 	// When — threshold is error.

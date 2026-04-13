@@ -90,9 +90,11 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "doctor",
 		Usage: "Run diagnostics on the database",
 		Description: `Runs a suite of diagnostic checks against the issue database and the
-surrounding project environment. Checks include stale claims, orphaned
-relationships, referential integrity, no-ready-issues analysis, git
-ignore status for .np/, and presence of agent instruction files.
+surrounding project environment. Checks include schema version (v1 databases
+must be upgraded with 'np admin upgrade'), orphaned relationships, referential
+integrity, blocker graph health, git ignore status for .np/, and presence of
+agent instruction files. Doctor operates on both v1 and v2 databases so it
+can detect and report schema_migration_required.
 
 Use this when something feels wrong — no issues appear as ready, an
 agent reports unexpected errors, or you suspect data corruption. Each

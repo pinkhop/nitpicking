@@ -9,9 +9,11 @@ import (
 // label. It must not appear in the labels object of an import line.
 const reservedLabelKey = "idempotency-key"
 
-// importableStates lists the states that are valid for import. The states
-// "claimed" and "blocked" are excluded: "claimed" requires an active claim,
-// and "blocked" is a secondary state.
+// importableStates lists the primary lifecycle states that are valid for
+// import. "blocked" is excluded because it is a secondary state computed from
+// relationships, not a primary state. "claimed" is excluded because it is also
+// a secondary state of open — an active claim is transient, local-only
+// bookkeeping and is never a primary lifecycle state.
 var importableStates = map[string]bool{
 	"open":     true,
 	"deferred": true,
@@ -127,6 +129,18 @@ func validateLine(idx int, line RawLine, prefix string, keyIndex map[string]int,
 			errs = append(errs, LineError{Line: idx, Message: fmt.Sprintf("invalid state: %s", err)})
 		} else {
 			record.State = parsed
+		}
+	}
+
+	// Claim (only valid for open state; creates a transient claim row).
+	if line.Claim {
+		if record.State != StateOpen {
+			errs = append(errs, LineError{
+				Line:    idx,
+				Message: fmt.Sprintf("claim: true is only valid for state open, got %q", line.State),
+			})
+		} else {
+			record.Claim = true
 		}
 	}
 

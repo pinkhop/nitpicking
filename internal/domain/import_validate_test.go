@@ -175,6 +175,84 @@ func TestValidate_BlockedState_ReturnsError(t *testing.T) {
 	assertLineError(t, result.Errors, 0, "state")
 }
 
+// --- Claim field validation ---
+
+func TestValidate_ClaimTrueWithOpenState_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — claim: true is allowed when state is open.
+	lines := []domain.RawLine{
+		{IdempotencyKey: "key-1", Role: "task", Title: "A task", Claim: true},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then
+	if len(result.Errors) != 0 {
+		t.Fatalf("expected no errors for claim: true with open state, got %v", result.Errors)
+	}
+	if len(result.Records) != 1 || !result.Records[0].Claim {
+		t.Error("expected record to have Claim = true")
+	}
+}
+
+func TestValidate_ClaimTrueWithExplicitOpenState_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — claim: true with explicit state: open.
+	lines := []domain.RawLine{
+		{IdempotencyKey: "key-1", Role: "task", Title: "A task", State: "open", Claim: true},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then
+	if len(result.Errors) != 0 {
+		t.Fatalf("expected no errors for claim: true with explicit open state, got %v", result.Errors)
+	}
+	if len(result.Records) != 1 || !result.Records[0].Claim {
+		t.Error("expected record to have Claim = true")
+	}
+}
+
+func TestValidate_ClaimTrueWithClosedState_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given — claim: true is not valid for closed state.
+	lines := []domain.RawLine{
+		{IdempotencyKey: "key-1", Role: "task", Title: "A task", State: "closed", Claim: true},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then
+	if len(result.Errors) == 0 {
+		t.Fatal("expected validation error for claim: true with closed state")
+	}
+	assertLineError(t, result.Errors, 0, "claim")
+}
+
+func TestValidate_ClaimTrueWithDeferredState_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given — claim: true is not valid for deferred state.
+	lines := []domain.RawLine{
+		{IdempotencyKey: "key-1", Role: "task", Title: "A task", State: "deferred", Claim: true},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then
+	if len(result.Errors) == 0 {
+		t.Fatal("expected validation error for claim: true with deferred state")
+	}
+	assertLineError(t, result.Errors, 0, "claim")
+}
+
 func TestValidate_ValidStates_Succeeds(t *testing.T) {
 	t.Parallel()
 

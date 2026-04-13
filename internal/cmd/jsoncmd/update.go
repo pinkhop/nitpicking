@@ -56,10 +56,6 @@ func (p *patchString) UnmarshalJSON(data []byte) error {
 // Scalar string fields use patchString to support three-state semantics:
 // absent (no change), null (unset/clear), and present-with-value (update).
 // Array fields use standard slices where nil means no change.
-//
-// Fields shared with createInput (role, claim) are accepted silently so that
-// the same JSON object can be piped to both json create and json update
-// without triggering DisallowUnknownFields.
 type updateInput struct {
 	Title              patchString `json:"title"`
 	Description        patchString `json:"description"`
@@ -74,16 +70,6 @@ type updateInput struct {
 	// if present and different from the issue's current role, an error is
 	// returned.
 	Role string `json:"role"`
-
-	// Claim is accepted for schema compatibility with json create but silently
-	// ignored. Claiming is managed through the --claim CLI flag.
-	Claim bool `json:"claim"`
-
-	// State is accepted in JSON so that callers receive a clear error message
-	// rather than a generic "unknown field" rejection. State transitions are
-	// managed through dedicated lifecycle commands (claim, close, defer, etc.)
-	// and cannot be set via json update.
-	State string `json:"state"`
 }
 
 // updateOutput is the JSON representation of the update command result.
@@ -110,27 +96,15 @@ type RunUpdateInput struct {
 //   - Null fields: unset/clear the value.
 //   - Present fields: update to the provided value.
 //
-// The role and claim fields are accepted for schema compatibility with json
-// create. If role is present and differs from the issue's current role, an
-// error is returned. The claim field is silently ignored. The state field is
-// accepted so callers receive a clear error message; passing any state value
-// (including "claimed") is rejected with an explicit error because state
-// transitions are managed through dedicated lifecycle commands.
+// The role field is accepted for schema compatibility with json create: if
+// present and differs from the issue's current role, an error is returned.
+// Unknown fields are rejected by the JSON decoder.
 //
 // Output is always JSON.
 func RunUpdate(ctx context.Context, input RunUpdateInput) error {
 	payload, err := DecodeStdin[updateInput](input.Stdin)
 	if err != nil {
 		return fmt.Errorf("reading update JSON from stdin: %w", err)
-	}
-
-	// Reject any attempt to set state directly. State transitions — including
-	// claiming — are managed through dedicated lifecycle commands. Accepting the
-	// field with an explicit error produces a clearer message than the generic
-	// "unknown field" rejection that would result if the field were absent from
-	// the schema.
-	if payload.State != "" {
-		return fmt.Errorf("\"state\" is not a writable field: state transitions are managed through dedicated commands (claim, close, defer, release); \"claimed\" is not a valid primary state")
 	}
 
 	// Resolve the issue ID from the claim.
@@ -239,17 +213,9 @@ JSON follows PATCH semantics: fields absent from the object are left
 unchanged, fields set to null are cleared, and fields set to a value are
 updated. Supported fields include title, description, acceptance_criteria,
 priority, parent, labels (array of "key:value" strings), label_remove
-(array of key strings to remove), and comment (string to add as a comment
-alongside the update).
-
-The role and claim fields are accepted for schema compatibility with json
-create. If role is present and differs from the issue's current role, an
-error is returned; if it matches, it is silently accepted. The claim field
-is silently ignored.
-
-The "state" field is not writable. State transitions are managed through
-dedicated lifecycle commands (claim, close, defer, release). Passing any
-"state" value — including "claimed" — returns an error.
+(array of key strings to remove), comment (string to add as a comment
+alongside the update), and role (validated to match the issue's current
+role). Unknown fields are rejected.
 
 The --claim flag identifies the active claim and, by extension, the issue
 being updated — no explicit issue ID is needed. Use this command when you

@@ -201,15 +201,11 @@ func TestRun_PipedStdin_WithAllFields_CreatesIssue(t *testing.T) {
 
 	ios, stdin, stdout, _ := iostreams.Test()
 
-	// The claim field in JSON is silently ignored — claiming requires the
-	// --with-claim CLI flag on json create. This test verifies the claim field
-	// does not cause an error but does not claim the issue.
 	payload := `{
 		"role": "task",
 		"title": "Full featured task",
 		"description": "A detailed description",
-		"priority": "P0",
-		"claim": true
+		"priority": "P0"
 	}`
 	_, _ = stdin.WriteString(payload)
 
@@ -226,8 +222,7 @@ func TestRun_PipedStdin_WithAllFields_CreatesIssue(t *testing.T) {
 
 	// When
 	err := create.Run(t.Context(), input)
-	// Then: no error, and JSON output contains expected fields. The claim field
-	// in JSON is silently ignored so the issue is created in open state.
+	// Then: no error, and JSON output contains expected fields.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -240,6 +235,6 @@ func TestRun_PipedStdin_WithAllFields_CreatesIssue(t *testing.T) {
 		t.Errorf("priority: got %q, want %q", result["priority"], "P0")
 	}
 	if result["state"] != "open" {
-		t.Errorf("state: got %q, want %q (claim in JSON should be ignored)", result["state"], "open")
+		t.Errorf("state: got %q, want %q", result["state"], "open")
 	}
 }

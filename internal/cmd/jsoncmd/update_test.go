@@ -543,10 +543,11 @@ func TestRunUpdate_RoleDiffers_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestRunUpdate_ClaimInJSON_SilentlyIgnored(t *testing.T) {
+func TestRunUpdate_ClaimInJSON_ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	// Given: a claimed task and JSON with claim=true (a json create field).
+	// Given: a claimed task and JSON with claim=true in the body (claiming is
+	// done via np claim, not the JSON body).
 	svc := setupUpdateService(t)
 	_, claimID := createAndClaimTask(t, svc, "Claim in JSON task")
 
@@ -562,47 +563,20 @@ func TestRunUpdate_ClaimInJSON_SilentlyIgnored(t *testing.T) {
 
 	// When
 	err := jsoncmd.RunUpdate(t.Context(), input)
-	// Then: no error — claim is silently ignored.
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
 
-func TestRunUpdate_StateClaimedInJSON_ReturnsError(t *testing.T) {
-	t.Parallel()
-
-	// Given: a claimed task and JSON input with state set to "claimed".
-	svc := setupUpdateService(t)
-	_, claimID := createAndClaimTask(t, svc, "State claimed task")
-
-	stdin := strings.NewReader(`{"state": "claimed", "title": "Updated title"}`)
-	var stdout bytes.Buffer
-
-	input := jsoncmd.RunUpdateInput{
-		Service: svc,
-		ClaimID: claimID,
-		Stdin:   stdin,
-		WriteTo: &stdout,
-	}
-
-	// When
-	err := jsoncmd.RunUpdate(t.Context(), input)
-
-	// Then: an error is returned because state: claimed is rejected.
+	// Then: an error is returned because claim is not accepted in JSON input.
 	if err == nil {
-		t.Fatal("expected error for state: claimed, got nil")
+		t.Fatal("expected error for claim in JSON, got nil")
 	}
 }
 
-func TestRunUpdate_StateOtherThanClaimedInJSON_ReturnsError(t *testing.T) {
+func TestRunUpdate_StateInJSON_Rejected(t *testing.T) {
 	t.Parallel()
 
-	// Given: a claimed task and JSON input with state set to "open" — state is
-	// not a writable field on update; the only recognised use-case for the field
-	// is to detect the forbidden "claimed" value, and any other value is equally
-	// invalid.
+	// Given: a claimed task and JSON input with a state field — state is an
+	// unknown field for json update and is rejected by the decoder.
 	svc := setupUpdateService(t)
-	_, claimID := createAndClaimTask(t, svc, "State open task")
+	_, claimID := createAndClaimTask(t, svc, "State task")
 
 	stdin := strings.NewReader(`{"state": "open", "title": "Updated title"}`)
 	var stdout bytes.Buffer
@@ -617,7 +591,7 @@ func TestRunUpdate_StateOtherThanClaimedInJSON_ReturnsError(t *testing.T) {
 	// When
 	err := jsoncmd.RunUpdate(t.Context(), input)
 
-	// Then: an error is returned because state is not a writable field.
+	// Then: an error is returned because state is an unknown field.
 	if err == nil {
 		t.Fatal("expected error for state field, got nil")
 	}
@@ -649,11 +623,10 @@ func TestRunUpdate_IdempotencyKey_Rejected(t *testing.T) {
 	}
 }
 
-func TestRunUpdate_UnifiedSchema_AllFieldsAccepted(t *testing.T) {
+func TestRunUpdate_AllFields_Accepted(t *testing.T) {
 	t.Parallel()
 
-	// Given: a JSON object with all fields that appear in either json create
-	// or json update, to verify that a single object can be piped to both.
+	// Given: a JSON object with all content fields accepted by json update.
 	svc := setupUpdateService(t)
 	_, claimID := createAndClaimTask(t, svc, "Unified schema task")
 
@@ -665,8 +638,7 @@ func TestRunUpdate_UnifiedSchema_AllFieldsAccepted(t *testing.T) {
 		"priority": "P2",
 		"labels": ["kind:test"],
 		"label_remove": ["old-key"],
-		"comment": "unified comment",
-		"claim": true
+		"comment": "unified comment"
 	}`
 	stdin := strings.NewReader(stdinJSON)
 	var stdout bytes.Buffer

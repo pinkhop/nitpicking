@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/cmd/backupcmd"
+	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/backupcmd"
 )
 
 // --- Tests: default path (no --output) ---

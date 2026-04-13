@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/memory"
-	"github.com/pinkhop/nitpicking/internal/cmd/tally"
+	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/tally"
 	"github.com/pinkhop/nitpicking/internal/core"
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/iostreams"

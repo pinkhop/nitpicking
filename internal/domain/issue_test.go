@@ -251,11 +251,11 @@ func TestIssue_WithState_ReturnsNewIssue(t *testing.T) {
 	})
 
 	// When
-	claimed := tk.WithState(domain.StateClaimed)
+	closed := tk.WithState(domain.StateClosed)
 
 	// Then
-	if claimed.State() != domain.StateClaimed {
-		t.Errorf("expected claimed, got %s", claimed.State())
+	if closed.State() != domain.StateClosed {
+		t.Errorf("expected closed, got %s", closed.State())
 	}
 	if tk.State() != domain.StateOpen {
 		t.Error("expected original unchanged")

@@ -15,13 +15,10 @@ func TestTransition_LegalTransitions(t *testing.T) {
 		current domain.State
 		next    domain.State
 	}{
-		{"open to claimed", domain.StateOpen, domain.StateClaimed},
-		{"claimed to open", domain.StateClaimed, domain.StateOpen},
-		{"claimed to closed", domain.StateClaimed, domain.StateClosed},
-		{"claimed to deferred", domain.StateClaimed, domain.StateDeferred},
-		{"deferred to claimed", domain.StateDeferred, domain.StateClaimed},
-		{"closed to claimed", domain.StateClosed, domain.StateClaimed},
+		{"open to closed", domain.StateOpen, domain.StateClosed},
 		{"open to deferred", domain.StateOpen, domain.StateDeferred},
+		{"closed to open", domain.StateClosed, domain.StateOpen},
+		{"deferred to open", domain.StateDeferred, domain.StateOpen},
 	}
 
 	for _, tc := range cases {
@@ -46,9 +43,11 @@ func TestTransition_IllegalTransitions(t *testing.T) {
 		current domain.State
 		next    domain.State
 	}{
-		{"open to closed", domain.StateOpen, domain.StateClosed},
-		{"deferred to open", domain.StateDeferred, domain.StateOpen},
-		{"claimed to claimed", domain.StateClaimed, domain.StateClaimed},
+		{"open to open", domain.StateOpen, domain.StateOpen},
+		{"closed to closed", domain.StateClosed, domain.StateClosed},
+		{"closed to deferred", domain.StateClosed, domain.StateDeferred},
+		{"deferred to closed", domain.StateDeferred, domain.StateClosed},
+		{"deferred to deferred", domain.StateDeferred, domain.StateDeferred},
 	}
 
 	for _, tc := range cases {
@@ -66,18 +65,17 @@ func TestTransition_IllegalTransitions(t *testing.T) {
 	}
 }
 
-func TestTransition_ClosedToOpen_IllegalDirectly(t *testing.T) {
+func TestTransition_ClosedToOpen_LegalDirectly(t *testing.T) {
 	t.Parallel()
 
-	// Closed issues must be claimed before transitioning — direct
-	// closed→open is not allowed.
+	// Closed issues transition directly to open (reopen) without
+	// requiring an intermediate claimed state.
 
 	// When
 	err := domain.Transition(domain.StateClosed, domain.StateOpen)
-
 	// Then
-	if !errors.Is(err, domain.ErrIllegalTransition) {
-		t.Errorf("expected ErrIllegalTransition, got %v", err)
+	if err != nil {
+		t.Errorf("expected legal transition, got error: %v", err)
 	}
 }
 
@@ -101,7 +99,6 @@ func TestParseState_ValidStates(t *testing.T) {
 		expected domain.State
 	}{
 		{"open", domain.StateOpen},
-		{"claimed", domain.StateClaimed},
 		{"closed", domain.StateClosed},
 		{"deferred", domain.StateDeferred},
 	}
@@ -135,29 +132,17 @@ func TestParseState_InvalidState_Fails(t *testing.T) {
 	}
 }
 
-func TestReleaseState_ReturnsOpen(t *testing.T) {
+func TestParseState_Claimed_Fails(t *testing.T) {
 	t.Parallel()
+
+	// "claimed" is no longer a valid lifecycle state; parsing it must fail.
 
 	// When
-	s := domain.ReleaseState()
+	_, err := domain.ParseState("claimed")
 
 	// Then
-	if s != domain.StateOpen {
-		t.Errorf("expected open, got %s", s)
-	}
-}
-
-func TestReleaseState_ConsistentWithTransitionTable(t *testing.T) {
-	t.Parallel()
-
-	// Given — ReleaseState is used when transitioning from claimed
-	releaseTarget := domain.ReleaseState()
-
-	// When — verify the claimed→releaseTarget transition is legal
-	err := domain.Transition(domain.StateClaimed, releaseTarget)
-	// Then
-	if err != nil {
-		t.Errorf("expected claimed→%s to be legal, got error: %v", releaseTarget, err)
+	if err == nil {
+		t.Error("expected error when parsing \"claimed\" as a state")
 	}
 }
 
@@ -167,7 +152,6 @@ func TestState_IsTerminal_NoStatesAreTerminal(t *testing.T) {
 	// No states are terminal — all states can be transitioned out of.
 	states := []domain.State{
 		domain.StateOpen,
-		domain.StateClaimed,
 		domain.StateClosed,
 		domain.StateDeferred,
 	}

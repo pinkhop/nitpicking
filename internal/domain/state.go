@@ -10,11 +10,8 @@ const (
 	// StateOpen is the default state for new issues. Available for work.
 	StateOpen State = iota + 1
 
-	// StateClaimed indicates an agent or human has taken ownership.
-	StateClaimed
-
 	// StateClosed indicates the issue is fully resolved. Closed issues can
-	// be reclaimed and reopened if needed.
+	// be reopened if needed.
 	StateClosed
 
 	// StateDeferred indicates the issue should not be worked on now.
@@ -24,7 +21,6 @@ const (
 // stateStrings maps each State to its canonical lowercase string.
 var stateStrings = map[State]string{
 	StateOpen:     "open",
-	StateClaimed:  "claimed",
 	StateClosed:   "closed",
 	StateDeferred: "deferred",
 }
@@ -49,8 +45,7 @@ func ParseState(s string) (State, error) {
 
 // IsTerminal reports whether the state is terminal — no further transitions
 // are allowed. No states are currently terminal; closed issues can be
-// reclaimed and reopened. "Deleted" is a separate concept checked
-// independently.
+// reopened. "Deleted" is a separate concept checked independently.
 func (s State) IsTerminal() bool {
 	return false
 }
@@ -58,10 +53,9 @@ func (s State) IsTerminal() bool {
 // transitions defines the legal state transitions for all issues.
 // Key: current state → Value: set of allowed next states.
 var transitions = map[State]map[State]bool{
-	StateOpen:     {StateClaimed: true, StateDeferred: true},
-	StateClaimed:  {StateOpen: true, StateClosed: true, StateDeferred: true},
-	StateDeferred: {StateClaimed: true},
-	StateClosed:   {StateClaimed: true},
+	StateOpen:     {StateClosed: true, StateDeferred: true},
+	StateClosed:   {StateOpen: true},
+	StateDeferred: {StateOpen: true},
 }
 
 // Transition validates a state transition for any issue role. Returns
@@ -86,11 +80,5 @@ func Transition(current, next State) error {
 
 // DefaultState returns the initial state for any newly created issue.
 func DefaultState() State {
-	return StateOpen
-}
-
-// ReleaseState returns the state an issue transitions to when released
-// from claimed.
-func ReleaseState() State {
 	return StateOpen
 }

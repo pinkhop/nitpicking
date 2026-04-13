@@ -137,7 +137,7 @@ Examples of this pattern are spread across:
 
 - `internal/cmd/create`
 - `internal/cmd/claim`
-- `internal/cmd/done`
+- `internal/cmd/closecmd`
 - `internal/cmd/formcmd`
 - `internal/cmd/jsoncmd`
 - `internal/cmd/admincmd`

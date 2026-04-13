@@ -1,4 +1,4 @@
-package done_test
+package closecmd_test
 
 import (
 	"bytes"
@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/memory"
-	"github.com/pinkhop/nitpicking/internal/cmd/done"
+	"github.com/pinkhop/nitpicking/internal/cmd/closecmd"
 	"github.com/pinkhop/nitpicking/internal/core"
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
 // claimAuthorName is the author name used when creating and claiming test
-// issues. Tests verify that the done workflow derives this author from the
+// issues. Tests verify that the close workflow derives this author from the
 // claim record rather than accepting it as an explicit parameter.
 const claimAuthorName = "test-agent"
 
@@ -73,7 +73,7 @@ func TestRun_ClosesIssueAndAddsComment(t *testing.T) {
 	issueID, claimID := createAndClaim(t, svc, "Test task")
 
 	var buf bytes.Buffer
-	input := done.RunInput{
+	input := closecmd.RunInput{
 		Service: svc,
 		IssueID: issueID.String(),
 		ClaimID: claimID,
@@ -84,7 +84,7 @@ func TestRun_ClosesIssueAndAddsComment(t *testing.T) {
 	}
 
 	// When
-	err := done.Run(t.Context(), input)
+	err := closecmd.Run(t.Context(), input)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -122,7 +122,7 @@ func TestRun_JSONOutput_ReturnsStructuredResult(t *testing.T) {
 	issueID, claimID := createAndClaim(t, svc, "JSON output task")
 
 	var buf bytes.Buffer
-	input := done.RunInput{
+	input := closecmd.RunInput{
 		Service: svc,
 		IssueID: issueID.String(),
 		ClaimID: claimID,
@@ -133,7 +133,7 @@ func TestRun_JSONOutput_ReturnsStructuredResult(t *testing.T) {
 	}
 
 	// When
-	err := done.Run(t.Context(), input)
+	err := closecmd.Run(t.Context(), input)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -159,7 +159,7 @@ func TestRun_EmptyReason_ReturnsError(t *testing.T) {
 	issueID, claimID := createAndClaim(t, svc, "No reason task")
 
 	var buf bytes.Buffer
-	input := done.RunInput{
+	input := closecmd.RunInput{
 		Service: svc,
 		IssueID: issueID.String(),
 		ClaimID: claimID,
@@ -170,7 +170,7 @@ func TestRun_EmptyReason_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	err := done.Run(t.Context(), input)
+	err := closecmd.Run(t.Context(), input)
 
 	// Then
 	if err == nil {
@@ -186,7 +186,7 @@ func TestRun_DerivesAuthorFromClaim(t *testing.T) {
 	issueID, claimID := createAndClaim(t, svc, "Derive author task")
 
 	var buf bytes.Buffer
-	input := done.RunInput{
+	input := closecmd.RunInput{
 		Service: svc,
 		IssueID: issueID.String(),
 		ClaimID: claimID,
@@ -196,7 +196,7 @@ func TestRun_DerivesAuthorFromClaim(t *testing.T) {
 	}
 
 	// When
-	err := done.Run(t.Context(), input)
+	err := closecmd.Run(t.Context(), input)
 	// Then — succeeds and the comment author matches the claim author.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -225,7 +225,7 @@ func TestRun_InvalidClaimID_ReturnsError(t *testing.T) {
 	issueID, _ := createAndClaim(t, svc, "Wrong claim task")
 
 	var buf bytes.Buffer
-	input := done.RunInput{
+	input := closecmd.RunInput{
 		Service: svc,
 		IssueID: issueID.String(),
 		ClaimID: "wrong-claim-id",
@@ -236,7 +236,7 @@ func TestRun_InvalidClaimID_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	err := done.Run(t.Context(), input)
+	err := closecmd.Run(t.Context(), input)
 
 	// Then
 	if err == nil {

@@ -119,7 +119,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		order        string
 		includeNotes bool
 		limit        int
-		all          bool
+		noLimit      bool
 		timestamps   bool
 	)
 
@@ -136,7 +136,7 @@ related to a particular feature area.
 The search can be narrowed with filters for role, state, and labels, and results
 can be sorted by priority, creation time, or modification time. Use
 --search-comments to extend the search to comment bodies. By default, results
-are limited to a reasonable page size; use --all or --limit to adjust.`,
+are limited to a reasonable page size; use --no-limit or --limit to adjust.`,
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
 				Name:     "role",
@@ -177,15 +177,16 @@ are limited to a reasonable page size; use --all or --limit to adjust.`,
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
-				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Usage:       "Maximum number of results",
+				Value:       cmdutil.DefaultLimit,
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &limit,
 			},
 			&cli.BoolFlag{
-				Name:        "all",
-				Usage:       "Return all results without limit",
+				Name:        "no-limit",
+				Usage:       "Return all matching results",
 				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &all,
+				Destination: &noLimit,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -236,7 +237,10 @@ are limited to a reasonable page size; use --all or --limit to adjust.`,
 				return err
 			}
 
-			effectiveLimit := cmdutil.ResolveLimit(limit, all, f.IOStreams.IsStdoutTTY())
+			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
 
 			return Run(ctx, RunInput{
 				Service:       svc,

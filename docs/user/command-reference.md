@@ -262,10 +262,10 @@ np list [options]
 | `--label` | Filter by label in `key:value` format. Repeatable. |
 | `--parent` | Filter by parent epic ID. Repeatable. |
 | `--ready` | Show only ready issues. |
-| `--include-closed` | Include closed issues (hidden by default). |
+| `--all`, `-a` | Include all issues regardless of state, including closed. |
 | `--order` | Sort order: `priority` (default), `created`, `modified`. |
-| `--limit`, `-n` | Maximum number of results. Default: server-defined limit. Use negative for unlimited. |
-| `--all` | Return all results without limit. |
+| `--limit`, `-n` | Maximum number of results. Default: 20. |
+| `--no-limit` | Return all matching results. |
 | `--timestamps` | Include `created_at` timestamp in text output. |
 | `--json` | Output machine-readable JSON. |
 
@@ -293,7 +293,7 @@ $ np list --label kind:bug --ready
 
 **Notes:**
 
-- Closed issues are hidden by default. Use `--include-closed` to show them alongside open issues, or `--state closed` to show only closed issues.
+- Closed issues are hidden by default. Use `--all` to show them alongside open issues, or `--state closed` to show only closed issues.
 - `np issue list` is not available; use `np list` exclusively.
 
 ---
@@ -535,8 +535,8 @@ np issue search [options] <QUERY>
 | `--role`, `-r` | Filter by role: `task` or `epic`. Repeatable. |
 | `--label` | Filter by label in `key:value` format. Repeatable. |
 | `--order` | Sort order: `priority` (default), `created`, `modified`. |
-| `--limit`, `-n` | Maximum number of results. |
-| `--all` | Return all results without limit. |
+| `--limit`, `-n` | Maximum number of results. Default: 20. |
+| `--no-limit` | Return all matching results. |
 | `--timestamps` | Include `created_at` timestamp in text output. |
 | `--json` | Output machine-readable JSON. |
 
@@ -793,7 +793,8 @@ np issue history [options] <ISSUE-ID>
 
 | Flag | Description |
 |------|-------------|
-| `--limit`, `-n` | Maximum number of entries. Default: server-defined limit. Use negative for unlimited. |
+| `--limit`, `-n` | Maximum number of entries. Default: 20. |
+| `--no-limit` | Return all matching entries. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**
@@ -803,7 +804,7 @@ $ np issue history MYAPP-g6ff8
 ```
 
 ```
-$ np issue history MYAPP-g6ff8 --json --limit -1
+$ np issue history MYAPP-g6ff8 --json --no-limit
 ```
 
 **Exit codes:**
@@ -834,7 +835,8 @@ np issue orphans [options]
 
 | Flag | Description |
 |------|-------------|
-| `--limit`, `-n` | Maximum number of results. |
+| `--limit`, `-n` | Maximum number of results. Default: 20. |
+| `--no-limit` | Return all matching results. |
 | `--json` | Output machine-readable JSON. |
 
 **Exit codes:**
@@ -965,7 +967,8 @@ np epic children [options] <EPIC-ID>
 
 | Flag | Description |
 |------|-------------|
-| `--limit`, `-n` | Maximum number of results. |
+| `--limit`, `-n` | Maximum number of results. Default: 20. |
+| `--no-limit` | Return all matching results. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**
@@ -1554,7 +1557,8 @@ np comment list <ISSUE-ID> [options]
 
 | Flag | Description |
 |------|-------------|
-| `--limit`, `-n` | Maximum number of results. |
+| `--limit`, `-n` | Maximum number of results. Default: 20. |
+| `--no-limit` | Return all matching results. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**

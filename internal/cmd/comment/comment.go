@@ -122,6 +122,7 @@ func newListCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		limit      int
+		noLimit    bool
 	)
 
 	return &cli.Command{
@@ -143,9 +144,16 @@ comments on multiple issues, use "comment search" instead.`,
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
-				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Usage:       "Maximum number of results",
+				Value:       cmdutil.DefaultLimit,
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "no-limit",
+				Usage:       "Return all matching results",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &noLimit,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -171,10 +179,15 @@ comments on multiple issues, use "comment search" instead.`,
 				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
+			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			return RunList(ctx, RunListInput{
 				Service: svc,
 				IssueID: issueID.String(),
-				Limit:   limit,
+				Limit:   effectiveLimit,
 				JSON:    jsonOutput,
 				WriteTo: f.IOStreams.Out,
 			})

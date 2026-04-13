@@ -202,4 +202,20 @@ type Service interface {
 	// relationships, history, and labels are permanently deleted. The
 	// caller is responsible for creating a backup beforehand.
 	ResetDatabase(ctx context.Context) error
+
+	// --- Schema Migration ---
+
+	// CheckSchemaVersion returns nil when the database is at the current
+	// schema version (v2). It returns a wrapped domain.ErrSchemaMigrationRequired
+	// when the schema is at an older version. Commands that gate on schema
+	// version call this method rather than accessing the storage adapter directly.
+	CheckSchemaVersion(ctx context.Context) error
+
+	// MigrateV1ToV2 upgrades a v1 database to v2 schema in a single atomic
+	// transaction. The migration converts claimed-state issues to open, removes
+	// obsolete history event types, and records schema_version=2. Callers should
+	// call CheckSchemaVersion first to distinguish the "already current" case
+	// from a migration that made changes. Returns a MigrationResult with row
+	// counts for each migration step.
+	MigrateV1ToV2(ctx context.Context) (MigrationResult, error)
 }

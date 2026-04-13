@@ -41,7 +41,7 @@ func newBoundaryEnv(t *testing.T, prefix string) *boundaryEnv {
 		_ = store.Close()
 	})
 
-	svc := core.New(store)
+	svc := core.New(store, store)
 	ctx := t.Context()
 	if err := svc.Init(ctx, prefix); err != nil {
 		t.Fatalf("initializing database: %v", err)

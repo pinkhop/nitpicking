@@ -74,7 +74,7 @@ since gc is irreversible.`,
 			if err != nil {
 				return fmt.Errorf("opening database: %w", err)
 			}
-			svc := core.New(store)
+			svc := core.New(store, store)
 			result, err := svc.GC(ctx, input)
 			if err != nil {
 				return fmt.Errorf("running garbage collection: %w", err)

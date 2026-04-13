@@ -438,3 +438,35 @@ type Transactor interface {
 	// called outside any transaction.
 	Vacuum(ctx context.Context) error
 }
+
+// MigrationResult carries the counts of changes made by a schema migration.
+type MigrationResult struct {
+	// ClaimedIssuesConverted is the number of issues whose state was changed
+	// from "claimed" to "open" during the v1→v2 migration.
+	ClaimedIssuesConverted int
+
+	// HistoryRowsRemoved is the number of history rows deleted because their
+	// event_type was "claimed" or "released" — event types removed in v2.
+	HistoryRowsRemoved int
+}
+
+// Migrator exposes schema migration operations. It is implemented by the
+// SQLite storage adapter and is a separate interface from Transactor because
+// migration is a storage-specific concern that runs outside the normal
+// unit-of-work lifecycle. The core service delegates to this interface so
+// that driving adapters (CLI commands) never need to import the concrete
+// storage adapter package.
+type Migrator interface {
+	// CheckSchemaVersion returns nil when the database schema is at the
+	// current version (v2). It returns a wrapped domain.ErrSchemaMigrationRequired
+	// when the schema is at an older version. Callers use this to determine
+	// whether a migration is needed before issuing regular database commands.
+	CheckSchemaVersion(ctx context.Context) error
+
+	// MigrateV1ToV2 upgrades a v1 database to v2 schema in a single atomic
+	// transaction. It is safe to call on a v2 database but CheckSchemaVersion
+	// should be used first so the caller can distinguish the "already current"
+	// case from a migration that made changes. Returns a MigrationResult
+	// describing the number of rows affected by each migration step.
+	MigrateV1ToV2(ctx context.Context) (MigrationResult, error)
+}

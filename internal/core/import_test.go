@@ -15,7 +15,7 @@ func setupImportService(t *testing.T) driving.Service {
 	t.Helper()
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	ctx := t.Context()
 	if err := svc.Init(ctx, "NP"); err != nil {

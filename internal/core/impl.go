@@ -19,12 +19,17 @@ const gcThresholdRatio = 0.20
 
 // serviceImpl implements the driving.Service interface.
 type serviceImpl struct {
-	tx driven.Transactor
+	tx       driven.Transactor
+	migrator driven.Migrator
 }
 
-// New creates a new driving.Service backed by the given Transactor.
-func New(tx driven.Transactor) driving.Service {
-	return &serviceImpl{tx: tx}
+// New creates a new driving.Service backed by the given Transactor and
+// optional Migrator. When migrator is nil, calls to CheckSchemaVersion and
+// MigrateV1ToV2 return an error indicating that migration is not supported
+// by the backing store (e.g., in-memory stores used in tests). In production
+// the SQLite store satisfies both interfaces and both arguments are provided.
+func New(tx driven.Transactor, migrator driven.Migrator) driving.Service {
+	return &serviceImpl{tx: tx, migrator: migrator}
 }
 
 // parseAuthor converts a raw author string into a validated domain Author.
@@ -3110,6 +3115,40 @@ func (s *serviceImpl) ResetDatabase(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// --- Schema Migration ---
+
+// errNoMigrator is returned by CheckSchemaVersion and MigrateV1ToV2 when the
+// service was constructed without a Migrator (e.g., in tests backed by the
+// in-memory adapter).
+var errNoMigrator = errors.New("schema migration is not supported by the backing store")
+
+// CheckSchemaVersion delegates to the Migrator port to verify the database
+// schema version. It returns nil on a v2 database and a wrapped
+// domain.ErrSchemaMigrationRequired on a v1 database.
+func (s *serviceImpl) CheckSchemaVersion(ctx context.Context) error {
+	if s.migrator == nil {
+		return errNoMigrator
+	}
+	return s.migrator.CheckSchemaVersion(ctx)
+}
+
+// MigrateV1ToV2 delegates the v1→v2 schema migration to the Migrator port.
+// It converts claimed-state issues to open, removes obsolete history event
+// types, and records schema_version=2 — all within a single atomic transaction.
+func (s *serviceImpl) MigrateV1ToV2(ctx context.Context) (driving.MigrationResult, error) {
+	if s.migrator == nil {
+		return driving.MigrationResult{}, errNoMigrator
+	}
+	r, err := s.migrator.MigrateV1ToV2(ctx)
+	if err != nil {
+		return driving.MigrationResult{}, err
+	}
+	return driving.MigrationResult{
+		ClaimedIssuesConverted: r.ClaimedIssuesConverted,
+		HistoryRowsRemoved:     r.HistoryRowsRemoved,
+	}, nil
 }
 
 // enrichListItemSecondaryStates populates the SecondaryState field on each

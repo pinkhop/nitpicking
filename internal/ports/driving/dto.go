@@ -838,3 +838,18 @@ type ImportOutput struct {
 	Failed  int
 	Results []ImportLineResult
 }
+
+// --- Schema Migration DTOs ---
+
+// MigrationResult describes the outcome of a v1→v2 schema migration. It is
+// returned by Service.MigrateV1ToV2 and consumed by the upgrade command to
+// produce human-readable or JSON output.
+type MigrationResult struct {
+	// ClaimedIssuesConverted is the number of issues whose primary state was
+	// changed from "claimed" to "open" during the migration.
+	ClaimedIssuesConverted int
+
+	// HistoryRowsRemoved is the number of history rows deleted because their
+	// event_type was "claimed" or "released", which are no longer valid in v2.
+	HistoryRowsRemoved int
+}

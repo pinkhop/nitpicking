@@ -19,7 +19,7 @@ func setupService(t *testing.T) (driving.Service, *memory.Repository) {
 	t.Helper()
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	ctx := context.Background()
 	if err := svc.Init(ctx, "NP"); err != nil {
@@ -46,7 +46,7 @@ func TestInit_ValidPrefix_Succeeds(t *testing.T) {
 	// Given
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	// When
 	err := svc.Init(t.Context(), "NP")
@@ -62,7 +62,7 @@ func TestInit_InvalidPrefix_Fails(t *testing.T) {
 	// Given
 	repo := memory.NewRepository()
 	tx := memory.NewTransactor(repo)
-	svc := core.New(tx)
+	svc := core.New(tx, nil)
 
 	// When
 	err := svc.Init(t.Context(), "np")

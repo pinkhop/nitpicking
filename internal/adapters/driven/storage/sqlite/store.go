@@ -247,6 +247,51 @@ func (s *Store) CheckSchemaVersion(ctx context.Context) error {
 	return nil
 }
 
+// MigrateV1ToV2 upgrades a v1 database to v2 schema in a single atomic
+// transaction, satisfying the driven.Migrator interface. It is safe to call on
+// a v2 database — CheckSchemaVersion should be called first so that callers
+// can report "up to date" without executing the migration body.
+//
+// The migration performs three steps within one IMMEDIATE transaction:
+//  1. Updates every issue with state="claimed" to state="open", so that the
+//     primary state column contains only lifecycle states. The active claims
+//     are already stored in the claims table and remain untouched.
+//  2. Deletes history rows whose event_type is "claimed" or "released" — these
+//     event types were removed in v2; the claims table replaces them.
+//  3. Sets schema_version=2 in the metadata table via SetSchemaVersion, marking
+//     the migration as complete.
+//
+// If any step fails the transaction is rolled back and the database is
+// unchanged. Returns a driven.MigrationResult with the number of rows affected
+// by each step.
+func (s *Store) MigrateV1ToV2(ctx context.Context) (driven.MigrationResult, error) {
+	var result driven.MigrationResult
+
+	err := s.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
+		conn := uow.(*connUnitOfWork).conn
+
+		// Step 1: Convert claimed→open on the issues table.
+		if err := sqlitex.Execute(conn, `UPDATE issues SET state = 'open' WHERE state = 'claimed'`, nil); err != nil {
+			return &domain.DatabaseError{Op: "migrate: convert claimed issues", Err: err}
+		}
+		result.ClaimedIssuesConverted = int(conn.Changes())
+
+		// Step 2: Remove history rows for removed event types.
+		if err := sqlitex.Execute(conn, `DELETE FROM history WHERE event_type IN ('claimed', 'released')`, nil); err != nil {
+			return &domain.DatabaseError{Op: "migrate: remove history rows", Err: err}
+		}
+		result.HistoryRowsRemoved = int(conn.Changes())
+
+		// Step 3: Record the completed migration.
+		return uow.Database().SetSchemaVersion(ctx, 2)
+	})
+	if err != nil {
+		return driven.MigrationResult{}, err
+	}
+
+	return result, nil
+}
+
 func (r *dbRepo) GC(_ context.Context, includeClosed bool) (int, int, error) {
 	gcQueries := []struct {
 		op    string

@@ -160,6 +160,7 @@ connectors, use "rel parent tree" instead.`,
 			result, err := svc.ListIssues(ctx, driving.ListIssuesInput{
 				Filter:  driving.IssueFilterInput{DescendantsOf: issueID.String()},
 				OrderBy: driving.OrderByPriority,
+				Limit:   -1, // Always return the full hierarchy; truncating a tree is misleading.
 			})
 			if err != nil {
 				return fmt.Errorf("listing descendants: %w", err)

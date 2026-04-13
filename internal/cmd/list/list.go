@@ -144,7 +144,7 @@ and --json for machine-readable output.`,
 			&cli.StringSliceFlag{
 				Name:     "state",
 				Aliases:  []string{"s"},
-				Usage:    "Filter by state: open, claimed, closed, deferred (repeatable)",
+				Usage:    "Filter by state: open, closed, deferred (repeatable)",
 				Category: cmdutil.FlagCategorySupplemental,
 			},
 			&cli.BoolFlag{

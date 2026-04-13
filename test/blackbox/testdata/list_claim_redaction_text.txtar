@@ -9,8 +9,8 @@ np-seed-rel BLOCKED blocked_by TASK redact-agent
 exec np list
 ! stdout $TASK_CLAIM
 
-# list --state claimed (text)
-exec np list --state claimed
+# list --state open (text) — claimed issues are open in primary state
+exec np list --state open
 ! stdout $TASK_CLAIM
 
 # search (text)

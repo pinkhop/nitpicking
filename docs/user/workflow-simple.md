@@ -110,7 +110,7 @@ $ np claim ready --author alice
   Claim ID: f2fa05ba73d90760db00682f21df60f0
 ```
 
-Save the claim ID — you will need it to close or release the issue. If you lose it, wait for the claim's stale duration to expire (default: 2 hours), then reclaim or steal the issue. `np claim ready` automatically picks the highest-priority ready issue, so you do not need to remember issue IDs.
+Save the claim ID — you will need it to close or release the issue. If you lose it, wait for the claim's stale duration to expire (default: 2 hours), then reclaim the issue normally — stale claims are overwritten automatically. `np claim ready` automatically picks the highest-priority ready issue, so you do not need to remember issue IDs.
 
 For a solo human, claiming is still useful even without competing agents: it distinguishes "I plan to work on this now" from "this is still sitting in the queue."
 

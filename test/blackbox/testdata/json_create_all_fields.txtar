@@ -39,12 +39,13 @@ np-json-has parent_id $EPIC
 stdin claim_task.json
 exec np json create --author jc-agent --with-claim
 
-np-json-has state claimed
+np-json-has state open
 ! np-json-no-field claim_id
 np-capture CLAIMED_ID id
 
 exec np show $CLAIMED_ID --json
-np-json-has state claimed
+np-json-has state open
+np-json-has secondary_state claimed
 
 # --- Task with labels ---
 

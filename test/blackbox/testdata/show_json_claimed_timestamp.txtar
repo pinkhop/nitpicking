@@ -4,6 +4,7 @@ np-init SC
 np-seed task 'Claimed show JSON' claim-agent TASK --claim
 
 exec np show $TASK --json
-np-json-has state claimed
+np-json-has state open
+np-json-has secondary_state claimed
 ! np-json-no-field claim_stale_at
 stdout '"claim_stale_at":'

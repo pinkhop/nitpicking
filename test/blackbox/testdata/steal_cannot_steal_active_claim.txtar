@@ -1,7 +1,0 @@
-# Verify that stealing an active (non-stale) claim fails with a claim conflict.
-
-np-init STEAL
-np-seed task 'Actively claimed' agent-alpha TASK --claim
-
-# Agent B attempts to steal — should fail because the claim is not stale.
-! exec np claim $TASK --author agent-beta --steal --json

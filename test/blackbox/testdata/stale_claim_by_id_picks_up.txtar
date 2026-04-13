@@ -1,0 +1,22 @@
+# Verify that 'np claim <ID>' picks up a stale claim when the claim has expired.
+# The new claim is associated with the requesting agent — no --steal flag needed.
+
+np-init STEAL
+np-seed task 'Only issue' agent-alpha TASK
+
+# Agent A claims with 1ms duration so it's immediately stale.
+exec np claim $TASK --author agent-alpha --duration 1ms --json
+np-capture CLAIM_A claim_id
+
+# Agent B claims the now-stale issue — no --steal flag needed.
+exec np claim $TASK --author agent-beta --json
+np-capture CLAIM_B claim_id
+
+# Verify the new claim differs from the old.
+! np-json-has claim_id $CLAIM_A
+
+# Issue is now open (claimed) by agent B.
+exec np show $TASK --json
+np-json-has state open
+np-json-has secondary_state claimed
+np-json-has claim_author agent-beta

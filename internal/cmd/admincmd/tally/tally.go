@@ -80,13 +80,14 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "tally",
 		Usage: "Show issue database summary",
 		Description: `Displays a compact dashboard of issue counts broken down by state: open,
-claimed, deferred, closed, ready, and blocked, plus a total. This gives
-a quick health check on the project without listing individual issues.
+deferred, closed, ready, and blocked, plus a total. This gives a quick
+health check on the project without listing individual issues.
 
-Use this to assess project velocity at a glance — a high claimed count
-with few closures may indicate stale claims, while zero ready issues
-means agents have no work to pick up. In JSON mode (--json) the output
-is a flat object suitable for dashboards or trend tracking.`,
+Open includes issues regardless of claim status — an issue with an active
+claim remains open in the primary state; only the secondary state reflects
+whether it is ready (no active claim) or claimed (active claim). Zero ready
+issues means agents have no work to pick up. In JSON mode (--json) the
+output is a flat object suitable for dashboards or trend tracking.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "json",

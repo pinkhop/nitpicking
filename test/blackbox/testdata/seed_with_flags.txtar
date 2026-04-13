@@ -12,7 +12,7 @@ np-seed task 'Child task' test-agent TASK --parent $EPIC --claim --priority P0 -
 # Verify the task was created with the correct attributes.
 exec np show $TASK --json
 stdout '"priority": "P0"'
-stdout '"state": "claimed"'
+stdout '"state": "open"'
 
 # Verify the claim ID was set.
 exec np show $TASK --json

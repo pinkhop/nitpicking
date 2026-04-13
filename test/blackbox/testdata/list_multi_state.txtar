@@ -3,9 +3,12 @@
 
 np-init MS
 np-seed task 'Open task' multi-agent OPEN_TASK
-np-seed task 'Claimed task' multi-agent CLAIM_TASK
+np-seed task 'Closed task' multi-agent CLOSE_TASK
 
-exec np claim $CLAIM_TASK --author multi-agent --json
+exec np claim $CLOSE_TASK --author multi-agent --json
+np-capture CLOSE_CLAIM claim_id
 
-exec np list --state open --state claimed --json
+exec np close --claim $CLOSE_CLAIM --reason 'done' --json
+
+exec np list --state open --state closed --json
 np-json-array-len items 2

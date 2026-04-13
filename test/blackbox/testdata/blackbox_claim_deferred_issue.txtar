@@ -1,5 +1,5 @@
-# Verify that a deferred issue can be re-claimed, transitioning to the
-# claimed state.
+# Verify that a deferred issue can be re-claimed. The primary state remains
+# deferred; claiming is recorded as transient metadata only.
 
 np-init EDGE
 np-seed task 'Deferred then reclaimed' edge-agent TASK --claim
@@ -10,4 +10,5 @@ exec np claim $TASK --author edge-agent --json
 np-capture NEW_CLAIM claim_id
 
 exec np show $TASK --json
-np-json-has state claimed
+np-json-has state deferred
+np-json-has claim_author edge-agent

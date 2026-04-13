@@ -1,0 +1,17 @@
+# Verify that attempting to use a stale claim ID for a mutation is rejected.
+# A stale claim provides no authority — the holder must re-claim the issue.
+
+np-init STLR
+np-seed task 'Will go stale' agent-alpha TASK
+
+# Agent A claims with a very short duration so it goes stale immediately.
+exec np claim $TASK --author agent-alpha --duration 1ms --json
+np-capture CLAIM_A claim_id
+
+# Agent A attempts to update using the now-stale claim — must fail.
+stdin update.json
+! exec np json update --claim $CLAIM_A
+stderr 'claim is stale'
+
+-- update.json --
+{"title": "Should not apply"}

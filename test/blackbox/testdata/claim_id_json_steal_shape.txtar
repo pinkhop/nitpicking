@@ -1,15 +1,17 @@
-# Verify that 'np claim --steal --json' produces valid JSON with stolen=true
-# and all snake_case keys after stealing a stale claim.
+# Verify that 'np claim <ID> --json' on a stale claim produces valid JSON
+# with snake_case keys. Stealing mechanics (--steal flag, stolen field) are
+# removed; a stale claim is simply overwritten by a new claim.
 
 np-init CI
-np-seed task 'Task for steal audit' steal-audit TASK
+np-seed task 'Task for stale claim reclaim audit' steal-audit TASK
 
 # Create a claim with a very short duration so it goes stale immediately.
 exec np claim $TASK --author original-claimer --duration 1ms --json
 
-# Steal the now-stale claim.
-exec np claim $TASK --author steal-audit --steal --json
-np-json-has stolen true
+# Claim the issue again after the previous claim goes stale.
+exec np claim $TASK --author steal-audit --json
+! np-json-no-field claim_id
+np-json-no-field stolen
 
 # No PascalCase key leaks.
 ! stdout '"IssueID"'

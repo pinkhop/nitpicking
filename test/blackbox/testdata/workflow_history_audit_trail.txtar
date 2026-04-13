@@ -1,5 +1,6 @@
 # History audit trail: a task goes through create, claim, update, release,
-# re-claim, and close. The history should record every mutation.
+# re-claim, and close. Claim and release are transient bookkeeping and do not
+# appear in history; only create, update, and state_changed are recorded.
 
 np-init WF
 np-seed task 'Audit trail test' audit-agent TASK
@@ -18,9 +19,9 @@ exec np close --claim $CLAIM2 --reason 'test close' --json
 
 exec np issue history $TASK --json
 stdout '"event_type": "created"'
-stdout '"event_type": "claimed"'
+! stdout '"event_type": "claimed"'
 stdout '"event_type": "updated"'
-stdout '"event_type": "released"'
+! stdout '"event_type": "released"'
 stdout '"event_type": "state_changed"'
 
 -- update.json --

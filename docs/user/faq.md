@@ -42,7 +42,7 @@ Claiming is `np`'s concurrency gate. It prevents two agents from modifying the s
 Even if you are the only human using `np`, claiming is still useful: it marks the issue as actively in progress and forces a clean finish through either `np close` or `np issue release`.
 
 **What happens if I forget to close an issue?**
-The claim remains active until the stale time expires (default 2 hours after claiming). During that time, no other agent can claim the issue. After the stale time, another agent can steal the claim. Use `np admin doctor` to find stale claims. See [stale claims](key-concepts.md#stale-claims) and [Troubleshooting: Stale Claims](troubleshooting.md#stale-claims).
+The claim remains active until the stale time expires (default 2 hours after claiming). During that time, no other agent can claim the issue. After the stale time, the claim is treated as nonexistent and any agent can claim the issue normally — no special flag is needed. Use `np admin doctor` to find stale claims. See [stale claims](key-concepts.md#stale-claims) and [Troubleshooting: Stale Claims](troubleshooting.md#stale-claims).
 
 For solo use, the practical problem is different but still real: the next time you run `np ready`, the issue will be missing because it is still claimed. Release paused work explicitly so the queue stays truthful.
 

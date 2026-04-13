@@ -947,6 +947,92 @@ func TestRun_TextOutput_TruncatesTo3MostRecent(t *testing.T) {
 	}
 }
 
+// --- Claimed issue state display ---
+
+// TestRun_JSONOutput_ClaimedIssue_StateIsOpenWithSecondary verifies that a
+// claimed issue is rendered with state "open" and secondary_state "claimed" in
+// JSON output, reflecting the three-state model where claimed is no longer a
+// primary lifecycle state.
+func TestRun_JSONOutput_ClaimedIssue_StateIsOpenWithSecondary(t *testing.T) {
+	t.Parallel()
+
+	// Given — a claimed task.
+	svc := setupService(t)
+	issueID := createTask(t, svc, "Claimed task state check")
+	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
+		IssueID: issueID.String(),
+		Author:  mustAuthor(t, "state-checker"),
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := show.RunInput{
+		Service: svc,
+		IssueID: issueID.String(),
+		JSON:    true,
+		WriteTo: &buf,
+	}
+
+	// When
+	err = show.Run(t.Context(), input)
+	// Then — primary state must be "open"; secondary_state must be "claimed".
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result struct {
+		State          string `json:"state"`
+		SecondaryState string `json:"secondary_state"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
+	}
+	if result.State != "open" {
+		t.Errorf("state: got %q, want %q", result.State, "open")
+	}
+	if result.SecondaryState != "claimed" {
+		t.Errorf("secondary_state: got %q, want %q", result.SecondaryState, "claimed")
+	}
+}
+
+// TestRun_TextOutput_ClaimedIssue_StateDisplaysOpenClaimed verifies that a
+// claimed issue's state is displayed as "open (claimed)" in text output, not
+// as a standalone "claimed" primary state.
+func TestRun_TextOutput_ClaimedIssue_StateDisplaysOpenClaimed(t *testing.T) {
+	t.Parallel()
+
+	// Given — a claimed task.
+	svc := setupService(t)
+	issueID := createTask(t, svc, "Claimed task text state check")
+	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
+		IssueID: issueID.String(),
+		Author:  mustAuthor(t, "state-checker"),
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := show.RunInput{
+		Service: svc,
+		IssueID: issueID.String(),
+		JSON:    false,
+		WriteTo: &buf,
+	}
+
+	// When
+	err = show.Run(t.Context(), input)
+	// Then — text output must show "open (claimed)" as the state.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "open (claimed)") {
+		t.Errorf("expected 'open (claimed)' in text output for claimed issue, got:\n%s", output)
+	}
+}
+
 func TestRun_TextOutput_NoComments_ShowsCount(t *testing.T) {
 	t.Parallel()
 

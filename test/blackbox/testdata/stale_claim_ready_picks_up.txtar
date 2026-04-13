@@ -1,0 +1,19 @@
+# Verify that 'np claim ready' picks up a stale claim when no unclaimed ready
+# issues are available. Stale claims are treated as expired and the issue
+# becomes claimable again — no --steal flag needed.
+
+np-init STEAL
+np-seed task 'Only issue' agent-alpha TASK
+
+# Agent A claims with a very short duration.
+exec np claim $TASK --author agent-alpha --duration 1ms --json
+np-capture CLAIM_A claim_id
+
+# Agent B uses claim ready — picks up the issue now that the claim is stale.
+exec np claim ready --author agent-beta --json
+np-capture CLAIM_B claim_id
+
+# The new claim must differ from the original and be owned by agent B.
+! np-json-has claim_id $CLAIM_A
+np-json-has issue_id $TASK
+np-json-has author agent-beta

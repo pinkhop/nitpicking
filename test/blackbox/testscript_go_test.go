@@ -253,6 +253,68 @@ func showIssue(t *testing.T, dir, issueID string) map[string]any {
 }
 
 // ---------------------------------------------------------------------------
+// Regression Tests
+// ---------------------------------------------------------------------------
+
+// TestBlackbox_RelTree_ShowsAllDescendantsBeyondDefaultLimit verifies that
+// "rel tree" lists every descendant when the count exceeds the default
+// repository page size of 20. This is a regression test: the command
+// previously passed Limit: 0 (the zero value) to ListIssues, which
+// NormalizeLimit silently promoted to DefaultLimit (20), silently truncating
+// any epic with more than 20 children.
+func TestBlackbox_RelTree_ShowsAllDescendantsBeyondDefaultLimit(t *testing.T) {
+	t.Parallel()
+
+	// Given — an epic with 21 child tasks, exceeding the default limit of 20.
+	const childCount = 21
+	dir := initDB(t, "TREE")
+	author := "tree-agent"
+
+	epicStdout, epicStderr, code := runNPWithStdin(t, dir,
+		`{"role":"epic","title":"Large epic"}`,
+		"json", "create", "--author", author,
+	)
+	if code != 0 {
+		t.Fatalf("create epic failed (exit %d): %s", code, epicStderr)
+	}
+	epicResult := parseJSON(t, epicStdout)
+	epicID, ok := epicResult["id"].(string)
+	if !ok || epicID == "" {
+		t.Fatalf("create epic: missing id in response: %s", epicStdout)
+	}
+
+	for i := range childCount {
+		payload := fmt.Sprintf(`{"role":"task","title":"Child %d","parent":%q}`, i+1, epicID)
+		_, stderr, exitCode := runNPWithStdin(t, dir, payload, "json", "create", "--author", author)
+		if exitCode != 0 {
+			t.Fatalf("create child %d failed (exit %d): %s", i+1, exitCode, stderr)
+		}
+	}
+
+	// When — rel tree is called on the epic without --json.
+	stdout, stderr, code := runNP(t, dir, "rel", "tree", epicID)
+	if code != 0 {
+		t.Fatalf("rel tree failed (exit %d): %s", code, stderr)
+	}
+
+	// Then — the output contains one line for the root and one line per child,
+	// for a total of 1 + childCount non-empty lines.
+	lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
+	var nonEmpty int
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			nonEmpty++
+		}
+	}
+	// Subtract 1 for the root epic line; the remainder must equal childCount.
+	descendantLines := nonEmpty - 1
+	if descendantLines != childCount {
+		t.Errorf("rel tree listed %d descendants, want %d\noutput:\n%s",
+			descendantLines, childCount, stdout)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Concurrency Tests
 // ---------------------------------------------------------------------------
 

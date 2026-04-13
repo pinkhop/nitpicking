@@ -37,6 +37,11 @@ var (
 	// passed its stale-at timestamp. The caller must re-claim the issue before
 	// retrying the operation.
 	ErrStaleClaim = errors.New("claim is stale")
+
+	// ErrSchemaMigrationRequired indicates the database is at an older schema
+	// version (v1) and must be upgraded before most commands can operate. The
+	// caller should instruct the user to run 'np admin upgrade'.
+	ErrSchemaMigrationRequired = errors.New("database schema migration required")
 )
 
 // ValidationError carries structured detail about which fields failed

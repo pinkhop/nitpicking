@@ -347,6 +347,12 @@ type DatabaseRepository interface {
 	// to report schema_migration_required when the database is v1.
 	GetSchemaVersion(ctx context.Context) (int, error)
 
+	// SetSchemaVersion writes the given version to the metadata table, inserting
+	// the key if absent or updating it when already present. Used by the upgrade
+	// command to record a successful v1→v2 migration within the migration
+	// transaction.
+	SetSchemaVersion(ctx context.Context, version int) error
+
 	// ClearAllData removes all data from every table (issues, comments,
 	// claims, relationships, history, labels, FTS, and metadata).
 	// Used by restore to prepare a clean slate before inserting backup

@@ -206,6 +206,47 @@ func (r *dbRepo) GetSchemaVersion(_ context.Context) (int, error) {
 	return version, nil
 }
 
+// SetSchemaVersion writes version to the metadata table's schema_version key,
+// inserting the row when absent or replacing it when already present. Used by
+// the upgrade command to record a completed v1→v2 migration within the same
+// transaction as the data changes.
+func (r *dbRepo) SetSchemaVersion(_ context.Context, version int) error {
+	err := sqlitex.Execute(r.conn,
+		`INSERT INTO metadata (key, value) VALUES ('schema_version', ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		&sqlitex.ExecOptions{Args: []any{version}})
+	if err != nil {
+		return &domain.DatabaseError{Op: "set schema version", Err: err}
+	}
+	return nil
+}
+
+// CheckSchemaVersion opens a read transaction, fetches the schema version, and
+// returns domain.ErrSchemaMigrationRequired (wrapped in a DatabaseError) when
+// the version is below 2. Callers — typically root-command startup hooks —
+// use this to gate all database-touching commands on a migrated database.
+func (s *Store) CheckSchemaVersion(ctx context.Context) error {
+	conn, err := s.pool.Take(ctx)
+	if err != nil {
+		return &domain.DatabaseError{Op: "take connection for schema check", Err: err}
+	}
+	defer s.pool.Put(conn)
+
+	repo := &dbRepo{conn: conn}
+	version, err := repo.GetSchemaVersion(ctx)
+	if err != nil {
+		return err
+	}
+
+	if version < 2 {
+		return &domain.DatabaseError{
+			Op:  "schema version check",
+			Err: fmt.Errorf("%w: database is at v1 schema — run 'np admin upgrade' to migrate", domain.ErrSchemaMigrationRequired),
+		}
+	}
+	return nil
+}
+
 func (r *dbRepo) GC(_ context.Context, includeClosed bool) (int, int, error) {
 	gcQueries := []struct {
 		op    string

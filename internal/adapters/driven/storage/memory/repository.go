@@ -759,6 +759,13 @@ func (r *Repository) GetSchemaVersion(_ context.Context) (int, error) {
 	return 2, nil
 }
 
+// SetSchemaVersion is a no-op in the in-memory adapter. The in-memory store
+// always operates at v2 and has no on-disk schema to migrate; this method
+// exists to satisfy the DatabaseRepository interface.
+func (r *Repository) SetSchemaVersion(_ context.Context, _ int) error {
+	return nil
+}
+
 func (r *Repository) CountDeletedRatio(_ context.Context) (total, deleted int, err error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

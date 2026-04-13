@@ -547,7 +547,8 @@ func TestBoundary_BackupRestore_ClaimedIssuePreserved(t *testing.T) {
 	env2 := newBoundaryEnv(t, "TMP")
 	env2.doRestore(t, backupPath)
 
-	// Then — issue should show as claimed.
+	// Then — issue should show as open with claim metadata preserved.
+	// The primary state is open — claimed is a transient secondary state.
 	show, err := env2.svc.ShowIssue(env2.ctx, taskID.String())
 	if err != nil {
 		t.Fatalf("showing issue after restore: %v", err)
@@ -555,8 +556,8 @@ func TestBoundary_BackupRestore_ClaimedIssuePreserved(t *testing.T) {
 	if show.ClaimAuthor != "claim-owner" {
 		t.Errorf("claim author after restore = %q, want %q", show.ClaimAuthor, "claim-owner")
 	}
-	if show.State != domain.StateClaimed {
-		t.Errorf("issue state after restore = %v, want %v", show.State, domain.StateClaimed)
+	if show.State != domain.StateOpen {
+		t.Errorf("issue state after restore = %v, want open", show.State)
 	}
 }
 

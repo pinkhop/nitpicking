@@ -918,9 +918,11 @@ func (r *issueRepo) GetIssueByIdempotencyKey(_ context.Context, key string) (dom
 func (r *issueRepo) GetIssueSummary(_ context.Context) (driven.IssueSummary, error) {
 	var s driven.IssueSummary
 
+	// Claims are transient local bookkeeping; a claimed issue retains its open
+	// primary state in the issues table. The query therefore counts only the
+	// three canonical lifecycle states.
 	query := `SELECT
 		COALESCE(SUM(CASE WHEN state = 'open' THEN 1 ELSE 0 END), 0),
-		COALESCE(SUM(CASE WHEN state = 'claimed' THEN 1 ELSE 0 END), 0),
 		COALESCE(SUM(CASE WHEN state = 'deferred' THEN 1 ELSE 0 END), 0),
 		COALESCE(SUM(CASE WHEN state = 'closed' THEN 1 ELSE 0 END), 0),
 		-- Ready: open + (task OR childless epic) + no unresolved blockers + no blocked/deferred ancestors
@@ -988,11 +990,10 @@ func (r *issueRepo) GetIssueSummary(_ context.Context) (driven.IssueSummary, err
 	err := sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			s.Open = stmt.ColumnInt(0)
-			s.Claimed = stmt.ColumnInt(1)
-			s.Deferred = stmt.ColumnInt(2)
-			s.Closed = stmt.ColumnInt(3)
-			s.Ready = stmt.ColumnInt(4)
-			s.Blocked = stmt.ColumnInt(5)
+			s.Deferred = stmt.ColumnInt(1)
+			s.Closed = stmt.ColumnInt(2)
+			s.Ready = stmt.ColumnInt(3)
+			s.Blocked = stmt.ColumnInt(4)
 			return nil
 		},
 	})

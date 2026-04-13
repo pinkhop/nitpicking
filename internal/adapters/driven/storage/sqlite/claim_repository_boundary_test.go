@@ -37,10 +37,11 @@ func TestBoundary_ClaimByID_CreateAndRetrieve(t *testing.T) {
 		t.Errorf("issue ID: got %s, want %s", claimOut.IssueID, taskOut.Issue.ID())
 	}
 
-	// Verify claim is reflected in show output.
+	// Verify claim is reflected in show output. The primary state remains open
+	// — claimed is a transient secondary state, not a lifecycle state.
 	showOut, _ := svc.ShowIssue(ctx, taskOut.Issue.ID().String())
-	if showOut.State != domain.StateClaimed {
-		t.Errorf("state: got %v, want claimed", showOut.State)
+	if showOut.State != domain.StateOpen {
+		t.Errorf("state: got %v, want open", showOut.State)
 	}
 	// ShowIssue returns the hash; the claim output returns the plaintext token.
 	// The hash of the token must match what show returns.

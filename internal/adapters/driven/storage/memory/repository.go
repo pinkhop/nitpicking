@@ -301,11 +301,11 @@ func (r *Repository) GetIssueSummary(_ context.Context) (driven.IssueSummary, er
 		if t.IsDeleted() {
 			continue
 		}
+		// Claims are transient local bookkeeping; a claimed issue remains open
+		// as its primary state.
 		switch t.State() {
 		case domain.StateOpen:
 			s.Open++
-		case domain.StateClaimed:
-			s.Claimed++
 		case domain.StateDeferred:
 			s.Deferred++
 		case domain.StateClosed:

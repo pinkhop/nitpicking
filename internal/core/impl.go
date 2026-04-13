@@ -345,31 +345,15 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow driven.UnitOfWork, 
 		ActiveClaim: activeClaim,
 	}
 
-	if err := ValidateClaim(status, input.AllowSteal, now); err != nil {
+	if err := ValidateClaim(status, now); err != nil {
 		return output, err
 	}
 
-	// Steal if needed.
+	// Invalidate any stale claim before creating the new one. ValidateClaim
+	// treats stale claims as nonexistent, so if we reach here with an active
+	// claim it is guaranteed to be stale.
 	if activeClaim.ID() != "" {
-		output.Stolen = true
-		previousHolder := activeClaim.Author().String()
-
-		// Invalidate old claim.
 		if err := uow.Claims().InvalidateClaim(ctx, activeClaim.ID()); err != nil {
-			return output, err
-		}
-
-		// Add steal comment.
-		stealComment, err := domain.NewComment(domain.NewCommentParams{
-			IssueID:   issueID,
-			Author:    author,
-			CreatedAt: now,
-			Body:      StealComment(previousHolder),
-		})
-		if err != nil {
-			return output, err
-		}
-		if _, err := uow.Comments().CreateComment(ctx, stealComment); err != nil {
 			return output, err
 		}
 	}

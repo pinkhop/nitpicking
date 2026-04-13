@@ -18,37 +18,34 @@ type IssueClaimStatus struct {
 	ActiveClaim domain.Claim
 }
 
-// ValidateClaim checks whether an issue can be claimed per §6.1.
+// ValidateClaim checks whether an issue can be claimed.
+//
+// A stale claim is treated as nonexistent — the caller is responsible for
+// deleting or overwriting the expired row before creating the new claim.
+// An active (non-stale) claim always produces a ClaimConflictError, because
+// steal mechanics have been removed; callers must wait for the existing claim
+// to expire.
+//
 // Returns nil if the issue is claimable, or an appropriate error.
-func ValidateClaim(status IssueClaimStatus, allowSteal bool, now time.Time) error {
+func ValidateClaim(status IssueClaimStatus, now time.Time) error {
 	if status.IsDeleted {
 		return fmt.Errorf("cannot claim deleted issue: %w", domain.ErrTerminalState)
 	}
 
-	if status.ActiveClaim.ID() != "" {
-		if !allowSteal {
-			return &domain.ClaimConflictError{
-				IssueID:       status.ActiveClaim.IssueID().String(),
-				CurrentHolder: status.ActiveClaim.Author().String(),
-				StaleAt:       status.ActiveClaim.StaleAt(),
-			}
-		}
-
-		if !status.ActiveClaim.IsStale(now) {
-			return &domain.ClaimConflictError{
-				IssueID:       status.ActiveClaim.IssueID().String(),
-				CurrentHolder: status.ActiveClaim.Author().String(),
-				StaleAt:       status.ActiveClaim.StaleAt(),
-			}
-		}
-
-		// Claim is stale and steal is allowed — proceed.
+	if status.ActiveClaim.ID() == "" {
+		// No claim present — always claimable.
+		return nil
 	}
 
-	return nil
-}
+	if status.ActiveClaim.IsStale(now) {
+		// Stale claims are treated as nonexistent; the caller will overwrite
+		// the expired row when creating the new claim.
+		return nil
+	}
 
-// StealComment generates the auto-comment body added when an issue is stolen.
-func StealComment(previousHolder string) string {
-	return fmt.Sprintf("Stolen from %q.", previousHolder)
+	return &domain.ClaimConflictError{
+		IssueID:       status.ActiveClaim.IssueID().String(),
+		CurrentHolder: status.ActiveClaim.Author().String(),
+		StaleAt:       status.ActiveClaim.StaleAt(),
+	}
 }

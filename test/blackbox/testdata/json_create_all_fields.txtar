@@ -1,7 +1,7 @@
 # Verify that 'np json create' correctly handles all supported fields:
 # role, title, description, acceptance_criteria, priority, parent, labels,
-# --with-claim flag, comment, and schema compatibility fields (label_remove,
-# claim in JSON).
+# --with-claim flag, and schema compatibility fields (label_remove,
+# claim in JSON). Also verifies that the removed comment field is rejected.
 
 np-init JC
 
@@ -69,15 +69,11 @@ stdin label_remove_task.json
 ! exec np json create --author jc-agent
 stderr 'unknown field'
 
-# --- comment creates a comment on the new issue ---
+# --- comment field is rejected (use np json comment instead) ---
 
 stdin comment_task.json
-exec np json create --author jc-agent
-
-np-capture COMMENT_TASK_ID id
-
-exec np show $COMMENT_TASK_ID --json
-np-json-has comment_count 1
+! exec np json create --author jc-agent
+stderr 'unknown field'
 
 # --- role defaults to task when omitted ---
 

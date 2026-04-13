@@ -321,10 +321,11 @@ func TestRunCreate_LabelRemove_Rejected(t *testing.T) {
 	}
 }
 
-func TestRunCreate_Comment_CreatesCommentOnNewIssue(t *testing.T) {
+func TestRunCreate_CommentField_Rejected(t *testing.T) {
 	t.Parallel()
 
-	// Given: JSON with a comment field.
+	// Given: JSON with a comment field — removed from json create; comments
+	// should be added via "np json comment" instead.
 	svc := setupCreateService(t)
 
 	stdin := strings.NewReader(`{"title": "Task with comment", "comment": "Initial reasoning"}`)
@@ -339,32 +340,10 @@ func TestRunCreate_Comment_CreatesCommentOnNewIssue(t *testing.T) {
 
 	// When
 	err := jsoncmd.RunCreate(t.Context(), input)
-	// Then: no error, and a comment was added to the new issue.
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
-	var result map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
-		t.Fatalf("invalid JSON output: %v\nraw: %s", err, stdout.String())
-	}
-
-	issueID, ok := result["id"].(string)
-	if !ok {
-		t.Fatal("expected id in JSON output")
-	}
-
-	comments, err := svc.ListComments(t.Context(), driving.ListCommentsInput{
-		IssueID: issueID,
-	})
-	if err != nil {
-		t.Fatalf("list comments failed: %v", err)
-	}
-	if len(comments.Comments) != 1 {
-		t.Fatalf("comment count: got %d, want 1", len(comments.Comments))
-	}
-	if comments.Comments[0].Body != "Initial reasoning" {
-		t.Errorf("comment body: got %q, want %q", comments.Comments[0].Body, "Initial reasoning")
+	// Then: an error is returned because comment is an unknown field.
+	if err == nil {
+		t.Fatal("expected error for comment field, got nil")
 	}
 }
 
@@ -495,8 +474,7 @@ func TestRunCreate_AllFields_Accepted(t *testing.T) {
 		"description": "desc",
 		"acceptance_criteria": "ac",
 		"priority": "P2",
-		"labels": ["kind:test"],
-		"comment": "unified comment"
+		"labels": ["kind:test"]
 	}`
 	stdin := strings.NewReader(stdinJSON)
 	var stdout bytes.Buffer

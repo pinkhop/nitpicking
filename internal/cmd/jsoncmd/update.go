@@ -64,7 +64,6 @@ type updateInput struct {
 	Parent             patchString `json:"parent"`
 	Labels             []string    `json:"labels"`
 	LabelRemove        []string    `json:"label_remove"`
-	Comment            string      `json:"comment"`
 
 	// Role is accepted for schema compatibility with json create but validated:
 	// if present and different from the issue's current role, an error is
@@ -172,7 +171,6 @@ func RunUpdate(ctx context.Context, input RunUpdateInput) error {
 	}
 
 	svcInput.LabelRemove = payload.LabelRemove
-	svcInput.CommentBody = payload.Comment
 
 	if err := input.Service.UpdateIssue(ctx, svcInput); err != nil {
 		return fmt.Errorf("updating issue: %w", err)
@@ -213,9 +211,8 @@ JSON follows PATCH semantics: fields absent from the object are left
 unchanged, fields set to null are cleared, and fields set to a value are
 updated. Supported fields include title, description, acceptance_criteria,
 priority, parent, labels (array of "key:value" strings), label_remove
-(array of key strings to remove), comment (string to add as a comment
-alongside the update), and role (validated to match the issue's current
-role). Unknown fields are rejected.
+(array of key strings to remove), and role (validated to match the issue's
+current role). Unknown fields are rejected.
 
 The --claim flag identifies the active claim and, by extension, the issue
 being updated — no explicit issue ID is needed. Use this command when you

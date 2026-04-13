@@ -23,7 +23,6 @@ type createInput struct {
 	Priority           string   `json:"priority"`
 	Parent             string   `json:"parent"`
 	Labels             []string `json:"labels"`
-	Comment            string   `json:"comment"`
 }
 
 // createOutput is the JSON representation of a created domain.
@@ -113,18 +112,6 @@ func RunCreate(ctx context.Context, input RunCreateInput) error {
 		return fmt.Errorf("creating issue: %w", err)
 	}
 
-	// If a comment was provided, add it to the newly created issue.
-	if payload.Comment != "" {
-		_, commentErr := input.Service.AddComment(ctx, driving.AddCommentInput{
-			IssueID: result.Issue.ID().String(),
-			Author:  input.Author,
-			Body:    payload.Comment,
-		})
-		if commentErr != nil {
-			return fmt.Errorf("adding comment to new issue: %w", commentErr)
-		}
-	}
-
 	t := result.Issue
 	return cmdutil.WriteJSON(input.WriteTo, createOutput{
 		ID:        t.ID().String(),
@@ -156,8 +143,8 @@ func newCreateCmd(f *cmdutil.Factory) *cli.Command {
 		Description: `Creates a new issue from a JSON object piped to stdin. The JSON object must
 include "title" at minimum. The "role" field defaults to "task" when omitted.
 Optional fields include description, acceptance_criteria, priority, parent
-(issue ID), labels (array of "key:value" strings), and comment (string to add
-as a comment on the newly created issue). Unknown fields are rejected.
+(issue ID), and labels (array of "key:value" strings). Unknown fields are
+rejected.
 
 Use --with-claim to immediately claim the new issue. The output will include
 the claim_id.

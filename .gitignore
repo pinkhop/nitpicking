@@ -189,6 +189,11 @@ mise.local.toml
 
 .codex
 
+####################
+# SERENA (CODING AGENT PLUGIN/MCP)
+
+.serena/
+
 
 ################################################################################
 # PROJECT LANGUAGES

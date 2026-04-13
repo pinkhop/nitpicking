@@ -1165,6 +1165,8 @@ np rel parent children [options] <ISSUE-ID>
 
 | Flag | Description |
 |------|-------------|
+| `--limit N`, `-n N` | Maximum number of results (default 20). |
+| `--no-limit` | Return all matching results. |
 | `--json` | Output machine-readable JSON. |
 
 **Exit codes:**

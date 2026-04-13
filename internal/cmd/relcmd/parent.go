@@ -36,9 +36,14 @@ remove a parent-child link. To set a new parent, use
 }
 
 // newChildrenCmd constructs "rel parent children <ID>" which lists direct
-// children of an issue.
+// children of an issue. Supports --limit N and --no-limit flags to control
+// pagination; the default limit is 20.
 func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
-	var jsonOutput bool
+	var (
+		jsonOutput bool
+		limit      int
+		noLimit    bool
+	)
 
 	return &cli.Command{
 		Name:  "children",
@@ -53,6 +58,20 @@ whether the epic can complete). For the full recursive hierarchy including
 grandchildren and beyond, use "rel parent tree" instead.`,
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
+			&cli.IntFlag{
+				Name:        "limit",
+				Aliases:     []string{"n"},
+				Usage:       "Maximum number of results",
+				Value:       cmdutil.DefaultLimit,
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "no-limit",
+				Usage:       "Return all matching results",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &noLimit,
+			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -64,6 +83,11 @@ grandchildren and beyond, use "rel parent tree" instead.`,
 			rawID := cmd.Args().Get(0)
 			if rawID == "" {
 				return cmdutil.FlagErrorf("issue ID argument is required")
+			}
+
+			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
 			}
 
 			svc, err := cmdutil.NewTracker(f)
@@ -80,6 +104,7 @@ grandchildren and beyond, use "rel parent tree" instead.`,
 			result, err := svc.ListIssues(ctx, driving.ListIssuesInput{
 				Filter:  driving.IssueFilterInput{ParentIDs: []string{issueID.String()}},
 				OrderBy: driving.OrderByPriority,
+				Limit:   effectiveLimit,
 			})
 			if err != nil {
 				return fmt.Errorf("listing children: %w", err)
@@ -115,7 +140,7 @@ grandchildren and beyond, use "rel parent tree" instead.`,
 			shown := len(result.Items)
 			if result.HasMore {
 				_, _ = fmt.Fprintf(w, "\n%s\n",
-					cs.Dim(fmt.Sprintf("%d children (more available)", shown)))
+					cs.Dim(fmt.Sprintf("%d children (more available; use --no-limit for all)", shown)))
 			} else {
 				_, _ = fmt.Fprintf(w, "\n%s\n",
 					cs.Dim(fmt.Sprintf("%d children", shown)))

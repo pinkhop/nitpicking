@@ -78,6 +78,12 @@ type updateInput struct {
 	// Claim is accepted for schema compatibility with json create but silently
 	// ignored. Claiming is managed through the --claim CLI flag.
 	Claim bool `json:"claim"`
+
+	// State is accepted in JSON so that callers receive a clear error message
+	// rather than a generic "unknown field" rejection. State transitions are
+	// managed through dedicated lifecycle commands (claim, close, defer, etc.)
+	// and cannot be set via json update.
+	State string `json:"state"`
 }
 
 // updateOutput is the JSON representation of the update command result.
@@ -106,13 +112,25 @@ type RunUpdateInput struct {
 //
 // The role and claim fields are accepted for schema compatibility with json
 // create. If role is present and differs from the issue's current role, an
-// error is returned. The claim field is silently ignored.
+// error is returned. The claim field is silently ignored. The state field is
+// accepted so callers receive a clear error message; passing any state value
+// (including "claimed") is rejected with an explicit error because state
+// transitions are managed through dedicated lifecycle commands.
 //
 // Output is always JSON.
 func RunUpdate(ctx context.Context, input RunUpdateInput) error {
 	payload, err := DecodeStdin[updateInput](input.Stdin)
 	if err != nil {
 		return fmt.Errorf("reading update JSON from stdin: %w", err)
+	}
+
+	// Reject any attempt to set state directly. State transitions — including
+	// claiming — are managed through dedicated lifecycle commands. Accepting the
+	// field with an explicit error produces a clearer message than the generic
+	// "unknown field" rejection that would result if the field were absent from
+	// the schema.
+	if payload.State != "" {
+		return fmt.Errorf("\"state\" is not a writable field: state transitions are managed through dedicated commands (claim, close, defer, release); \"claimed\" is not a valid primary state")
 	}
 
 	// Resolve the issue ID from the claim.
@@ -228,6 +246,10 @@ The role and claim fields are accepted for schema compatibility with json
 create. If role is present and differs from the issue's current role, an
 error is returned; if it matches, it is silently accepted. The claim field
 is silently ignored.
+
+The "state" field is not writable. State transitions are managed through
+dedicated lifecycle commands (claim, close, defer, release). Passing any
+"state" value — including "claimed" — returns an error.
 
 The --claim flag identifies the active claim and, by extension, the issue
 being updated — no explicit issue ID is needed. Use this command when you

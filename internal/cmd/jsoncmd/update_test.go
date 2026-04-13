@@ -568,6 +568,61 @@ func TestRunUpdate_ClaimInJSON_SilentlyIgnored(t *testing.T) {
 	}
 }
 
+func TestRunUpdate_StateClaimedInJSON_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given: a claimed task and JSON input with state set to "claimed".
+	svc := setupUpdateService(t)
+	_, claimID := createAndClaimTask(t, svc, "State claimed task")
+
+	stdin := strings.NewReader(`{"state": "claimed", "title": "Updated title"}`)
+	var stdout bytes.Buffer
+
+	input := jsoncmd.RunUpdateInput{
+		Service: svc,
+		ClaimID: claimID,
+		Stdin:   stdin,
+		WriteTo: &stdout,
+	}
+
+	// When
+	err := jsoncmd.RunUpdate(t.Context(), input)
+
+	// Then: an error is returned because state: claimed is rejected.
+	if err == nil {
+		t.Fatal("expected error for state: claimed, got nil")
+	}
+}
+
+func TestRunUpdate_StateOtherThanClaimedInJSON_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given: a claimed task and JSON input with state set to "open" — state is
+	// not a writable field on update; the only recognised use-case for the field
+	// is to detect the forbidden "claimed" value, and any other value is equally
+	// invalid.
+	svc := setupUpdateService(t)
+	_, claimID := createAndClaimTask(t, svc, "State open task")
+
+	stdin := strings.NewReader(`{"state": "open", "title": "Updated title"}`)
+	var stdout bytes.Buffer
+
+	input := jsoncmd.RunUpdateInput{
+		Service: svc,
+		ClaimID: claimID,
+		Stdin:   stdin,
+		WriteTo: &stdout,
+	}
+
+	// When
+	err := jsoncmd.RunUpdate(t.Context(), input)
+
+	// Then: an error is returned because state is not a writable field.
+	if err == nil {
+		t.Fatal("expected error for state field, got nil")
+	}
+}
+
 func TestRunUpdate_IdempotencyKey_Rejected(t *testing.T) {
 	t.Parallel()
 

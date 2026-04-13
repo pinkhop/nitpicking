@@ -439,6 +439,58 @@ func TestRunCreate_WithClaimFlag_ClaimsIssue(t *testing.T) {
 	}
 }
 
+func TestRunCreate_StateClaimedInJSON_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given: JSON with state set to "claimed".
+	svc := setupCreateService(t)
+
+	stdin := strings.NewReader(`{"title": "Task with state claimed", "state": "claimed"}`)
+	var stdout bytes.Buffer
+
+	input := jsoncmd.RunCreateInput{
+		Service: svc,
+		Author:  "alice",
+		Stdin:   stdin,
+		WriteTo: &stdout,
+	}
+
+	// When
+	err := jsoncmd.RunCreate(t.Context(), input)
+
+	// Then: an error is returned because state: claimed is rejected.
+	if err == nil {
+		t.Fatal("expected error for state: claimed, got nil")
+	}
+}
+
+func TestRunCreate_StateOtherThanClaimedInJSON_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given: JSON with state set to any value — state is not a writable field on
+	// create; the only recognised use-case for the field is to detect the
+	// forbidden "claimed" value, and any other value is equally invalid.
+	svc := setupCreateService(t)
+
+	stdin := strings.NewReader(`{"title": "Task with state open", "state": "open"}`)
+	var stdout bytes.Buffer
+
+	input := jsoncmd.RunCreateInput{
+		Service: svc,
+		Author:  "alice",
+		Stdin:   stdin,
+		WriteTo: &stdout,
+	}
+
+	// When
+	err := jsoncmd.RunCreate(t.Context(), input)
+
+	// Then: an error is returned because state is not a writable field.
+	if err == nil {
+		t.Fatal("expected error for state field, got nil")
+	}
+}
+
 func TestRunCreate_IdempotencyKey_Rejected(t *testing.T) {
 	t.Parallel()
 

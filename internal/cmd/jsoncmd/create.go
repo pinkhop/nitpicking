@@ -33,6 +33,12 @@ type createInput struct {
 	// Claim is accepted in JSON for schema compatibility with json update
 	// but is silently ignored. Use the --with-claim CLI flag instead.
 	Claim bool `json:"claim"`
+
+	// State is accepted in JSON so that callers receive a clear error message
+	// rather than a generic "unknown field" rejection. State transitions are
+	// managed through dedicated lifecycle commands (claim, close, defer, etc.)
+	// and cannot be set via json create.
+	State string `json:"state"`
 }
 
 // createOutput is the JSON representation of a created domain.
@@ -61,7 +67,10 @@ type RunCreateInput struct {
 //
 // The role field defaults to "task" when omitted. The claim field in JSON is
 // silently ignored — use WithClaim on RunCreateInput instead. The label_remove
-// field is accepted but ignored (it only applies to updates).
+// field is accepted but ignored (it only applies to updates). The state field
+// is accepted so callers receive a clear error message; passing any state value
+// (including "claimed") is rejected with an explicit error because state
+// transitions are managed through dedicated lifecycle commands.
 func RunCreate(ctx context.Context, input RunCreateInput) error {
 	payload, err := DecodeStdin[createInput](input.Stdin)
 	if err != nil {
@@ -76,6 +85,15 @@ func RunCreate(ctx context.Context, input RunCreateInput) error {
 		if roleErr != nil {
 			return fmt.Errorf("invalid role %q: must be task or epic", payload.Role)
 		}
+	}
+
+	// Reject any attempt to set state directly. State transitions — including
+	// claiming — are managed through dedicated lifecycle commands. Accepting the
+	// field with an explicit error produces a clearer message than the generic
+	// "unknown field" rejection that would result if the field were absent from
+	// the schema.
+	if payload.State != "" {
+		return fmt.Errorf("\"state\" is not a writable field: state transitions are managed through dedicated commands (claim, close, defer, release); \"claimed\" is not a valid primary state")
 	}
 
 	if payload.Title == "" {
@@ -171,6 +189,10 @@ Optional fields include description, acceptance_criteria, priority, parent
 (issue ID), labels (array of "key:value" strings), label_remove (accepted but
 ignored for schema compatibility with json update), and comment (string to add
 as a comment on the newly created issue).
+
+The "state" field is not writable. State transitions are managed through
+dedicated lifecycle commands (claim, close, defer, release). Passing any
+"state" value — including "claimed" — returns an error.
 
 Use --with-claim to immediately claim the new issue. The output will include
 the claim_id.

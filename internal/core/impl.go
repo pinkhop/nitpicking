@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/pinkhop/nitpicking/internal/domain"
@@ -2600,18 +2601,11 @@ func (s *serviceImpl) buildIssueRecord(ctx context.Context, uow driven.UnitOfWor
 		})
 	}
 
-	// Claims.
-	activeClaim, err := uow.Claims().GetClaimByIssue(ctx, t.ID())
+	// Claims are transient, local-only bookkeeping and are intentionally
+	// excluded from v2 backups. The Claims field is retained in the record
+	// type for v1 restore compatibility, but new backups always write an
+	// empty slice.
 	rec.Claims = make([]domain.BackupClaimRecord, 0)
-	if err == nil {
-		claimDuration := activeClaim.StaleAt().Sub(activeClaim.ClaimedAt())
-		rec.Claims = append(rec.Claims, domain.BackupClaimRecord{
-			ClaimSHA512:    activeClaim.ID(),
-			Author:         activeClaim.Author().String(),
-			StaleThreshold: int64(claimDuration),
-			LastActivity:   activeClaim.ClaimedAt(),
-		})
-	}
 
 	// History.
 	entries, _, err := uow.History().ListHistory(ctx, t.ID(), driven.HistoryFilter{}, -1)
@@ -2649,27 +2643,27 @@ func (s *serviceImpl) Restore(ctx context.Context, input driving.RestoreInput) e
 
 	switch header.Version {
 	case 1:
+		// v1 backups may include claim rows and issues with state="claimed".
+		// restoreV1 discards claim data and converts claimed issues to open,
+		// producing a v2 database.
 		return s.restoreV1(ctx, header, input.Reader)
+	case 2:
+		// v2 backups exclude claim data entirely; restore is straightforward.
+		return s.restoreV2(ctx, header, input.Reader)
 	default:
 		return fmt.Errorf("unsupported backup version %d", header.Version)
 	}
 }
 
-// restoreV1 implements restore for backup algorithm version 1. All
-// work is performed in a single write transaction for atomicity.
+// restoreV1 implements restore for backup algorithm version 1. It applies a
+// migration step while restoring: claimed-state issues are converted to open
+// (since claimed is no longer a lifecycle state in v2), and claim rows are
+// not restored (claims are transient). The resulting database is a v2 database.
+// All work is performed in a single write transaction for atomicity.
 func (s *serviceImpl) restoreV1(ctx context.Context, header domain.BackupHeader, reader driven.BackupReader) error {
-	// Collect all records first so we can process them in the correct
-	// order within a single transaction.
-	var records []domain.BackupIssueRecord
-	for {
-		rec, ok, err := reader.NextRecord()
-		if err != nil {
-			return fmt.Errorf("reading backup record: %w", err)
-		}
-		if !ok {
-			break
-		}
-		records = append(records, rec)
+	records, err := collectBackupRecords(reader)
+	if err != nil {
+		return err
 	}
 
 	// Validate the backup header's prefix before performing any destructive
@@ -2679,82 +2673,165 @@ func (s *serviceImpl) restoreV1(ctx context.Context, header domain.BackupHeader,
 		return fmt.Errorf("invalid prefix in backup header: %w", err)
 	}
 
+	// Convert any v1-era "claimed" issues to "open" before restoring.
+	// In v2, claimed is a transient secondary state, not a lifecycle state.
+	for i := range records {
+		if records[i].State == "claimed" {
+			records[i].State = "open"
+		}
+	}
+
+	// Remove v1-era history events that no longer exist in v2. The EventClaimed
+	// and EventReleased event types were removed when claimed was demoted from a
+	// lifecycle state to local-only transient bookkeeping. Without this filter,
+	// history entries with event_type='claimed' or event_type='released' would
+	// land in the database and cause ParseEventType to return the zero-value
+	// EventType(0), producing garbled "EventType(0)" output in np issue history.
+	// MigrateV1ToV2 already applies the equivalent DELETE FROM history WHERE
+	// event_type IN ('claimed', 'released'); this filter ensures restoreV1
+	// achieves the same invariant.
+	for i := range records {
+		records[i].History = slices.DeleteFunc(records[i].History, func(h domain.BackupHistoryRecord) bool {
+			return h.EventType == "claimed" || h.EventType == "released"
+		})
+	}
+
 	return s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
 		db := uow.Database()
 
-		// Clear everything.
 		if err := db.ClearAllData(ctx); err != nil {
 			return fmt.Errorf("clearing database: %w", err)
 		}
 
-		// Re-initialize prefix.
 		if err := db.InitDatabase(ctx, header.Prefix); err != nil {
 			return fmt.Errorf("restoring prefix: %w", err)
 		}
 
-		// Insert issues in two passes: first all issues with parent_id
-		// NULL, then update parent_id. This avoids foreign-key ordering
-		// issues.
-		for _, rec := range records {
-			savedParent := rec.ParentID
-			rec.ParentID = ""
-			if err := db.RestoreIssueRaw(ctx, rec); err != nil {
-				return fmt.Errorf("restoring issue %s: %w", rec.IssueID, err)
-			}
-			rec.ParentID = savedParent
+		// Insert issues and their associated data, then rebuild FTS.
+		// Claim data is intentionally not restored — claims are transient.
+		if err := restoreIssues(ctx, db, uow, records); err != nil {
+			return err
 		}
 
-		// Second pass: set parent_id on issues that have one.
-		for _, rec := range records {
-			if rec.ParentID == "" {
-				continue
-			}
-			t, err := uow.Issues().GetIssue(ctx, mustParseID(rec.IssueID), true)
-			if err != nil {
-				return fmt.Errorf("getting restored issue %s for parent update: %w", rec.IssueID, err)
-			}
-			t = t.WithParentID(mustParseID(rec.ParentID))
-			if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-				return fmt.Errorf("setting parent on %s: %w", rec.IssueID, err)
-			}
-		}
-
-		// Insert associated data for each domain.
-		for _, rec := range records {
-			for _, label := range rec.Labels {
-				if err := db.RestoreLabelRaw(ctx, rec.IssueID, label); err != nil {
-					return fmt.Errorf("restoring label on %s: %w", rec.IssueID, err)
-				}
-			}
-			for _, c := range rec.Comments {
-				if err := db.RestoreCommentRaw(ctx, rec.IssueID, c); err != nil {
-					return fmt.Errorf("restoring comment on %s: %w", rec.IssueID, err)
-				}
-			}
-			for _, cl := range rec.Claims {
-				if err := db.RestoreClaimRaw(ctx, rec.IssueID, cl); err != nil {
-					return fmt.Errorf("restoring claim on %s: %w", rec.IssueID, err)
-				}
-			}
-			for _, rel := range rec.Relationships {
-				if err := db.RestoreRelationshipRaw(ctx, rec.IssueID, rel); err != nil {
-					return fmt.Errorf("restoring relationship on %s: %w", rec.IssueID, err)
-				}
-			}
-			for _, h := range rec.History {
-				if err := db.RestoreHistoryRaw(ctx, rec.IssueID, h); err != nil {
-					return fmt.Errorf("restoring history on %s: %w", rec.IssueID, err)
-				}
-			}
-		}
-
-		// Rebuild full-text search indexes.
 		if err := db.RebuildFTS(ctx); err != nil {
 			return fmt.Errorf("rebuilding FTS: %w", err)
 		}
 
 		return nil
 	})
+}
+
+// restoreV2 implements restore for backup algorithm version 2. v2 backups
+// exclude claim data, so restore is straightforward. All work is performed
+// in a single write transaction for atomicity.
+func (s *serviceImpl) restoreV2(ctx context.Context, header domain.BackupHeader, reader driven.BackupReader) error {
+	records, err := collectBackupRecords(reader)
+	if err != nil {
+		return err
+	}
+
+	if err := domain.ValidatePrefix(header.Prefix); err != nil {
+		return fmt.Errorf("invalid prefix in backup header: %w", err)
+	}
+
+	return s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
+		db := uow.Database()
+
+		if err := db.ClearAllData(ctx); err != nil {
+			return fmt.Errorf("clearing database: %w", err)
+		}
+
+		if err := db.InitDatabase(ctx, header.Prefix); err != nil {
+			return fmt.Errorf("restoring prefix: %w", err)
+		}
+
+		// Claim data is not present in v2 backups.
+		if err := restoreIssues(ctx, db, uow, records); err != nil {
+			return err
+		}
+
+		if err := db.RebuildFTS(ctx); err != nil {
+			return fmt.Errorf("rebuilding FTS: %w", err)
+		}
+
+		return nil
+	})
+}
+
+// collectBackupRecords reads all issue records from a backup reader,
+// returning them as a slice. It is used by both restoreV1 and restoreV2
+// to decouple record collection from the restore transaction.
+func collectBackupRecords(reader driven.BackupReader) ([]domain.BackupIssueRecord, error) {
+	var records []domain.BackupIssueRecord
+	for {
+		rec, ok, err := reader.NextRecord()
+		if err != nil {
+			return nil, fmt.Errorf("reading backup record: %w", err)
+		}
+		if !ok {
+			break
+		}
+		records = append(records, rec)
+	}
+	return records, nil
+}
+
+// restoreIssues inserts issues, parents, labels, comments, relationships, and
+// history records from a slice of backup records. Claims are skipped — they
+// are transient and not persisted during restore. Parent IDs are applied in a
+// second pass to avoid foreign-key ordering issues.
+func restoreIssues(ctx context.Context, db driven.DatabaseRepository, uow driven.UnitOfWork, records []domain.BackupIssueRecord) error {
+	// First pass: insert all issues with parent_id NULL, then fix
+	// parent_id in a second pass to avoid FK ordering issues.
+	for _, rec := range records {
+		savedParent := rec.ParentID
+		rec.ParentID = ""
+		if err := db.RestoreIssueRaw(ctx, rec); err != nil {
+			return fmt.Errorf("restoring issue %s: %w", rec.IssueID, err)
+		}
+		rec.ParentID = savedParent
+	}
+
+	// Second pass: set parent_id on issues that have one.
+	for _, rec := range records {
+		if rec.ParentID == "" {
+			continue
+		}
+		t, err := uow.Issues().GetIssue(ctx, mustParseID(rec.IssueID), true)
+		if err != nil {
+			return fmt.Errorf("getting restored issue %s for parent update: %w", rec.IssueID, err)
+		}
+		t = t.WithParentID(mustParseID(rec.ParentID))
+		if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
+			return fmt.Errorf("setting parent on %s: %w", rec.IssueID, err)
+		}
+	}
+
+	// Third pass: insert associated data. Claims are intentionally skipped.
+	for _, rec := range records {
+		for _, label := range rec.Labels {
+			if err := db.RestoreLabelRaw(ctx, rec.IssueID, label); err != nil {
+				return fmt.Errorf("restoring label on %s: %w", rec.IssueID, err)
+			}
+		}
+		for _, c := range rec.Comments {
+			if err := db.RestoreCommentRaw(ctx, rec.IssueID, c); err != nil {
+				return fmt.Errorf("restoring comment on %s: %w", rec.IssueID, err)
+			}
+		}
+		for _, rel := range rec.Relationships {
+			if err := db.RestoreRelationshipRaw(ctx, rec.IssueID, rel); err != nil {
+				return fmt.Errorf("restoring relationship on %s: %w", rec.IssueID, err)
+			}
+		}
+		for _, h := range rec.History {
+			if err := db.RestoreHistoryRaw(ctx, rec.IssueID, h); err != nil {
+				return fmt.Errorf("restoring history on %s: %w", rec.IssueID, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // mustParseID parses an issue ID string, panicking on failure. Used

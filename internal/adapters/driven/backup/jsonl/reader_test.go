@@ -21,7 +21,7 @@ func TestReader_ReadHeader_ParsesValidHeader(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	input := `{"prefix":"NP","timestamp":"2026-03-27T12:00:00Z","version":1}` + "\n"
+	input := `{"prefix":"NP","timestamp":"2026-03-27T12:00:00Z","version":2}` + "\n"
 	r := jsonl.NewReader(&nopReadCloser{strings.NewReader(input)})
 	defer func() {
 		_ = r.Close()
@@ -37,8 +37,8 @@ func TestReader_ReadHeader_ParsesValidHeader(t *testing.T) {
 	if header.Prefix != "NP" {
 		t.Errorf("prefix = %q, want %q", header.Prefix, "NP")
 	}
-	if header.Version != 1 {
-		t.Errorf("version = %d, want %d", header.Version, 1)
+	if header.Version != 2 {
+		t.Errorf("version = %d, want %d", header.Version, 2)
 	}
 	if !header.Timestamp.Equal(time.Date(2026, 3, 27, 12, 0, 0, 0, time.UTC)) {
 		t.Errorf("timestamp = %v, want 2026-03-27T12:00:00Z", header.Timestamp)
@@ -49,7 +49,7 @@ func TestReader_NextRecord_IteratesAllRecords(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	input := `{"prefix":"NP","timestamp":"2026-03-27T12:00:00Z","version":1}
+	input := `{"prefix":"NP","timestamp":"2026-03-27T12:00:00Z","version":2}
 {"issue_id":"NP-aaaa1","role":"task","title":"First","state":"open","labels":[],"comments":[],"relationships":[],"claims":[],"history":[]}
 {"issue_id":"NP-bbbb2","role":"epic","title":"Second","state":"closed","labels":[],"comments":[],"relationships":[],"claims":[],"history":[]}
 `
@@ -92,7 +92,7 @@ func TestReader_NextRecord_EmptyBackup_ReturnsFalse(t *testing.T) {
 	t.Parallel()
 
 	// Given — header only, no records.
-	input := `{"prefix":"NP","timestamp":"2026-03-27T12:00:00Z","version":1}` + "\n"
+	input := `{"prefix":"NP","timestamp":"2026-03-27T12:00:00Z","version":2}` + "\n"
 	r := jsonl.NewReader(&nopReadCloser{strings.NewReader(input)})
 	defer func() {
 		_ = r.Close()
@@ -122,7 +122,7 @@ func TestRoundTrip_WriteAndReadProducesIdenticalData(t *testing.T) {
 	header := domain.BackupHeader{
 		Prefix:    "TEST",
 		Timestamp: time.Date(2026, 1, 15, 8, 30, 0, 0, time.UTC),
-		Version:   1,
+		Version:   2,
 	}
 
 	records := []domain.BackupIssueRecord{
@@ -148,9 +148,8 @@ func TestRoundTrip_WriteAndReadProducesIdenticalData(t *testing.T) {
 			Relationships: []domain.BackupRelationshipRecord{
 				{TargetID: "TEST-xyz99", RelType: "blocked_by"},
 			},
-			Claims: []domain.BackupClaimRecord{
-				{ClaimSHA512: "deadbeef", Author: "alice", StaleThreshold: 7200000000000, LastActivity: time.Date(2026, 1, 14, 0, 0, 0, 0, time.UTC)},
-			},
+			// v2 backups exclude claim data; Claims is intentionally empty.
+			Claims: []domain.BackupClaimRecord{},
 			History: []domain.BackupHistoryRecord{
 				{
 					EntryID: 1, Revision: 0, Author: "alice",

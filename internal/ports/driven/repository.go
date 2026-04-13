@@ -46,7 +46,7 @@ type IssueListItem struct {
 
 // DisplayStatus returns the human-readable status for display purposes in the
 // format "primary (secondary)" — e.g., "open (ready)", "open (blocked)",
-// "deferred (blocked)". When no secondary state applies (claimed, closed), it
+// "deferred (blocked)". When no secondary state applies (e.g., closed), it
 // returns just the primary state string.
 func (item IssueListItem) DisplayStatus() string {
 	if item.SecondaryState == domain.SecondaryNone {
@@ -156,9 +156,11 @@ type HistoryFilter struct {
 // IssueSummary holds aggregate counts of issues grouped by primary state and
 // computed readiness/blocked status. Designed for dashboard display — avoids
 // loading individual issues into memory.
+//
+// The three primary states are open, closed, and deferred. Claimed is not a
+// primary state; it is a transient secondary state of open (see SecondaryActive).
 type IssueSummary struct {
 	Open     int
-	Claimed  int
 	Deferred int
 	Closed   int
 	Ready    int
@@ -167,7 +169,7 @@ type IssueSummary struct {
 
 // Total returns the total number of issues across all primary states.
 func (s IssueSummary) Total() int {
-	return s.Open + s.Claimed + s.Deferred + s.Closed
+	return s.Open + s.Deferred + s.Closed
 }
 
 // IssueRepository defines the persistence interface for issues.

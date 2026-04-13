@@ -42,8 +42,8 @@ type IssueListItemDTO struct {
 	ID string
 	// Role is the issue role (RoleTask or RoleEpic).
 	Role domain.Role
-	// State is the primary state (StateOpen, StateClaimed, StateClosed,
-	// StateDeferred).
+	// State is the primary state (StateOpen, StateClosed, StateDeferred).
+	// Claimed is a secondary state of open, not a primary state.
 	State domain.State
 	// Priority is the priority level (P0–P3).
 	Priority domain.Priority
@@ -102,11 +102,10 @@ type CreateIssueOutput struct {
 	ClaimID string // Non-empty if the issue was created as claimed.
 }
 
-// ClaimInput holds the parameters for claiming an domain.
+// ClaimInput holds the parameters for claiming an issue.
 type ClaimInput struct {
 	IssueID        string
 	Author         string
-	AllowSteal     bool
 	StaleThreshold time.Duration
 	// StaleAt is an optional absolute timestamp at which the claim becomes
 	// stale. When non-zero, it takes precedence over StaleThreshold. The
@@ -123,22 +122,23 @@ type ClaimInput struct {
 	Role domain.Role
 }
 
-// ClaimOutput holds the result of claiming an domain.
+// ClaimOutput holds the result of claiming an issue.
 type ClaimOutput struct {
 	ClaimID   string
 	IssueID   string
 	Author    string
 	CreatedAt time.Time
 	StaleAt   time.Time
-	Stolen    bool
 }
 
-// ClaimNextReadyInput holds the parameters for claiming the next ready domain.
+// ClaimNextReadyInput holds the parameters for claiming the next ready issue.
+// The service selects the highest-priority open issue that has no active
+// (non-stale) claim held by another author, no unresolved blockers, and
+// matches all provided label and role filters.
 type ClaimNextReadyInput struct {
 	Author         string
 	Role           domain.Role
 	LabelFilters   []LabelFilterInput
-	StealIfNeeded  bool
 	StaleThreshold time.Duration
 	// StaleAt is an optional absolute timestamp at which the claim becomes
 	// stale. When non-zero, it takes precedence over StaleThreshold.
@@ -305,9 +305,10 @@ type BlockerDetail struct {
 
 // IssueSummaryOutput holds aggregate issue counts for the status dashboard.
 // Mirrors driven.IssueSummary with an additional Total convenience field.
+// The three primary states are open, closed, and deferred; claimed is a
+// transient secondary state of open and is not counted separately.
 type IssueSummaryOutput struct {
 	Open     int
-	Claimed  int
 	Deferred int
 	Closed   int
 	Ready    int
@@ -561,9 +562,8 @@ type EpicProgressItem struct {
 	Total int
 	// Closed is the number of children in the closed state.
 	Closed int
-	// Claimed is the number of children in the claimed state.
-	Claimed int
 	// Open is the number of non-blocked children in the open state.
+	// This includes children with active claims (open/claimed secondary state).
 	Open int
 	// Blocked is the number of children with unresolved blocked_by
 	// relationships (regardless of primary state).
@@ -684,8 +684,6 @@ func ParseDoctorSeverity(s string) (DoctorSeverity, error) {
 type ActionKind string
 
 const (
-	// ActionKindStealClaim suggests stealing the stale claim on IssueID.
-	ActionKindStealClaim ActionKind = "steal_claim"
 	// ActionKindRunGC suggests running garbage collection.
 	ActionKindRunGC ActionKind = "run_gc"
 	// ActionKindUndefer suggests restoring the deferred issue identified by IssueID.
@@ -713,7 +711,7 @@ const (
 type ActionHint struct {
 	// Kind names the action to take.
 	Kind ActionKind `json:"kind"`
-	// IssueID is the issue to act on (StealClaim, Undefer).
+	// IssueID is the issue to act on (Undefer).
 	IssueID string `json:"issue_id,omitzero"`
 	// SourceID and TargetID identify the two ends of the relationship to
 	// remove (UnblockRelationship).

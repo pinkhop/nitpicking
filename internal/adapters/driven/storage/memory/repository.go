@@ -535,6 +535,23 @@ func (r *Repository) ListActiveClaims(_ context.Context, now time.Time) ([]domai
 	return active, nil
 }
 
+// DeleteExpiredClaims removes all claim rows whose stale-at timestamp is on or
+// before now. Returns the count of deleted rows. Active claims are preserved.
+func (r *Repository) DeleteExpiredClaims(_ context.Context, now time.Time) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var count int
+	for id, c := range r.claims {
+		if c.IsStale(now) {
+			delete(r.claimsByIssue, c.IssueID().String())
+			delete(r.claims, id)
+			count++
+		}
+	}
+	return count, nil
+}
+
 // --- RelationshipRepository ---
 
 func (r *Repository) CreateRelationship(_ context.Context, rel domain.Relationship) (bool, error) {

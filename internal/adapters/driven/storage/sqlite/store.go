@@ -1496,6 +1496,29 @@ func (r *claimRepo) UpdateClaimStaleAt(_ context.Context, claimID string, staleA
 	return nil
 }
 
+// DeleteExpiredClaims removes all claim rows whose stale-at timestamp (computed
+// as last_activity + stale_threshold) is on or before now. Returns the number
+// of rows deleted. Active claims are left untouched.
+func (r *claimRepo) DeleteExpiredClaims(_ context.Context, now time.Time) (int, error) {
+	// The stale_threshold column stores nanoseconds; SQLite's strftime('%s', …)
+	// works in whole seconds. Integer division truncates sub-second remainders,
+	// so a claim may expire up to ~1 second earlier in SQL than in Go's
+	// domain.Claim.IsStale. This is acceptable because claim thresholds are
+	// always measured in hours (minimum 1h, default 2h, maximum 24h).
+	err := sqlitex.Execute(r.conn,
+		`DELETE FROM claims
+		 WHERE CAST(strftime('%s', last_activity) AS INTEGER) + stale_threshold / 1000000000
+		       <= CAST(strftime('%s', ?) AS INTEGER)`,
+		&sqlitex.ExecOptions{
+			Args: []any{now.UTC().Format(time.RFC3339Nano)},
+		},
+	)
+	if err != nil {
+		return 0, &domain.DatabaseError{Op: "delete expired claims", Err: err}
+	}
+	return r.conn.Changes(), nil
+}
+
 func (r *claimRepo) ListStaleClaims(_ context.Context, now time.Time) ([]domain.Claim, error) {
 	var stale []domain.Claim
 	err := sqlitex.Execute(r.conn, `SELECT claim_sha512, issue_id, author, stale_threshold, last_activity FROM claims`, &sqlitex.ExecOptions{

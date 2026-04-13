@@ -2477,13 +2477,26 @@ func (s *serviceImpl) checkBlockedByHuman(ctx context.Context, uow driven.UnitOf
 func (s *serviceImpl) GC(ctx context.Context, input driving.GCInput) (driving.GCOutput, error) {
 	var output driving.GCOutput
 
+	now := time.Now()
+
 	err := s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
+		// Remove soft-deleted issues (and optionally closed issues).
 		deleted, closed, gcErr := uow.Database().GC(ctx, input.IncludeClosed)
 		if gcErr != nil {
 			return gcErr
 		}
 		output.DeletedIssuesRemoved = deleted
 		output.ClosedIssuesRemoved = closed
+
+		// Remove expired claim rows; expired claims are treated as
+		// nonexistent by every other operation, so purging them keeps the
+		// claims table lean.
+		expired, claimErr := uow.Claims().DeleteExpiredClaims(ctx, now)
+		if claimErr != nil {
+			return claimErr
+		}
+		output.ExpiredClaimsDeleted = expired
+
 		return nil
 	})
 

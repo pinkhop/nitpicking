@@ -788,6 +788,9 @@ type GCInput struct {
 type GCOutput struct {
 	DeletedIssuesRemoved int
 	ClosedIssuesRemoved  int
+	// ExpiredClaimsDeleted is the number of stale claim rows that were
+	// removed. This count is always populated regardless of IncludeClosed.
+	ExpiredClaimsDeleted int
 }
 
 // --- Backup / Restore DTOs ---

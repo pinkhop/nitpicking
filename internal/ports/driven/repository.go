@@ -275,6 +275,11 @@ type ClaimRepository interface {
 	// ListActiveClaims returns all claims that are not stale as of the given
 	// time.
 	ListActiveClaims(ctx context.Context, now time.Time) ([]domain.Claim, error)
+
+	// DeleteExpiredClaims removes all claim rows whose stale-at timestamp is
+	// on or before now. Returns the number of rows deleted. Active claims
+	// (stale-at is in the future) are not touched.
+	DeleteExpiredClaims(ctx context.Context, now time.Time) (int, error)
 }
 
 // RelationshipRepository defines the persistence interface for relationships.

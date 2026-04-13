@@ -3389,6 +3389,115 @@ func TestGC_PreservesOpenAndClaimedIssues(t *testing.T) {
 	}
 }
 
+func TestGC_DeletesExpiredClaims(t *testing.T) {
+	t.Parallel()
+
+	// Given — one issue claimed with a 1 ns threshold so the claim expires immediately.
+	ctx := t.Context()
+	svc, repo := setupService(t)
+	author := mustAuthor(t, "gc-agent")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Stale-claimed task", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+	_, err = svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID:        created.Issue.ID().String(),
+		Author:         author,
+		StaleThreshold: 1 * time.Nanosecond,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim issue: %v", err)
+	}
+
+	// Let the claim go stale.
+	time.Sleep(2 * time.Millisecond)
+
+	// Confirm the claim exists in the store before GC.
+	staleClaims, err := repo.ListStaleClaims(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("precondition: list stale claims: %v", err)
+	}
+	if len(staleClaims) != 1 {
+		t.Fatalf("precondition: expected 1 stale claim, got %d", len(staleClaims))
+	}
+
+	// When — run GC.
+	output, err := svc.GC(ctx, driving.GCInput{})
+	// Then — the expired claim is removed and reported in the output.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.ExpiredClaimsDeleted != 1 {
+		t.Errorf("expired claims deleted = %d, want 1", output.ExpiredClaimsDeleted)
+	}
+	if output.DeletedIssuesRemoved != 0 {
+		t.Errorf("deleted issues removed = %d, want 0", output.DeletedIssuesRemoved)
+	}
+
+	// The issue itself is still open and visible.
+	list, err := svc.ListIssues(ctx, driving.ListIssuesInput{})
+	if err != nil {
+		t.Fatalf("unexpected error listing: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 issue after GC, got %d", len(list.Items))
+	}
+
+	// No stale claims remain in the store.
+	staleClaims, err = repo.ListStaleClaims(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("list stale claims after GC: %v", err)
+	}
+	if len(staleClaims) != 0 {
+		t.Errorf("expected 0 stale claims after GC, got %d", len(staleClaims))
+	}
+}
+
+func TestGC_PreservesActiveClaims(t *testing.T) {
+	t.Parallel()
+
+	// Given — one issue with an active (non-stale) claim.
+	ctx := t.Context()
+	svc, repo := setupService(t)
+	author := mustAuthor(t, "gc-agent")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Actively claimed task", Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+	_, err = svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID: created.Issue.ID().String(),
+		Author:  author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim issue: %v", err)
+	}
+
+	// When — run GC.
+	output, err := svc.GC(ctx, driving.GCInput{})
+	// Then — the active claim is untouched and the count is zero.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.ExpiredClaimsDeleted != 0 {
+		t.Errorf("expired claims deleted = %d, want 0", output.ExpiredClaimsDeleted)
+	}
+
+	// The active claim is still present.
+	active, err := repo.ListActiveClaims(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("list active claims: %v", err)
+	}
+	if len(active) != 1 {
+		t.Errorf("expected 1 active claim after GC, got %d", len(active))
+	}
+}
+
 // --- ShowComment ---
 
 func TestShowComment_ExistingComment_ReturnsComment(t *testing.T) {

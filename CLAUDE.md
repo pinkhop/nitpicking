@@ -61,12 +61,6 @@ The project follows **Hexagonal (Ports & Adapters) Architecture**. The authorita
 - **Database discovery:** `np` walks up from `cwd` looking for a `.np/` directory.
 - **JSONL import:** `np import` reads a JSONL file and bulk-creates issues with relationships, comments, labels, and state transitions. The import pipeline is two-phase: validation (domain layer, `internal/domain/`) runs before any mutations, then the import pass (service layer, `ImportIssues`) creates issues. Import is idempotent via `idempotency_key`.
 
-## Compatibility
-
-This project has **no other users yet** — the sole consumer is the developer. There are no backward-compatibility obligations for CLI commands, flags, database schema, or file formats. Deprecated commands and aliases exist only as transitional conveniences and can be removed freely.
-
-**No in-tree database migrations.** Schema and data migrations must NOT be part of the `np` codebase. When a schema change is needed, use a throw-away `main.go` script or run `sqlite3` directly against the database file. The `admin upgrade` command is a placeholder for future use; it must not contain migration logic.
-
 ## Gotchas
 
 - **No golangci-lint.** Linting uses six individual tools invoked separately via `make lint`. All are managed as Go tool dependencies in `go.mod`.

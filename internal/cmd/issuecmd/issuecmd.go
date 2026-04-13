@@ -328,6 +328,7 @@ func newOrphansCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		limit      int
+		noLimit    bool
 	)
 
 	return &cli.Command{
@@ -345,9 +346,16 @@ by priority and exclude closed issues.`,
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
-				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Usage:       "Maximum number of results",
+				Value:       cmdutil.DefaultLimit,
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "no-limit",
+				Usage:       "Return all matching results",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &noLimit,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -362,10 +370,15 @@ by priority and exclude closed issues.`,
 				return err
 			}
 
+			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			result, err := svc.ListIssues(ctx, driving.ListIssuesInput{
 				Filter:  driving.IssueFilterInput{Orphan: true, ExcludeClosed: true},
 				OrderBy: driving.OrderByPriority,
-				Limit:   limit,
+				Limit:   effectiveLimit,
 			})
 			if err != nil {
 				return fmt.Errorf("listing orphan issues: %w", err)

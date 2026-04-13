@@ -124,6 +124,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		limit      int
+		noLimit    bool
 	)
 
 	return &cli.Command{
@@ -142,9 +143,16 @@ workflow problems or reviewing the history of a contested issue.`,
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
-				Usage:       "Maximum number of entries (0 = default, negative = unlimited)",
+				Usage:       "Maximum number of entries",
+				Value:       cmdutil.DefaultLimit,
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "no-limit",
+				Usage:       "Return all matching entries",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &noLimit,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -170,10 +178,15 @@ workflow problems or reviewing the history of a contested issue.`,
 				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
+			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			return Run(ctx, RunInput{
 				Service:     svc,
 				IssueID:     issueID.String(),
-				Limit:       limit,
+				Limit:       effectiveLimit,
 				JSON:        jsonOutput,
 				WriteTo:     f.IOStreams.Out,
 				ColorScheme: f.IOStreams.ColorScheme(),

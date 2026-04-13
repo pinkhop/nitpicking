@@ -82,7 +82,7 @@ The --reason flag is required so that every closure carries an explanation
 of what was done and why.
 
 Closed issues are hidden from "list" output by default but can be
-re-included with --include-closed. They can also be reopened later with
+re-included with --all. They can also be reopened later with
 "issue reopen" if the closure turns out to be premature.`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{

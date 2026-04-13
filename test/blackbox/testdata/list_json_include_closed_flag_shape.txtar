@@ -1,4 +1,4 @@
-# Verify that 'np list --include-closed --json' returns both open and closed
+# Verify that 'np list --all --json' returns both open and closed
 # issues, while the default excludes closed.
 
 np-init LJ
@@ -11,6 +11,6 @@ exec np close --claim $TASK_CLOSED_CLAIM --reason done
 exec np list --json
 np-json-array-len items 1
 
-# With --include-closed: both.
-exec np list --include-closed --json
+# With --all: both.
+exec np list --all --json
 np-json-array-len items 2

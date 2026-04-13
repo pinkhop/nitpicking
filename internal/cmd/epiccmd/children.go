@@ -34,6 +34,7 @@ func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		limit      int
+		noLimit    bool
 	)
 
 	return &cli.Command{
@@ -52,9 +53,16 @@ about to claim. Results are sorted by priority.`,
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
-				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Usage:       "Maximum number of results",
+				Value:       cmdutil.DefaultLimit,
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "no-limit",
+				Usage:       "Return all matching results",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &noLimit,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -80,11 +88,16 @@ about to claim. Results are sorted by priority.`,
 				return cmdutil.FlagErrorf("invalid epic ID: %s", err)
 			}
 
+			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			// Include closed children (unlike the default list behavior).
 			result, err := svc.ListIssues(ctx, driving.ListIssuesInput{
 				Filter:  driving.IssueFilterInput{ParentIDs: []string{epicID.String()}},
 				OrderBy: driving.OrderByPriority,
-				Limit:   limit,
+				Limit:   effectiveLimit,
 			})
 			if err != nil {
 				return fmt.Errorf("listing children: %w", err)
@@ -133,7 +146,7 @@ about to claim. Results are sorted by priority.`,
 				cs.Dim(fmt.Sprintf("%d children", shown)))
 			if result.HasMore {
 				_, _ = fmt.Fprintf(f.IOStreams.ErrOut,
-					"Showing %d children (use --limit -1 for all)\n", shown)
+					"Showing %d children (use --no-limit for all)\n", shown)
 			}
 
 			return nil

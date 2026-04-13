@@ -1,0 +1,9 @@
+# Verify that "np close --help" references --all (not stale --include-closed)
+# when describing how to re-include closed issues in list output.
+# Regression test for NP-w9w32.
+
+np-init TEST
+
+exec np close --help
+stdout '--all'
+! stdout 'include-closed'

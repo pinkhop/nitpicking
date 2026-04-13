@@ -107,13 +107,13 @@ func Run(ctx context.Context, input RunInput) error {
 // paginated list of issues.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
-		jsonOutput    bool
-		ready         bool
-		includeClosed bool
-		order         string
-		limit         int
-		all           bool
-		timestamps    bool
+		jsonOutput bool
+		ready      bool
+		all        bool
+		order      string
+		limit      int
+		noLimit    bool
+		timestamps bool
 	)
 
 	return &cli.Command{
@@ -122,7 +122,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Usage:   "List issues",
 		Description: `Lists issues matching the given filters, ordered by priority (default),
 creation time, or modification time. By default, closed issues are hidden
-and the result set is capped at a terminal-friendly limit.
+and the result set is capped at a reasonable default.
 
 This is the general-purpose query command. Use it to browse the backlog,
 check the state of a specific parent's children (--parent), find issues
@@ -131,9 +131,9 @@ For the common case of "what can I work on next?", the dedicated "ready"
 command is a convenient shortcut.
 
 Filters combine with AND semantics: --role task --state open --label kind:bug
-returns only open tasks labeled kind:bug. Use --all or --limit to control
-pagination, --include-closed to see resolved issues, and --json for
-machine-readable output.`,
+returns only open tasks labeled kind:bug. Pass --all to include resolved
+issues in the output. Use --no-limit or --limit to control pagination,
+and --json for machine-readable output.`,
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
 				Name:     "role",
@@ -154,10 +154,11 @@ machine-readable output.`,
 				Destination: &ready,
 			},
 			&cli.BoolFlag{
-				Name:        "include-closed",
-				Usage:       "Include closed issues in the output (hidden by default)",
+				Name:        "all",
+				Aliases:     []string{"a"},
+				Usage:       "Include all issues regardless of state, including closed",
 				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &includeClosed,
+				Destination: &all,
 			},
 			&cli.StringSliceFlag{
 				Name:     "parent",
@@ -184,15 +185,16 @@ machine-readable output.`,
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
-				Usage:       "Maximum number of results (0 = default, negative = unlimited)",
+				Usage:       "Maximum number of results",
+				Value:       cmdutil.DefaultLimit,
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &limit,
 			},
 			&cli.BoolFlag{
-				Name:        "all",
-				Usage:       "Return all results without limit",
+				Name:        "no-limit",
+				Usage:       "Return all matching results",
 				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &all,
+				Destination: &noLimit,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -221,7 +223,7 @@ machine-readable output.`,
 				}
 				filter.States = append(filter.States, st)
 			}
-			filter.ExcludeClosed = !includeClosed && len(filter.States) == 0
+			filter.ExcludeClosed = !all && len(filter.States) == 0
 
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
@@ -251,7 +253,10 @@ machine-readable output.`,
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
-			effectiveLimit := cmdutil.ResolveLimit(limit, all, f.IOStreams.IsStdoutTTY())
+			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
 
 			return Run(ctx, RunInput{
 				Service:       svc,

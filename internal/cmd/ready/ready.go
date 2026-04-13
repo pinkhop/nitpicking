@@ -20,6 +20,7 @@ import (
 type RunInput struct {
 	Service       driving.Service
 	JSON          bool
+	Limit         int
 	WriteTo       io.Writer
 	ColorScheme   *iostreams.ColorScheme
 	TerminalWidth int
@@ -31,6 +32,7 @@ func Run(ctx context.Context, input RunInput) error {
 	result, err := input.Service.ListIssues(ctx, driving.ListIssuesInput{
 		Filter:  driving.IssueFilterInput{Ready: true},
 		OrderBy: driving.OrderByPriority,
+		Limit:   input.Limit,
 	})
 	if err != nil {
 		return fmt.Errorf("listing ready issues: %w", err)
@@ -82,7 +84,11 @@ func Run(ctx context.Context, input RunInput) error {
 // NewCmd constructs the "ready" command, which lists issues that are ready
 // for work. This is a shortcut for "np list --ready".
 func NewCmd(f *cmdutil.Factory) *cli.Command {
-	var jsonOutput bool
+	var (
+		jsonOutput bool
+		limit      int
+		noLimit    bool
+	)
 
 	return &cli.Command{
 		Name:  "ready",
@@ -97,6 +103,20 @@ useful when you want to browse the queue without committing to anything.
 It is equivalent to "list --ready" but shorter to type and easier to
 remember.`,
 		Flags: []cli.Flag{
+			&cli.IntFlag{
+				Name:        "limit",
+				Aliases:     []string{"n"},
+				Usage:       "Maximum number of results",
+				Value:       cmdutil.DefaultLimit,
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "no-limit",
+				Usage:       "Return all matching results",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &noLimit,
+			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -105,6 +125,11 @@ remember.`,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
@@ -113,6 +138,7 @@ remember.`,
 			return Run(ctx, RunInput{
 				Service:       svc,
 				JSON:          jsonOutput,
+				Limit:         effectiveLimit,
 				WriteTo:       f.IOStreams.Out,
 				ColorScheme:   f.IOStreams.ColorScheme(),
 				TerminalWidth: f.IOStreams.TerminalWidth(),

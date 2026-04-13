@@ -201,6 +201,140 @@ func TestRun_JSONOutput_ContainsExpectedFields(t *testing.T) {
 	}
 }
 
+func TestRun_LimitRestricts_ResultCount(t *testing.T) {
+	t.Parallel()
+
+	// Given — three blocked tasks, limit set to 2
+	svc := setupService(t)
+	blockerID := createTask(t, svc, "Blocker")
+	blocked1 := createTask(t, svc, "Blocked A")
+	blocked2 := createTask(t, svc, "Blocked B")
+	blocked3 := createTask(t, svc, "Blocked C")
+
+	for _, id := range []domain.ID{blocked1, blocked2, blocked3} {
+		err := svc.AddRelationship(t.Context(), id.String(), driving.RelationshipInput{
+			TargetID: blockerID.String(),
+			Type:     domain.RelBlockedBy,
+		}, mustAuthor(t, "test-agent"))
+		if err != nil {
+			t.Fatalf("precondition: add relationship failed: %v", err)
+		}
+	}
+
+	var buf bytes.Buffer
+	input := blocked.RunInput{
+		Service:     svc,
+		JSON:        true,
+		WriteTo:     &buf,
+		ColorScheme: noColor(),
+		Limit:       2,
+	}
+
+	// When
+	err := blocked.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result cmdutil.ListOutput
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
+	}
+	if len(result.Items) != 2 {
+		t.Errorf("items: got %d, want 2", len(result.Items))
+	}
+	if !result.HasMore {
+		t.Error("has_more: got false, want true")
+	}
+}
+
+func TestRun_UnlimitedReturnsAll(t *testing.T) {
+	t.Parallel()
+
+	// Given — three blocked tasks, limit set to -1 (unlimited)
+	svc := setupService(t)
+	blockerID := createTask(t, svc, "Blocker")
+	blocked1 := createTask(t, svc, "Blocked A")
+	blocked2 := createTask(t, svc, "Blocked B")
+	blocked3 := createTask(t, svc, "Blocked C")
+
+	for _, id := range []domain.ID{blocked1, blocked2, blocked3} {
+		err := svc.AddRelationship(t.Context(), id.String(), driving.RelationshipInput{
+			TargetID: blockerID.String(),
+			Type:     domain.RelBlockedBy,
+		}, mustAuthor(t, "test-agent"))
+		if err != nil {
+			t.Fatalf("precondition: add relationship failed: %v", err)
+		}
+	}
+
+	var buf bytes.Buffer
+	input := blocked.RunInput{
+		Service:     svc,
+		JSON:        true,
+		WriteTo:     &buf,
+		ColorScheme: noColor(),
+		Limit:       -1,
+	}
+
+	// When
+	err := blocked.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result cmdutil.ListOutput
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
+	}
+	if len(result.Items) != 3 {
+		t.Errorf("items: got %d, want 3", len(result.Items))
+	}
+	if result.HasMore {
+		t.Error("has_more: got true, want false")
+	}
+}
+
+func TestRun_ZeroLimit_UsesDefault(t *testing.T) {
+	t.Parallel()
+
+	// Given — one blocked task, limit left at zero (default behavior)
+	svc := setupService(t)
+	blockerID := createTask(t, svc, "Blocker")
+	blockedID := createTask(t, svc, "Blocked A")
+
+	err := svc.AddRelationship(t.Context(), blockedID.String(), driving.RelationshipInput{
+		TargetID: blockerID.String(),
+		Type:     domain.RelBlockedBy,
+	}, mustAuthor(t, "test-agent"))
+	if err != nil {
+		t.Fatalf("precondition: add relationship failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := blocked.RunInput{
+		Service:     svc,
+		JSON:        true,
+		WriteTo:     &buf,
+		ColorScheme: noColor(),
+		Limit:       0,
+	}
+
+	// When
+	err = blocked.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result cmdutil.ListOutput
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
+	}
+	if len(result.Items) != 1 {
+		t.Errorf("items: got %d, want 1", len(result.Items))
+	}
+}
+
 func TestRun_EmptyResult_TextShowsNoBlockedMessage(t *testing.T) {
 	t.Parallel()
 

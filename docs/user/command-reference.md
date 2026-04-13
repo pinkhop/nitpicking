@@ -442,6 +442,8 @@ np ready [options]
 
 | Flag | Description |
 |------|-------------|
+| `--limit N`, `-n N` | Maximum number of results (default 20). |
+| `--no-limit` | Return all matching results. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**
@@ -476,6 +478,8 @@ np blocked [options]
 
 | Flag | Description |
 |------|-------------|
+| `--limit N`, `-n N` | Maximum number of results (default 20). |
+| `--no-limit` | Return all matching results. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**

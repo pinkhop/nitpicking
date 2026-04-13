@@ -20,6 +20,7 @@ import (
 type RunInput struct {
 	Service       driving.Service
 	JSON          bool
+	Limit         int
 	WriteTo       io.Writer
 	ColorScheme   *iostreams.ColorScheme
 	TerminalWidth int
@@ -31,6 +32,7 @@ func Run(ctx context.Context, input RunInput) error {
 	result, err := input.Service.ListIssues(ctx, driving.ListIssuesInput{
 		Filter:  driving.IssueFilterInput{Blocked: true, ExcludeClosed: true},
 		OrderBy: driving.OrderByPriority,
+		Limit:   input.Limit,
 	})
 	if err != nil {
 		return fmt.Errorf("listing blocked issues: %w", err)
@@ -87,7 +89,11 @@ func Run(ctx context.Context, input RunInput) error {
 // NewCmd constructs the "blocked" command, which lists issues that have
 // unresolved blocked_by relationships.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
-	var jsonOutput bool
+	var (
+		jsonOutput bool
+		limit      int
+		noLimit    bool
+	)
 
 	return &cli.Command{
 		Name:  "blocked",
@@ -104,6 +110,20 @@ cause the blocked issues to transition to the ready state automatically.
 Closed issues are excluded from the output. Results are ordered by
 priority so that the highest-impact blockages appear first.`,
 		Flags: []cli.Flag{
+			&cli.IntFlag{
+				Name:        "limit",
+				Aliases:     []string{"n"},
+				Usage:       "Maximum number of results",
+				Value:       cmdutil.DefaultLimit,
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &limit,
+			},
+			&cli.BoolFlag{
+				Name:        "no-limit",
+				Usage:       "Return all matching results",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &noLimit,
+			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -112,6 +132,11 @@ priority so that the highest-impact blockages appear first.`,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
@@ -120,6 +145,7 @@ priority so that the highest-impact blockages appear first.`,
 			return Run(ctx, RunInput{
 				Service:       svc,
 				JSON:          jsonOutput,
+				Limit:         effectiveLimit,
 				WriteTo:       f.IOStreams.Out,
 				ColorScheme:   f.IOStreams.ColorScheme(),
 				TerminalWidth: f.IOStreams.TerminalWidth(),

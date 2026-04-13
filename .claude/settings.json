@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Bash(./dist/np *)",
       "Bash(dist/np *)",
       "Bash(git diff)",
       "Bash(git diff *)",
@@ -46,10 +47,18 @@
       "Bash(np *)"
     ],
     "ask": [
-      "Bash(dist/np admin reset*)",
-      "Bash(dist/np admin restore*)",
-      "Bash(np admin reset*)",
-      "Bash(np admin restore*)"
+      "Bash(./dist/np admin reset)",
+      "Bash(./dist/np admin reset *)",
+      "Bash(./dist/np admin restore)",
+      "Bash(./dist/np admin restore *)",
+      "Bash(dist/np admin reset)",
+      "Bash(dist/np admin reset *)",
+      "Bash(dist/np admin restore)",
+      "Bash(dist/np admin restore *)",
+      "Bash(np admin reset)",
+      "Bash(np admin reset *)",
+      "Bash(np admin restore)",
+      "Bash(np admin restore *)"
     ]
   }
 }

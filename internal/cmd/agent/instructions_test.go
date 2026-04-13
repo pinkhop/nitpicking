@@ -270,6 +270,61 @@ func TestAgentInstructions_DoesNotMentionOldFlagNames(t *testing.T) {
 	}
 }
 
+func TestAgentInstructions_DoesNotMentionStealFlag(t *testing.T) {
+	t.Parallel()
+
+	// When
+	output := agent.AgentInstructions()
+
+	// Then — the --steal flag and stealing mechanics have been removed from the
+	// state model; they must not appear in the instructions.
+	stealTerms := []string{
+		"--steal",
+		"stealing",
+		"steal a claim",
+	}
+	for _, term := range stealTerms {
+		if strings.Contains(output, term) {
+			t.Errorf("expected instructions NOT to contain steal-related term %q", term)
+		}
+	}
+}
+
+func TestAgentInstructions_DoesNotTreatClaimedAsPrimaryState(t *testing.T) {
+	t.Parallel()
+
+	// When
+	output := agent.AgentInstructions()
+
+	// Then — "claimed" is a secondary state of open, not a primary lifecycle
+	// state. Phrases that imply claimed is a distinct primary state must not
+	// appear in the instructions.
+	primaryStateTerms := []string{
+		"in the claimed state",
+		"state: claimed",
+		`"claimed"`,
+	}
+	for _, term := range primaryStateTerms {
+		if strings.Contains(output, term) {
+			t.Errorf("expected instructions NOT to contain phrase implying claimed is a primary state: %q", term)
+		}
+	}
+}
+
+func TestAgentInstructions_ReleaseDeletesLocalClaim(t *testing.T) {
+	t.Parallel()
+
+	// When
+	output := agent.AgentInstructions()
+
+	// Then — the instructions must explain that release deletes the local
+	// claim record without changing the issue's primary state.
+	wantPhrase := "deletes the local claim"
+	if !strings.Contains(output, wantPhrase) {
+		t.Errorf("expected instructions to explain that release %q", wantPhrase)
+	}
+}
+
 func TestAgentInstructions_NoEchoPipeJSONExamples(t *testing.T) {
 	t.Parallel()
 

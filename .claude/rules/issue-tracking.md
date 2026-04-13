@@ -79,7 +79,7 @@ Use the `parent` field to attach children to the epic. For large epics, decompos
 
 To create a deferred issue (so it does not appear as ready work until explicitly undeferred), use a three-step workflow:
 
-1. Create the issue in the claimed state using `--with-claim`
+1. Create the issue and immediately claim it using `--with-claim`
 2. Defer it: `np issue defer --claim <CLAIM-ID>`
 3. Release it: `np issue release --claim <CLAIM-ID>`
 
@@ -115,7 +115,7 @@ Comments do not require claiming and can be added to any issue, including closed
 | Transition | When to use |
 |------------|-------------|
 | `np close --claim <CID> --reason "..."` | Task is complete (can be reopened if needed) |
-| `np issue release --claim <CID>` | Epic has been decomposed; or task cannot be completed now |
+| `np issue release --claim <CID>` | Epic has been decomposed; or task cannot be completed now — deletes the local claim record without changing the issue's primary state |
 | `np issue defer --claim <CID>` | Shelve for later (can be restored with undefer) |
 
 ## Handling Incidentals

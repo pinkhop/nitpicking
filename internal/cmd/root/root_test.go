@@ -1,18 +1,28 @@
 package root
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/sqlite"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/iostreams"
 )
 
 func newTestFactory() *cmdutil.Factory {
 	ios, _, _, _ := iostreams.Test()
-	return &cmdutil.Factory{IOStreams: ios}
+	return &cmdutil.Factory{
+		IOStreams: ios,
+		// DatabasePath returns an error so that tests exercising command
+		// registration (not database logic) skip the schema version check.
+		DatabasePath: func() (string, error) { return "", errors.New("no database in test") },
+		Store: func() (*sqlite.Store, error) {
+			return nil, errors.New("no database in test")
+		},
+	}
 }
 
 func TestCategorize_AssignsCategoryAndPreservesOrder(t *testing.T) {
@@ -128,6 +138,205 @@ func TestNewRootCmd_WorkspaceFlag_SetsFactoryWorkspace(t *testing.T) {
 	}
 	if f.Workspace != "/some/dir" {
 		t.Errorf("expected Workspace %q, got %q", "/some/dir", f.Workspace)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// isSchemaCheckExempt
+// ---------------------------------------------------------------------------
+
+func TestIsSchemaCheckExempt_AdminUpgrade_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — args remaining after root flag parsing for "np admin upgrade".
+	args := []string{"admin", "upgrade"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for admin upgrade")
+	}
+}
+
+func TestIsSchemaCheckExempt_AdminDoctor_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — args for "np admin doctor".
+	args := []string{"admin", "doctor"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for admin doctor")
+	}
+}
+
+func TestIsSchemaCheckExempt_AdminUpgradeWithLeadingFlag_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — "np admin --json upgrade": a boolean flag before the subcommand
+	// name that must be skipped when identifying the command path.
+	args := []string{"admin", "--json", "upgrade"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then — "--json" starts with '-' and is skipped; the first two non-flag
+	// positional args are "admin" and "upgrade", which is in the exempt list.
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for admin --json upgrade")
+	}
+}
+
+func TestIsSchemaCheckExempt_ClaimReady_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	// Given — args for "np claim ready".
+	args := []string{"claim", "ready"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if got {
+		t.Error("expected isSchemaCheckExempt to return false for claim ready")
+	}
+}
+
+func TestIsSchemaCheckExempt_AdminBackup_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	// Given — args for "np admin backup".
+	args := []string{"admin", "backup"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if got {
+		t.Error("expected isSchemaCheckExempt to return false for admin backup")
+	}
+}
+
+func TestIsSchemaCheckExempt_NoArgs_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	// Given — no args (bare "np" invocation).
+	args := []string{}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if got {
+		t.Error("expected isSchemaCheckExempt to return false for no-arg invocation")
+	}
+}
+
+func TestIsSchemaCheckExempt_SingleArg_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	// Given — a single positional arg (e.g., "np version").
+	args := []string{"version"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then — single-arg invocations have fewer than two non-flag positional
+	// args and are never exempt.
+	if got {
+		t.Error("expected isSchemaCheckExempt to return false for single-arg invocation")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// checkSchemaVersion
+// ---------------------------------------------------------------------------
+
+func TestCheckSchemaVersion_NoDatabaseFound_ReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	// Given — a factory whose DatabasePath reports no database found.
+	ios, _, _, _ := iostreams.Test()
+	storeCalled := false
+	f := &cmdutil.Factory{
+		IOStreams:    ios,
+		DatabasePath: func() (string, error) { return "", errors.New("no .np directory found") },
+		Store: func() (*sqlite.Store, error) {
+			storeCalled = true
+			return nil, errors.New("store must not be opened when no database found")
+		},
+	}
+
+	// When
+	err := checkSchemaVersion(t.Context(), f)
+	// Then — no error; the check is a no-op when there is no database.
+	if err != nil {
+		t.Errorf("expected nil from checkSchemaVersion when no database found, got: %v", err)
+	}
+	if storeCalled {
+		t.Error("expected Store not to be called when no database found")
+	}
+}
+
+func TestCheckSchemaVersion_StoreOpenFails_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given — a factory where DatabasePath succeeds but Store fails to open.
+	ios, _, _, _ := iostreams.Test()
+	openErr := errors.New("disk full")
+	f := &cmdutil.Factory{
+		IOStreams:    ios,
+		DatabasePath: func() (string, error) { return "/np/nitpicking.db", nil },
+		Store: func() (*sqlite.Store, error) {
+			return nil, openErr
+		},
+	}
+
+	// When
+	err := checkSchemaVersion(t.Context(), f)
+
+	// Then — the open error is wrapped and returned.
+	if err == nil {
+		t.Fatal("expected error from checkSchemaVersion when Store fails, got nil")
+	}
+	if !errors.Is(err, openErr) {
+		t.Errorf("expected wrapped openErr, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Root Before schema gating
+// ---------------------------------------------------------------------------
+
+func TestNewRootCmd_NoDatabase_SkipsSchemaCheck(t *testing.T) {
+	t.Parallel()
+
+	// Given — a factory with no database found; DatabasePath returns an error.
+	ios, _, _, _ := iostreams.Test()
+	storeCalled := false
+	f := &cmdutil.Factory{
+		IOStreams:    ios,
+		DatabasePath: func() (string, error) { return "", errors.New("no .np directory found") },
+		Store: func() (*sqlite.Store, error) {
+			storeCalled = true
+			return nil, errors.New("store must not be opened for schema check when no database found")
+		},
+	}
+	cmd := NewRootCmd(f)
+
+	// When — run a command that does not require a database.
+	// "np version" does not call f.Store() in its Action, so any Store call
+	// would be caused by the schema check itself.
+	_ = cmd.Run(t.Context(), []string{"np", "version"})
+
+	// Then — the Store was not opened for the schema check.
+	if storeCalled {
+		t.Error("expected Store not to be called when no database is found during schema check")
 	}
 }
 

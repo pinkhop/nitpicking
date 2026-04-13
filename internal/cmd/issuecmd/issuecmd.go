@@ -11,12 +11,12 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/pinkhop/nitpicking/internal/cmd/historyview"
-	"github.com/pinkhop/nitpicking/internal/cmd/search"
+	"github.com/pinkhop/nitpicking/internal/cmd/issuecmd/historyview"
+	"github.com/pinkhop/nitpicking/internal/cmd/issuecmd/search"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 
-	cmddelete "github.com/pinkhop/nitpicking/internal/cmd/delete"
+	cmddelete "github.com/pinkhop/nitpicking/internal/cmd/issuecmd/delete"
 )
 
 // NewCmd constructs the "issue" parent command with all issue management

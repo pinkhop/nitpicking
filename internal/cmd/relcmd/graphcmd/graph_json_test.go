@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/cmd/graphcmd"
+	"github.com/pinkhop/nitpicking/internal/cmd/relcmd/graphcmd"
 	"github.com/pinkhop/nitpicking/internal/domain"
 )
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/cmd/where"
+	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/where"
 )
 
 // --- Run Tests ---

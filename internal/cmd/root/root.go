@@ -12,9 +12,9 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/agent"
 	"github.com/pinkhop/nitpicking/internal/cmd/blocked"
 	"github.com/pinkhop/nitpicking/internal/cmd/claim"
+	"github.com/pinkhop/nitpicking/internal/cmd/closecmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/comment"
 	"github.com/pinkhop/nitpicking/internal/cmd/create"
-	"github.com/pinkhop/nitpicking/internal/cmd/done"
 	"github.com/pinkhop/nitpicking/internal/cmd/epiccmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/formcmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/importcmd"
@@ -103,7 +103,7 @@ func NewRootCmd(f *cmdutil.Factory) *cli.Command {
 			{"Core Workflow", []*cli.Command{
 				create.NewCmd(f),
 				claim.NewCmd(f),
-				done.NewCmd(f),
+				closecmd.NewCmd(f),
 				show.NewCmd(f),
 				list.NewCmd(f),
 				ready.NewCmd(f),

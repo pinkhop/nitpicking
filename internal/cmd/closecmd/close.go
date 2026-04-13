@@ -1,6 +1,7 @@
-// Package done provides the "close" workflow shortcut — a combined close-with-
+// Package closecmd provides the "close" workflow shortcut — a combined close-with-
 // reason command that adds a comment and then closes the issue in one step.
-package done
+// The "cmd" suffix avoids collision with Go's built-in close function.
+package closecmd
 
 import (
 	"context"
@@ -13,13 +14,13 @@ import (
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
-// doneOutput is the JSON representation of a done command result.
-type doneOutput struct {
+// closeOutput is the JSON representation of a close command result.
+type closeOutput struct {
 	IssueID string `json:"issue_id"`
 	Action  string `json:"action"`
 }
 
-// RunInput holds the parameters for the done command's core logic, decoupled
+// RunInput holds the parameters for the close command's core logic, decoupled
 // from CLI flag parsing so it can be tested directly. The command delegates to
 // CloseWithReason, which derives the author from the claim record and performs
 // the comment + close atomically.
@@ -32,7 +33,7 @@ type RunInput struct {
 	WriteTo io.Writer
 }
 
-// Run executes the done workflow: delegates to the service's CloseWithReason
+// Run executes the close workflow: delegates to the service's CloseWithReason
 // method, which atomically adds a comment with the reason text and closes the
 // issue within a single transaction. The author for the closing comment is
 // derived from the claim record by the service.
@@ -47,7 +48,7 @@ func Run(ctx context.Context, input RunInput) error {
 	}
 
 	if input.JSON {
-		return cmdutil.WriteJSON(input.WriteTo, doneOutput{
+		return cmdutil.WriteJSON(input.WriteTo, closeOutput{
 			IssueID: input.IssueID,
 			Action:  "close",
 		})

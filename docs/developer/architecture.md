@@ -246,7 +246,7 @@ internal/
   ├─ importcmd/                np import (currently: jsonl)
   ├─ backupcmd/                np admin backup
   ├─ restorecmd/               np admin restore
-  ├─ graphcmd/                 np rel graph
+  ├─ relcmd/graphcmd/           np rel graph
   │  ├─ graph_dot.go           Graph rendering (Graphviz DOT) from GraphNode/GraphEdge.
   │  └─ graph_json.go          Graph rendering (JSON) from GraphNode/GraphEdge.
   ├─ admincmd/                 np admin (backup, completion, doctor, gc, reset, restore, tally, upgrade, where)
@@ -348,7 +348,7 @@ Use this table to determine the correct package for new code.
 | A new CLI command or subcommand | `cmd/<name>/` under the driving adapter tree | CLI commands are driving adapter code. They call the driving port; they never import driven ports or adapters. |
 | Shared CLI infrastructure (flag parsing, output formatting, error types for the CLI layer) | `cmdutil/` | Cross-cutting CLI concerns that multiple commands need but that are not business logic. |
 | Validation logic that enforces a business rule (e.g., "an epic cannot be closed directly") | `domain/` or `core/` | If the rule is intrinsic to the entity, it belongs in the domain. If it requires cross-entity coordination (checking children, blockers), it belongs in the core. |
-| A pure function that transforms domain data for presentation (e.g., graph rendering, Markdown formatting) | The driving adapter that consumes it (e.g., `cmd/graphcmd/`); `cmdutil/` if shared across multiple commands | Presentation-specific rendering belongs with its consumer — a web adapter would use D3.js, a TUI would use box-drawing characters. Only truly adapter-agnostic transformations belong in `domain/`. |
+| A pure function that transforms domain data for presentation (e.g., graph rendering, Markdown formatting) | The driving adapter that consumes it (e.g., `cmd/relcmd/graphcmd/`); `cmdutil/` if shared across multiple commands | Presentation-specific rendering belongs with its consumer — a web adapter would use D3.js, a TUI would use box-drawing characters. Only truly adapter-agnostic transformations belong in `domain/`. |
 
 ### Packages and modules
 

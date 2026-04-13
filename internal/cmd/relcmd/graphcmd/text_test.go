@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pinkhop/nitpicking/internal/cmd/graphcmd"
+	"github.com/pinkhop/nitpicking/internal/cmd/relcmd/graphcmd"
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )

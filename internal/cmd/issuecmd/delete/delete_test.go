@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/memory"
-	"github.com/pinkhop/nitpicking/internal/cmd/delete"
+	"github.com/pinkhop/nitpicking/internal/cmd/issuecmd/delete"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/core"
 	"github.com/pinkhop/nitpicking/internal/domain"

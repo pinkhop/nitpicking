@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/memory"
-	"github.com/pinkhop/nitpicking/internal/cmd/graphcmd"
+	"github.com/pinkhop/nitpicking/internal/cmd/relcmd/graphcmd"
 	"github.com/pinkhop/nitpicking/internal/core"
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"

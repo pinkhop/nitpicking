@@ -132,21 +132,6 @@ func TestTaskSecondaryState_DeferredNotBlocked_None(t *testing.T) {
 	}
 }
 
-func TestTaskSecondaryState_Claimed_None(t *testing.T) {
-	t.Parallel()
-
-	// When
-	result := core.TaskSecondaryState(domain.StateClaimed, nil, nil)
-
-	// Then
-	if result.ListState != domain.SecondaryNone {
-		t.Errorf("ListState = %v, want none", result.ListState)
-	}
-	if len(result.DetailStates) != 0 {
-		t.Errorf("DetailStates = %v, want empty", result.DetailStates)
-	}
-}
-
 func TestTaskSecondaryState_Closed_None(t *testing.T) {
 	t.Parallel()
 

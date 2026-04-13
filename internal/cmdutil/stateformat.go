@@ -39,8 +39,6 @@ func ColorStateText(cs *iostreams.ColorScheme, state domain.State, text string) 
 	switch state {
 	case domain.StateClosed:
 		return cs.Color256(colorClosed, text)
-	case domain.StateClaimed:
-		return cs.Color256(colorClaimed, text)
 	case domain.StateOpen:
 		return cs.Color256(colorOpen, text)
 	case domain.StateDeferred:
@@ -102,8 +100,6 @@ func colorPrimary(cs *iostreams.ColorScheme, state domain.State) string {
 	switch state {
 	case domain.StateClosed:
 		return cs.Color256(colorClosed, str)
-	case domain.StateClaimed:
-		return cs.Color256(colorClaimed, str)
 	case domain.StateOpen:
 		return cs.Color256(colorOpen, str)
 	case domain.StateDeferred:

@@ -267,10 +267,11 @@ func TestRun_LimitRespectsPage(t *testing.T) {
 	}
 }
 
-func TestRun_TextOutput_ClaimEvent_DoesNotLeakClaimID(t *testing.T) {
+func TestRun_TextOutput_ClaimDoesNotCreateHistoryEntry(t *testing.T) {
 	t.Parallel()
 
-	// Given — a task that has been claimed (generating a claim history entry)
+	// Given — a task that has been claimed. Claiming creates a claim row but
+	// does not record a history event; only the creation event should appear.
 	svc := setupService(t)
 	issueID := createTask(t, svc, "Claim leak check")
 
@@ -300,11 +301,13 @@ func TestRun_TextOutput_ClaimEvent_DoesNotLeakClaimID(t *testing.T) {
 	}
 	output := buf.String()
 
+	// The claim ID must never appear in history output.
 	if strings.Contains(output, claimOut.ClaimID) {
 		t.Errorf("text output must not contain the claim ID %q, got:\n%s", claimOut.ClaimID, output)
 	}
-	if !strings.Contains(output, "claimed") {
-		t.Errorf("expected 'claimed' event type in text output, got:\n%s", output)
+	// Claiming no longer generates a history event; only the creation entry exists.
+	if !strings.Contains(output, "created") {
+		t.Errorf("expected 'created' event type in text output, got:\n%s", output)
 	}
 }
 

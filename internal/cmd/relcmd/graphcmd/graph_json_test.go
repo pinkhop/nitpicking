@@ -95,7 +95,7 @@ func TestRenderGraphJSON_ParentChild_ChildrenNested(t *testing.T) {
 	nodes := []graphcmd.GraphNode{
 		{ID: epicID, Role: domain.RoleEpic, State: domain.StateOpen, Title: "My Epic"},
 		{ID: child1, Role: domain.RoleTask, State: domain.StateOpen, Title: "Task 1", ParentID: epicID},
-		{ID: child2, Role: domain.RoleTask, State: domain.StateClaimed, Title: "Task 2", ParentID: epicID},
+		{ID: child2, Role: domain.RoleTask, State: domain.StateOpen, Title: "Task 2", ParentID: epicID},
 	}
 
 	// When

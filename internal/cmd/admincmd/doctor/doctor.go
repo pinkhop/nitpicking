@@ -43,8 +43,6 @@ func renderAction(a *driving.ActionHint) string {
 		return ""
 	}
 	switch a.Kind {
-	case driving.ActionKindStealClaim:
-		return fmt.Sprintf("Run 'np claim id %s --author <name> --steal' to steal the domain.", a.IssueID)
 	case driving.ActionKindRunGC:
 		return "Run 'np admin gc --confirm' to remove deleted issues."
 	case driving.ActionKindUndefer:

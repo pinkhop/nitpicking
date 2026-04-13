@@ -209,7 +209,7 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 			}
 		}
 
-		// Optionally claim.
+		// Optionally claim. Claiming creates a claims row; state remains open.
 		if input.Claim {
 			c, err := domain.NewClaim(domain.NewClaimParams{
 				IssueID: id,
@@ -220,23 +220,7 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 				return err
 			}
 
-			t = t.WithState(domain.StateClaimed)
-			if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-				return err
-			}
 			if err := uow.Claims().CreateClaim(ctx, c); err != nil {
-				return err
-			}
-
-			revision, _ := uow.History().CountHistory(ctx, id)
-			_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-				IssueID:   id,
-				Revision:  revision,
-				Author:    author,
-				Timestamp: now,
-				EventType: history.EventClaimed,
-			}))
-			if err != nil {
 				return err
 			}
 
@@ -370,25 +354,9 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow driven.UnitOfWork, 
 		return output, err
 	}
 
-	// Update issue state to claimed.
-	t = t.WithState(domain.StateClaimed)
-	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-		return output, err
-	}
+	// Create the claim row. Issue state remains open; claiming is transient
+	// bookkeeping and does not alter the primary lifecycle state.
 	if err := uow.Claims().CreateClaim(ctx, c); err != nil {
-		return output, err
-	}
-
-	// Record claim history.
-	revision, _ := uow.History().CountHistory(ctx, issueID)
-	_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-		IssueID:   issueID,
-		Revision:  revision,
-		Author:    author,
-		Timestamp: now,
-		EventType: history.EventClaimed,
-	}))
-	if err != nil {
 		return output, err
 	}
 
@@ -417,76 +385,21 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input driving.ClaimNex
 			return err
 		}
 
-		if len(items) > 0 {
-			result, err := s.claimWithinTx(ctx, uow, driving.ClaimInput{
-				IssueID:        items[0].ID.String(),
-				Author:         input.Author,
-				StaleThreshold: input.StaleThreshold,
-				StaleAt:        input.StaleAt,
-			})
-			if err != nil {
-				return err
-			}
-			output = result
-			return nil
-		}
-
-		// No ready issues — try stealing a stale claim if requested.
-		if !input.StealIfNeeded {
+		if len(items) == 0 {
 			return domain.ErrNotFound
 		}
 
-		staleClaims, err := uow.Claims().ListStaleClaims(ctx, time.Now())
+		result, err := s.claimWithinTx(ctx, uow, driving.ClaimInput{
+			IssueID:        items[0].ID.String(),
+			Author:         input.Author,
+			StaleThreshold: input.StaleThreshold,
+			StaleAt:        input.StaleAt,
+		})
 		if err != nil {
 			return err
 		}
-
-		if len(staleClaims) == 0 {
-			return domain.ErrNotFound
-		}
-
-		// Build a set of issue IDs with stale claims for fast lookup.
-		staleIssueIDs := make(map[domain.ID]struct{}, len(staleClaims))
-		for _, c := range staleClaims {
-			staleIssueIDs[c.IssueID()] = struct{}{}
-		}
-
-		// Query claimed issues with the same label/role filters, ordered by
-		// priority. This reuses the repository's filter logic rather than
-		// reimplementing label/role matching in the core.
-		stealFilter := driven.IssueFilter{
-			States:       []domain.State{domain.StateClaimed},
-			LabelFilters: toPortLabelFilters(input.LabelFilters),
-		}
-		if input.Role != 0 {
-			stealFilter.Roles = []domain.Role{input.Role}
-		}
-
-		candidates, _, err := uow.Issues().ListIssues(ctx, stealFilter, driven.OrderByPriority, 0)
-		if err != nil {
-			return err
-		}
-
-		// Find the highest-priority candidate that also has a stale claim.
-		for _, candidate := range candidates {
-			if _, ok := staleIssueIDs[candidate.ID]; !ok {
-				continue
-			}
-			result, err := s.claimWithinTx(ctx, uow, driving.ClaimInput{
-				IssueID:        candidate.ID.String(),
-				Author:         input.Author,
-				AllowSteal:     true,
-				StaleThreshold: input.StaleThreshold,
-				StaleAt:        input.StaleAt,
-			})
-			if err != nil {
-				return err
-			}
-			output = result
-			return nil
-		}
-
-		return domain.ErrNotFound
+		output = result
+		return nil
 	})
 
 	return output, err
@@ -696,7 +609,7 @@ func (s *serviceImpl) CloseWithReason(ctx context.Context, input driving.CloseWi
 			Timestamp: now,
 			EventType: history.EventStateChanged,
 			Changes: []history.FieldChange{
-				{Field: "state", Before: domain.StateClaimed.String(), After: domain.StateClosed.String()},
+				{Field: "state", Before: domain.StateOpen.String(), After: domain.StateClosed.String()},
 			},
 		}))
 		return err
@@ -816,8 +729,9 @@ func (s *serviceImpl) DeferIssue(ctx context.Context, input driving.DeferIssueIn
 }
 
 // ReopenIssue transitions a closed or deferred issue back to the open state.
-// The operation is atomic: validate, claim, transition to open, release the
-// claim, and record the appropriate semantic event — all in one transaction.
+// No claim is required — reopen is a claim-free operation that directly
+// writes the state transition and records the appropriate semantic event, all
+// within a single transaction.
 func (s *serviceImpl) ReopenIssue(ctx context.Context, input driving.ReopenInput) error {
 	issueID, err := domain.ParseID(input.IssueID)
 	if err != nil {
@@ -843,27 +757,9 @@ func (s *serviceImpl) ReopenIssue(ctx context.Context, input driving.ReopenInput
 				issueID, previousState, domain.ErrIllegalTransition)
 		}
 
-		// Create a transient claim for the reopen operation.
-		c, claimErr := domain.NewClaim(domain.NewClaimParams{
-			IssueID:       issueID,
-			Author:        author,
-			StaleDuration: 5 * time.Minute,
-			Now:           now,
-		})
-		if claimErr != nil {
-			return claimErr
-		}
-		if err := uow.Claims().CreateClaim(ctx, c); err != nil {
-			return err
-		}
-
-		// Transition directly to open and invalidate the transient claim.
-		openState := domain.ReleaseState()
-		t = t.WithState(openState)
+		// Transition directly to open — no claim required.
+		t = t.WithState(domain.StateOpen)
 		if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-			return err
-		}
-		if err := uow.Claims().InvalidateClaim(ctx, c.Token()); err != nil {
 			return err
 		}
 
@@ -882,7 +778,7 @@ func (s *serviceImpl) ReopenIssue(ctx context.Context, input driving.ReopenInput
 			Timestamp: now,
 			EventType: eventType,
 			Changes: []history.FieldChange{
-				{Field: "state", Before: previousState.String(), After: openState.String()},
+				{Field: "state", Before: previousState.String(), After: domain.StateOpen.String()},
 			},
 		}))
 		return err
@@ -1157,17 +1053,9 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id string) (driving.ShowIss
 			output.ClaimID = activeClaim.ID()
 			output.ClaimAuthor = activeClaim.Author().String()
 			output.ClaimStaleAt = activeClaim.StaleAt()
-
-			// Derive claimed_at from the most recent EventClaimed history entry.
-			allHistory, _, histErr := uow.History().ListHistory(ctx, parsedID, driven.HistoryFilter{}, -1)
-			if histErr == nil {
-				for i := len(allHistory) - 1; i >= 0; i-- {
-					if allHistory[i].EventType() == history.EventClaimed {
-						output.ClaimedAt = allHistory[i].Timestamp()
-						break
-					}
-				}
-			}
+			// claimed_at is stored directly on the claim row — no history
+			// lookup required now that EventClaimed is removed.
+			output.ClaimedAt = activeClaim.ClaimedAt()
 		}
 
 		return nil
@@ -1234,7 +1122,6 @@ func (s *serviceImpl) GetIssueSummary(ctx context.Context) (driving.IssueSummary
 		}
 		output = driving.IssueSummaryOutput{
 			Open:     summary.Open,
-			Claimed:  summary.Claimed,
 			Deferred: summary.Deferred,
 			Closed:   summary.Closed,
 			Ready:    summary.Ready,
@@ -1456,7 +1343,6 @@ func (s *serviceImpl) EpicProgress(ctx context.Context, input driving.EpicProgre
 				SecondaryState: ss,
 				Total:          progress.Total,
 				Closed:         progress.Closed,
-				Claimed:        progress.Claimed,
 				Open:           progress.Open,
 				Blocked:        progress.Blocked,
 				Deferred:       progress.Deferred,
@@ -1935,7 +1821,9 @@ func (s *serviceImpl) Doctor(ctx context.Context, input driving.DoctorInput) (dr
 	err := s.tx.WithReadTransaction(ctx, func(uow driven.UnitOfWork) error {
 		now := time.Now()
 
-		// Check stale claims (stealable).
+		// Check stale claims. A stale claim is treated as nonexistent by
+		// ValidateClaim; any agent can overwrite it by claiming the issue
+		// normally. Report these as a warning so agents know to re-claim.
 		staleClaims, err := uow.Claims().ListStaleClaims(ctx, now)
 		if err != nil {
 			return err
@@ -1945,9 +1833,8 @@ func (s *serviceImpl) Doctor(ctx context.Context, input driving.DoctorInput) (dr
 				output.Findings = append(output.Findings, driving.DoctorFinding{
 					Category: "stale_claim",
 					Severity: "warning",
-					Message:  fmt.Sprintf("%s: claimed by %q since %s (stealable)", c.IssueID(), c.Author(), c.ClaimedAt().Format(time.RFC3339)),
+					Message:  fmt.Sprintf("%s: claim by %q since %s is stale and can be overwritten", c.IssueID(), c.Author(), c.ClaimedAt().Format(time.RFC3339)),
 					IssueIDs: []string{c.IssueID().String()},
-					Action:   &driving.ActionHint{Kind: driving.ActionKindStealClaim, IssueID: c.IssueID().String()},
 				})
 			}
 		}
@@ -1967,7 +1854,7 @@ func (s *serviceImpl) Doctor(ctx context.Context, input driving.DoctorInput) (dr
 				output.Findings = append(output.Findings, driving.DoctorFinding{
 					Category: "long_claim",
 					Severity: "info",
-					Message: fmt.Sprintf("%s has been claimed for %s (stale threshold: %s, not yet stealable)",
+					Message: fmt.Sprintf("%s has been claimed for %s (stale threshold: %s, not yet expired)",
 						c.IssueID(), heldDuration.Truncate(time.Minute), claimDuration),
 					IssueIDs: []string{c.IssueID().String()},
 				})
@@ -2203,11 +2090,6 @@ func (s *serviceImpl) checkBlockerHealth(ctx context.Context, uow driven.UnitOfW
 					})
 				}
 				return false
-			}
-
-			// Terminal conditions: issue is claimed or open+unblocked.
-			if info.state == domain.StateClaimed {
-				return true
 			}
 
 			// Dead end: deferred blocker.
@@ -2936,34 +2818,11 @@ func (s *serviceImpl) validateParent(ctx context.Context, uow driven.UnitOfWork,
 	return ValidateDepth(parentID, ancestorLookup)
 }
 
-func (s *serviceImpl) releaseIssue(ctx context.Context, uow driven.UnitOfWork, issueID domain.ID, claimID string, author domain.Author, now time.Time) error {
-	t, err := uow.Issues().GetIssue(ctx, issueID, false)
-	if err != nil {
-		return err
-	}
-
-	releaseState := domain.ReleaseState()
-
-	t = t.WithState(releaseState)
-	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-		return err
-	}
-	if err := uow.Claims().InvalidateClaim(ctx, claimID); err != nil {
-		return err
-	}
-
-	revision, _ := uow.History().CountHistory(ctx, issueID)
-	_, err = uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-		IssueID:   issueID,
-		Revision:  revision,
-		Author:    author,
-		Timestamp: now,
-		EventType: history.EventReleased,
-		Changes: []history.FieldChange{
-			{Field: "state", Before: domain.StateClaimed.String(), After: releaseState.String()},
-		},
-	}))
-	return err
+// releaseIssue deletes the claim row for issueID without altering the issue's
+// primary state. Issue state remains open; no history event is recorded because
+// releasing is transient bookkeeping, not a lifecycle transition.
+func (s *serviceImpl) releaseIssue(ctx context.Context, uow driven.UnitOfWork, issueID domain.ID, claimID string, _ domain.Author, _ time.Time) error {
+	return uow.Claims().InvalidateClaim(ctx, claimID)
 }
 
 func (s *serviceImpl) closeIssue(ctx context.Context, uow driven.UnitOfWork, t domain.Issue, claimID string, author domain.Author, now time.Time) error {
@@ -2998,7 +2857,7 @@ func (s *serviceImpl) closeIssue(ctx context.Context, uow driven.UnitOfWork, t d
 		Timestamp: now,
 		EventType: history.EventStateChanged,
 		Changes: []history.FieldChange{
-			{Field: "state", Before: domain.StateClaimed.String(), After: domain.StateClosed.String()},
+			{Field: "state", Before: domain.StateOpen.String(), After: domain.StateClosed.String()},
 		},
 	}))
 	return histErr
@@ -3009,6 +2868,7 @@ func (s *serviceImpl) transitionIssue(ctx context.Context, uow driven.UnitOfWork
 		return err
 	}
 
+	previousState := t.State()
 	t = t.WithState(targetState)
 	if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
 		return err
@@ -3025,7 +2885,7 @@ func (s *serviceImpl) transitionIssue(ctx context.Context, uow driven.UnitOfWork
 		Timestamp: now,
 		EventType: history.EventStateChanged,
 		Changes: []history.FieldChange{
-			{Field: "state", Before: domain.StateClaimed.String(), After: targetState.String()},
+			{Field: "state", Before: previousState.String(), After: targetState.String()},
 		},
 	}))
 	return err
@@ -3302,7 +3162,7 @@ func enrichListItemSecondaryStates(ctx context.Context, uow driven.UnitOfWork, i
 // and ancestor statuses.
 func computeListSecondaryState(ctx context.Context, uow driven.UnitOfWork, item driven.IssueListItem) domain.SecondaryState {
 	switch item.State {
-	case domain.StateClaimed, domain.StateClosed:
+	case domain.StateClosed:
 		return domain.SecondaryNone
 
 	case domain.StateDeferred:

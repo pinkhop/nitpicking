@@ -10,7 +10,7 @@ import "github.com/pinkhop/nitpicking/internal/domain"
 // (e.g., [blocked, active] for a blocked epic with in-progress children).
 //
 // Returns a zero-value SecondaryStateResult (ListState = SecondaryNone) for
-// claimed and closed epics, or for deferred epics that are not blocked.
+// closed epics, or for deferred epics that are not blocked.
 func EpicSecondaryState(
 	state domain.State,
 	hasChildren bool,
@@ -19,7 +19,7 @@ func EpicSecondaryState(
 	ancestors []domain.AncestorStatus,
 ) domain.SecondaryStateResult {
 	switch state {
-	case domain.StateClaimed, domain.StateClosed:
+	case domain.StateClosed:
 		return domain.SecondaryStateResult{}
 
 	case domain.StateDeferred:

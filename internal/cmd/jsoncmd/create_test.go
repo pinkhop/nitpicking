@@ -430,8 +430,9 @@ func TestRunCreate_WithClaimFlag_ClaimsIssue(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON output: %v\nraw: %s", err, stdout.String())
 	}
-	if result["state"] != "claimed" {
-		t.Errorf("state: got %q, want %q", result["state"], "claimed")
+	// Claiming creates a claim row but leaves the issue state as open.
+	if result["state"] != "open" {
+		t.Errorf("state: got %q, want %q", result["state"], "open")
 	}
 	if _, ok := result["claim_id"]; !ok {
 		t.Error("expected claim_id in JSON output when WithClaim=true")

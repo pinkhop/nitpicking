@@ -26,7 +26,6 @@ func TestFormatState_NoSecondary_ReturnsPrimaryOnly(t *testing.T) {
 		state domain.State
 		want  string
 	}{
-		{"claimed", domain.StateClaimed, "claimed"},
 		{"closed", domain.StateClosed, "closed"},
 	}
 
@@ -100,11 +99,11 @@ func TestFormatDetailState_NoSecondary_ReturnsPrimaryOnly(t *testing.T) {
 	cs := iostreams.NewColorScheme(false)
 
 	// When
-	got := cmdutil.FormatDetailState(cs, domain.StateClaimed, nil)
+	got := cmdutil.FormatDetailState(cs, domain.StateClosed, nil)
 
 	// Then
-	if got != "claimed" {
-		t.Errorf("FormatDetailState() = %q, want %q", got, "claimed")
+	if got != "closed" {
+		t.Errorf("FormatDetailState() = %q, want %q", got, "closed")
 	}
 }
 
@@ -178,7 +177,6 @@ func TestColorState_ColorEnabled_AppliesCorrect256Color(t *testing.T) {
 		code  string // expected 256-color ANSI code substring
 	}{
 		{"closed uses 246", domain.StateClosed, "38;5;246"},
-		{"claimed uses 172", domain.StateClaimed, "38;5;172"},
 		{"open uses 071", domain.StateOpen, "38;5;071"},
 		{"deferred uses 073", domain.StateDeferred, "38;5;073"},
 	}
@@ -212,7 +210,6 @@ func TestColorState_ColorDisabled_ReturnsPlainText(t *testing.T) {
 		state domain.State
 	}{
 		{"closed", domain.StateClosed},
-		{"claimed", domain.StateClaimed},
 		{"open", domain.StateOpen},
 		{"deferred", domain.StateDeferred},
 	}
@@ -301,7 +298,6 @@ func TestFormatState_TabwriterAlignment_AllSecondaryStates(t *testing.T) {
 		{domain.StateOpen, domain.SecondaryBlocked},
 		{domain.StateOpen, domain.SecondaryCompleted},
 		{domain.StateOpen, domain.SecondaryUnplanned},
-		{domain.StateClaimed, domain.SecondaryNone},
 		{domain.StateClosed, domain.SecondaryNone},
 		{domain.StateDeferred, domain.SecondaryNone},
 		{domain.StateDeferred, domain.SecondaryBlocked},

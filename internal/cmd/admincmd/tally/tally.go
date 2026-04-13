@@ -19,7 +19,6 @@ import (
 // tallyOutput is the JSON representation of the tally dashboard.
 type tallyOutput struct {
 	Open     int `json:"open"`
-	Claimed  int `json:"claimed"`
 	Deferred int `json:"deferred"`
 	Closed   int `json:"closed"`
 	Ready    int `json:"ready"`
@@ -46,7 +45,6 @@ func Run(ctx context.Context, input RunInput) error {
 
 	out := tallyOutput{
 		Open:     summary.Open,
-		Claimed:  summary.Claimed,
 		Deferred: summary.Deferred,
 		Closed:   summary.Closed,
 		Ready:    summary.Ready,
@@ -63,7 +61,6 @@ func Run(ctx context.Context, input RunInput) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 
 	_, _ = fmt.Fprintf(tw, "Open\t%s\n", stateCount(cs, domain.StateOpen, out.Open))
-	_, _ = fmt.Fprintf(tw, "Claimed\t%s\n", stateCount(cs, domain.StateClaimed, out.Claimed))
 	_, _ = fmt.Fprintf(tw, "Deferred\t%s\n", stateCount(cs, domain.StateDeferred, out.Deferred))
 	_, _ = fmt.Fprintf(tw, "Closed\t%s\n", stateCount(cs, domain.StateClosed, out.Closed))
 	_, _ = fmt.Fprintf(tw, "Ready\t%s\n", stateCount(cs, domain.StateOpen, out.Ready))

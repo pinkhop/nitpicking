@@ -153,19 +153,7 @@ func TestEpicSecondaryState_DeferredNotBlocked_None(t *testing.T) {
 	}
 }
 
-// --- Claimed and Closed (no secondary state) ---
-
-func TestEpicSecondaryState_Claimed_None(t *testing.T) {
-	t.Parallel()
-
-	// When
-	result := core.EpicSecondaryState(domain.StateClaimed, false, false, nil, nil)
-
-	// Then
-	if result.HasSecondary() {
-		t.Errorf("expected no secondary state for claimed, got ListState=%v", result.ListState)
-	}
-}
+// --- Closed (no secondary state) ---
 
 func TestEpicSecondaryState_Closed_None(t *testing.T) {
 	t.Parallel()

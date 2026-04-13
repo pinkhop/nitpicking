@@ -23,7 +23,6 @@ func TestIsTaskReady_NotOpen_NotReady(t *testing.T) {
 	t.Parallel()
 
 	cases := []domain.State{
-		domain.StateClaimed,
 		domain.StateClosed,
 		domain.StateDeferred,
 	}
@@ -139,7 +138,6 @@ func TestIsEpicReady_NotActive_NotReady(t *testing.T) {
 	t.Parallel()
 
 	cases := []domain.State{
-		domain.StateClaimed,
 		domain.StateDeferred,
 	}
 

@@ -2649,11 +2649,12 @@ func TestDoctor_DeferredIssueBlocking_ReportsBlockerDeferred(t *testing.T) {
 	}
 }
 
-func TestDoctor_StaleClaim_ReportsStealable(t *testing.T) {
+func TestDoctor_StaleClaim_ReportsStale(t *testing.T) {
 	t.Parallel()
 
 	// Given — a task with a stale claim (last activity >2h ago with default
-	// threshold).
+	// threshold). Stale claims are treated as nonexistent and can be
+	// overwritten by any agent claiming normally.
 	svc, repo := setupService(t)
 	ctx := t.Context()
 	author := mustAuthor(t, "doctor-test")
@@ -2683,7 +2684,7 @@ func TestDoctor_StaleClaim_ReportsStealable(t *testing.T) {
 
 	// When
 	result, err := svc.Doctor(ctx, driving.DoctorInput{})
-	// Then — stale_claim finding should say "stealable".
+	// Then — stale_claim finding should report the stale claim with no steal action.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -2691,11 +2692,11 @@ func TestDoctor_StaleClaim_ReportsStealable(t *testing.T) {
 	if finding == nil {
 		t.Fatal("expected 'stale_claim' finding")
 	}
-	if !strings.Contains(finding.Message, "stealable") {
-		t.Errorf("expected message to contain 'stealable', got %q", finding.Message)
+	if !strings.Contains(finding.Message, "stale") {
+		t.Errorf("expected message to contain 'stale', got %q", finding.Message)
 	}
-	if finding.Action == nil || finding.Action.Kind != driving.ActionKindStealClaim {
-		t.Errorf("expected action kind %q, got %v", driving.ActionKindStealClaim, finding.Action)
+	if finding.Action != nil {
+		t.Errorf("expected no action hint for stale claim, got %v", finding.Action)
 	}
 }
 
@@ -2741,8 +2742,8 @@ func TestDoctor_LongClaim_ReportsLongHeld(t *testing.T) {
 	if finding == nil {
 		t.Fatal("expected 'long_claim' finding")
 	}
-	if !strings.Contains(finding.Message, "not yet stealable") {
-		t.Errorf("expected message to contain 'not yet stealable', got %q", finding.Message)
+	if !strings.Contains(finding.Message, "not yet expired") {
+		t.Errorf("expected message to contain 'not yet expired', got %q", finding.Message)
 	}
 }
 
@@ -4766,8 +4767,8 @@ func TestDeferIssue_InvalidClaim_ReturnsError(t *testing.T) {
 	if showErr != nil {
 		t.Fatalf("show issue: %v", showErr)
 	}
-	if show.State != domain.StateClaimed {
-		t.Errorf("state should remain claimed, got %v", show.State)
+	if show.State != domain.StateOpen {
+		t.Errorf("state should remain open (claimed), got %v", show.State)
 	}
 }
 
@@ -4928,11 +4929,10 @@ func TestGetIssueSummary_CountsByState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if summary.Open != 2 {
-		t.Errorf("open: got %d, want 2", summary.Open)
-	}
-	if summary.Claimed != 1 {
-		t.Errorf("claimed: got %d, want 1", summary.Claimed)
+	// Claimed is now a secondary state of open; the claimed issue's primary
+	// state remains open, so Open counts both unclaimed and claimed open issues.
+	if summary.Open != 3 {
+		t.Errorf("open: got %d, want 3 (2 unclaimed + 1 claimed)", summary.Open)
 	}
 	if summary.Closed != 1 {
 		t.Errorf("closed: got %d, want 1", summary.Closed)
@@ -4944,7 +4944,8 @@ func TestGetIssueSummary_CountsByState(t *testing.T) {
 		t.Errorf("total: got %d, want 5", summary.Total)
 	}
 
-	// The 2 open tasks should be ready (no blockers).
+	// The 2 unclaimed open tasks should be ready; the claimed task is not
+	// ready because it has an active non-stale claim.
 	if summary.Ready != 2 {
 		t.Errorf("ready: got %d, want 2", summary.Ready)
 	}
@@ -4954,8 +4955,7 @@ func TestGetIssueSummary_CountsByState(t *testing.T) {
 		t.Errorf("blocked: got %d, want 0", summary.Blocked)
 	}
 
-	// Verify the claimed task is counted correctly — it should NOT be ready
-	// (only open issues can be ready).
+	// Verify the claimed task variable is consumed.
 	_ = claimed
 }
 

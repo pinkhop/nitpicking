@@ -874,6 +874,14 @@ func (r *Repository) isIssueReady(t domain.Issue) bool {
 	blockers := r.getBlockerStatusesInternal(t.ID())
 	ancestors := r.getAncestorStatusesInternal(t.ID())
 
+	// An issue with an active (non-stale) claim is not ready — it is already
+	// being worked on. Stale claims are treated as nonexistent.
+	if claimID, ok := r.claimsByIssue[t.ID().String()]; ok {
+		if c, exists := r.claims[claimID]; exists && !c.IsStale(time.Now()) {
+			return false
+		}
+	}
+
 	if t.IsTask() {
 		return core.IsTaskReady(t.State(), blockers, ancestors)
 	}

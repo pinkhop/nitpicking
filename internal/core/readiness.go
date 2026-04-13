@@ -41,11 +41,10 @@ func IsEpicReady(state domain.State, hasChildren bool, blockers []domain.Blocker
 //   - open + blocked (unresolved blockers or blocked/deferred ancestor) → blocked
 //   - deferred + blocked → blocked
 //   - deferred + not blocked → none
-//   - claimed → none
 //   - closed → none
 func TaskSecondaryState(state domain.State, blockers []domain.BlockerStatus, ancestors []domain.AncestorStatus) domain.SecondaryStateResult {
 	switch state {
-	case domain.StateClaimed, domain.StateClosed:
+	case domain.StateClosed:
 		return domain.SecondaryStateResult{}
 
 	case domain.StateOpen:

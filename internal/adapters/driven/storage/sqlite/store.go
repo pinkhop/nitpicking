@@ -925,8 +925,13 @@ func (r *issueRepo) GetIssueSummary(_ context.Context) (driven.IssueSummary, err
 		COALESCE(SUM(CASE WHEN state = 'open' THEN 1 ELSE 0 END), 0),
 		COALESCE(SUM(CASE WHEN state = 'deferred' THEN 1 ELSE 0 END), 0),
 		COALESCE(SUM(CASE WHEN state = 'closed' THEN 1 ELSE 0 END), 0),
-		-- Ready: open + (task OR childless epic) + no unresolved blockers + no blocked/deferred ancestors
+		-- Ready: open + no active claim + (task OR childless epic) + no unresolved blockers + no blocked/deferred ancestors
 		COALESCE(SUM(CASE WHEN state = 'open'
+			AND NOT EXISTS (
+				SELECT 1 FROM claims cl
+				WHERE cl.issue_id = t.issue_id
+				  AND datetime(cl.last_activity, '+' || (cl.stale_threshold / 1000000000) || ' seconds') > datetime('now')
+			)
 			AND (role = 'task' OR NOT EXISTS (
 				SELECT 1 FROM issues c WHERE c.parent_id = t.issue_id AND c.deleted = 0
 			))
@@ -1879,11 +1884,23 @@ func buildIssueWhere(filter driven.IssueFilter) (string, []any) {
 	}
 
 	if filter.Ready {
-		// Ready means: correct state, no unresolved blockers, no deferred
-		// ancestors, and (for epics) no children.
+		// Ready means: correct state, no active (non-stale) claim, no
+		// unresolved blockers, no deferred ancestors, and (for epics) no
+		// children.
 		//
 		// State: all issues must be open.
 		conditions = append(conditions, `t.state = 'open'`)
+
+		// No active (non-stale) claim. Claimed issues remain open but are
+		// not available for new claims until the existing claim expires.
+		// The stale_threshold is stored in nanoseconds; integer division to
+		// seconds truncates sub-second remainders, which is acceptable
+		// because claim thresholds are always measured in hours.
+		conditions = append(conditions, `NOT EXISTS (
+			SELECT 1 FROM claims c
+			WHERE c.issue_id = t.issue_id
+			  AND datetime(c.last_activity, '+' || (c.stale_threshold / 1000000000) || ' seconds') > datetime('now')
+		)`)
 
 		// Epics with children are already decomposed — not ready.
 		conditions = append(conditions, `(t.role = 'task' OR NOT EXISTS (

@@ -178,7 +178,7 @@ func statusIcon(cs *iostreams.ColorScheme, item epicStatusItem) string {
 		return cmdutil.ColorStateText(cs, domain.StateClosed, "✓")
 	}
 	if item.Closed > 0 {
-		return cmdutil.ColorStateText(cs, domain.StateClaimed, "●")
+		return cmdutil.ColorStateText(cs, domain.StateOpen, "●")
 	}
 	return "○"
 }

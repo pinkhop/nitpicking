@@ -8,9 +8,8 @@ type EpicProgress struct {
 	Total int
 	// Closed is the number of children in the closed state.
 	Closed int
-	// Claimed is the number of children in the claimed state.
-	Claimed int
 	// Open is the number of non-blocked children in the open state.
+	// Includes children with an active claim (open + claimed secondary state).
 	Open int
 	// Blocked is the number of children that are blocked (any primary state
 	// with an unresolved blocked_by relationship).
@@ -29,14 +28,15 @@ type EpicProgress struct {
 // closed. Returns a zero-value EpicProgress when the child list is empty.
 //
 // Blocked children are counted separately regardless of their primary state.
-// A claimed child that is also blocked counts as blocked, not claimed.
+// Claimed is now a secondary state of open, so open children with an active
+// claim count under Open rather than a separate bucket.
 func ComputeEpicProgress(children []domain.ChildStatus) EpicProgress {
 	total := len(children)
 	if total == 0 {
 		return EpicProgress{}
 	}
 
-	var closed, claimed, open, blocked, deferred int
+	var closed, open, blocked, deferred int
 	for _, c := range children {
 		if c.IsBlocked && c.State != domain.StateClosed {
 			blocked++
@@ -45,11 +45,10 @@ func ComputeEpicProgress(children []domain.ChildStatus) EpicProgress {
 		switch c.State {
 		case domain.StateClosed:
 			closed++
-		case domain.StateClaimed:
-			claimed++
 		case domain.StateDeferred:
 			deferred++
 		default:
+			// StateOpen (including open+claimed secondary state).
 			open++
 		}
 	}
@@ -57,7 +56,6 @@ func ComputeEpicProgress(children []domain.ChildStatus) EpicProgress {
 	return EpicProgress{
 		Total:     total,
 		Closed:    closed,
-		Claimed:   claimed,
 		Open:      open,
 		Blocked:   blocked,
 		Deferred:  deferred,

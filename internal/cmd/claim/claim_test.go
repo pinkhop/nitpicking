@@ -133,9 +133,6 @@ func TestRunClaimByID_JSONOutput_ReturnsStructuredResult(t *testing.T) {
 	if _, ok := result["claim_id"]; !ok {
 		t.Error("expected claim_id field in JSON output")
 	}
-	if result["stolen"] != false {
-		t.Errorf("stolen: got %v, want false", result["stolen"])
-	}
 	if result["author"] != "test-agent" {
 		t.Errorf("author: got %q, want %q", result["author"], "test-agent")
 	}

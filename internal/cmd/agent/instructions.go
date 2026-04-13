@@ -145,12 +145,14 @@ JSONEND
 3. If the incidental blocks your current work, add a relationship:
    ` + "`np rel add <YOUR-ISSUE> blocked_by <BLOCKER-ID> --author <your-name>`" + `
 
-## Stale Claims and Stealing
+## Stale Claims
 
-If no ready issues exist, steal a stale one:
+If no ready issues exist and there are stale claims, stale claims are automatically
+overwritten when you run the normal claim command. Run ` + "`np admin doctor`" + ` to identify
+stale claims blocking ready work, then claim normally:
 
 ` + "```" + `
-np claim ready --steal --author <your-name>
+np claim ready --author <your-name>
 ` + "```" + `
 
 ## Backups

@@ -41,7 +41,6 @@ func TestValidateClaim_UnclaimedOpenIssue_Succeeds(t *testing.T) {
 
 	// When
 	err := core.ValidateClaim(status, time.Now())
-
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -78,7 +77,6 @@ func TestValidateClaim_ClosedIssue_Succeeds(t *testing.T) {
 
 	// When
 	err := core.ValidateClaim(status, time.Now())
-
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

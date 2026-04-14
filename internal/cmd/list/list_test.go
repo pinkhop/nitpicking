@@ -549,6 +549,77 @@ func TestRun_JSONOutput_ClaimedIssue_StateIsOpenWithSecondary(t *testing.T) {
 	}
 }
 
+// TestRun_TextOutput_Header_PrintsAllCapsHeaderRow verifies that the text
+// output includes an all-caps header row as the first line.
+func TestRun_TextOutput_Header_PrintsAllCapsHeaderRow(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupService(t)
+	createTask(t, svc, "Header check task")
+
+	var buf bytes.Buffer
+	input := list.RunInput{
+		Service: svc,
+		JSON:    false,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := list.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	if !strings.Contains(firstLine, "ID") {
+		t.Errorf("expected header row with ID column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "ROLE") {
+		t.Errorf("expected header row with ROLE column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "STATE") {
+		t.Errorf("expected header row with STATE column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "PRIORITY") {
+		t.Errorf("expected header row with PRIORITY column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "TITLE") {
+		t.Errorf("expected header row with TITLE column, first line: %q", firstLine)
+	}
+}
+
+// TestRun_TextOutput_HeaderWithTimestamps_IncludesCreatedColumn verifies that
+// the header includes CREATED when timestamps are enabled.
+func TestRun_TextOutput_HeaderWithTimestamps_IncludesCreatedColumn(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupService(t)
+	createTask(t, svc, "Timestamp header check")
+
+	var buf bytes.Buffer
+	input := list.RunInput{
+		Service:    svc,
+		JSON:       false,
+		Timestamps: true,
+		WriteTo:    &buf,
+	}
+
+	// When
+	err := list.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	if !strings.Contains(firstLine, "CREATED") {
+		t.Errorf("expected CREATED column in header when timestamps enabled, first line: %q", firstLine)
+	}
+}
+
 // TestRun_TextOutput_ClaimedIssue_ShowsOpenClaimed verifies that a claimed
 // issue appears in text output as "open (claimed)", not as a distinct primary
 // state.

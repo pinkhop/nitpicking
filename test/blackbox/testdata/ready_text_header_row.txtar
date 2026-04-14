@@ -1,0 +1,7 @@
+# Verify that ready text output includes an all-caps header row as the first line.
+
+np-init RHDR
+np-seed task 'Ready header task' alice TASK_A
+
+exec np ready
+stdout '^ID\s+ROLE\s+STATE\s+PRIORITY\s+TITLE'

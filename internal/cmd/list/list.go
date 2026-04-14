@@ -71,6 +71,7 @@ func Run(ctx context.Context, input RunInput) error {
 	maxTitle := cmdutil.AvailableTitleWidth(input.TerminalWidth, overhead)
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	cmdutil.WriteListHeader(tw, input.Timestamps)
 	for _, item := range result.Items {
 		title := item.Title
 		if len(item.BlockerIDs) > 0 {

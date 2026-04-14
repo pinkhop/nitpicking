@@ -362,6 +362,54 @@ func TestRun_EmptyResult_TextShowsNoBlockedMessage(t *testing.T) {
 	}
 }
 
+// TestRun_TextOutput_Header_PrintsAllCapsHeaderRow verifies that the blocked
+// text output includes an all-caps header row as the first line.
+func TestRun_TextOutput_Header_PrintsAllCapsHeaderRow(t *testing.T) {
+	t.Parallel()
+
+	// Given — one blocked task
+	svc := setupService(t)
+	blockerID := createTask(t, svc, "Blocker for header")
+	blockedID := createTask(t, svc, "Blocked for header check")
+
+	err := svc.AddRelationship(t.Context(), blockedID.String(), driving.RelationshipInput{
+		TargetID: blockerID.String(),
+		Type:     domain.RelBlockedBy,
+	}, mustAuthor(t, "test-agent"))
+	if err != nil {
+		t.Fatalf("precondition: add relationship failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := blocked.RunInput{
+		Service:     svc,
+		JSON:        false,
+		WriteTo:     &buf,
+		ColorScheme: noColor(),
+	}
+
+	// When
+	err = blocked.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	if !strings.Contains(firstLine, "ID") {
+		t.Errorf("expected header row with ID column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "ROLE") {
+		t.Errorf("expected header row with ROLE column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "PRIORITY") {
+		t.Errorf("expected header row with PRIORITY column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "TITLE") {
+		t.Errorf("expected header row with TITLE column, first line: %q", firstLine)
+	}
+}
+
 func TestRun_TextOutput_IncludesBlockedIssueDetails(t *testing.T) {
 	t.Parallel()
 

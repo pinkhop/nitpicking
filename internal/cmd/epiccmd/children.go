@@ -131,6 +131,7 @@ about to claim. Results are sorted by priority.`,
 			}
 
 			tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+			cmdutil.WriteListHeader(tw, false)
 			for _, item := range result.Items {
 				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 					cs.Bold(item.ID),

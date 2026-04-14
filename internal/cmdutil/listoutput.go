@@ -1,6 +1,8 @@
 package cmdutil
 
 import (
+	"fmt"
+	"io"
 	"strings"
 
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
@@ -112,4 +114,17 @@ func FormatBlockerSuffix(blockerIDs []string) string {
 	}
 	suffix += "]"
 	return suffix
+}
+
+// WriteListHeader writes an all-caps column header row to a tabwriter. The
+// includeTimestamp flag controls whether a CREATED column appears between
+// PRIORITY and TITLE, matching the optional timestamp column in list and
+// search output. The header uses the same tab-separated format as the data
+// rows so that tabwriter aligns them together.
+func WriteListHeader(w io.Writer, includeTimestamp bool) {
+	if includeTimestamp {
+		_, _ = fmt.Fprintf(w, "ID\tROLE\tSTATE\tPRIORITY\tCREATED\tTITLE\n")
+	} else {
+		_, _ = fmt.Fprintf(w, "ID\tROLE\tSTATE\tPRIORITY\tTITLE\n")
+	}
 }

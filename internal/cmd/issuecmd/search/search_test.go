@@ -237,6 +237,45 @@ func TestRun_JSONOutput_HasExpectedStructure(t *testing.T) {
 	}
 }
 
+// TestRun_TextOutput_Header_PrintsAllCapsHeaderRow verifies that the search
+// text output includes an all-caps header row as the first line.
+func TestRun_TextOutput_Header_PrintsAllCapsHeaderRow(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupService(t)
+	createTask(t, svc, "Searchable header check")
+
+	var buf bytes.Buffer
+	input := search.RunInput{
+		Service: svc,
+		Query:   "Searchable",
+		JSON:    false,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := search.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	if !strings.Contains(firstLine, "ID") {
+		t.Errorf("expected header row with ID column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "ROLE") {
+		t.Errorf("expected header row with ROLE column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "PRIORITY") {
+		t.Errorf("expected header row with PRIORITY column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "TITLE") {
+		t.Errorf("expected header row with TITLE column, first line: %q", firstLine)
+	}
+}
+
 func TestRun_TextOutput_IncludesMatchingTitle(t *testing.T) {
 	t.Parallel()
 

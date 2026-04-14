@@ -1,0 +1,7 @@
+# Verify that list text output includes an all-caps header row as the first line.
+
+np-init HDR
+np-seed task 'Header test task' alice TASK_A
+
+exec np list
+stdout '^ID\s+ROLE\s+STATE\s+PRIORITY\s+TITLE'

@@ -1,0 +1,7 @@
+# Verify that list --timestamps text output includes a CREATED column in the header.
+
+np-init HDRT
+np-seed task 'Timestamp header task' alice TASK_A
+
+exec np list --timestamps
+stdout '^ID\s+ROLE\s+STATE\s+PRIORITY\s+CREATED\s+TITLE'

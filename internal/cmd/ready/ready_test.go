@@ -312,6 +312,45 @@ func TestRun_ZeroLimit_UsesDefault(t *testing.T) {
 	}
 }
 
+// TestRun_TextOutput_Header_PrintsAllCapsHeaderRow verifies that the text
+// output includes an all-caps header row as the first line.
+func TestRun_TextOutput_Header_PrintsAllCapsHeaderRow(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupService(t)
+	createTask(t, svc, "Header check task")
+
+	var buf bytes.Buffer
+	input := ready.RunInput{
+		Service:     svc,
+		JSON:        false,
+		WriteTo:     &buf,
+		ColorScheme: noColor(),
+	}
+
+	// When
+	err := ready.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	if !strings.Contains(firstLine, "ID") {
+		t.Errorf("expected header row with ID column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "ROLE") {
+		t.Errorf("expected header row with ROLE column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "PRIORITY") {
+		t.Errorf("expected header row with PRIORITY column, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "TITLE") {
+		t.Errorf("expected header row with TITLE column, first line: %q", firstLine)
+	}
+}
+
 func TestRun_TextOutput_IncludesIssueDetails(t *testing.T) {
 	t.Parallel()
 

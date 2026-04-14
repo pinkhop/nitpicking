@@ -1,0 +1,8 @@
+# Verify that epic children text output includes an all-caps header row as the first line.
+
+np-init EHDR
+np-seed epic 'Parent epic' alice EPIC
+np-seed task 'Child task' alice CHILD --parent $EPIC
+
+exec np epic children $EPIC
+stdout '^ID\s+ROLE\s+STATE\s+PRIORITY\s+TITLE'

@@ -1,6 +1,8 @@
 package cmdutil_test
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
@@ -147,5 +149,59 @@ func TestAvailableTitleWidth_OverheadExceedsWidth_ReturnsMinimum(t *testing.T) {
 	// Then — should return a small positive minimum, not zero or negative
 	if got < 1 {
 		t.Errorf("AvailableTitleWidth: got %d, want >= 1", got)
+	}
+}
+
+// --- WriteListHeader ---
+
+func TestWriteListHeader_WithoutTimestamp_WritesExpectedColumns(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	var buf bytes.Buffer
+
+	// When
+	cmdutil.WriteListHeader(&buf, false)
+
+	// Then
+	got := buf.String()
+	want := "ID\tROLE\tSTATE\tPRIORITY\tTITLE\n"
+	if got != want {
+		t.Errorf("WriteListHeader(false): got %q, want %q", got, want)
+	}
+}
+
+func TestWriteListHeader_WithTimestamp_IncludesCreatedColumn(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	var buf bytes.Buffer
+
+	// When
+	cmdutil.WriteListHeader(&buf, true)
+
+	// Then
+	got := buf.String()
+	want := "ID\tROLE\tSTATE\tPRIORITY\tCREATED\tTITLE\n"
+	if got != want {
+		t.Errorf("WriteListHeader(true): got %q, want %q", got, want)
+	}
+}
+
+func TestWriteListHeader_AllColumnsAreUpperCase(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	var buf bytes.Buffer
+
+	// When
+	cmdutil.WriteListHeader(&buf, true)
+
+	// Then — every column name must be all-caps.
+	header := strings.TrimRight(buf.String(), "\n")
+	for _, col := range strings.Split(header, "\t") {
+		if col != strings.ToUpper(col) {
+			t.Errorf("column %q is not all-caps", col)
+		}
 	}
 }

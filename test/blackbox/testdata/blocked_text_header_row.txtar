@@ -1,0 +1,9 @@
+# Verify that blocked text output includes an all-caps header row as the first line.
+
+np-init BHDR
+np-seed task 'Blocker task' alice BLOCKER
+np-seed task 'Blocked task' alice BLOCKED
+np-seed-rel BLOCKED blocked_by BLOCKER alice
+
+exec np blocked
+stdout '^ID\s+ROLE\s+STATE\s+PRIORITY\s+TITLE'

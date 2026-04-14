@@ -296,12 +296,13 @@ func TestRunUpdate_RemovesLabels(t *testing.T) {
 	}
 }
 
-func TestRunUpdate_AddsComment(t *testing.T) {
+func TestRunUpdate_CommentField_Rejected(t *testing.T) {
 	t.Parallel()
 
-	// Given: a claimed task and JSON input with a comment.
+	// Given: a claimed task and JSON input with a comment field — removed from
+	// json update; comments should be added via "np json comment" instead.
 	svc := setupUpdateService(t)
-	issueID, claimID := createAndClaimTask(t, svc, "Comment task")
+	_, claimID := createAndClaimTask(t, svc, "Comment task")
 
 	stdin := strings.NewReader(`{"comment": "Reason for change"}`)
 	var stdout bytes.Buffer
@@ -315,23 +316,10 @@ func TestRunUpdate_AddsComment(t *testing.T) {
 
 	// When
 	err := jsoncmd.RunUpdate(t.Context(), input)
-	// Then: the comment is added.
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
-	comments, err := svc.ListComments(t.Context(), driving.ListCommentsInput{
-		IssueID: issueID.String(),
-	})
-	if err != nil {
-		t.Fatalf("list comments failed: %v", err)
-	}
-	if len(comments.Comments) != 1 {
-		t.Fatalf("comment count: got %d, want 1", len(comments.Comments))
-	}
-	if comments.Comments[0].Body != "Reason for change" {
-		t.Errorf("comment body: got %q, want %q",
-			comments.Comments[0].Body, "Reason for change")
+	// Then: an error is returned because comment is an unknown field.
+	if err == nil {
+		t.Fatal("expected error for comment field, got nil")
 	}
 }
 
@@ -637,8 +625,7 @@ func TestRunUpdate_AllFields_Accepted(t *testing.T) {
 		"acceptance_criteria": "ac",
 		"priority": "P2",
 		"labels": ["kind:test"],
-		"label_remove": ["old-key"],
-		"comment": "unified comment"
+		"label_remove": ["old-key"]
 	}`
 	stdin := strings.NewReader(stdinJSON)
 	var stdout bytes.Buffer

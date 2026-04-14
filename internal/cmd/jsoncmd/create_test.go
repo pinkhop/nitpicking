@@ -3,11 +3,13 @@ package jsoncmd_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/memory"
 	"github.com/pinkhop/nitpicking/internal/cmd/jsoncmd"
+	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/core"
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
@@ -321,10 +323,11 @@ func TestRunCreate_LabelRemove_Rejected(t *testing.T) {
 	}
 }
 
-func TestRunCreate_Comment_CreatesCommentOnNewIssue(t *testing.T) {
+func TestRunCreate_CommentField_Rejected(t *testing.T) {
 	t.Parallel()
 
-	// Given: JSON with a comment field.
+	// Given: JSON with a comment field — removed from json create; comments
+	// should be added via "np json comment" instead.
 	svc := setupCreateService(t)
 
 	stdin := strings.NewReader(`{"title": "Task with comment", "comment": "Initial reasoning"}`)
@@ -339,7 +342,33 @@ func TestRunCreate_Comment_CreatesCommentOnNewIssue(t *testing.T) {
 
 	// When
 	err := jsoncmd.RunCreate(t.Context(), input)
-	// Then: no error, and a comment was added to the new issue.
+
+	// Then: an error is returned because comment is an unknown field.
+	if err == nil {
+		t.Fatal("expected error for comment field, got nil")
+	}
+}
+
+func TestRunCreate_Deferred_CreatesDeferredIssue(t *testing.T) {
+	t.Parallel()
+
+	// Given: a valid JSON object on stdin with the Deferred flag set.
+	svc := setupCreateService(t)
+
+	stdin := strings.NewReader(`{"title": "Deferred task"}`)
+	var stdout bytes.Buffer
+
+	input := jsoncmd.RunCreateInput{
+		Service:  svc,
+		Author:   "alice",
+		Stdin:    stdin,
+		WriteTo:  &stdout,
+		Deferred: true,
+	}
+
+	// When
+	err := jsoncmd.RunCreate(t.Context(), input)
+	// Then: no error, and JSON output reflects the deferred state with no claim_id.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -348,23 +377,43 @@ func TestRunCreate_Comment_CreatesCommentOnNewIssue(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON output: %v\nraw: %s", err, stdout.String())
 	}
+	if result["state"] != "deferred" {
+		t.Errorf("state: got %q, want %q", result["state"], "deferred")
+	}
+	// The claim used internally to defer is consumed; no claim_id in output.
+	if _, ok := result["claim_id"]; ok {
+		t.Error("expected no claim_id in JSON output when Deferred=true")
+	}
+}
 
-	issueID, ok := result["id"].(string)
-	if !ok {
-		t.Fatal("expected id in JSON output")
+func TestRunCreate_DeferredWithClaim_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given: both Deferred and WithClaim are set.
+	svc := setupCreateService(t)
+
+	stdin := strings.NewReader(`{"title": "Conflicting flags"}`)
+	var stdout bytes.Buffer
+
+	input := jsoncmd.RunCreateInput{
+		Service:   svc,
+		Author:    "alice",
+		Stdin:     stdin,
+		WriteTo:   &stdout,
+		Deferred:  true,
+		WithClaim: true,
 	}
 
-	comments, err := svc.ListComments(t.Context(), driving.ListCommentsInput{
-		IssueID: issueID,
-	})
-	if err != nil {
-		t.Fatalf("list comments failed: %v", err)
+	// When
+	err := jsoncmd.RunCreate(t.Context(), input)
+
+	// Then: a FlagError is returned because the flags are mutually exclusive.
+	if err == nil {
+		t.Fatal("expected error for conflicting --deferred and --with-claim, got nil")
 	}
-	if len(comments.Comments) != 1 {
-		t.Fatalf("comment count: got %d, want 1", len(comments.Comments))
-	}
-	if comments.Comments[0].Body != "Initial reasoning" {
-		t.Errorf("comment body: got %q, want %q", comments.Comments[0].Body, "Initial reasoning")
+	var flagErr *cmdutil.FlagError
+	if !errors.As(err, &flagErr) {
+		t.Errorf("expected *cmdutil.FlagError, got %T", err)
 	}
 }
 
@@ -495,8 +544,7 @@ func TestRunCreate_AllFields_Accepted(t *testing.T) {
 		"description": "desc",
 		"acceptance_criteria": "ac",
 		"priority": "P2",
-		"labels": ["kind:test"],
-		"comment": "unified comment"
+		"labels": ["kind:test"]
 	}`
 	stdin := strings.NewReader(stdinJSON)
 	var stdout bytes.Buffer

@@ -167,7 +167,11 @@ connectors, use "rel parent tree" instead.`,
 			}
 
 			if jsonOutput {
-				return cmdutil.WriteJSON(f.IOStreams.Out, result)
+				out := cmdutil.ListOutput{
+					Items:   cmdutil.ConvertListItems(result.Items),
+					HasMore: result.HasMore,
+				}
+				return cmdutil.WriteJSON(f.IOStreams.Out, out)
 			}
 
 			cs := f.IOStreams.ColorScheme()

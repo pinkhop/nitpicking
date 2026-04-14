@@ -23,7 +23,6 @@ type createInput struct {
 	Priority           string   `json:"priority"`
 	Parent             string   `json:"parent"`
 	Labels             []string `json:"labels"`
-	Comment            string   `json:"comment"`
 }
 
 // createOutput is the JSON representation of a created domain.
@@ -45,6 +44,7 @@ type RunCreateInput struct {
 	Stdin     io.Reader
 	WriteTo   io.Writer
 	WithClaim bool
+	Deferred  bool
 }
 
 // RunCreate reads a JSON object from stdin, validates it, and creates an issue
@@ -52,7 +52,16 @@ type RunCreateInput struct {
 //
 // The role field defaults to "task" when omitted. Unknown fields are rejected
 // by the JSON decoder.
+//
+// When Deferred is true, the issue is created with an internal claim, deferred
+// using that claim, and the claim is consumed. The output reflects the deferred
+// state with no claim_id. The --deferred and --with-claim flags are mutually
+// exclusive.
 func RunCreate(ctx context.Context, input RunCreateInput) error {
+	if input.Deferred && input.WithClaim {
+		return cmdutil.FlagErrorf("--deferred and --with-claim are mutually exclusive")
+	}
+
 	payload, err := DecodeStdin[createInput](input.Stdin)
 	if err != nil {
 		return fmt.Errorf("reading create JSON from stdin: %w", err)
@@ -98,6 +107,10 @@ func RunCreate(ctx context.Context, input RunCreateInput) error {
 		}
 	}
 
+	// When --deferred is set, the issue must be created with a claim so that
+	// it can be immediately deferred. The claim is consumed by the deferral.
+	shouldClaim := input.WithClaim || input.Deferred
+
 	result, err := input.Service.CreateIssue(ctx, driving.CreateIssueInput{
 		Role:               role,
 		Title:              payload.Title,
@@ -107,34 +120,43 @@ func RunCreate(ctx context.Context, input RunCreateInput) error {
 		ParentID:           parentIDStr,
 		Labels:             labels,
 		Author:             input.Author,
-		Claim:              input.WithClaim,
+		Claim:              shouldClaim,
 	})
 	if err != nil {
 		return fmt.Errorf("creating issue: %w", err)
 	}
 
-	// If a comment was provided, add it to the newly created issue.
-	if payload.Comment != "" {
-		_, commentErr := input.Service.AddComment(ctx, driving.AddCommentInput{
+	// Defer the issue if requested, consuming the internal claim.
+	if input.Deferred {
+		if err := input.Service.DeferIssue(ctx, driving.DeferIssueInput{
 			IssueID: result.Issue.ID().String(),
-			Author:  input.Author,
-			Body:    payload.Comment,
-		})
-		if commentErr != nil {
-			return fmt.Errorf("adding comment to new issue: %w", commentErr)
+			ClaimID: result.ClaimID,
+		}); err != nil {
+			return fmt.Errorf("deferring newly created issue: %w", err)
 		}
 	}
 
 	t := result.Issue
-	return cmdutil.WriteJSON(input.WriteTo, createOutput{
+	out := createOutput{
 		ID:        t.ID().String(),
 		Role:      t.Role().String(),
 		Title:     t.Title(),
 		Priority:  t.Priority().String(),
-		State:     t.State().String(),
-		ClaimID:   result.ClaimID,
 		CreatedAt: cmdutil.FormatJSONTimestamp(t.CreatedAt()),
-	})
+	}
+
+	// Reflect the correct state: deferred if the flag was set, otherwise the
+	// state from the create result. Only include the claim_id when
+	// --with-claim was explicitly requested (not the internal claim used for
+	// deferral).
+	if input.Deferred {
+		out.State = domain.StateDeferred.String()
+	} else {
+		out.State = t.State().String()
+		out.ClaimID = result.ClaimID
+	}
+
+	return cmdutil.WriteJSON(input.WriteTo, out)
 }
 
 // newCreateCmd constructs the "json create" subcommand, which creates an issue
@@ -148,6 +170,7 @@ func newCreateCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		author    string
 		withClaim bool
+		deferred  bool
 	)
 
 	return &cli.Command{
@@ -156,15 +179,17 @@ func newCreateCmd(f *cmdutil.Factory) *cli.Command {
 		Description: `Creates a new issue from a JSON object piped to stdin. The JSON object must
 include "title" at minimum. The "role" field defaults to "task" when omitted.
 Optional fields include description, acceptance_criteria, priority, parent
-(issue ID), labels (array of "key:value" strings), and comment (string to add
-as a comment on the newly created issue). Unknown fields are rejected.
+(issue ID), and labels (array of "key:value" strings). Unknown fields are
+rejected.
 
 Use --with-claim to immediately claim the new issue. The output will include
 the claim_id.
 
-To create a deferred issue, create it with --with-claim, then defer it with
-"np issue defer --claim <CLAIM-ID>", then release it with
-"np issue release --claim <CLAIM-ID>".
+Use --deferred to create the issue in the deferred state. This internally
+claims the issue, defers it, and consumes the claim in a single operation.
+The output reflects state "deferred" with no claim_id.
+
+The --deferred and --with-claim flags are mutually exclusive.
 
 The --author flag identifies who is creating the issue. Output is a JSON
 object containing the new issue's ID, role, title, priority, state, and
@@ -187,6 +212,12 @@ create issues programmatically.`,
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &withClaim,
 			},
+			&cli.BoolFlag{
+				Name:        "deferred",
+				Usage:       "Create the issue in the deferred state",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &deferred,
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			svc, err := cmdutil.NewTracker(f)
@@ -200,6 +231,7 @@ create issues programmatically.`,
 				Stdin:     f.IOStreams.In,
 				WriteTo:   f.IOStreams.Out,
 				WithClaim: withClaim,
+				Deferred:  deferred,
 			})
 		},
 	}

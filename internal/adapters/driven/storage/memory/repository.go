@@ -1204,7 +1204,7 @@ func (r *Repository) matchesCommentFilter(n domain.Comment, f driven.CommentFilt
 }
 
 func (r *Repository) issueToListItem(t domain.Issue) driven.IssueListItem {
-	return driven.IssueListItem{
+	item := driven.IssueListItem{
 		ID:         t.ID(),
 		Role:       t.Role(),
 		State:      t.State(),
@@ -1216,6 +1216,15 @@ func (r *Repository) issueToListItem(t domain.Issue) driven.IssueListItem {
 		IsBlocked:  r.isIssueBlocked(t),
 		BlockerIDs: r.directBlockerIDs(t.ID()),
 	}
+
+	// Populate the parent's creation timestamp when the issue has a parent.
+	if !t.ParentID().IsZero() {
+		if parent, ok := r.issues[t.ParentID().String()]; ok {
+			item.ParentCreatedAt = parent.CreatedAt()
+		}
+	}
+
+	return item
 }
 
 // directBlockerIDs returns the IDs of non-closed, non-deleted issues that

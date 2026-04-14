@@ -52,6 +52,9 @@ type IssueListItemDTO struct {
 	// ParentID is the string representation of the parent issue ID, or empty
 	// if the issue has no parent.
 	ParentID string
+	// ParentCreatedAt is the creation timestamp of the parent issue. Zero
+	// when the issue has no parent.
+	ParentCreatedAt time.Time
 	// CreatedAt is the creation timestamp.
 	CreatedAt time.Time
 	// IsDeleted is true when the issue has been soft-deleted.

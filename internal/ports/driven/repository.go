@@ -24,14 +24,15 @@ func NormalizeLimit(limit int) int {
 
 // IssueListItem is a lightweight projection of an issue for list views.
 type IssueListItem struct {
-	ID        domain.ID
-	Role      domain.Role
-	State     domain.State
-	Priority  domain.Priority
-	Title     string
-	ParentID  domain.ID
-	CreatedAt time.Time
-	IsDeleted bool
+	ID              domain.ID
+	Role            domain.Role
+	State           domain.State
+	Priority        domain.Priority
+	Title           string
+	ParentID        domain.ID
+	ParentCreatedAt time.Time
+	CreatedAt       time.Time
+	IsDeleted       bool
 	// IsBlocked is true when the issue has at least one unresolved
 	// blocked_by relationship or a blocked/deferred ancestor. This is a
 	// computed display concern — the underlying state machine does not change.

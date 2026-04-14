@@ -3432,18 +3432,19 @@ func toIssueListItemDTO(item driven.IssueListItem) driving.IssueListItemDTO {
 	}
 
 	return driving.IssueListItemDTO{
-		ID:             item.ID.String(),
-		Role:           item.Role,
-		State:          item.State,
-		Priority:       item.Priority,
-		Title:          item.Title,
-		ParentID:       item.ParentID.String(),
-		CreatedAt:      item.CreatedAt,
-		IsDeleted:      item.IsDeleted,
-		IsBlocked:      item.IsBlocked,
-		BlockerIDs:     blockerIDs,
-		SecondaryState: item.SecondaryState,
-		DisplayStatus:  item.DisplayStatus(),
+		ID:              item.ID.String(),
+		Role:            item.Role,
+		State:           item.State,
+		Priority:        item.Priority,
+		Title:           item.Title,
+		ParentID:        item.ParentID.String(),
+		ParentCreatedAt: item.ParentCreatedAt,
+		CreatedAt:       item.CreatedAt,
+		IsDeleted:       item.IsDeleted,
+		IsBlocked:       item.IsBlocked,
+		BlockerIDs:      blockerIDs,
+		SecondaryState:  item.SecondaryState,
+		DisplayStatus:   item.DisplayStatus(),
 	}
 }
 

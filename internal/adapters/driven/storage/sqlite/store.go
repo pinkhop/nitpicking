@@ -696,7 +696,8 @@ func (r *issueRepo) ListIssues(_ context.Context, filter driven.IssueFilter, ord
 			FROM relationships r JOIN issues b ON r.target_id = b.issue_id
 			WHERE r.source_id = t.issue_id AND r.rel_type = 'blocked_by'
 			AND b.state != 'closed' AND b.deleted = 0
-		), '') AS blocker_ids
+		), '') AS blocker_ids,
+		parent.created_at AS parent_created_at
 		FROM issues t` + issueParentJoin() + ` ` + where + orderClause
 	if fetchLimit > 0 {
 		query += ` LIMIT ?`
@@ -713,12 +714,15 @@ func (r *issueRepo) ListIssues(_ context.Context, filter driven.IssueFilter, ord
 			priority, _ := domain.ParsePriority(stmt.ColumnText(3))
 			createdAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(5))
 			parentID, _ := domain.ParseID(stmt.ColumnText(7))
+			parentCreatedAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(10))
 
 			item := driven.IssueListItem{
 				ID: id, Role: role, State: state, Priority: priority,
-				Title: stmt.ColumnText(4), ParentID: parentID, CreatedAt: createdAt,
-				IsDeleted: stmt.ColumnInt(6) != 0,
-				IsBlocked: stmt.ColumnInt(8) != 0,
+				Title: stmt.ColumnText(4), ParentID: parentID,
+				ParentCreatedAt: parentCreatedAt,
+				CreatedAt:       createdAt,
+				IsDeleted:       stmt.ColumnInt(6) != 0,
+				IsBlocked:       stmt.ColumnInt(8) != 0,
 			}
 
 			// Parse comma-separated blocker IDs from the GROUP_CONCAT subquery.
@@ -773,7 +777,8 @@ func (r *issueRepo) SearchIssues(_ context.Context, query string, filter driven.
 			FROM relationships r JOIN issues b ON r.target_id = b.issue_id
 			WHERE r.source_id = t.issue_id AND r.rel_type = 'blocked_by'
 			AND b.state != 'closed' AND b.deleted = 0
-		), '') AS blocker_ids
+		), '') AS blocker_ids,
+		parent.created_at AS parent_created_at
 		FROM issues t` + issueParentJoin() + ` ` + where + ftsWhere + orderClause
 	if fetchLimit > 0 {
 		selectQuery += ` LIMIT ?`
@@ -790,12 +795,15 @@ func (r *issueRepo) SearchIssues(_ context.Context, query string, filter driven.
 			priority, _ := domain.ParsePriority(stmt.ColumnText(3))
 			createdAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(5))
 			parentID, _ := domain.ParseID(stmt.ColumnText(7))
+			parentCreatedAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(10))
 
 			item := driven.IssueListItem{
 				ID: id, Role: role, State: state, Priority: priority,
-				Title: stmt.ColumnText(4), ParentID: parentID, CreatedAt: createdAt,
-				IsDeleted: stmt.ColumnInt(6) != 0,
-				IsBlocked: stmt.ColumnInt(8) != 0,
+				Title: stmt.ColumnText(4), ParentID: parentID,
+				ParentCreatedAt: parentCreatedAt,
+				CreatedAt:       createdAt,
+				IsDeleted:       stmt.ColumnInt(6) != 0,
+				IsBlocked:       stmt.ColumnInt(8) != 0,
 			}
 			if raw := stmt.ColumnText(9); raw != "" {
 				item.BlockerIDs = parseIDList(raw)

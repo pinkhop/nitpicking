@@ -1890,3 +1890,103 @@ func TestGetIssueSummary_ClosedBlockedNotCountedAsBlocked(t *testing.T) {
 		t.Errorf("expected Blocked=0 (closed issues excluded from blocked count), got %d", summary.Blocked)
 	}
 }
+
+// --- ParentCreatedAt ---
+
+func TestListIssues_ParentCreatedAt_PopulatedForChildIssue(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — an epic created at a known time and a child task.
+	epicCreatedAt := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	childCreatedAt := time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC)
+	epicID := mustIssueID(t)
+	childID := mustIssueID(t)
+
+	epic := mustEpic(t, epicID, "Parent epic", epicCreatedAt)
+	child := mustTask(t, childID, "Child task", childCreatedAt).WithParentID(epicID)
+
+	for _, iss := range []domain.Issue{epic, child} {
+		if err := repo.CreateIssue(ctx, iss); err != nil {
+			t.Fatalf("precondition: %v", err)
+		}
+	}
+
+	// When
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
+		ParentIDs: []domain.ID{epicID},
+	}, driven.OrderByPriority, -1)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if !items[0].ParentCreatedAt.Equal(epicCreatedAt) {
+		t.Errorf("ParentCreatedAt = %v, want %v", items[0].ParentCreatedAt, epicCreatedAt)
+	}
+}
+
+func TestListIssues_ParentCreatedAt_ZeroForOrphanIssue(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — an orphan task with no parent.
+	orphanID := mustIssueID(t)
+	orphan := mustTask(t, orphanID, "Orphan task", time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC))
+
+	if err := repo.CreateIssue(ctx, orphan); err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+
+	// When
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, -1)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if !items[0].ParentCreatedAt.IsZero() {
+		t.Errorf("ParentCreatedAt = %v, want zero time", items[0].ParentCreatedAt)
+	}
+}
+
+func TestSearchIssues_ParentCreatedAt_PopulatedForChildIssue(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — an epic created at a known time and a child task with a
+	// searchable title.
+	epicCreatedAt := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	childCreatedAt := time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC)
+	epicID := mustIssueID(t)
+	childID := mustIssueID(t)
+
+	epic := mustEpic(t, epicID, "Parent epic", epicCreatedAt)
+	child := mustTask(t, childID, "Searchable child xyzzy", childCreatedAt).WithParentID(epicID)
+
+	for _, iss := range []domain.Issue{epic, child} {
+		if err := repo.CreateIssue(ctx, iss); err != nil {
+			t.Fatalf("precondition: %v", err)
+		}
+	}
+
+	// When
+	items, _, err := repo.SearchIssues(ctx, "xyzzy", driven.IssueFilter{}, driven.OrderByPriority, -1)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if !items[0].ParentCreatedAt.Equal(epicCreatedAt) {
+		t.Errorf("ParentCreatedAt = %v, want %v", items[0].ParentCreatedAt, epicCreatedAt)
+	}
+}

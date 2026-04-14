@@ -12,15 +12,16 @@ import (
 // It is shared by the list, ready, and blocked commands so that their
 // --json output is structurally identical.
 type ListItemOutput struct {
-	ID             string   `json:"id"`
-	Role           string   `json:"role"`
-	State          string   `json:"state"`
-	SecondaryState string   `json:"secondary_state,omitempty"`
-	DisplayStatus  string   `json:"display_status"`
-	Priority       string   `json:"priority"`
-	Title          string   `json:"title"`
-	BlockerIDs     []string `json:"blocker_ids,omitempty"`
-	CreatedAt      string   `json:"created_at"`
+	ID              string   `json:"id"`
+	Role            string   `json:"role"`
+	State           string   `json:"state"`
+	SecondaryState  string   `json:"secondary_state,omitempty"`
+	DisplayStatus   string   `json:"display_status"`
+	Priority        string   `json:"priority"`
+	Title           string   `json:"title"`
+	BlockerIDs      []string `json:"blocker_ids,omitempty"`
+	ParentCreatedAt string   `json:"parent_created_at,omitempty"`
+	CreatedAt       string   `json:"created_at"`
 }
 
 // ListOutput is the JSON representation of a list command result.
@@ -35,15 +36,16 @@ func ConvertListItems(items []driving.IssueListItemDTO) []ListItemOutput {
 	out := make([]ListItemOutput, 0, len(items))
 	for _, item := range items {
 		o := ListItemOutput{
-			ID:             item.ID,
-			Role:           item.Role.String(),
-			State:          item.State.String(),
-			SecondaryState: item.SecondaryState.String(),
-			DisplayStatus:  item.DisplayStatus,
-			Priority:       item.Priority.String(),
-			Title:          item.Title,
-			BlockerIDs:     item.BlockerIDs,
-			CreatedAt:      FormatJSONTimestamp(item.CreatedAt),
+			ID:              item.ID,
+			Role:            item.Role.String(),
+			State:           item.State.String(),
+			SecondaryState:  item.SecondaryState.String(),
+			DisplayStatus:   item.DisplayStatus,
+			Priority:        item.Priority.String(),
+			Title:           item.Title,
+			BlockerIDs:      item.BlockerIDs,
+			ParentCreatedAt: FormatJSONTimestamp(item.ParentCreatedAt),
+			CreatedAt:       FormatJSONTimestamp(item.CreatedAt),
 		}
 		out = append(out, o)
 	}

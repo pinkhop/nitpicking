@@ -7,8 +7,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/backupcmd"
 )
@@ -636,5 +638,75 @@ func TestRun_OutputFlagDirectory_JSON_PathIncludesDirectory(t *testing.T) {
 	}
 	if !strings.Contains(path, "backup-np.") {
 		t.Errorf("path should contain 'backup-np.', got: %s", path)
+	}
+}
+
+// --- Tests: DefaultBackupFilenameAt UTC datetime format ---
+
+func TestDefaultBackupFilenameAt_WithPrefix_UsesUTCDatetimeFormat(t *testing.T) {
+	t.Parallel()
+
+	// Given — a fixed UTC timestamp.
+	ts := time.Date(2026, 4, 13, 13, 31, 7, 0, time.UTC)
+
+	// When
+	filename := backupcmd.DefaultBackupFilenameAt("NP", ts)
+
+	// Then — filename embeds the UTC datetime in YYYYMMDD-HHMMSSZ format.
+	want := "backup-np.20260413-133107Z.jsonl.gz"
+	if filename != want {
+		t.Errorf("filename = %q, want %q", filename, want)
+	}
+}
+
+func TestDefaultBackupFilenameAt_WithoutPrefix_UsesUTCDatetimeFormat(t *testing.T) {
+	t.Parallel()
+
+	// Given — a fixed UTC timestamp and no prefix.
+	ts := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	// When
+	filename := backupcmd.DefaultBackupFilenameAt("", ts)
+
+	// Then — filename uses the datetime format without a prefix.
+	want := "backup.20260102-030405Z.jsonl.gz"
+	if filename != want {
+		t.Errorf("filename = %q, want %q", filename, want)
+	}
+}
+
+func TestDefaultBackupFilenameAt_NonUTCTime_ConvertsToUTC(t *testing.T) {
+	t.Parallel()
+
+	// Given — a timestamp in a non-UTC timezone (UTC+5).
+	loc := time.FixedZone("UTC+5", 5*60*60)
+	ts := time.Date(2026, 4, 13, 18, 31, 7, 0, loc) // 18:31 UTC+5 = 13:31 UTC
+
+	// When
+	filename := backupcmd.DefaultBackupFilenameAt("NP", ts)
+
+	// Then — filename reflects the UTC equivalent.
+	want := "backup-np.20260413-133107Z.jsonl.gz"
+	if filename != want {
+		t.Errorf("filename = %q, want %q", filename, want)
+	}
+}
+
+func TestDefaultBackupFilename_UsesUTCDatetimePattern(t *testing.T) {
+	t.Parallel()
+
+	// Given — no special setup; DefaultBackupFilename uses the current time.
+
+	// When
+	filename := backupcmd.DefaultBackupFilename("NP")
+
+	// Then — filename matches the YYYYMMDD-HHMMSSZ pattern.
+	pattern := `^backup-np\.\d{8}-\d{6}Z\.jsonl\.gz$`
+	matched, err := regexp.MatchString(pattern, filename)
+	if err != nil {
+		t.Fatalf("compiling regex: %v", err)
+	}
+	if !matched {
+		t.Errorf("filename %q does not match pattern %s", filename, pattern)
 	}
 }

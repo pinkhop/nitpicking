@@ -1,0 +1,10 @@
+# Verify that 'np admin backup --json' produces a backup filename with
+# a UTC datetime timestamp (YYYYMMDD-HHMMSSZ) instead of a UNIX epoch.
+
+np-init BK
+np-seed task 'Backup filename test' tester TASK_A
+
+exec np admin backup --json
+stdout '"path"'
+stdout '\d{8}-\d{6}Z\.jsonl\.gz'
+! stdout '\.\d{10,}\.jsonl\.gz'

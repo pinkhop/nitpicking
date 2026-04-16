@@ -85,7 +85,7 @@ func (r *Repository) UpdateIssue(_ context.Context, t domain.Issue) error {
 	return nil
 }
 
-func (r *Repository) ListIssues(_ context.Context, filter driven.IssueFilter, orderBy driven.IssueOrderBy, limit int) ([]driven.IssueListItem, bool, error) {
+func (r *Repository) ListIssues(_ context.Context, filter driven.IssueFilter, orderBy driven.IssueOrderBy, direction driven.SortDirection, limit int) ([]driven.IssueListItem, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -102,7 +102,7 @@ func (r *Repository) ListIssues(_ context.Context, filter driven.IssueFilter, or
 		items = append(items, r.issueToListItem(t))
 	}
 
-	r.sortIssueItems(items, orderBy)
+	r.sortIssueItems(items, orderBy, direction)
 
 	// Apply limit and detect hasMore.
 	hasMore := false
@@ -114,7 +114,7 @@ func (r *Repository) ListIssues(_ context.Context, filter driven.IssueFilter, or
 	return items, hasMore, nil
 }
 
-func (r *Repository) SearchIssues(_ context.Context, query string, filter driven.IssueFilter, orderBy driven.IssueOrderBy, limit int) ([]driven.IssueListItem, bool, error) {
+func (r *Repository) SearchIssues(_ context.Context, query string, filter driven.IssueFilter, orderBy driven.IssueOrderBy, direction driven.SortDirection, limit int) ([]driven.IssueListItem, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -135,7 +135,7 @@ func (r *Repository) SearchIssues(_ context.Context, query string, filter driven
 		items = append(items, r.issueToListItem(t))
 	}
 
-	r.sortIssueItems(items, orderBy)
+	r.sortIssueItems(items, orderBy, direction)
 
 	// Apply limit and detect hasMore.
 	hasMore := false
@@ -1204,7 +1204,7 @@ func (r *Repository) matchesCommentFilter(n domain.Comment, f driven.CommentFilt
 }
 
 func (r *Repository) issueToListItem(t domain.Issue) driven.IssueListItem {
-	return driven.IssueListItem{
+	item := driven.IssueListItem{
 		ID:         t.ID(),
 		Role:       t.Role(),
 		State:      t.State(),
@@ -1216,6 +1216,15 @@ func (r *Repository) issueToListItem(t domain.Issue) driven.IssueListItem {
 		IsBlocked:  r.isIssueBlocked(t),
 		BlockerIDs: r.directBlockerIDs(t.ID()),
 	}
+
+	// Populate the parent's creation timestamp when the issue has a parent.
+	if !t.ParentID().IsZero() {
+		if parent, ok := r.issues[t.ParentID().String()]; ok {
+			item.ParentCreatedAt = parent.CreatedAt()
+		}
+	}
+
+	return item
 }
 
 // directBlockerIDs returns the IDs of non-closed, non-deleted issues that
@@ -1247,34 +1256,82 @@ func (r *Repository) familyAnchor(item driven.IssueListItem) time.Time {
 	return item.CreatedAt
 }
 
-func (r *Repository) sortIssueItems(items []driven.IssueListItem, orderBy driven.IssueOrderBy) {
+func (r *Repository) sortIssueItems(items []driven.IssueListItem, orderBy driven.IssueOrderBy, direction driven.SortDirection) {
+	// dirMul flips the sign of primary-axis comparisons when descending.
+	// Tiebreaker columns (issue ID) always sort ascending for determinism.
+	dirMul := 1
+	if direction == driven.SortDescending {
+		dirMul = -1
+	}
+
 	slices.SortFunc(items, func(a, b driven.IssueListItem) int {
 		switch orderBy {
 		case driven.OrderByPriority:
 			if c := cmp.Compare(int(a.Priority), int(b.Priority)); c != 0 {
-				return c
+				return c * dirMul
 			}
 			if c := r.familyAnchor(a).Compare(r.familyAnchor(b)); c != 0 {
-				return c
+				return c * dirMul
 			}
 			if c := a.CreatedAt.Compare(b.CreatedAt); c != 0 {
-				return c
+				return c * dirMul
+			}
+			return cmp.Compare(a.ID.String(), b.ID.String())
+		case driven.OrderByPriorityCreated:
+			if c := cmp.Compare(int(a.Priority), int(b.Priority)); c != 0 {
+				return c * dirMul
+			}
+			if c := a.CreatedAt.Compare(b.CreatedAt); c != 0 {
+				return c * dirMul
 			}
 			return cmp.Compare(a.ID.String(), b.ID.String())
 		case driven.OrderByCreatedAt:
 			if c := r.familyAnchor(a).Compare(r.familyAnchor(b)); c != 0 {
-				return c
+				return c * dirMul
 			}
 			if c := a.CreatedAt.Compare(b.CreatedAt); c != 0 {
-				return c
+				return c * dirMul
 			}
 			return cmp.Compare(a.ID.String(), b.ID.String())
 		case driven.OrderByUpdatedAt:
-			if c := r.familyAnchor(b).Compare(r.familyAnchor(a)); c != 0 {
-				return c
+			// SortAscending is oldest-first; SortDescending is newest-first.
+			// dirMul handles the inversion uniformly, matching how every other
+			// OrderBy value behaves — no per-key inversion needed.
+			if c := r.familyAnchor(a).Compare(r.familyAnchor(b)); c != 0 {
+				return c * dirMul
 			}
-			if c := b.CreatedAt.Compare(a.CreatedAt); c != 0 {
-				return c
+			if c := a.CreatedAt.Compare(b.CreatedAt); c != 0 {
+				return c * dirMul
+			}
+			return cmp.Compare(a.ID.String(), b.ID.String())
+		case driven.OrderByID:
+			if c := cmp.Compare(a.ID.String(), b.ID.String()); c != 0 {
+				return c * dirMul
+			}
+			return 0
+		case driven.OrderByRole:
+			if c := cmp.Compare(a.Role.String(), b.Role.String()); c != 0 {
+				return c * dirMul
+			}
+			return cmp.Compare(a.ID.String(), b.ID.String())
+		case driven.OrderByState:
+			if c := cmp.Compare(a.State.String(), b.State.String()); c != 0 {
+				return c * dirMul
+			}
+			return cmp.Compare(a.ID.String(), b.ID.String())
+		case driven.OrderByTitle:
+			if c := strings.Compare(strings.ToLower(a.Title), strings.ToLower(b.Title)); c != 0 {
+				return c * dirMul
+			}
+			return cmp.Compare(a.ID.String(), b.ID.String())
+		case driven.OrderByParentID:
+			if c := cmp.Compare(a.ParentID.String(), b.ParentID.String()); c != 0 {
+				return c * dirMul
+			}
+			return cmp.Compare(a.ID.String(), b.ID.String())
+		case driven.OrderByParentCreated:
+			if c := a.ParentCreatedAt.Compare(b.ParentCreatedAt); c != 0 {
+				return c * dirMul
 			}
 			return cmp.Compare(a.ID.String(), b.ID.String())
 		default:

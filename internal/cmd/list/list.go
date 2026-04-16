@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"text/tabwriter"
-	"time"
 
 	"github.com/urfave/cli/v3"
 
@@ -21,9 +19,10 @@ type RunInput struct {
 	Service       driving.Service
 	Filter        driving.IssueFilterInput
 	OrderBy       driving.OrderBy
+	Direction     driving.SortDirection
 	Limit         int
 	JSON          bool
-	Timestamps    bool
+	Columns       []cmdutil.Column
 	WriteTo       io.Writer
 	TerminalWidth int
 	ColorScheme   *iostreams.ColorScheme
@@ -33,9 +32,10 @@ type RunInput struct {
 // given filter and writes the result to the output writer.
 func Run(ctx context.Context, input RunInput) error {
 	result, err := input.Service.ListIssues(ctx, driving.ListIssuesInput{
-		Filter:  input.Filter,
-		OrderBy: input.OrderBy,
-		Limit:   input.Limit,
+		Filter:    input.Filter,
+		OrderBy:   input.OrderBy,
+		Direction: input.Direction,
+		Limit:     input.Limit,
 	})
 	if err != nil {
 		return fmt.Errorf("listing issues: %w", err)
@@ -61,40 +61,26 @@ func Run(ctx context.Context, input RunInput) error {
 		return nil
 	}
 
-	// Estimate non-title column overhead for title truncation.
-	// Without timestamps: ID(~8) + role(4) + status(7) + priority(2) + padding(8) = ~29.
-	// With timestamps: add timestamp(19) + padding(2) = ~50.
-	overhead := 29
-	if input.Timestamps {
-		overhead = 50
+	cols := input.Columns
+	if len(cols) == 0 {
+		cols = cmdutil.DefaultColumns
 	}
+
+	overhead := cmdutil.OverheadForColumns(cols)
 	maxTitle := cmdutil.AvailableTitleWidth(input.TerminalWidth, overhead)
 
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	for _, item := range result.Items {
-		title := item.Title
-		if len(item.BlockerIDs) > 0 {
-			title += " " + cmdutil.FormatBlockerSuffix(item.BlockerIDs)
-		}
-		title = cmdutil.TruncateTitle(title, maxTitle)
-		stateCol := cmdutil.FormatState(cs, item.State, item.SecondaryState)
-		if input.Timestamps {
-			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
-				item.ID,
-				item.Role,
-				stateCol,
-				item.Priority,
-				item.CreatedAt.Format(time.DateTime),
-				title)
-		} else {
-			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-				item.ID,
-				item.Role,
-				stateCol,
-				item.Priority,
-				title)
-		}
+	tw := cmdutil.NewTableWriter(w, 2)
+	tw.AddRow(cmdutil.ColumnarHeaderCells(cols)...)
+
+	rc := cmdutil.RenderContext{
+		ColorScheme:   cs,
+		MaxTitleWidth: maxTitle,
 	}
+	for _, item := range result.Items {
+		tw.AddRow(cmdutil.ColumnarRowCells(item, cols, rc)...)
+	}
+	// Flush error is best-effort — output is going to stdout and we cannot
+	// meaningfully recover from a write failure at this point.
 	_ = tw.Flush()
 
 	shown := len(result.Items)
@@ -107,22 +93,22 @@ func Run(ctx context.Context, input RunInput) error {
 // paginated list of issues.
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
-		jsonOutput bool
-		ready      bool
-		all        bool
-		order      string
-		limit      int
-		noLimit    bool
-		timestamps bool
+		jsonOutput  bool
+		ready       bool
+		all         bool
+		order       string
+		limit       int
+		noLimit     bool
+		columnsFlag string
 	)
 
 	return &cli.Command{
 		Name:    "list",
 		Aliases: []string{"ls"},
 		Usage:   "List issues",
-		Description: `Lists issues matching the given filters, ordered by priority (default),
-creation time, or modification time. By default, closed issues are hidden
-and the result set is capped at a reasonable default.
+		Description: `Lists issues matching the given filters, ordered by issue ID (default),
+priority, creation time, or modification time. By default, closed issues are
+hidden and the result set is capped at a reasonable default.
 
 This is the general-purpose query command. Use it to browse the backlog,
 check the state of a specific parent's children (--parent), find issues
@@ -172,15 +158,15 @@ and --json for machine-readable output.`,
 			},
 			&cli.StringFlag{
 				Name:        "order",
-				Usage:       "Sort order: priority, created, modified (default: priority)",
+				Usage:       "Sort order: " + cmdutil.ValidOrderNames() + "; append :asc or :desc for direction (default: ID)",
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &order,
 			},
-			&cli.BoolFlag{
-				Name:        "timestamps",
-				Usage:       "Include created_at timestamp in text output",
+			&cli.StringFlag{
+				Name:        "columns",
+				Usage:       "Comma-separated list of columns to display; valid columns: " + cmdutil.ValidColumnNames(),
 				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &timestamps,
+				Destination: &columnsFlag,
 			},
 			&cli.IntFlag{
 				Name:        "limit",
@@ -248,7 +234,14 @@ and --json for machine-readable output.`,
 			}
 			filter.LabelFilters = labelFilters
 
-			orderBy, err := cmdutil.ParseOrderBy(order)
+			// Default to ID ordering for list (unlike other commands which
+			// default to priority). When the user explicitly passes --order,
+			// respect their choice.
+			effectiveOrder := order
+			if effectiveOrder == "" {
+				effectiveOrder = "id"
+			}
+			orderBy, direction, err := cmdutil.ParseOrderBy(effectiveOrder)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
@@ -258,13 +251,19 @@ and --json for machine-readable output.`,
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
+			cols, err := cmdutil.ParseColumns(columnsFlag)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			return Run(ctx, RunInput{
 				Service:       svc,
 				Filter:        filter,
 				OrderBy:       orderBy,
+				Direction:     direction,
 				Limit:         effectiveLimit,
 				JSON:          jsonOutput,
-				Timestamps:    timestamps,
+				Columns:       cols,
 				WriteTo:       f.IOStreams.Out,
 				TerminalWidth: f.IOStreams.TerminalWidth(),
 				ColorScheme:   f.IOStreams.ColorScheme(),

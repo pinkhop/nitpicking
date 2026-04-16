@@ -52,6 +52,9 @@ type IssueListItemDTO struct {
 	// ParentID is the string representation of the parent issue ID, or empty
 	// if the issue has no parent.
 	ParentID string
+	// ParentCreatedAt is the creation timestamp of the parent issue. Zero
+	// when the issue has no parent.
+	ParentCreatedAt time.Time
 	// CreatedAt is the creation timestamp.
 	CreatedAt time.Time
 	// IsDeleted is true when the issue has been soft-deleted.
@@ -378,16 +381,74 @@ const (
 	// family first), then by issue created_at within a family.
 	OrderByCreatedAt
 
-	// OrderByUpdatedAt sorts by family-anchored creation time (most
-	// recent family first), then by issue created_at descending.
+	// OrderByUpdatedAt sorts by family-anchored creation time, then by issue
+	// created_at within a family, then by issue ID as a deterministic
+	// tiebreaker. SortAscending yields oldest-first; SortDescending
+	// yields newest-first — consistent with all other OrderBy values.
 	OrderByUpdatedAt
+
+	// OrderByPriorityCreated sorts by priority (highest urgency first),
+	// then by the issue's own created_at (ascending), then by issue ID
+	// as a deterministic tiebreaker. Unlike OrderByPriority, this variant
+	// does not use family-anchored sorting. Designed for flat listing
+	// commands (ready, blocked) where parent grouping is not meaningful.
+	OrderByPriorityCreated
+
+	// OrderByID sorts by issue ID ascending (lexicographic). Because IDs
+	// contain a random component, this produces a stable but effectively
+	// arbitrary order — useful as a neutral default when no semantic
+	// ordering is explicitly requested.
+	OrderByID
+
+	// OrderByRole sorts by role name ascending (alphabetic), then by
+	// issue ID as a deterministic tiebreaker.
+	OrderByRole
+
+	// OrderByState sorts by state name ascending (alphabetic), then by
+	// issue ID as a deterministic tiebreaker.
+	OrderByState
+
+	// OrderByTitle sorts by title ascending (case-insensitive alphabetic),
+	// then by issue ID as a deterministic tiebreaker.
+	OrderByTitle
+
+	// OrderByParentID sorts by parent issue ID (lexicographic), then by issue
+	// ID as a deterministic tiebreaker. Parentless issues use an empty-string
+	// sentinel, so they cluster at the start under SortAscending and at the
+	// end under SortDescending — descending is the exact reverse of ascending.
+	OrderByParentID
+
+	// OrderByParentCreated sorts by parent creation time, then by issue ID as
+	// a deterministic tiebreaker. Parentless issues use an empty-string
+	// sentinel, so they cluster at the start under SortAscending and at the
+	// end under SortDescending — descending is the exact reverse of ascending.
+	OrderByParentCreated
+)
+
+// SortDirection indicates ascending or descending sort order. The zero value
+// (SortAscending) is the standard ascending direction for every OrderBy value:
+// lowest numeric value first, oldest timestamp first, alphabetic A–Z, etc.
+type SortDirection int
+
+const (
+	// SortAscending is the default direction — lowest first, oldest first,
+	// alphabetic A–Z. For timestamp-based OrderBy values (OrderByCreatedAt,
+	// OrderByUpdatedAt) this means oldest issues appear first.
+	SortAscending SortDirection = iota
+
+	// SortDescending reverses the primary sort axis while keeping tiebreaker
+	// columns ascending for deterministic output. For timestamp-based OrderBy
+	// values (OrderByCreatedAt, OrderByUpdatedAt) this means newest issues
+	// appear first.
+	SortDescending
 )
 
 // ListIssuesInput holds the parameters for listing issues.
 type ListIssuesInput struct {
-	Filter  IssueFilterInput
-	OrderBy OrderBy
-	Limit   int
+	Filter    IssueFilterInput
+	OrderBy   OrderBy
+	Direction SortDirection
+	Limit     int
 }
 
 // ListIssuesOutput holds the result of listing issues. Items are flat
@@ -403,6 +464,7 @@ type SearchIssuesInput struct {
 	Query        string
 	Filter       IssueFilterInput
 	OrderBy      OrderBy
+	Direction    SortDirection
 	Limit        int
 	IncludeNotes bool
 }

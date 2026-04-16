@@ -8,6 +8,7 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/memory"
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
+	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/core"
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
@@ -31,6 +32,21 @@ func setupService(t *testing.T) driving.Service {
 func mustAuthor(t *testing.T, name string) string {
 	t.Helper()
 	return name
+}
+
+func createTaskWithPriority(t *testing.T, svc driving.Service, title string, priority domain.Priority) domain.ID {
+	t.Helper()
+	ctx := t.Context()
+	out, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:     domain.RoleTask,
+		Title:    title,
+		Priority: priority,
+		Author:   mustAuthor(t, "test-agent"),
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue failed: %v", err)
+	}
+	return out.Issue.ID()
 }
 
 func createTask(t *testing.T, svc driving.Service, title string) domain.ID {
@@ -549,6 +565,150 @@ func TestRun_JSONOutput_ClaimedIssue_StateIsOpenWithSecondary(t *testing.T) {
 	}
 }
 
+// TestRun_TextOutput_Header_PrintsDefaultColumnHeaders verifies that the text
+// output includes all default column headers in the correct order.
+func TestRun_TextOutput_Header_PrintsDefaultColumnHeaders(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupService(t)
+	createTask(t, svc, "Header check task")
+
+	var buf bytes.Buffer
+	input := list.RunInput{
+		Service: svc,
+		JSON:    false,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := list.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	expectedHeaders := []string{"ID", "PRIORITY", "ROLE", "STATE", "TITLE"}
+	for _, hdr := range expectedHeaders {
+		if !strings.Contains(firstLine, hdr) {
+			t.Errorf("expected header row to contain %q, first line: %q", hdr, firstLine)
+		}
+	}
+}
+
+// TestRun_TextOutput_ColumnsFlag_IncludesCreatedColumn verifies that requesting
+// the CREATED column via --columns includes it in the header row.
+func TestRun_TextOutput_ColumnsFlag_IncludesCreatedColumn(t *testing.T) {
+	t.Parallel()
+
+	// Given — a column set that explicitly includes CREATED.
+	svc := setupService(t)
+	createTask(t, svc, "Created column check")
+
+	cols, err := cmdutil.ParseColumns("ID,PRIORITY,CREATED,TITLE")
+	if err != nil {
+		t.Fatalf("precondition: parse columns failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := list.RunInput{
+		Service: svc,
+		JSON:    false,
+		Columns: cols,
+		WriteTo: &buf,
+	}
+
+	// When
+	err = list.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	if !strings.Contains(firstLine, "CREATED") {
+		t.Errorf("expected CREATED column in header when columns flag includes CREATED, first line: %q", firstLine)
+	}
+}
+
+// TestRun_TextOutput_CustomColumns_ShowsOnlySelectedColumns verifies that
+// passing a custom column set renders only those columns in the given order.
+func TestRun_TextOutput_CustomColumns_ShowsOnlySelectedColumns(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupService(t)
+	createTask(t, svc, "Custom columns task")
+
+	cols, err := cmdutil.ParseColumns("ID,TITLE,STATE")
+	if err != nil {
+		t.Fatalf("precondition: parse columns failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := list.RunInput{
+		Service: svc,
+		JSON:    false,
+		Columns: cols,
+		WriteTo: &buf,
+	}
+
+	// When
+	err = list.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	if !strings.Contains(firstLine, "ID") {
+		t.Errorf("expected ID in header, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "TITLE") {
+		t.Errorf("expected TITLE in header, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "STATE") {
+		t.Errorf("expected STATE in header, first line: %q", firstLine)
+	}
+	// PRIORITY should not appear since it was not selected.
+	if strings.Contains(firstLine, "PRIORITY") {
+		t.Errorf("PRIORITY should not appear in custom column set, first line: %q", firstLine)
+	}
+}
+
+// TestRun_TextOutput_CustomColumns_EmptyColumns_UsesDefaults verifies that
+// an empty Columns slice falls back to the default column set.
+func TestRun_TextOutput_CustomColumns_EmptyColumns_UsesDefaults(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupService(t)
+	createTask(t, svc, "Default columns task")
+
+	var buf bytes.Buffer
+	input := list.RunInput{
+		Service: svc,
+		JSON:    false,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := list.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	// All default headers must appear.
+	for _, hdr := range []string{"ID", "PRIORITY", "ROLE", "STATE", "TITLE"} {
+		if !strings.Contains(firstLine, hdr) {
+			t.Errorf("expected default header %q, first line: %q", hdr, firstLine)
+		}
+	}
+}
+
 // TestRun_TextOutput_ClaimedIssue_ShowsOpenClaimed verifies that a claimed
 // issue appears in text output as "open (claimed)", not as a distinct primary
 // state.
@@ -582,5 +742,67 @@ func TestRun_TextOutput_ClaimedIssue_ShowsOpenClaimed(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "open (claimed)") {
 		t.Errorf("expected 'open (claimed)' in text output for claimed issue, got:\n%s", output)
+	}
+}
+
+// TestRun_OrderByID_SortsByIDAscending verifies that OrderByID sorts results
+// lexicographically ascending by issue ID, independent of priority. This is
+// the ordering the `np list` CLI selects by default when --order is omitted.
+func TestRun_OrderByID_SortsByIDAscending(t *testing.T) {
+	t.Parallel()
+
+	// Given — create multiple tasks with different priorities so that
+	// priority ordering would differ from ID ordering.
+	svc := setupService(t)
+	id1 := createTaskWithPriority(t, svc, "Low priority task", domain.P3)
+	id2 := createTaskWithPriority(t, svc, "High priority task", domain.P0)
+	id3 := createTaskWithPriority(t, svc, "Medium priority task", domain.P1)
+
+	var buf bytes.Buffer
+	input := list.RunInput{
+		Service: svc,
+		OrderBy: driving.OrderByID,
+		JSON:    true,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := list.Run(t.Context(), input)
+	// Then — items should be sorted by ID ascending, not by priority.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
+	}
+	if len(result.Items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(result.Items))
+	}
+
+	// Collect IDs returned and verify they are in ascending order.
+	ids := make([]string, len(result.Items))
+	for i, item := range result.Items {
+		ids[i] = item.ID
+	}
+	for i := 1; i < len(ids); i++ {
+		if ids[i-1] > ids[i] {
+			t.Errorf("expected ID ascending order, but ids[%d]=%q > ids[%d]=%q", i-1, ids[i-1], i, ids[i])
+		}
+	}
+
+	// Verify all three IDs are present (they may be in any position).
+	idSet := map[string]bool{id1.String(): false, id2.String(): false, id3.String(): false}
+	for _, item := range result.Items {
+		idSet[item.ID] = true
+	}
+	for id, found := range idSet {
+		if !found {
+			t.Errorf("expected issue %s in results", id)
+		}
 	}
 }

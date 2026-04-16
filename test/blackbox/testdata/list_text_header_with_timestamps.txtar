@@ -1,0 +1,8 @@
+# Verify that list --columns ID,PRIORITY,ROLE,STATE,CREATED,TITLE includes a CREATED column in the header.
+# The --columns flag allows explicit selection of timestamp-bearing columns.
+
+np-init HDRT
+np-seed task 'Column header task' alice TASK_A
+
+exec np list --columns ID,PRIORITY,ROLE,STATE,CREATED,TITLE
+stdout '^ID\s+PRIORITY\s+ROLE\s+STATE\s+CREATED\s+TITLE'

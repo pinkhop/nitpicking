@@ -24,14 +24,15 @@ func NormalizeLimit(limit int) int {
 
 // IssueListItem is a lightweight projection of an issue for list views.
 type IssueListItem struct {
-	ID        domain.ID
-	Role      domain.Role
-	State     domain.State
-	Priority  domain.Priority
-	Title     string
-	ParentID  domain.ID
-	CreatedAt time.Time
-	IsDeleted bool
+	ID              domain.ID
+	Role            domain.Role
+	State           domain.State
+	Priority        domain.Priority
+	Title           string
+	ParentID        domain.ID
+	ParentCreatedAt time.Time
+	CreatedAt       time.Time
+	IsDeleted       bool
 	// IsBlocked is true when the issue has at least one unresolved
 	// blocked_by relationship or a blocked/deferred ancestor. This is a
 	// computed display concern — the underlying state machine does not change.
@@ -95,6 +96,25 @@ type LabelFilter struct {
 	Negate bool
 }
 
+// SortDirection indicates ascending or descending sort order. The zero value
+// (SortAscending) is the standard ascending direction for every IssueOrderBy
+// value: lowest numeric value first, oldest timestamp first, alphabetic A–Z.
+type SortDirection int
+
+const (
+	// SortAscending is the default direction — lowest first, oldest first,
+	// alphabetic A–Z. For timestamp-based IssueOrderBy values
+	// (OrderByCreatedAt, OrderByUpdatedAt) this means oldest issues appear
+	// first.
+	SortAscending SortDirection = iota
+
+	// SortDescending reverses the primary sort axis of an IssueOrderBy
+	// variant. For timestamp-based values (OrderByCreatedAt,
+	// OrderByUpdatedAt) this means newest issues appear first. Tiebreaker
+	// columns (typically issue ID) remain ascending for deterministic output.
+	SortDescending
+)
+
 // IssueOrderBy specifies the sort order for issue listings.
 type IssueOrderBy int
 
@@ -110,10 +130,50 @@ const (
 	// issue ID as a deterministic tiebreaker.
 	OrderByCreatedAt
 
-	// OrderByUpdatedAt sorts by family-anchored creation time (most
-	// recent family first), then by issue created_at descending, then
-	// by issue ID as a deterministic tiebreaker.
+	// OrderByUpdatedAt sorts by family-anchored creation time, then by issue
+	// created_at within a family, then by issue ID as a deterministic
+	// tiebreaker. SortAscending yields oldest-first; SortDescending yields
+	// newest-first — consistent with every other IssueOrderBy value.
 	OrderByUpdatedAt
+
+	// OrderByPriorityCreated sorts by priority (highest urgency first),
+	// then by the issue's own created_at (ascending), then by issue ID
+	// as a deterministic tiebreaker. Unlike OrderByPriority, this variant
+	// does not use family-anchored sorting — it treats each issue's
+	// creation timestamp independently. Designed for flat listing commands
+	// (ready, blocked) where parent grouping is not meaningful.
+	OrderByPriorityCreated
+
+	// OrderByID sorts by issue ID ascending (lexicographic on the string
+	// representation). Because IDs contain a random component, this
+	// produces a stable but effectively arbitrary order — useful as a
+	// neutral default when no semantic ordering (priority, time) is
+	// explicitly requested.
+	OrderByID
+
+	// OrderByRole sorts by role name ascending (alphabetic), then by
+	// issue ID as a deterministic tiebreaker.
+	OrderByRole
+
+	// OrderByState sorts by state name ascending (alphabetic), then by
+	// issue ID as a deterministic tiebreaker.
+	OrderByState
+
+	// OrderByTitle sorts by title ascending (case-insensitive alphabetic),
+	// then by issue ID as a deterministic tiebreaker.
+	OrderByTitle
+
+	// OrderByParentID sorts by parent issue ID (lexicographic), then by issue
+	// ID as a deterministic tiebreaker. Parentless issues use an empty-string
+	// sentinel, so they cluster at the start under SortAscending and at the
+	// end under SortDescending — descending is the exact reverse of ascending.
+	OrderByParentID
+
+	// OrderByParentCreated sorts by parent creation time, then by issue ID as
+	// a deterministic tiebreaker. Parentless issues use an empty-string
+	// sentinel, so they cluster at the start under SortAscending and at the
+	// end under SortDescending — descending is the exact reverse of ascending.
+	OrderByParentCreated
 )
 
 // CommentFilter defines filtering criteria for comment listings.
@@ -187,12 +247,14 @@ type IssueRepository interface {
 	// ListIssues returns a filtered, ordered list of issues. A positive limit
 	// caps the result size; a negative limit returns all matching results.
 	// The hasMore return value indicates whether additional results exist
-	// beyond the limit.
-	ListIssues(ctx context.Context, filter IssueFilter, orderBy IssueOrderBy, limit int) (items []IssueListItem, hasMore bool, err error)
+	// beyond the limit. The direction parameter controls whether the primary
+	// sort axis runs ascending (SortAscending, the default) or descending
+	// (SortDescending); tiebreaker columns always remain ascending.
+	ListIssues(ctx context.Context, filter IssueFilter, orderBy IssueOrderBy, direction SortDirection, limit int) (items []IssueListItem, hasMore bool, err error)
 
 	// SearchIssues performs full-text search on title, description, and
-	// acceptance criteria. Limit semantics match ListIssues.
-	SearchIssues(ctx context.Context, query string, filter IssueFilter, orderBy IssueOrderBy, limit int) (items []IssueListItem, hasMore bool, err error)
+	// acceptance criteria. Limit and direction semantics match ListIssues.
+	SearchIssues(ctx context.Context, query string, filter IssueFilter, orderBy IssueOrderBy, direction SortDirection, limit int) (items []IssueListItem, hasMore bool, err error)
 
 	// GetChildStatuses returns the completion-relevant status of all direct
 	// children of an epic, for deriving epic completion.

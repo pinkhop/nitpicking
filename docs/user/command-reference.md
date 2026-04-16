@@ -263,10 +263,10 @@ np list [options]
 | `--parent` | Filter by parent epic ID. Repeatable. |
 | `--ready` | Show only ready issues. |
 | `--all`, `-a` | Include all issues regardless of state, including closed. |
-| `--order` | Sort order: `priority` (default), `created`, `modified`. |
+| `--order` | Sort order. One of `ID` (default), `CREATED`, `PARENT_ID`, `PARENT_CREATED`, `PRIORITY`, `ROLE`, `STATE`, `TITLE`, or `MODIFIED`. Append `:asc` or `:desc` to set direction (ascending is the default). |
+| `--columns` | Comma-separated list of columns to display. Valid columns: `ID`, `CREATED`, `PARENT_ID`, `PARENT_CREATED`, `PRIORITY`, `ROLE`, `STATE`, `TITLE`. Replaces the previous `--timestamps` flag. |
 | `--limit`, `-n` | Maximum number of results. Default: 20. |
 | `--no-limit` | Return all matching results. |
-| `--timestamps` | Include `created_at` timestamp in text output. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**
@@ -526,10 +526,10 @@ np issue search [options] <QUERY>
 | `--state`, `-s` | Filter by state. |
 | `--role`, `-r` | Filter by role: `task` or `epic`. Repeatable. |
 | `--label` | Filter by label in `key:value` format. Repeatable. |
-| `--order` | Sort order: `priority` (default), `created`, `modified`. |
+| `--order` | Sort order. One of `PRIORITY` (default), `ID`, `CREATED`, `PARENT_ID`, `PARENT_CREATED`, `ROLE`, `STATE`, `TITLE`, or `MODIFIED`. Append `:asc` or `:desc` to set direction (ascending is the default). |
+| `--columns` | Comma-separated list of columns to display. Valid columns: `ID`, `CREATED`, `PARENT_ID`, `PARENT_CREATED`, `PRIORITY`, `ROLE`, `STATE`, `TITLE`. Replaces the previous `--timestamps` flag. |
 | `--limit`, `-n` | Maximum number of results. Default: 20. |
 | `--no-limit` | Return all matching results. |
-| `--timestamps` | Include `created_at` timestamp in text output. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**

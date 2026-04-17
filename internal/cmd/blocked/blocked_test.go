@@ -362,6 +362,103 @@ func TestRun_EmptyResult_TextShowsNoBlockedMessage(t *testing.T) {
 	}
 }
 
+// TestRun_TextOutput_Header_PrintsDefaultColumnHeaders verifies that the
+// blocked text output includes all default column headers in the correct order.
+func TestRun_TextOutput_Header_PrintsDefaultColumnHeaders(t *testing.T) {
+	t.Parallel()
+
+	// Given — one blocked task
+	svc := setupService(t)
+	blockerID := createTask(t, svc, "Blocker for header")
+	blockedID := createTask(t, svc, "Blocked for header check")
+
+	err := svc.AddRelationship(t.Context(), blockedID.String(), driving.RelationshipInput{
+		TargetID: blockerID.String(),
+		Type:     domain.RelBlockedBy,
+	}, mustAuthor(t, "test-agent"))
+	if err != nil {
+		t.Fatalf("precondition: add relationship failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := blocked.RunInput{
+		Service:     svc,
+		JSON:        false,
+		WriteTo:     &buf,
+		ColorScheme: noColor(),
+	}
+
+	// When
+	err = blocked.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	expectedHeaders := []string{"ID", "PRIORITY", "ROLE", "STATE", "TITLE"}
+	for _, hdr := range expectedHeaders {
+		if !strings.Contains(firstLine, hdr) {
+			t.Errorf("expected header row to contain %q, first line: %q", hdr, firstLine)
+		}
+	}
+}
+
+// TestRun_TextOutput_CustomColumns_ShowsOnlySelectedColumns verifies that
+// passing a custom column set renders only those columns in the given order.
+func TestRun_TextOutput_CustomColumns_ShowsOnlySelectedColumns(t *testing.T) {
+	t.Parallel()
+
+	// Given — one blocked task
+	svc := setupService(t)
+	blockerID := createTask(t, svc, "Blocker for custom cols")
+	blockedID := createTask(t, svc, "Blocked for custom cols")
+
+	err := svc.AddRelationship(t.Context(), blockedID.String(), driving.RelationshipInput{
+		TargetID: blockerID.String(),
+		Type:     domain.RelBlockedBy,
+	}, mustAuthor(t, "test-agent"))
+	if err != nil {
+		t.Fatalf("precondition: add relationship failed: %v", err)
+	}
+
+	cols, parseErr := cmdutil.ParseColumns("ID,TITLE,STATE")
+	if parseErr != nil {
+		t.Fatalf("precondition: parse columns failed: %v", parseErr)
+	}
+
+	var buf bytes.Buffer
+	input := blocked.RunInput{
+		Service:     svc,
+		JSON:        false,
+		Columns:     cols,
+		WriteTo:     &buf,
+		ColorScheme: noColor(),
+	}
+
+	// When
+	err = blocked.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	if !strings.Contains(firstLine, "ID") {
+		t.Errorf("expected ID in header, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "TITLE") {
+		t.Errorf("expected TITLE in header, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "STATE") {
+		t.Errorf("expected STATE in header, first line: %q", firstLine)
+	}
+	// PRIORITY should not appear since it was not selected.
+	if strings.Contains(firstLine, "PRIORITY") {
+		t.Errorf("PRIORITY should not appear in custom column set, first line: %q", firstLine)
+	}
+}
+
 func TestRun_TextOutput_IncludesBlockedIssueDetails(t *testing.T) {
 	t.Parallel()
 

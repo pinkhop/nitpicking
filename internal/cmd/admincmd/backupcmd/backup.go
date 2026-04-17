@@ -138,16 +138,31 @@ func resolveBackupPath(input RunInput) (string, error) {
 	return filepath.Join(npDir, filename), nil
 }
 
-// DefaultBackupFilename returns a timestamped backup filename, optionally
-// including the database prefix. The prefix is sanitized to contain only
-// ASCII letters, preventing path traversal from a corrupt or malicious
-// database prefix.
+// DefaultBackupFilename returns a timestamped backup filename using the
+// current UTC time, optionally including the database prefix. The prefix
+// is sanitized to contain only ASCII letters, preventing path traversal
+// from a corrupt or malicious database prefix. The timestamp uses
+// YYYYMMDD-HHMMSSZ format for human readability.
 func DefaultBackupFilename(prefix string) string {
+	return DefaultBackupFilenameAt(prefix, time.Now())
+}
+
+// DefaultBackupFilenameAt returns a timestamped backup filename for the
+// given time, optionally including the database prefix. The time is
+// converted to UTC and formatted as YYYYMMDD-HHMMSSZ. The prefix is
+// sanitized to contain only ASCII letters, preventing path traversal
+// from a corrupt or malicious database prefix.
+//
+// This function exists so callers (including tests) can supply a
+// deterministic timestamp; DefaultBackupFilename delegates here with
+// the current wall-clock time.
+func DefaultBackupFilenameAt(prefix string, t time.Time) string {
 	safe := sanitizePrefix(prefix)
+	ts := t.UTC().Format("20060102-150405Z")
 	if safe != "" {
-		return fmt.Sprintf("backup-%s.%d.jsonl.gz", strings.ToLower(safe), time.Now().Unix())
+		return fmt.Sprintf("backup-%s.%s.jsonl.gz", strings.ToLower(safe), ts)
 	}
-	return fmt.Sprintf("backup.%d.jsonl.gz", time.Now().Unix())
+	return fmt.Sprintf("backup.%s.jsonl.gz", ts)
 }
 
 // sanitizePrefix strips any character that is not an ASCII letter from the
@@ -177,7 +192,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Usage: "Create a JSONL backup of the issue database",
 		Description: `Creates a gzip-compressed JSONL snapshot of every issue, comment,
 relationship, and label in the database. The backup file is written to
-the .np/ directory by default (with a Unix-timestamp filename) or to a
+the .np/ directory by default (with a UTC-datetime filename) or to a
 path you specify with --output. If --output is a directory, the default
 filename is used inside that directory.
 

@@ -385,7 +385,7 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input driving.ClaimNex
 			filter.Roles = []domain.Role{input.Role}
 		}
 
-		items, _, err := uow.Issues().ListIssues(ctx, filter, driven.OrderByPriority, 1)
+		items, _, err := uow.Issues().ListIssues(ctx, filter, driven.OrderByPriority, driven.SortAscending, 1)
 		if err != nil {
 			return err
 		}
@@ -1013,7 +1013,7 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id string) (driving.ShowIss
 		// Children — fetch full list items for display, retain count for
 		// backward compatibility.
 		children, _, childErr := uow.Issues().ListIssues(ctx,
-			driven.IssueFilter{ParentIDs: []domain.ID{parsedID}}, driven.OrderByPriority, -1)
+			driven.IssueFilter{ParentIDs: []domain.ID{parsedID}}, driven.OrderByPriority, driven.SortAscending, -1)
 		if childErr == nil {
 			output.ChildCount = len(children)
 			if len(children) > 0 {
@@ -1099,9 +1099,10 @@ func (s *serviceImpl) ListIssues(ctx context.Context, input driving.ListIssuesIn
 		return output, err
 	}
 	po := toPortOrderBy(input.OrderBy)
+	pd := toPortDirection(input.Direction)
 
 	err = s.tx.WithReadTransaction(ctx, func(uow driven.UnitOfWork) error {
-		items, hasMore, err := uow.Issues().ListIssues(ctx, pf, po, input.Limit)
+		items, hasMore, err := uow.Issues().ListIssues(ctx, pf, po, pd, input.Limit)
 		if err != nil {
 			return err
 		}
@@ -1122,9 +1123,10 @@ func (s *serviceImpl) SearchIssues(ctx context.Context, input driving.SearchIssu
 		return output, err
 	}
 	po := toPortOrderBy(input.OrderBy)
+	pd := toPortDirection(input.Direction)
 
 	err = s.tx.WithReadTransaction(ctx, func(uow driven.UnitOfWork) error {
-		items, hasMore, err := uow.Issues().SearchIssues(ctx, input.Query, pf, po, input.Limit)
+		items, hasMore, err := uow.Issues().SearchIssues(ctx, input.Query, pf, po, pd, input.Limit)
 		if err != nil {
 			return err
 		}
@@ -1344,7 +1346,7 @@ func (s *serviceImpl) EpicProgress(ctx context.Context, input driving.EpicProgre
 			}
 			pf.Roles = []domain.Role{domain.RoleEpic}
 			pf.ExcludeClosed = true
-			items, _, listErr := uow.Issues().ListIssues(ctx, pf, driven.OrderByPriority, -1)
+			items, _, listErr := uow.Issues().ListIssues(ctx, pf, driven.OrderByPriority, driven.SortAscending, -1)
 			if listErr != nil {
 				return fmt.Errorf("listing epics: %w", listErr)
 			}
@@ -1402,7 +1404,7 @@ func (s *serviceImpl) CloseCompletedEpics(ctx context.Context, input driving.Clo
 		items, _, listErr := uow.Issues().ListIssues(ctx, driven.IssueFilter{
 			Roles:         roles,
 			ExcludeClosed: true,
-		}, driven.OrderByPriority, -1)
+		}, driven.OrderByPriority, driven.SortAscending, -1)
 		if listErr != nil {
 			return fmt.Errorf("listing issues: %w", listErr)
 		}
@@ -1806,7 +1808,7 @@ func (s *serviceImpl) GetGraphData(ctx context.Context) (driving.GraphDataOutput
 	var output driving.GraphDataOutput
 	err := s.tx.WithReadTransaction(ctx, func(uow driven.UnitOfWork) error {
 		// Fetch all non-deleted issues (unlimited).
-		items, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, -1)
+		items, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 		if err != nil {
 			return err
 		}
@@ -1989,7 +1991,7 @@ func (s *serviceImpl) checkBlockerHealth(ctx context.Context, uow driven.UnitOfW
 	// Load all non-deleted, non-closed issues.
 	allItems, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{
 		ExcludeClosed: true,
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	if err != nil {
 		return nil, fmt.Errorf("listing issues: %w", err)
 	}
@@ -2185,7 +2187,7 @@ func (s *serviceImpl) checkCloseCompleted(ctx context.Context, uow driven.UnitOf
 	epics, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{
 		Roles:         []domain.Role{domain.RoleEpic},
 		ExcludeClosed: true,
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	if err != nil {
 		return nil, fmt.Errorf("listing epics: %w", err)
 	}
@@ -2215,7 +2217,7 @@ func (s *serviceImpl) checkCloseCompleted(ctx context.Context, uow driven.UnitOf
 // parent is closed (orphaned children).
 func (s *serviceImpl) checkParentHealth(ctx context.Context, uow driven.UnitOfWork) ([]driving.DoctorFinding, error) {
 	// Load all non-deleted issues (including closed for parent lookup).
-	allItems, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, -1)
+	allItems, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 	if err != nil {
 		return nil, fmt.Errorf("listing issues: %w", err)
 	}
@@ -2269,7 +2271,7 @@ func (s *serviceImpl) checkPriorityInversion(ctx context.Context, uow driven.Uni
 	// Load all non-deleted, non-closed issues.
 	allItems, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{
 		ExcludeClosed: true,
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	if err != nil {
 		return nil, fmt.Errorf("listing issues: %w", err)
 	}
@@ -2345,7 +2347,7 @@ func (s *serviceImpl) checkOrphanTasks(ctx context.Context, uow driven.UnitOfWor
 			{Key: "kind", Value: "bug", Negate: true},
 			{Key: "kind", Value: "fix", Negate: true},
 		},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	if err != nil {
 		return nil, fmt.Errorf("listing orphan tasks: %w", err)
 	}
@@ -2374,7 +2376,7 @@ func (s *serviceImpl) checkMissingLabels(ctx context.Context, uow driven.UnitOfW
 		LabelFilters: []driven.LabelFilter{
 			{Key: "kind", Negate: true},
 		},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	if err != nil {
 		return nil, fmt.Errorf("listing issues missing kind label: %w", err)
 	}
@@ -2402,7 +2404,7 @@ func (s *serviceImpl) checkMissingLabels(ctx context.Context, uow driven.UnitOfW
 func (s *serviceImpl) checkDeferrals(ctx context.Context, uow driven.UnitOfWork, now time.Time) ([]driving.DoctorFinding, error) {
 	deferred, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{
 		States: []domain.State{domain.StateDeferred},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	if err != nil {
 		return nil, fmt.Errorf("listing deferred issues: %w", err)
 	}
@@ -2456,7 +2458,7 @@ func (s *serviceImpl) checkBlockedByHuman(ctx context.Context, uow driven.UnitOf
 		LabelFilters: []driven.LabelFilter{
 			{Key: "waiting_on", Value: "human"},
 		},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	if err != nil {
 		return nil, fmt.Errorf("listing human-blocked issues: %w", err)
 	}
@@ -2524,7 +2526,7 @@ func (s *serviceImpl) Backup(ctx context.Context, input driving.BackupInput) (dr
 		}
 
 		// List all non-deleted issues.
-		items, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{}, driven.OrderByCreatedAt, -1)
+		items, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{}, driven.OrderByCreatedAt, driven.SortAscending, -1)
 		if err != nil {
 			return fmt.Errorf("listing issues: %w", err)
 		}
@@ -3162,7 +3164,7 @@ func (s *serviceImpl) applyIssueUpdates(ctx context.Context, uow driven.UnitOfWo
 func (s *serviceImpl) CountAllIssues(ctx context.Context) (int, error) {
 	var count int
 	err := s.tx.WithReadTransaction(ctx, func(uow driven.UnitOfWork) error {
-		items, _, listErr := uow.Issues().ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, -1)
+		items, _, listErr := uow.Issues().ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 		if listErr != nil {
 			return listErr
 		}
@@ -3432,18 +3434,19 @@ func toIssueListItemDTO(item driven.IssueListItem) driving.IssueListItemDTO {
 	}
 
 	return driving.IssueListItemDTO{
-		ID:             item.ID.String(),
-		Role:           item.Role,
-		State:          item.State,
-		Priority:       item.Priority,
-		Title:          item.Title,
-		ParentID:       item.ParentID.String(),
-		CreatedAt:      item.CreatedAt,
-		IsDeleted:      item.IsDeleted,
-		IsBlocked:      item.IsBlocked,
-		BlockerIDs:     blockerIDs,
-		SecondaryState: item.SecondaryState,
-		DisplayStatus:  item.DisplayStatus(),
+		ID:              item.ID.String(),
+		Role:            item.Role,
+		State:           item.State,
+		Priority:        item.Priority,
+		Title:           item.Title,
+		ParentID:        item.ParentID.String(),
+		ParentCreatedAt: item.ParentCreatedAt,
+		CreatedAt:       item.CreatedAt,
+		IsDeleted:       item.IsDeleted,
+		IsBlocked:       item.IsBlocked,
+		BlockerIDs:      blockerIDs,
+		SecondaryState:  item.SecondaryState,
+		DisplayStatus:   item.DisplayStatus(),
 	}
 }
 
@@ -3595,6 +3598,15 @@ func parseIDSlice(ss []string) ([]domain.ID, error) {
 	return out, nil
 }
 
+// toPortDirection translates a service-layer driving.SortDirection to the
+// driven-port SortDirection type.
+func toPortDirection(d driving.SortDirection) driven.SortDirection {
+	if d == driving.SortDescending {
+		return driven.SortDescending
+	}
+	return driven.SortAscending
+}
+
 // toPortOrderBy translates a service-layer driving.OrderBy to the driven-port
 // IssueOrderBy type.
 func toPortOrderBy(o driving.OrderBy) driven.IssueOrderBy {
@@ -3603,6 +3615,20 @@ func toPortOrderBy(o driving.OrderBy) driven.IssueOrderBy {
 		return driven.OrderByCreatedAt
 	case driving.OrderByUpdatedAt:
 		return driven.OrderByUpdatedAt
+	case driving.OrderByPriorityCreated:
+		return driven.OrderByPriorityCreated
+	case driving.OrderByID:
+		return driven.OrderByID
+	case driving.OrderByRole:
+		return driven.OrderByRole
+	case driving.OrderByState:
+		return driven.OrderByState
+	case driving.OrderByTitle:
+		return driven.OrderByTitle
+	case driving.OrderByParentID:
+		return driven.OrderByParentID
+	case driving.OrderByParentCreated:
+		return driven.OrderByParentCreated
 	default:
 		return driven.OrderByPriority
 	}

@@ -363,3 +363,77 @@ func TestAgentInstructions_StartsWithContentImmediately(t *testing.T) {
 		t.Error("expected output to start immediately with content, found leading whitespace")
 	}
 }
+
+func TestAgentInstructions_DocumentsColumnsFlag(t *testing.T) {
+	t.Parallel()
+
+	// When
+	output := agent.AgentInstructions()
+
+	// Then — the instructions must document the --columns flag so agents
+	// know they can select and reorder columns in tabular output.
+	if !strings.Contains(output, "--columns") {
+		t.Error("expected instructions to document --columns flag")
+	}
+}
+
+func TestAgentInstructions_DocumentsDefaultColumns(t *testing.T) {
+	t.Parallel()
+
+	// When
+	output := agent.AgentInstructions()
+
+	// Then — the instructions must list the default column set so agents
+	// understand what columns appear without explicit selection.
+	defaultCols := []string{"ID", "PRIORITY", "ROLE", "STATE", "TITLE"}
+	for _, col := range defaultCols {
+		if !strings.Contains(output, col) {
+			t.Errorf("expected instructions to mention default column %q", col)
+		}
+	}
+}
+
+func TestAgentInstructions_DocumentsValidColumnNames(t *testing.T) {
+	t.Parallel()
+
+	// When
+	output := agent.AgentInstructions()
+
+	// Then — the instructions must list all valid column names so agents
+	// know what values --columns accepts.
+	validCols := []string{"ID", "CREATED", "PARENT_ID", "PARENT_CREATED", "PRIORITY", "ROLE", "STATE", "TITLE"}
+	for _, col := range validCols {
+		if !strings.Contains(output, col) {
+			t.Errorf("expected instructions to list valid column name %q", col)
+		}
+	}
+}
+
+func TestAgentInstructions_DocumentsOrderAscDescSuffix(t *testing.T) {
+	t.Parallel()
+
+	// When
+	output := agent.AgentInstructions()
+
+	// Then — the instructions must document the :asc and :desc suffixes
+	// for the --order flag so agents know how to control sort direction.
+	if !strings.Contains(output, ":asc") {
+		t.Error("expected instructions to document :asc suffix for --order flag")
+	}
+	if !strings.Contains(output, ":desc") {
+		t.Error("expected instructions to document :desc suffix for --order flag")
+	}
+}
+
+func TestAgentInstructions_DocumentsOrderFlag(t *testing.T) {
+	t.Parallel()
+
+	// When
+	output := agent.AgentInstructions()
+
+	// Then — the instructions must document the --order flag so agents
+	// know they can control sort order.
+	if !strings.Contains(output, "--order") {
+		t.Error("expected instructions to document --order flag")
+	}
+}

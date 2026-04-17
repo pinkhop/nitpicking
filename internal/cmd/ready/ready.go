@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"text/tabwriter"
 
 	"github.com/urfave/cli/v3"
 
@@ -19,8 +18,11 @@ import (
 // from CLI flag parsing so it can be tested directly.
 type RunInput struct {
 	Service       driving.Service
+	OrderBy       driving.OrderBy
+	Direction     driving.SortDirection
 	JSON          bool
 	Limit         int
+	Columns       []cmdutil.Column
 	WriteTo       io.Writer
 	ColorScheme   *iostreams.ColorScheme
 	TerminalWidth int
@@ -30,9 +32,10 @@ type RunInput struct {
 // and writes the result to the output writer.
 func Run(ctx context.Context, input RunInput) error {
 	result, err := input.Service.ListIssues(ctx, driving.ListIssuesInput{
-		Filter:  driving.IssueFilterInput{Ready: true},
-		OrderBy: driving.OrderByPriority,
-		Limit:   input.Limit,
+		Filter:    driving.IssueFilterInput{Ready: true},
+		OrderBy:   input.OrderBy,
+		Direction: input.Direction,
+		Limit:     input.Limit,
 	})
 	if err != nil {
 		return fmt.Errorf("listing ready issues: %w", err)
@@ -46,27 +49,36 @@ func Run(ctx context.Context, input RunInput) error {
 		return cmdutil.WriteJSON(input.WriteTo, out)
 	}
 
-	cs := input.ColorScheme
 	w := input.WriteTo
+	cs := input.ColorScheme
+	if cs == nil {
+		cs = iostreams.NewColorScheme(false)
+	}
 
 	if len(result.Items) == 0 {
 		_, _ = fmt.Fprintln(w, "No ready issues.")
 		return nil
 	}
 
-	// Columns: ID, role, state, priority, title. Estimate non-title overhead
-	// as ID(~8) + role(4) + state(~13) + priority(2) + 4 tab paddings(8) = ~35.
-	maxTitle := cmdutil.AvailableTitleWidth(input.TerminalWidth, 35)
-
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	for _, item := range result.Items {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-			cs.Bold(item.ID),
-			cs.Dim(item.Role.String()),
-			cmdutil.FormatState(cs, item.State, item.SecondaryState),
-			cs.Yellow(item.Priority.String()),
-			cmdutil.TruncateTitle(item.Title, maxTitle))
+	cols := input.Columns
+	if len(cols) == 0 {
+		cols = cmdutil.DefaultColumns
 	}
+
+	overhead := cmdutil.OverheadForColumns(cols)
+	maxTitle := cmdutil.AvailableTitleWidth(input.TerminalWidth, overhead)
+
+	tw := cmdutil.NewTableWriter(w, 2)
+	tw.AddRow(cmdutil.ColumnarHeaderCells(cols)...)
+
+	rc := cmdutil.RenderContext{
+		ColorScheme:   cs,
+		MaxTitleWidth: maxTitle,
+	}
+	for _, item := range result.Items {
+		tw.AddRow(cmdutil.ColumnarRowCells(item, cols, rc)...)
+	}
+	// Flush error is best-effort — output is going to stdout.
 	_ = tw.Flush()
 
 	shown := len(result.Items)
@@ -85,9 +97,11 @@ func Run(ctx context.Context, input RunInput) error {
 // for work. This is a shortcut for "np list --ready".
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
-		jsonOutput bool
-		limit      int
-		noLimit    bool
+		jsonOutput  bool
+		order       string
+		limit       int
+		noLimit     bool
+		columnsFlag string
 	)
 
 	return &cli.Command{
@@ -103,6 +117,18 @@ useful when you want to browse the queue without committing to anything.
 It is equivalent to "list --ready" but shorter to type and easier to
 remember.`,
 		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "order",
+				Usage:       "Sort order: " + cmdutil.ValidOrderNames() + "; append :asc or :desc for direction (default: PRIORITY)",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &order,
+			},
+			&cli.StringFlag{
+				Name:        "columns",
+				Usage:       "Comma-separated list of columns to display; valid columns: " + cmdutil.ValidColumnNames(),
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &columnsFlag,
+			},
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
@@ -125,7 +151,21 @@ remember.`,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			// Ready is a flat listing; ResolveFlatListOrderBy remaps any
+			// priority variant (bare, :asc, :desc, case/whitespace mixes, or
+			// the empty default) to driving.OrderByPriorityCreated so parent
+			// grouping does not affect ordering.
+			orderBy, direction, err := cmdutil.ResolveFlatListOrderBy(order)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			effectiveLimit, err := cmdutil.ResolveLimit(limit, noLimit)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
+			cols, err := cmdutil.ParseColumns(columnsFlag)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
@@ -137,8 +177,11 @@ remember.`,
 
 			return Run(ctx, RunInput{
 				Service:       svc,
+				OrderBy:       orderBy,
+				Direction:     direction,
 				JSON:          jsonOutput,
 				Limit:         effectiveLimit,
+				Columns:       cols,
 				WriteTo:       f.IOStreams.Out,
 				ColorScheme:   f.IOStreams.ColorScheme(),
 				TerminalWidth: f.IOStreams.TerminalWidth(),

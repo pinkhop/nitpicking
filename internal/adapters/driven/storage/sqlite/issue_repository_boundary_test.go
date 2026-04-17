@@ -4,6 +4,7 @@ package sqlite_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/sqlite"
 	"github.com/pinkhop/nitpicking/internal/core"
@@ -520,5 +521,75 @@ func TestBoundary_CreateIssue_IdempotencyKey_ReturnsSameIssue(t *testing.T) {
 	if secondOut.Issue.ID() != firstOut.Issue.ID() {
 		t.Errorf("expected same issue ID on retry, got %s (first: %s)",
 			secondOut.Issue.ID(), firstOut.Issue.ID())
+	}
+}
+
+// --- ListIssues OrderBy: MODIFIED ---
+
+// TestBoundary_ListIssues_OrderByModified_SortAscending_ReturnsOldestFirst
+// verifies that --order MODIFIED:asc places the oldest-created issue first.
+// The SQLite adapter uses created_at as a proxy for modification time, so a
+// brief sleep between creates guarantees distinct timestamps.
+func TestBoundary_ListIssues_OrderByModified_SortAscending_ReturnsOldestFirst(t *testing.T) {
+	// Given — two tasks created at different times
+	svc := setupBoundarySvc(t)
+	ctx := t.Context()
+
+	olderID := createIntTask(t, svc, "Older task")
+	// Brief pause to ensure a distinct created_at value for the second issue.
+	time.Sleep(10 * time.Millisecond)
+	newerID := createIntTask(t, svc, "Newer task")
+
+	// When
+	result, err := svc.ListIssues(ctx, driving.ListIssuesInput{
+		OrderBy:   driving.OrderByUpdatedAt,
+		Direction: driving.SortAscending,
+		Limit:     -1,
+	})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Items) != 2 {
+		t.Fatalf("items: got %d, want 2", len(result.Items))
+	}
+	if result.Items[0].ID != olderID.String() {
+		t.Errorf("first item should be older task (%s), got %s", olderID, result.Items[0].ID)
+	}
+	if result.Items[1].ID != newerID.String() {
+		t.Errorf("second item should be newer task (%s), got %s", newerID, result.Items[1].ID)
+	}
+}
+
+// TestBoundary_ListIssues_OrderByModified_SortDescending_ReturnsNewestFirst
+// verifies that --order MODIFIED:desc places the newest-created issue first.
+func TestBoundary_ListIssues_OrderByModified_SortDescending_ReturnsNewestFirst(t *testing.T) {
+	// Given — two tasks created at different times
+	svc := setupBoundarySvc(t)
+	ctx := t.Context()
+
+	olderID := createIntTask(t, svc, "Older task")
+	// Brief pause to ensure a distinct created_at value for the second issue.
+	time.Sleep(10 * time.Millisecond)
+	newerID := createIntTask(t, svc, "Newer task")
+
+	// When
+	result, err := svc.ListIssues(ctx, driving.ListIssuesInput{
+		OrderBy:   driving.OrderByUpdatedAt,
+		Direction: driving.SortDescending,
+		Limit:     -1,
+	})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Items) != 2 {
+		t.Fatalf("items: got %d, want 2", len(result.Items))
+	}
+	if result.Items[0].ID != newerID.String() {
+		t.Errorf("first item should be newer task (%s), got %s", newerID, result.Items[0].ID)
+	}
+	if result.Items[1].ID != olderID.String() {
+		t.Errorf("second item should be older task (%s), got %s", olderID, result.Items[1].ID)
 	}
 }

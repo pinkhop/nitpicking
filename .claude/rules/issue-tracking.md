@@ -205,6 +205,37 @@ JSONEND
 **CLI flags:** `--author` (required).
 **JSON fields:** `body` (required).
 
+## Tabular Output
+
+Commands that list issues (`np list`, `np ready`, `np blocked`, `np issue search`, `np epic children`) display results in a columnar table when outputting text.
+
+### Default columns
+
+The default column set is: **ID, PRIORITY, ROLE, STATE, TITLE**. These are the columns shown when no `--columns` flag is provided.
+
+### Selecting columns with --columns
+
+Use `--columns` to select and reorder which columns appear. Pass a comma-separated list of column names:
+
+```
+np list --columns ID,PRIORITY,TITLE              # compact view
+np list --columns ID,PRIORITY,PARENT_ID,PARENT_CREATED,CREATED,ROLE,STATE,TITLE  # full view
+```
+
+Valid column names: **ID**, **CREATED**, **PARENT_ID**, **PARENT_CREATED**, **PRIORITY**, **ROLE**, **STATE**, **TITLE**. Column names are case-insensitive.
+
+### Sorting with --order
+
+Use `--order` to control the sort order. Append `:asc` or `:desc` to set the direction:
+
+```
+np list --order CREATED:desc    # newest first
+np list --order MODIFIED:desc   # most recently modified first
+np list --order PRIORITY:asc    # highest priority first (P0 before P1)
+```
+
+Valid order values match the column names plus **MODIFIED**. The default order varies by command: `np list` defaults to ID ascending; `np ready` and `np blocked` default to PRIORITY ascending.
+
 ## Key Rules
 
 - **Use `np claim ready` to find work.** Do not browse and cherry-pick issues.

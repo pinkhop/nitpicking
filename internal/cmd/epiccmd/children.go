@@ -3,23 +3,25 @@ package epiccmd
 import (
 	"context"
 	"fmt"
-	"text/tabwriter"
 
 	"github.com/urfave/cli/v3"
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
+	"github.com/pinkhop/nitpicking/internal/iostreams"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
 // childOutput is the JSON representation of a single child item.
 type childOutput struct {
-	ID            string `json:"id"`
-	Role          string `json:"role"`
-	State         string `json:"state"`
-	DisplayStatus string `json:"display_status"`
-	Priority      string `json:"priority"`
-	Title         string `json:"title"`
-	CreatedAt     string `json:"created_at"`
+	ID              string `json:"id"`
+	Role            string `json:"role"`
+	State           string `json:"state"`
+	DisplayStatus   string `json:"display_status"`
+	Priority        string `json:"priority"`
+	Title           string `json:"title"`
+	ParentID        string `json:"parent_id,omitempty"`
+	ParentCreatedAt string `json:"parent_created_at,omitempty"`
+	CreatedAt       string `json:"created_at"`
 }
 
 // childrenOutput is the JSON representation of the children list.
@@ -32,9 +34,11 @@ type childrenOutput struct {
 // epic, including closed issues.
 func newChildrenCmd(f *cmdutil.Factory) *cli.Command {
 	var (
-		jsonOutput bool
-		limit      int
-		noLimit    bool
+		jsonOutput  bool
+		order       string
+		limit       int
+		noLimit     bool
+		columnsFlag string
 	)
 
 	return &cli.Command{
@@ -50,6 +54,18 @@ tasks remain open, to verify that all children have been closed before running
 "epic close-completed", or to understand the decomposition of an epic you are
 about to claim. Results are sorted by priority.`,
 		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "order",
+				Usage:       "Sort order: " + cmdutil.ValidOrderNames() + "; append :asc or :desc for direction (default: PRIORITY)",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &order,
+			},
+			&cli.StringFlag{
+				Name:        "columns",
+				Usage:       "Comma-separated list of columns to display; valid columns: " + cmdutil.ValidColumnNames(),
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &columnsFlag,
+			},
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"n"},
@@ -77,6 +93,11 @@ about to claim. Results are sorted by priority.`,
 				return cmdutil.FlagErrorf("epic ID argument is required")
 			}
 
+			orderBy, direction, err := cmdutil.ParseOrderBy(order)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err
@@ -93,11 +114,17 @@ about to claim. Results are sorted by priority.`,
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
+			cols, err := cmdutil.ParseColumns(columnsFlag)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			// Include closed children (unlike the default list behavior).
 			result, err := svc.ListIssues(ctx, driving.ListIssuesInput{
-				Filter:  driving.IssueFilterInput{ParentIDs: []string{epicID.String()}},
-				OrderBy: driving.OrderByPriority,
-				Limit:   effectiveLimit,
+				Filter:    driving.IssueFilterInput{ParentIDs: []string{epicID.String()}},
+				OrderBy:   orderBy,
+				Direction: direction,
+				Limit:     effectiveLimit,
 			})
 			if err != nil {
 				return fmt.Errorf("listing children: %w", err)
@@ -110,35 +137,49 @@ about to claim. Results are sorted by priority.`,
 				}
 				for _, item := range result.Items {
 					out.Items = append(out.Items, childOutput{
-						ID:            item.ID,
-						Role:          item.Role.String(),
-						State:         item.State.String(),
-						DisplayStatus: item.DisplayStatus,
-						Priority:      item.Priority.String(),
-						Title:         item.Title,
-						CreatedAt:     cmdutil.FormatJSONTimestamp(item.CreatedAt),
+						ID:              item.ID,
+						Role:            item.Role.String(),
+						State:           item.State.String(),
+						DisplayStatus:   item.DisplayStatus,
+						Priority:        item.Priority.String(),
+						Title:           item.Title,
+						ParentID:        item.ParentID,
+						ParentCreatedAt: cmdutil.FormatJSONTimestamp(item.ParentCreatedAt),
+						CreatedAt:       cmdutil.FormatJSONTimestamp(item.CreatedAt),
 					})
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)
 			}
 
-			cs := f.IOStreams.ColorScheme()
 			w := f.IOStreams.Out
+			cs := f.IOStreams.ColorScheme()
+			if cs == nil {
+				cs = iostreams.NewColorScheme(false)
+			}
 
 			if len(result.Items) == 0 {
 				_, _ = fmt.Fprintln(w, "No children found.")
 				return nil
 			}
 
-			tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-			for _, item := range result.Items {
-				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-					cs.Bold(item.ID),
-					cs.Dim(item.Role.String()),
-					cmdutil.FormatState(cs, item.State, item.SecondaryState),
-					cs.Yellow(item.Priority.String()),
-					item.Title)
+			if len(cols) == 0 {
+				cols = cmdutil.DefaultColumns
 			}
+
+			overhead := cmdutil.OverheadForColumns(cols)
+			maxTitle := cmdutil.AvailableTitleWidth(f.IOStreams.TerminalWidth(), overhead)
+
+			tw := cmdutil.NewTableWriter(w, 2)
+			tw.AddRow(cmdutil.ColumnarHeaderCells(cols)...)
+
+			rc := cmdutil.RenderContext{
+				ColorScheme:   cs,
+				MaxTitleWidth: maxTitle,
+			}
+			for _, item := range result.Items {
+				tw.AddRow(cmdutil.ColumnarRowCells(item, cols, rc)...)
+			}
+			// Flush error is best-effort — output is going to stdout.
 			_ = tw.Flush()
 
 			shown := len(result.Items)

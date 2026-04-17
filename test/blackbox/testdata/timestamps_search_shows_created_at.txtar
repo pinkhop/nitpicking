@@ -1,7 +1,7 @@
-# Verify that 'np issue search --timestamps' includes date timestamps in text output.
+# Verify that 'np issue search --columns ID,PRIORITY,ROLE,STATE,CREATED,TITLE' includes date timestamps in text output.
 
 np-init TS
 np-seed task 'Searchable timestamped task' ts-agent TASK
 
-exec np issue search timestamped --timestamps
+exec np issue search timestamped --columns ID,PRIORITY,ROLE,STATE,CREATED,TITLE
 stdout '2026-'

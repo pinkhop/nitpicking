@@ -259,7 +259,7 @@ func TestListIssues_EmptyRepository_ReturnsEmpty(t *testing.T) {
 	repo := memory.NewRepository()
 
 	// When
-	items, hasMore, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, -1)
+	items, hasMore, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -291,7 +291,7 @@ func TestListIssues_FilterByRole(t *testing.T) {
 	// When
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		Roles: []domain.Role{domain.RoleTask},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -324,7 +324,7 @@ func TestListIssues_FilterByState(t *testing.T) {
 	// When
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		States: []domain.State{domain.StateClosed},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -357,7 +357,7 @@ func TestListIssues_ExcludeClosed(t *testing.T) {
 	// When
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		ExcludeClosed: true,
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -388,7 +388,7 @@ func TestListIssues_ExcludeClosed_OverriddenByExplicitStateFilter(t *testing.T) 
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		ExcludeClosed: true,
 		States:        []domain.State{domain.StateClosed},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -422,7 +422,7 @@ func TestListIssues_FilterByParentID(t *testing.T) {
 	// When
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		ParentIDs: []domain.ID{epicID},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -459,7 +459,7 @@ func TestListIssues_FilterByOrphan(t *testing.T) {
 	// When
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		Orphan: true,
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -495,7 +495,7 @@ func TestListIssues_FilterByLabel(t *testing.T) {
 	// When — filter for kind:bug
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		LabelFilters: []driven.LabelFilter{{Key: "kind", Value: "bug"}},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -531,7 +531,7 @@ func TestListIssues_FilterByLabel_Wildcard(t *testing.T) {
 	// When — wildcard filter: any value for key "area"
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		LabelFilters: []driven.LabelFilter{{Key: "area", Value: ""}},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -569,7 +569,7 @@ func TestListIssues_FilterByLabel_Negated(t *testing.T) {
 	// When — exclude kind:bug
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		LabelFilters: []driven.LabelFilter{{Key: "kind", Value: "bug", Negate: true}},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -611,7 +611,7 @@ func TestListIssues_FilterByBlocked(t *testing.T) {
 	// When
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		Blocked: true,
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -656,7 +656,7 @@ func TestListIssues_FilterByReady(t *testing.T) {
 	// When
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		Ready: true,
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -706,7 +706,7 @@ func TestListIssues_FilterByDescendantsOf(t *testing.T) {
 	// When
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		DescendantsOf: gpID,
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -753,7 +753,7 @@ func TestListIssues_FilterByAncestorsOf(t *testing.T) {
 	// When
 	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
 		AncestorsOf: childID,
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -793,7 +793,7 @@ func TestListIssues_IncludeDeleted(t *testing.T) {
 	}
 
 	// When — without IncludeDeleted
-	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, -1)
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -804,7 +804,7 @@ func TestListIssues_IncludeDeleted(t *testing.T) {
 	}
 
 	// When — with IncludeDeleted
-	items, _, err = repo.ListIssues(ctx, driven.IssueFilter{IncludeDeleted: true}, driven.OrderByPriority, -1)
+	items, _, err = repo.ListIssues(ctx, driven.IssueFilter{IncludeDeleted: true}, driven.OrderByPriority, driven.SortAscending, -1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -830,7 +830,7 @@ func TestListIssues_Pagination_LimitAndHasMore(t *testing.T) {
 	}
 
 	// When — limit 2
-	items, hasMore, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, 2)
+	items, hasMore, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, 2)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -858,7 +858,7 @@ func TestListIssues_DefaultLimit(t *testing.T) {
 	}
 
 	// When — limit 0 means "use default" (which is 20)
-	items, hasMore, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, 0)
+	items, hasMore, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, 0)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -886,7 +886,7 @@ func TestListIssues_NegativeLimit_ReturnsAll(t *testing.T) {
 	}
 
 	// When — negative limit means "return all"
-	items, hasMore, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, -1)
+	items, hasMore, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -921,7 +921,7 @@ func TestListIssues_OrderByPriority(t *testing.T) {
 	}
 
 	// When
-	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, -1)
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -963,7 +963,7 @@ func TestListIssues_OrderByCreatedAt(t *testing.T) {
 	}
 
 	// When
-	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByCreatedAt, -1)
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByCreatedAt, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -979,12 +979,14 @@ func TestListIssues_OrderByCreatedAt(t *testing.T) {
 	}
 }
 
-func TestListIssues_OrderByUpdatedAt(t *testing.T) {
+func TestListIssues_OrderByUpdatedAt_SortAscending_ReturnsOldestFirst(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repo := memory.NewRepository()
 
-	// Given — three tasks, OrderByUpdatedAt sorts most recent first
+	// Given — two tasks where the newer task has a later creation time (used
+	// as a proxy for modification time since the memory adapter sorts by
+	// family-anchored created_at under MODIFIED ordering).
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	oldestID := mustIssueID(t)
 	newestID := mustIssueID(t)
@@ -999,7 +1001,7 @@ func TestListIssues_OrderByUpdatedAt(t *testing.T) {
 	}
 
 	// When
-	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByUpdatedAt, -1)
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByUpdatedAt, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1007,12 +1009,240 @@ func TestListIssues_OrderByUpdatedAt(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("expected 2 items, got %d", len(items))
 	}
-	// Most recent first
+	// Oldest first (SortAscending = chronological order)
+	if items[0].ID != oldestID {
+		t.Errorf("first item should be oldest, got %s", items[0].ID)
+	}
+	if items[1].ID != newestID {
+		t.Errorf("second item should be newest, got %s", items[1].ID)
+	}
+}
+
+func TestListIssues_OrderByUpdatedAt_SortDescending_ReturnsNewestFirst(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — two tasks where the newer task has a later creation time.
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	oldestID := mustIssueID(t)
+	newestID := mustIssueID(t)
+
+	oldest := mustTask(t, oldestID, "Oldest", base)
+	newest := mustTask(t, newestID, "Newest", base.Add(time.Hour))
+
+	for _, iss := range []domain.Issue{oldest, newest} {
+		if err := repo.CreateIssue(ctx, iss); err != nil {
+			t.Fatalf("precondition: %v", err)
+		}
+	}
+
+	// When
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByUpdatedAt, driven.SortDescending, -1)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+	// Newest first (SortDescending = reverse-chronological order)
 	if items[0].ID != newestID {
 		t.Errorf("first item should be newest, got %s", items[0].ID)
 	}
 	if items[1].ID != oldestID {
 		t.Errorf("second item should be oldest, got %s", items[1].ID)
+	}
+}
+
+func TestListIssues_OrderByPriorityCreated_SortsByPriorityThenCreatedAtWithoutFamilyAnchor(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — a parent epic created at an early time and two child tasks
+	// with different priorities. Under family-anchored ordering, the
+	// parent's created_at would influence child sort order. Under
+	// OrderByPriorityCreated, only the child's own created_at matters.
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	parentID := mustIssueID(t)
+	childOlderID := mustIssueID(t)
+	childNewerID := mustIssueID(t)
+	orphanID := mustIssueID(t)
+
+	parent := mustEpic(t, parentID, "Parent epic", base.Add(10*time.Hour))
+	childOlder, _ := domain.NewTask(domain.NewTaskParams{
+		ID:        childOlderID,
+		Title:     "Child older",
+		Priority:  domain.P1,
+		CreatedAt: base.Add(1 * time.Hour),
+		ParentID:  parentID,
+	})
+	childNewer, _ := domain.NewTask(domain.NewTaskParams{
+		ID:        childNewerID,
+		Title:     "Child newer",
+		Priority:  domain.P1,
+		CreatedAt: base.Add(2 * time.Hour),
+		ParentID:  parentID,
+	})
+	orphan, _ := domain.NewTask(domain.NewTaskParams{
+		ID:        orphanID,
+		Title:     "Orphan",
+		Priority:  domain.P1,
+		CreatedAt: base.Add(90 * time.Minute),
+	})
+
+	for _, iss := range []domain.Issue{parent, childNewer, orphan, childOlder} {
+		if err := repo.CreateIssue(ctx, iss); err != nil {
+			t.Fatalf("precondition: %v", err)
+		}
+	}
+
+	// When
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriorityCreated, driven.SortAscending, -1)
+	// Then — all P1 tasks sorted by their own created_at, ignoring parent.
+	// Expected order: childOlder (1h), orphan (1.5h), childNewer (2h), parent (10h).
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Filter to just the P1 tasks for clarity in assertions.
+	var p1Items []driven.IssueListItem
+	for _, item := range items {
+		if item.Priority == domain.P1 {
+			p1Items = append(p1Items, item)
+		}
+	}
+	if len(p1Items) != 3 {
+		t.Fatalf("expected 3 P1 items, got %d", len(p1Items))
+	}
+	if p1Items[0].ID != childOlderID {
+		t.Errorf("first P1 item should be childOlder (%s), got %s", childOlderID, p1Items[0].ID)
+	}
+	if p1Items[1].ID != orphanID {
+		t.Errorf("second P1 item should be orphan (%s), got %s", orphanID, p1Items[1].ID)
+	}
+	if p1Items[2].ID != childNewerID {
+		t.Errorf("third P1 item should be childNewer (%s), got %s", childNewerID, p1Items[2].ID)
+	}
+}
+
+func TestListIssues_OrderByPriority_Descending_ReversesOrder(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — three tasks with different priorities
+	now := time.Now()
+	p0ID := mustIssueID(t)
+	p1ID := mustIssueID(t)
+	p3ID := mustIssueID(t)
+
+	p0Task, _ := domain.NewTask(domain.NewTaskParams{ID: p0ID, Title: "P0", Priority: domain.P0, CreatedAt: now})
+	p1Task, _ := domain.NewTask(domain.NewTaskParams{ID: p1ID, Title: "P1", Priority: domain.P1, CreatedAt: now})
+	p3Task, _ := domain.NewTask(domain.NewTaskParams{ID: p3ID, Title: "P3", Priority: domain.P3, CreatedAt: now})
+
+	for _, iss := range []domain.Issue{p0Task, p1Task, p3Task} {
+		if err := repo.CreateIssue(ctx, iss); err != nil {
+			t.Fatalf("precondition: %v", err)
+		}
+	}
+
+	// When — descending order
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortDescending, -1)
+	// Then — P3 first (lowest urgency = highest numeric value)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(items))
+	}
+	if items[0].Priority != domain.P3 {
+		t.Errorf("first item should be P3, got %s", items[0].Priority)
+	}
+	if items[1].Priority != domain.P1 {
+		t.Errorf("second item should be P1, got %s", items[1].Priority)
+	}
+	if items[2].Priority != domain.P0 {
+		t.Errorf("third item should be P0, got %s", items[2].Priority)
+	}
+}
+
+func TestListIssues_OrderByCreatedAt_Descending_ReversesOrder(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — three tasks created at different times
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	firstID := mustIssueID(t)
+	secondID := mustIssueID(t)
+	thirdID := mustIssueID(t)
+
+	first := mustTask(t, firstID, "First", base)
+	second := mustTask(t, secondID, "Second", base.Add(time.Hour))
+	third := mustTask(t, thirdID, "Third", base.Add(2*time.Hour))
+
+	for _, iss := range []domain.Issue{third, first, second} {
+		if err := repo.CreateIssue(ctx, iss); err != nil {
+			t.Fatalf("precondition: %v", err)
+		}
+	}
+
+	// When — descending order
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByCreatedAt, driven.SortDescending, -1)
+	// Then — newest first
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(items))
+	}
+	if items[0].ID != thirdID {
+		t.Errorf("first item should be newest (%s), got %s", thirdID, items[0].ID)
+	}
+	if items[2].ID != firstID {
+		t.Errorf("last item should be oldest (%s), got %s", firstID, items[2].ID)
+	}
+}
+
+func TestListIssues_OrderByID_Descending_ReversesOrder(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — two tasks with known IDs
+	now := time.Now()
+	id1 := mustIssueID(t)
+	id2 := mustIssueID(t)
+
+	task1, _ := domain.NewTask(domain.NewTaskParams{ID: id1, Title: "A", Priority: domain.P2, CreatedAt: now})
+	task2, _ := domain.NewTask(domain.NewTaskParams{ID: id2, Title: "B", Priority: domain.P2, CreatedAt: now})
+
+	for _, iss := range []domain.Issue{task1, task2} {
+		if err := repo.CreateIssue(ctx, iss); err != nil {
+			t.Fatalf("precondition: %v", err)
+		}
+	}
+
+	// When — ascending
+	ascItems, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByID, driven.SortAscending, -1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// When — descending
+	descItems, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByID, driven.SortDescending, -1)
+	// Then — descending order is the reverse of ascending
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ascItems) != 2 || len(descItems) != 2 {
+		t.Fatalf("expected 2 items each, got asc=%d desc=%d", len(ascItems), len(descItems))
+	}
+	if ascItems[0].ID != descItems[1].ID || ascItems[1].ID != descItems[0].ID {
+		t.Errorf("descending should reverse ascending order: asc=[%s,%s] desc=[%s,%s]",
+			ascItems[0].ID, ascItems[1].ID, descItems[0].ID, descItems[1].ID)
 	}
 }
 
@@ -1040,7 +1270,7 @@ func TestListIssues_BlockerIDs_Populated(t *testing.T) {
 	}
 
 	// When
-	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, -1)
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1081,7 +1311,7 @@ func TestSearchIssues_MatchesTitle(t *testing.T) {
 	}
 
 	// When
-	items, _, err := repo.SearchIssues(ctx, "authentication", driven.IssueFilter{}, driven.OrderByPriority, -1)
+	items, _, err := repo.SearchIssues(ctx, "authentication", driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1113,7 +1343,7 @@ func TestSearchIssues_MatchesDescription(t *testing.T) {
 	}
 
 	// When
-	items, _, err := repo.SearchIssues(ctx, "frobnicate", driven.IssueFilter{}, driven.OrderByPriority, -1)
+	items, _, err := repo.SearchIssues(ctx, "frobnicate", driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1136,7 +1366,7 @@ func TestSearchIssues_CaseInsensitive(t *testing.T) {
 	}
 
 	// When
-	items, _, err := repo.SearchIssues(ctx, "uppercase", driven.IssueFilter{}, driven.OrderByPriority, -1)
+	items, _, err := repo.SearchIssues(ctx, "uppercase", driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1166,7 +1396,7 @@ func TestSearchIssues_RespectsFilter(t *testing.T) {
 	// When — search for "auth" but filter to tasks only
 	items, _, err := repo.SearchIssues(ctx, "auth", driven.IssueFilter{
 		Roles: []domain.Role{domain.RoleTask},
-	}, driven.OrderByPriority, -1)
+	}, driven.OrderByPriority, driven.SortAscending, -1)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1888,5 +2118,105 @@ func TestGetIssueSummary_ClosedBlockedNotCountedAsBlocked(t *testing.T) {
 	}
 	if summary.Blocked != 0 {
 		t.Errorf("expected Blocked=0 (closed issues excluded from blocked count), got %d", summary.Blocked)
+	}
+}
+
+// --- ParentCreatedAt ---
+
+func TestListIssues_ParentCreatedAt_PopulatedForChildIssue(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — an epic created at a known time and a child task.
+	epicCreatedAt := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	childCreatedAt := time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC)
+	epicID := mustIssueID(t)
+	childID := mustIssueID(t)
+
+	epic := mustEpic(t, epicID, "Parent epic", epicCreatedAt)
+	child := mustTask(t, childID, "Child task", childCreatedAt).WithParentID(epicID)
+
+	for _, iss := range []domain.Issue{epic, child} {
+		if err := repo.CreateIssue(ctx, iss); err != nil {
+			t.Fatalf("precondition: %v", err)
+		}
+	}
+
+	// When
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{
+		ParentIDs: []domain.ID{epicID},
+	}, driven.OrderByPriority, driven.SortAscending, -1)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if !items[0].ParentCreatedAt.Equal(epicCreatedAt) {
+		t.Errorf("ParentCreatedAt = %v, want %v", items[0].ParentCreatedAt, epicCreatedAt)
+	}
+}
+
+func TestListIssues_ParentCreatedAt_ZeroForOrphanIssue(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — an orphan task with no parent.
+	orphanID := mustIssueID(t)
+	orphan := mustTask(t, orphanID, "Orphan task", time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC))
+
+	if err := repo.CreateIssue(ctx, orphan); err != nil {
+		t.Fatalf("precondition: %v", err)
+	}
+
+	// When
+	items, _, err := repo.ListIssues(ctx, driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if !items[0].ParentCreatedAt.IsZero() {
+		t.Errorf("ParentCreatedAt = %v, want zero time", items[0].ParentCreatedAt)
+	}
+}
+
+func TestSearchIssues_ParentCreatedAt_PopulatedForChildIssue(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — an epic created at a known time and a child task with a
+	// searchable title.
+	epicCreatedAt := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	childCreatedAt := time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC)
+	epicID := mustIssueID(t)
+	childID := mustIssueID(t)
+
+	epic := mustEpic(t, epicID, "Parent epic", epicCreatedAt)
+	child := mustTask(t, childID, "Searchable child xyzzy", childCreatedAt).WithParentID(epicID)
+
+	for _, iss := range []domain.Issue{epic, child} {
+		if err := repo.CreateIssue(ctx, iss); err != nil {
+			t.Fatalf("precondition: %v", err)
+		}
+	}
+
+	// When
+	items, _, err := repo.SearchIssues(ctx, "xyzzy", driven.IssueFilter{}, driven.OrderByPriority, driven.SortAscending, -1)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if !items[0].ParentCreatedAt.Equal(epicCreatedAt) {
+		t.Errorf("ParentCreatedAt = %v, want %v", items[0].ParentCreatedAt, epicCreatedAt)
 	}
 }

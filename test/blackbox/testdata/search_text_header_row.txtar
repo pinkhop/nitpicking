@@ -1,0 +1,7 @@
+# Verify that issue search text output includes the new default all-caps header row.
+
+np-init SHDR
+np-seed task 'Searchable header task' alice TASK_A
+
+exec np issue search Searchable
+stdout '^ID\s+PRIORITY\s+ROLE\s+STATE\s+TITLE'

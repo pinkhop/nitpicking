@@ -312,6 +312,117 @@ func TestRun_ZeroLimit_UsesDefault(t *testing.T) {
 	}
 }
 
+// TestRun_TextOutput_Header_PrintsDefaultColumnHeaders verifies that the text
+// output includes all default column headers in the correct order.
+func TestRun_TextOutput_Header_PrintsDefaultColumnHeaders(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupService(t)
+	createTask(t, svc, "Header check task")
+
+	var buf bytes.Buffer
+	input := ready.RunInput{
+		Service:     svc,
+		JSON:        false,
+		WriteTo:     &buf,
+		ColorScheme: noColor(),
+	}
+
+	// When
+	err := ready.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	expectedHeaders := []string{"ID", "PRIORITY", "ROLE", "STATE", "TITLE"}
+	for _, hdr := range expectedHeaders {
+		if !strings.Contains(firstLine, hdr) {
+			t.Errorf("expected header row to contain %q, first line: %q", hdr, firstLine)
+		}
+	}
+}
+
+// TestRun_TextOutput_CustomColumns_ShowsOnlySelectedColumns verifies that
+// passing a custom column set renders only those columns in the given order.
+func TestRun_TextOutput_CustomColumns_ShowsOnlySelectedColumns(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupService(t)
+	createTask(t, svc, "Custom columns task")
+
+	cols, err := cmdutil.ParseColumns("ID,TITLE,STATE")
+	if err != nil {
+		t.Fatalf("precondition: parse columns failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := ready.RunInput{
+		Service:     svc,
+		JSON:        false,
+		Columns:     cols,
+		WriteTo:     &buf,
+		ColorScheme: noColor(),
+	}
+
+	// When
+	err = ready.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	if !strings.Contains(firstLine, "ID") {
+		t.Errorf("expected ID in header, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "TITLE") {
+		t.Errorf("expected TITLE in header, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "STATE") {
+		t.Errorf("expected STATE in header, first line: %q", firstLine)
+	}
+	// PRIORITY should not appear since it was not selected.
+	if strings.Contains(firstLine, "PRIORITY") {
+		t.Errorf("PRIORITY should not appear in custom column set, first line: %q", firstLine)
+	}
+}
+
+// TestRun_TextOutput_EmptyColumns_UsesDefaults verifies that an empty Columns
+// slice falls back to the default column set.
+func TestRun_TextOutput_EmptyColumns_UsesDefaults(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupService(t)
+	createTask(t, svc, "Default columns task")
+
+	var buf bytes.Buffer
+	input := ready.RunInput{
+		Service:     svc,
+		JSON:        false,
+		WriteTo:     &buf,
+		ColorScheme: noColor(),
+	}
+
+	// When
+	err := ready.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	for _, hdr := range []string{"ID", "PRIORITY", "ROLE", "STATE", "TITLE"} {
+		if !strings.Contains(firstLine, hdr) {
+			t.Errorf("expected default header %q, first line: %q", hdr, firstLine)
+		}
+	}
+}
+
 func TestRun_TextOutput_IncludesIssueDetails(t *testing.T) {
 	t.Parallel()
 

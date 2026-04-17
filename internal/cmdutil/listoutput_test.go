@@ -2,8 +2,11 @@ package cmdutil_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
+	"github.com/pinkhop/nitpicking/internal/domain"
+	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
 // --- TruncateTitle ---
@@ -147,5 +150,70 @@ func TestAvailableTitleWidth_OverheadExceedsWidth_ReturnsMinimum(t *testing.T) {
 	// Then — should return a small positive minimum, not zero or negative
 	if got < 1 {
 		t.Errorf("AvailableTitleWidth: got %d, want >= 1", got)
+	}
+}
+
+// --- ConvertListItems: ParentCreatedAt ---
+
+func TestConvertListItems_WithParentCreatedAt_PopulatesField(t *testing.T) {
+	t.Parallel()
+
+	// Given — an item whose parent was created at a known time.
+	parentTime := time.Date(2026, 3, 15, 10, 30, 0, 0, time.UTC)
+	items := []driving.IssueListItemDTO{
+		{
+			ID:              "NP-abc12",
+			Role:            domain.RoleTask,
+			State:           domain.StateOpen,
+			Priority:        domain.P2,
+			Title:           "Child task",
+			ParentID:        "NP-par01",
+			ParentCreatedAt: parentTime,
+			CreatedAt:       time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC),
+			DisplayStatus:   "open (ready)",
+		},
+	}
+
+	// When
+	out := cmdutil.ConvertListItems(items)
+
+	// Then
+	if len(out) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(out))
+	}
+	want := cmdutil.FormatJSONTimestamp(parentTime)
+	if out[0].ParentCreatedAt != want {
+		t.Errorf("ParentCreatedAt = %q, want %q", out[0].ParentCreatedAt, want)
+	}
+	if out[0].ParentID != "NP-par01" {
+		t.Errorf("ParentID = %q, want %q", out[0].ParentID, "NP-par01")
+	}
+}
+
+func TestConvertListItems_WithoutParent_ParentCreatedAtEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Given — an orphan issue with zero ParentCreatedAt.
+	items := []driving.IssueListItemDTO{
+		{
+			ID:            "NP-abc12",
+			Role:          domain.RoleTask,
+			State:         domain.StateOpen,
+			Priority:      domain.P2,
+			Title:         "Orphan task",
+			CreatedAt:     time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC),
+			DisplayStatus: "open (ready)",
+		},
+	}
+
+	// When
+	out := cmdutil.ConvertListItems(items)
+
+	// Then — ParentCreatedAt should be empty for issues without a parent.
+	if len(out) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(out))
+	}
+	if out[0].ParentCreatedAt != "" {
+		t.Errorf("ParentCreatedAt = %q, want empty string", out[0].ParentCreatedAt)
 	}
 }

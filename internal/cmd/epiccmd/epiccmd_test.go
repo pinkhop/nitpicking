@@ -226,6 +226,69 @@ func TestCloseCompleted_IncludeTasks_ClosesParentTaskWithAllChildrenClosed(t *te
 	}
 }
 
+// TestChildren_TextOutput_PrintsDefaultColumnHeaders verifies that the text
+// output includes all default column headers in the correct order.
+func TestChildren_TextOutput_PrintsDefaultColumnHeaders(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	f, svc := setupCommandTest(t)
+	epicID := createEpic(t, svc, "Parent epic")
+	_ = createTask(t, svc, epicID, "Child task")
+
+	cmd := newChildrenCmd(f)
+
+	// When
+	err := cmd.Run(t.Context(), []string{"children", epicID.String()})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := f.IOStreams.Out.(*strings.Builder).String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	expectedHeaders := []string{"ID", "PRIORITY", "ROLE", "STATE", "TITLE"}
+	for _, hdr := range expectedHeaders {
+		if !strings.Contains(firstLine, hdr) {
+			t.Errorf("expected header row to contain %q, first line: %q", hdr, firstLine)
+		}
+	}
+}
+
+// TestChildren_TextOutput_CustomColumns_ShowsOnlySelectedColumns verifies that
+// passing a --columns flag renders only the specified columns.
+func TestChildren_TextOutput_CustomColumns_ShowsOnlySelectedColumns(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	f, svc := setupCommandTest(t)
+	epicID := createEpic(t, svc, "Parent epic")
+	_ = createTask(t, svc, epicID, "Child task")
+
+	cmd := newChildrenCmd(f)
+
+	// When
+	err := cmd.Run(t.Context(), []string{"children", epicID.String(), "--columns", "ID,TITLE,STATE"})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := f.IOStreams.Out.(*strings.Builder).String()
+	firstLine := strings.SplitN(output, "\n", 2)[0]
+	if !strings.Contains(firstLine, "ID") {
+		t.Errorf("expected ID in header, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "TITLE") {
+		t.Errorf("expected TITLE in header, first line: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "STATE") {
+		t.Errorf("expected STATE in header, first line: %q", firstLine)
+	}
+	// PRIORITY should not appear since it was not selected.
+	if strings.Contains(firstLine, "PRIORITY") {
+		t.Errorf("PRIORITY should not appear in custom column set, first line: %q", firstLine)
+	}
+}
+
 func setupCommandTest(t *testing.T) (*cmdutil.Factory, driving.Service) {
 	t.Helper()
 

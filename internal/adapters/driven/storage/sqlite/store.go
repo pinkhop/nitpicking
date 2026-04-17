@@ -665,11 +665,11 @@ func (r *issueRepo) UpdateIssue(_ context.Context, t domain.Issue) error {
 	return nil
 }
 
-func (r *issueRepo) ListIssues(_ context.Context, filter driven.IssueFilter, orderBy driven.IssueOrderBy, limit int) ([]driven.IssueListItem, bool, error) {
+func (r *issueRepo) ListIssues(_ context.Context, filter driven.IssueFilter, orderBy driven.IssueOrderBy, direction driven.SortDirection, limit int) ([]driven.IssueListItem, bool, error) {
 	limit = driven.NormalizeLimit(limit)
 	where, args := buildIssueWhere(filter)
 
-	orderClause := issueOrderClause(orderBy)
+	orderClause := issueOrderClause(orderBy, direction)
 
 	// Fetch limit+1 rows to detect whether more results exist.
 	fetchLimit := limit + 1
@@ -696,7 +696,8 @@ func (r *issueRepo) ListIssues(_ context.Context, filter driven.IssueFilter, ord
 			FROM relationships r JOIN issues b ON r.target_id = b.issue_id
 			WHERE r.source_id = t.issue_id AND r.rel_type = 'blocked_by'
 			AND b.state != 'closed' AND b.deleted = 0
-		), '') AS blocker_ids
+		), '') AS blocker_ids,
+		parent.created_at AS parent_created_at
 		FROM issues t` + issueParentJoin() + ` ` + where + orderClause
 	if fetchLimit > 0 {
 		query += ` LIMIT ?`
@@ -713,12 +714,15 @@ func (r *issueRepo) ListIssues(_ context.Context, filter driven.IssueFilter, ord
 			priority, _ := domain.ParsePriority(stmt.ColumnText(3))
 			createdAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(5))
 			parentID, _ := domain.ParseID(stmt.ColumnText(7))
+			parentCreatedAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(10))
 
 			item := driven.IssueListItem{
 				ID: id, Role: role, State: state, Priority: priority,
-				Title: stmt.ColumnText(4), ParentID: parentID, CreatedAt: createdAt,
-				IsDeleted: stmt.ColumnInt(6) != 0,
-				IsBlocked: stmt.ColumnInt(8) != 0,
+				Title: stmt.ColumnText(4), ParentID: parentID,
+				ParentCreatedAt: parentCreatedAt,
+				CreatedAt:       createdAt,
+				IsDeleted:       stmt.ColumnInt(6) != 0,
+				IsBlocked:       stmt.ColumnInt(8) != 0,
 			}
 
 			// Parse comma-separated blocker IDs from the GROUP_CONCAT subquery.
@@ -741,14 +745,14 @@ func (r *issueRepo) ListIssues(_ context.Context, filter driven.IssueFilter, ord
 	return items, hasMore, nil
 }
 
-func (r *issueRepo) SearchIssues(_ context.Context, query string, filter driven.IssueFilter, orderBy driven.IssueOrderBy, limit int) ([]driven.IssueListItem, bool, error) {
+func (r *issueRepo) SearchIssues(_ context.Context, query string, filter driven.IssueFilter, orderBy driven.IssueOrderBy, direction driven.SortDirection, limit int) ([]driven.IssueListItem, bool, error) {
 	limit = driven.NormalizeLimit(limit)
 	where, args := buildIssueWhere(filter)
 
 	ftsWhere := ` AND t.issue_id IN (SELECT issue_id FROM issues_fts WHERE issues_fts MATCH ?)`
 	args = append(args, sanitizeFTS5Query(query))
 
-	orderClause := issueOrderClause(orderBy)
+	orderClause := issueOrderClause(orderBy, direction)
 	fetchLimit := limit + 1
 	if limit < 0 {
 		fetchLimit = -1
@@ -773,7 +777,8 @@ func (r *issueRepo) SearchIssues(_ context.Context, query string, filter driven.
 			FROM relationships r JOIN issues b ON r.target_id = b.issue_id
 			WHERE r.source_id = t.issue_id AND r.rel_type = 'blocked_by'
 			AND b.state != 'closed' AND b.deleted = 0
-		), '') AS blocker_ids
+		), '') AS blocker_ids,
+		parent.created_at AS parent_created_at
 		FROM issues t` + issueParentJoin() + ` ` + where + ftsWhere + orderClause
 	if fetchLimit > 0 {
 		selectQuery += ` LIMIT ?`
@@ -790,12 +795,15 @@ func (r *issueRepo) SearchIssues(_ context.Context, query string, filter driven.
 			priority, _ := domain.ParsePriority(stmt.ColumnText(3))
 			createdAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(5))
 			parentID, _ := domain.ParseID(stmt.ColumnText(7))
+			parentCreatedAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(10))
 
 			item := driven.IssueListItem{
 				ID: id, Role: role, State: state, Priority: priority,
-				Title: stmt.ColumnText(4), ParentID: parentID, CreatedAt: createdAt,
-				IsDeleted: stmt.ColumnInt(6) != 0,
-				IsBlocked: stmt.ColumnInt(8) != 0,
+				Title: stmt.ColumnText(4), ParentID: parentID,
+				ParentCreatedAt: parentCreatedAt,
+				CreatedAt:       createdAt,
+				IsDeleted:       stmt.ColumnInt(6) != 0,
+				IsBlocked:       stmt.ColumnInt(8) != 0,
 			}
 			if raw := stmt.ColumnText(9); raw != "" {
 				item.BlockerIDs = parseIDList(raw)
@@ -2172,17 +2180,48 @@ func parseIDList(raw string) []domain.ID {
 //
 // Callers must include the parent join returned by issueParentJoin() in
 // their FROM clause for the COALESCE expression to resolve correctly.
-func issueOrderClause(orderBy driven.IssueOrderBy) string {
+func issueOrderClause(orderBy driven.IssueOrderBy, direction driven.SortDirection) string {
+	// primaryDir is the SQL keyword for the primary sort axis. Tiebreaker
+	// columns (issue_id) always use ASC for deterministic output.
+	primaryDir := "ASC"
+	if direction == driven.SortDescending {
+		primaryDir = "DESC"
+	}
+
 	familyAnchor := "COALESCE(parent.created_at, t.created_at)"
 	switch orderBy {
 	case driven.OrderByPriority:
-		return " ORDER BY t.priority, " + familyAnchor + ", t.created_at, t.issue_id ASC"
+		return " ORDER BY t.priority " + primaryDir + ", " + familyAnchor + " " + primaryDir + ", t.created_at " + primaryDir + ", t.issue_id ASC"
+	case driven.OrderByPriorityCreated:
+		return " ORDER BY t.priority " + primaryDir + ", t.created_at " + primaryDir + ", t.issue_id ASC"
 	case driven.OrderByCreatedAt:
-		return " ORDER BY " + familyAnchor + ", t.created_at, t.issue_id ASC"
+		return " ORDER BY " + familyAnchor + " " + primaryDir + ", t.created_at " + primaryDir + ", t.issue_id ASC"
 	case driven.OrderByUpdatedAt:
-		return " ORDER BY " + familyAnchor + " DESC, t.created_at DESC, t.issue_id ASC"
+		// SortAscending is oldest-first; SortDescending is newest-first.
+		// primaryDir handles the direction uniformly, matching how every other
+		// OrderBy value behaves — no per-key inversion needed.
+		return " ORDER BY " + familyAnchor + " " + primaryDir + ", t.created_at " + primaryDir + ", t.issue_id ASC"
+	case driven.OrderByID:
+		return " ORDER BY t.issue_id " + primaryDir
+	case driven.OrderByRole:
+		return " ORDER BY t.role " + primaryDir + ", t.issue_id ASC"
+	case driven.OrderByState:
+		return " ORDER BY t.state " + primaryDir + ", t.issue_id ASC"
+	case driven.OrderByTitle:
+		return " ORDER BY t.title COLLATE NOCASE " + primaryDir + ", t.issue_id ASC"
+	case driven.OrderByParentID:
+		// COALESCE substitutes an empty-string sentinel for parentless issues.
+		// Under SortAscending the sentinel sorts before any real ID (parentless
+		// first); under SortDescending the ordering is reversed (parentless last).
+		return " ORDER BY COALESCE(t.parent_id, '') " + primaryDir + ", t.issue_id ASC"
+	case driven.OrderByParentCreated:
+		// COALESCE substitutes an empty-string sentinel (not an epoch timestamp)
+		// for parentless issues. Under SortAscending the sentinel sorts before
+		// any real timestamp (parentless first); under SortDescending the
+		// ordering is reversed (parentless last).
+		return " ORDER BY COALESCE(parent.created_at, '') " + primaryDir + ", t.issue_id ASC"
 	default:
-		return " ORDER BY t.priority, " + familyAnchor + ", t.created_at, t.issue_id ASC"
+		return " ORDER BY t.priority " + primaryDir + ", " + familyAnchor + " " + primaryDir + ", t.created_at " + primaryDir + ", t.issue_id ASC"
 	}
 }
 

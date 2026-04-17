@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"text/tabwriter"
-	"time"
 
 	"github.com/urfave/cli/v3"
 
@@ -22,10 +20,11 @@ type RunInput struct {
 	Query         string
 	Filter        driving.IssueFilterInput
 	OrderBy       driving.OrderBy
+	Direction     driving.SortDirection
 	IncludeNotes  bool
 	Limit         int
 	JSON          bool
-	Timestamps    bool
+	Columns       []cmdutil.Column
 	WriteTo       io.Writer
 	TerminalWidth int
 	ColorScheme   *iostreams.ColorScheme
@@ -42,6 +41,7 @@ func Run(ctx context.Context, input RunInput) error {
 		Query:        input.Query,
 		Filter:       input.Filter,
 		OrderBy:      input.OrderBy,
+		Direction:    input.Direction,
 		IncludeNotes: input.IncludeNotes,
 		Limit:        input.Limit,
 	})
@@ -65,11 +65,12 @@ func Run(ctx context.Context, input RunInput) error {
 		return nil
 	}
 
-	// Estimate non-title column overhead for title truncation.
-	overhead := 29
-	if input.Timestamps {
-		overhead = 50
+	cols := input.Columns
+	if len(cols) == 0 {
+		cols = cmdutil.DefaultColumns
 	}
+
+	overhead := cmdutil.OverheadForColumns(cols)
 	maxTitle := cmdutil.AvailableTitleWidth(input.TerminalWidth, overhead)
 
 	cs := input.ColorScheme
@@ -77,31 +78,17 @@ func Run(ctx context.Context, input RunInput) error {
 		cs = iostreams.NewColorScheme(false)
 	}
 
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	for _, item := range result.Items {
-		title := item.Title
-		if len(item.BlockerIDs) > 0 {
-			title += " " + cmdutil.FormatBlockerSuffix(item.BlockerIDs)
-		}
-		title = cmdutil.TruncateTitle(title, maxTitle)
-		stateCol := cmdutil.FormatState(cs, item.State, item.SecondaryState)
-		if input.Timestamps {
-			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
-				item.ID,
-				item.Role,
-				stateCol,
-				item.Priority,
-				item.CreatedAt.Format(time.DateTime),
-				title)
-		} else {
-			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-				item.ID,
-				item.Role,
-				stateCol,
-				item.Priority,
-				title)
-		}
+	tw := cmdutil.NewTableWriter(w, 2)
+	tw.AddRow(cmdutil.ColumnarHeaderCells(cols)...)
+
+	rc := cmdutil.RenderContext{
+		ColorScheme:   cs,
+		MaxTitleWidth: maxTitle,
 	}
+	for _, item := range result.Items {
+		tw.AddRow(cmdutil.ColumnarRowCells(item, cols, rc)...)
+	}
+	// Flush error is best-effort — output is going to stdout.
 	_ = tw.Flush()
 
 	shown := len(result.Items)
@@ -120,7 +107,7 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		includeNotes bool
 		limit        int
 		noLimit      bool
-		timestamps   bool
+		columnsFlag  string
 	)
 
 	return &cli.Command{
@@ -158,7 +145,7 @@ are limited to a reasonable page size; use --no-limit or --limit to adjust.`,
 			},
 			&cli.StringFlag{
 				Name:        "order",
-				Usage:       "Sort order: priority, created, modified (default: priority)",
+				Usage:       "Sort order: " + cmdutil.ValidOrderNames() + "; append :asc or :desc for direction (default: PRIORITY)",
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &order,
 			},
@@ -168,11 +155,11 @@ are limited to a reasonable page size; use --no-limit or --limit to adjust.`,
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &includeNotes,
 			},
-			&cli.BoolFlag{
-				Name:        "timestamps",
-				Usage:       "Include created_at timestamp in text output",
+			&cli.StringFlag{
+				Name:        "columns",
+				Usage:       "Comma-separated list of columns to display; valid columns: " + cmdutil.ValidColumnNames(),
 				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &timestamps,
+				Destination: &columnsFlag,
 			},
 			&cli.IntFlag{
 				Name:        "limit",
@@ -227,7 +214,7 @@ are limited to a reasonable page size; use --no-limit or --limit to adjust.`,
 			}
 			filter.LabelFilters = labelFilters
 
-			orderBy, err := cmdutil.ParseOrderBy(order)
+			orderBy, direction, err := cmdutil.ParseOrderBy(order)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)
 			}
@@ -242,15 +229,21 @@ are limited to a reasonable page size; use --no-limit or --limit to adjust.`,
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
+			cols, err := cmdutil.ParseColumns(columnsFlag)
+			if err != nil {
+				return cmdutil.FlagErrorf("%s", err)
+			}
+
 			return Run(ctx, RunInput{
 				Service:       svc,
 				Query:         query,
 				Filter:        filter,
 				OrderBy:       orderBy,
+				Direction:     direction,
 				IncludeNotes:  includeNotes,
 				Limit:         effectiveLimit,
 				JSON:          jsonOutput,
-				Timestamps:    timestamps,
+				Columns:       cols,
 				WriteTo:       f.IOStreams.Out,
 				TerminalWidth: f.IOStreams.TerminalWidth(),
 				ColorScheme:   f.IOStreams.ColorScheme(),

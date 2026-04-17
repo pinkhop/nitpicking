@@ -1,0 +1,7 @@
+# Verify that 'np list --columns ID,PRIORITY,ROLE,STATE,CREATED,TITLE' includes a CREATED column in the output.
+
+np-init TS
+np-seed task 'Timestamp task' ts-agent TASK
+
+exec np list --columns ID,PRIORITY,ROLE,STATE,CREATED,TITLE
+stdout 'CREATED'

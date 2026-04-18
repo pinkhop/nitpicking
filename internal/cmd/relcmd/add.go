@@ -173,8 +173,8 @@ Supported relationship types:
   parent_of / child_of — Structural hierarchy. Requires --claim because it
                          mutates the child issue's parent field.
 
-Use "rel blocks unblock", "rel refs unref", or "rel parent detach" to remove
-relationships.`,
+Use "rel remove <A> <rel> <B>" to remove a relationship using the same
+argument syntax.`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "author",

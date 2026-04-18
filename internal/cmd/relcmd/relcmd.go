@@ -43,12 +43,13 @@ issues. Relationships express structural and dependency information: blocking
 dependencies (blocked_by/blocks), contextual references (refs), and
 parent-child hierarchy (parent_of/child_of).
 
-Use "rel add" to create relationships, the type-specific subcommands (blocks,
-refs, parent) to manage and query them, and "rel list" or "rel tree" to inspect
-all relationships from a given issue. To detect circular blocking dependencies,
-use "np admin doctor".`,
+Use "rel add" to create relationships, "rel remove" to delete them, and
+"rel list" or "rel tree" to inspect all relationships from a given issue.
+Both commands accept the same <rel> argument values, making the surface
+predictable. To detect circular blocking dependencies, use "np admin doctor".`,
 		Commands: []*cli.Command{
 			newAddCmd(f),
+			newRemoveCmd(f),
 			newBlocksCmd(f),
 			newRefsCmd(f),
 			newParentCmd(f),

@@ -1,12 +1,13 @@
-# Verify that 'np rel blocks unblock --json' produces valid JSON with a, b,
-# and action fields.
+# Verify that 'np rel remove --json' produces valid JSON with source, type,
+# target, and action fields when removing a blocking relationship.
 
 np-init RU
 np-seed task 'Blocker to unblock' rel-agent BLOCKER
 np-seed task 'Blocked to unblock' rel-agent BLOCKED
 np-seed-rel BLOCKED blocked_by BLOCKER rel-agent
 
-exec np rel blocks unblock $BLOCKER $BLOCKED --author rel-agent --json
-np-json-has action unblocked
-! np-json-no-field a
-! np-json-no-field b
+exec np rel remove $BLOCKED blocked_by $BLOCKER --author rel-agent --json
+np-json-has action removed
+np-json-has source $BLOCKED
+np-json-has target $BLOCKER
+np-json-has type blocked_by

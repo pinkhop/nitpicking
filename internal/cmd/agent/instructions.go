@@ -137,27 +137,28 @@ Comments do not require claiming and can be added to any issue, including closed
 
 ` + "```" + `
 np rel --help               # list rel subcommands
-np rel blocks --help        # list blocks subcommands and describe the command
-np rel blocks unblock --help  # show usage and flags for unblock
+np rel add --help           # show usage and flags for rel add
+np rel remove --help        # show usage and flags for rel remove
 ` + "```" + `
 
 ## Managing Relationships
 
-### Adding a blocking relationship
+### Adding a relationship
 
 ` + "```" + `
 np rel add <YOUR-ISSUE> blocked_by <BLOCKER-ID> --author <your-name>
+np rel add <YOUR-ISSUE> refs <OTHER-ID> --author <your-name>
 ` + "```" + `
 
-### Removing a blocking relationship
+### Removing a relationship
 
-Use ` + "`np rel blocks unblock`" + ` to remove a blocking edge that is no longer relevant — for example, when the blocking issue's work has been absorbed elsewhere, or when the dependency was added in error. Argument order does not matter.
+Use ` + "`np rel remove`" + ` to delete a relationship that is no longer relevant. The argument syntax mirrors ` + "`np rel add`" + ` exactly — the same ` + "`<rel>`" + ` values are accepted, and the same positional order applies.
 
 ` + "```" + `
-np rel blocks unblock <ISSUE-A> <ISSUE-B> --author <your-name>
+np rel remove <ISSUE-A> blocked_by <ISSUE-B> --author <your-name>
+np rel remove <ISSUE-A> blocks <ISSUE-B> --author <your-name>
+np rel remove <ISSUE-A> refs <ISSUE-B> --author <your-name>
 ` + "```" + `
-
-This removes any blocking relationship between the two issues regardless of direction.
 
 ## Handling Incidentals
 

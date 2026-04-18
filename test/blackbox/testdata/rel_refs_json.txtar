@@ -1,4 +1,4 @@
-# Rel refs list JSON shape and unref operation.
+# Rel refs list JSON shape and remove operation.
 
 np-init RR
 np-seed task 'Task A' refslist-audit TASK_A
@@ -12,7 +12,7 @@ np-json-has issue_id $TASK_A
 np-json-array-len relationships 1
 np-json-no-field is_deleted
 
-# Unref.
-exec np rel refs unref $TASK_A $TASK_B --author refslist-audit --json
-np-json-has action unrefed
+# Remove the ref.
+exec np rel remove $TASK_A refs $TASK_B --author refslist-audit --json
+np-json-has action removed
 np-json-no-field is_deleted

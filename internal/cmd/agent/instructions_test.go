@@ -255,18 +255,29 @@ func TestAgentInstructions_DoesNotMentionOldFlagNames(t *testing.T) {
 	// When
 	output := agent.AgentInstructions()
 
-	// Then — old flag names that were renamed in the claim refactor must
-	// not appear in the instructions.
+	// Then — old flag names that were removed in previous refactors must not
+	// appear anywhere in the instructions.
 	oldFlags := []string{
 		"--stale-threshold",
 		"--steal-if-needed",
-		"--label ", // bare --label (not --with-label)
-		"--role ",  // bare --role (not --with-role)
 	}
 	for _, old := range oldFlags {
 		if strings.Contains(output, old) {
 			t.Errorf("expected instructions NOT to contain old flag %q", old)
 		}
+	}
+
+	// The "claim ready" command uses --with-label and --with-role (not the
+	// bare --label / --role). Verify the instructions never combine
+	// "claim ready" with the bare flag names, which would direct agents to
+	// use the wrong flags when claiming.
+	claimWithBareLabel := strings.Contains(output, "claim ready --label")
+	claimWithBareRole := strings.Contains(output, "claim ready --role")
+	if claimWithBareLabel {
+		t.Error("expected instructions NOT to use --label with 'claim ready'; use --with-label instead")
+	}
+	if claimWithBareRole {
+		t.Error("expected instructions NOT to use --role with 'claim ready'; use --with-role instead")
 	}
 }
 

@@ -442,6 +442,12 @@ np ready [options]
 
 | Flag | Description |
 |------|-------------|
+| `--role`, `-r` | Filter by role: `task` or `epic`. Repeatable, AND semantics. |
+| `--state`, `-s` | Filter by state: `open`, `closed`, `deferred`. Repeatable. |
+| `--parent` | Filter by parent epic ID. Repeatable. |
+| `--label` | Label filter in `key:value` format. Repeatable, AND semantics. |
+| `--order` | Sort order. One of `ID`, `CREATED`, `PARENT_ID`, `PARENT_CREATED`, `PRIORITY` (default), `ROLE`, `STATE`, `TITLE`, or `MODIFIED`. Append `:asc` or `:desc` to set direction (ascending is the default). |
+| `--columns` | Comma-separated list of columns to display. Valid columns: `ID`, `CREATED`, `PARENT_ID`, `PARENT_CREATED`, `PRIORITY`, `ROLE`, `STATE`, `TITLE`. |
 | `--limit N`, `-n N` | Maximum number of results (default 20). |
 | `--no-limit` | Return all matching results. |
 | `--json` | Output machine-readable JSON. |
@@ -450,6 +456,22 @@ np ready [options]
 
 ```
 $ np ready
+```
+
+```
+$ np ready --role task
+```
+
+```
+$ np ready --label kind:bug
+```
+
+```
+$ np ready --parent NP-abc12
+```
+
+```
+$ np ready --role task --label kind:bug
 ```
 
 **Exit codes:**
@@ -461,6 +483,8 @@ $ np ready
 **Notes:**
 
 - An issue is ready when it is `open`, has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred`. For epics, readiness additionally requires having no children — a childless epic signals a planning gap that needs decomposition.
+- Filter flags combine with AND semantics: `--role task --label kind:bug --parent NP-abc12` returns only ready tasks labeled `kind:bug` whose parent is `NP-abc12`.
+- The default sort order is priority ascending (P0 first), which differs from `np list` whose default is ID ascending.
 
 ---
 

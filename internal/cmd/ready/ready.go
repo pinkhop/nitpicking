@@ -10,6 +10,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
+	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/iostreams"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
@@ -17,7 +18,10 @@ import (
 // RunInput holds the parameters for the ready command's core logic, decoupled
 // from CLI flag parsing so it can be tested directly.
 type RunInput struct {
-	Service       driving.Service
+	Service driving.Service
+	// Filter narrows the ready set. The Ready field is always forced to true
+	// by Run regardless of what the caller sets, so callers may omit it.
+	Filter        driving.IssueFilterInput
 	OrderBy       driving.OrderBy
 	Direction     driving.SortDirection
 	JSON          bool
@@ -29,10 +33,14 @@ type RunInput struct {
 }
 
 // Run executes the ready workflow: queries for ready issues ordered by priority
-// and writes the result to the output writer.
+// and writes the result to the output writer. The Ready field of input.Filter
+// is always forced to true — this command's purpose is the ready set.
 func Run(ctx context.Context, input RunInput) error {
+	filter := input.Filter
+	filter.Ready = true
+
 	result, err := input.Service.ListIssues(ctx, driving.ListIssuesInput{
-		Filter:    driving.IssueFilterInput{Ready: true},
+		Filter:    filter,
 		OrderBy:   input.OrderBy,
 		Direction: input.Direction,
 		Limit:     input.Limit,
@@ -94,8 +102,10 @@ func Run(ctx context.Context, input RunInput) error {
 }
 
 // NewCmd constructs the "ready" command, which lists issues that are ready
-// for work. This is a shortcut for "np list --ready".
-func NewCmd(f *cmdutil.Factory) *cli.Command {
+// for work. The optional runFn parameter replaces the default Run for testing;
+// when injected, the service is not constructed and the runFn receives the
+// fully-resolved RunInput so flag parsing can be verified in isolation.
+func NewCmd(f *cmdutil.Factory, runFn ...func(context.Context, RunInput) error) *cli.Command {
 	var (
 		jsonOutput  bool
 		order       string
@@ -115,8 +125,33 @@ This is the starting point for finding work. Agents should typically use
 "claim ready" to atomically pick and lock the top issue, but "ready" is
 useful when you want to browse the queue without committing to anything.
 It is equivalent to "list --ready" but shorter to type and easier to
-remember.`,
+remember.
+
+Filters combine with AND semantics: --role task --label kind:bug --parent NP-abc12
+returns only ready tasks labeled kind:bug whose parent is NP-abc12.`,
 		Flags: []cli.Flag{
+			&cli.StringSliceFlag{
+				Name:     "role",
+				Aliases:  []string{"r"},
+				Usage:    "Filter by role: task or epic (repeatable)",
+				Category: cmdutil.FlagCategorySupplemental,
+			},
+			&cli.StringSliceFlag{
+				Name:     "state",
+				Aliases:  []string{"s"},
+				Usage:    "Filter by state: open, closed, deferred (repeatable)",
+				Category: cmdutil.FlagCategorySupplemental,
+			},
+			&cli.StringSliceFlag{
+				Name:     "parent",
+				Usage:    "Filter by parent epic ID (repeatable)",
+				Category: cmdutil.FlagCategorySupplemental,
+			},
+			&cli.StringSliceFlag{
+				Name:     "label",
+				Usage:    "Label filter in key:value format (repeatable)",
+				Category: cmdutil.FlagCategorySupplemental,
+			},
 			&cli.StringFlag{
 				Name:        "order",
 				Usage:       "Sort order: " + cmdutil.ValidOrderNames() + "; append :asc or :desc for direction (default: PRIORITY)",
@@ -170,13 +205,35 @@ remember.`,
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
+			// Build the filter from the new narrowing flags. Ready is
+			// always forced to true by Run itself, so it is not set here.
+			var filter driving.IssueFilterInput
+
+			for _, r := range cmd.StringSlice("role") {
+				role, roleErr := domain.ParseRole(r)
+				if roleErr != nil {
+					return cmdutil.FlagErrorf("invalid role %q: must be task or epic", r)
+				}
+				filter.Roles = append(filter.Roles, role)
 			}
 
-			return Run(ctx, RunInput{
-				Service:       svc,
+			for _, s := range cmd.StringSlice("state") {
+				st, stErr := domain.ParseState(s)
+				if stErr != nil {
+					return cmdutil.FlagErrorf("invalid state %q: %v", s, stErr)
+				}
+				filter.States = append(filter.States, st)
+			}
+
+			rawLabels := cmd.StringSlice("label")
+			labelFilters, labelErr := cmdutil.ParseLabelFilters(rawLabels)
+			if labelErr != nil {
+				return cmdutil.FlagErrorf("%s", labelErr)
+			}
+			filter.LabelFilters = labelFilters
+
+			input := RunInput{
+				Filter:        filter,
 				OrderBy:       orderBy,
 				Direction:     direction,
 				JSON:          jsonOutput,
@@ -185,7 +242,32 @@ remember.`,
 				WriteTo:       f.IOStreams.Out,
 				ColorScheme:   f.IOStreams.ColorScheme(),
 				TerminalWidth: f.IOStreams.TerminalWidth(),
-			})
+			}
+
+			// When a test runFn is injected, skip service construction so
+			// tests can verify flag parsing without a real database.
+			if len(runFn) > 0 && runFn[0] != nil {
+				return runFn[0](ctx, input)
+			}
+
+			svc, svcErr := cmdutil.NewTracker(f)
+			if svcErr != nil {
+				return svcErr
+			}
+			resolver := cmdutil.NewIDResolver(svc)
+
+			rawParents := cmd.StringSlice("parent")
+			for _, p := range rawParents {
+				parentID, parentErr := resolver.Resolve(ctx, p)
+				if parentErr != nil {
+					return cmdutil.FlagErrorf("invalid parent ID: %s", parentErr)
+				}
+				filter.ParentIDs = append(filter.ParentIDs, parentID.String())
+			}
+			input.Filter = filter
+			input.Service = svc
+
+			return Run(ctx, input)
 		},
 	}
 }

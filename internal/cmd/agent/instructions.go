@@ -30,7 +30,17 @@ The ` + "`completed`" + ` badge is a display indicator only — it does not chan
 
 ` + "```" + `
 np claim ready --author <your-name>   # claim the highest-priority ready issue
-np list --ready                       # browse all ready issues without claiming
+np ready                              # browse the ready queue without claiming
+np list --ready                       # equivalent to np ready (longer form)
+` + "```" + `
+
+` + "`np ready`" + ` supports the same filter flags as ` + "`np list`" + `: ` + "`--role`" + `, ` + "`--state`" + `, ` + "`--parent`" + `, and ` + "`--label`" + `. Use them to narrow the ready queue without falling back to ` + "`np list --ready`" + `:
+
+` + "```" + `
+np ready --role task                        # only ready tasks
+np ready --label kind:bug                   # only ready bugs
+np ready --parent NP-abc12                  # only ready children of NP-abc12
+np ready --role task --label kind:bug       # combine filters (AND semantics)
 ` + "```" + `
 
 Filter which issue gets claimed with ` + "`--with-label`" + ` and ` + "`--with-role`" + `:

@@ -20,9 +20,9 @@ Every mutation requires an ` + "`--author`" + ` flag identifying who is acting. 
 | Role | Purpose | How to work on it |
 |------|---------|-------------------|
 | **Task** | Leaf-node work item | Implement what it describes, then close it |
-| **Epic** | Organizes children; completion via ` + "`completed`" + ` secondary state | Decompose into child tasks (and sub-epics if large), then release it |
+| **Epic** | Organizes children; carries a ` + "`completed`" + ` display badge when all children are closed, but remains open until explicitly closed | Decompose into child tasks (and sub-epics if large), then release it |
 
-An epic is complete when all its children are closed or complete. You never close an epic directly.
+The ` + "`completed`" + ` badge is a display indicator only — it does not change the epic's primary state. An epic remains open until it is explicitly closed, typically via ` + "`np epic close-completed`" + ` (which handles the claim-close-release cycle in batch). Both epics and tasks may have children; ` + "`np epic close-completed --include-tasks`" + ` closes parent tasks in the same completed-by-children condition.
 
 ## Core Workflow
 
@@ -251,7 +251,7 @@ Valid order values match the column names plus **MODIFIED**. The default order v
 - **Document your work.** Add a comment before transitioning state — capture reasoning, trade-offs, and findings.
 - **Always transition state when done.** Close, release, or defer — never abandon a claim.
 - **Closed issues can be reopened.** Use ` + "`np issue reopen <ID> --author <name>`" + ` to restore them.
-- **Epics are never closed directly.** They complete when all children resolve.
+- **Epics are typically closed via ` + "`np epic close-completed`" + `.** When an epic's children are all closed, it acquires the ` + "`completed`" + ` display badge but stays open. Run ` + "`np epic close-completed --author <name>`" + ` (add ` + "`--include-tasks`" + ` to also close parent tasks in the same condition) to batch-close all eligible issues.
 - **Use ` + "`np`" + ` exclusively.** Do not track work outside of ` + "`np`" + `.
 `
 }

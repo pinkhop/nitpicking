@@ -27,6 +27,8 @@ Some label keys are reserved by `np` for internal use. These **virtual labels** 
 
 **Naming convention:** System labels use hyphen-separated keys (e.g., `idempotency-key`). User-defined labels conventionally use short alphanumeric keys (e.g., `kind`, `area`, `scope`). This reduces collision risk — hyphens are valid label key characters but uncommon in user-defined keys.
 
+**Key validation rules:** A label key must be 1–64 bytes of ASCII printable characters. The **first character must be an ASCII letter (`A`–`Z` or `a`–`z`) or an underscore (`_`)**; interior and trailing characters may be any ASCII printable non-whitespace character. Leading digits, hyphens, colons, and other punctuation are rejected to avoid ambiguity with CLI filter grammar (e.g., leading `!` means negation in `--label` filters) and to align with the identifier convention developers intuitively recognize as a "name".
+
 ---
 
 ## Labeling Issues

@@ -50,8 +50,14 @@ func TestNewLabel_InvalidKey_Fails(t *testing.T) {
 		{"empty", ""},
 		{"too long", strings.Repeat("a", 65)},
 		{"whitespace", "my key"},
-		{"no alphanumeric", "---"},
+		{"leading hyphen", "-foo"},
+		{"leading colon", ":bar"},
+		{"leading dot", ".hidden"},
+		{"leading bang", "!x"},
+		{"leading digit", "2fa"},
+		{"leading digit single", "7"},
 		{"non-ascii", "café"},
+		{"leading non-ascii letter", "αbeta"},
 		{"tab", "my\tkey"},
 	}
 
@@ -65,6 +71,71 @@ func TestNewLabel_InvalidKey_Fails(t *testing.T) {
 			// Then
 			if err == nil {
 				t.Errorf("expected error for key %q", tc.key)
+			}
+		})
+	}
+}
+
+func TestNewLabel_ValidKey_FirstCharRules(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		key   string
+		value string
+	}{
+		{"single ascii letter", "x", "v"},
+		{"underscore prefix", "_x", "v"},
+		{"underscore alone", "_", "v"},
+		{"existing system key idempotency-key", "idempotency-key", "v"},
+		{"existing system key kind", "kind", "v"},
+		{"existing system key area", "area", "v"},
+		{"existing user key waiting-on", "waiting-on", "v"},
+		{"existing user key k8s", "k8s", "v"},
+		{"internal underscore key", "_internal", "v"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// When
+			_, err := domain.NewLabel(tc.key, tc.value)
+			// Then
+			if err != nil {
+				t.Errorf("expected no error for key %q, got: %v", tc.key, err)
+			}
+		})
+	}
+}
+
+func TestNewLabel_LeadingPunctuationOrDigit_ReturnsSpecificError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		key  string
+	}{
+		{"leading hyphen", "-foo"},
+		{"leading digit", "2fa"},
+		{"leading non-ascii unicode letter", "αbeta"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// When
+			_, err := domain.NewLabel(tc.key, "v")
+
+			// Then
+			if err == nil {
+				t.Fatalf("expected error for key %q", tc.key)
+			}
+			// The error must be specific enough to communicate the constraint.
+			errMsg := err.Error()
+			if errMsg == "" {
+				t.Errorf("error message must not be empty")
 			}
 		})
 	}

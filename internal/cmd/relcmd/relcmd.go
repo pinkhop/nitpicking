@@ -44,7 +44,7 @@ dependencies (blocked_by/blocks), contextual references (refs), and
 parent-child hierarchy (parent_of/child_of).
 
 Use "rel add" to create relationships, "rel remove" to delete them, and
-"rel list" or "rel tree" to inspect all relationships from a given issue.
+"rel issue" or "rel tree" to inspect all relationships from a given issue.
 Both commands accept the same <rel> argument values, making the surface
 predictable. To detect circular blocking dependencies, use "np admin doctor".`,
 		Commands: []*cli.Command{
@@ -53,25 +53,27 @@ predictable. To detect circular blocking dependencies, use "np admin doctor".`,
 			newBlocksCmd(f),
 			newRefsCmd(f),
 			newParentCmd(f),
-			newListCmd(f),
+			newIssueCmd(f),
 			newTreeCmd(f),
 			graphcmd.NewCmd(f),
 		},
 	}
 }
 
-// newListCmd constructs "rel list <ID>" which shows all relationships for an
-// domain.
-func newListCmd(f *cmdutil.Factory) *cli.Command {
+// newIssueCmd constructs "rel issue <ID>" which shows all relationships for a
+// single issue. The name "issue" distinguishes this per-issue view from the
+// forthcoming "rel list" command, which will enumerate relationships across all
+// active issues.
+func newIssueCmd(f *cmdutil.Factory) *cli.Command {
 	var jsonOutput bool
 
 	return &cli.Command{
-		Name:  "list",
+		Name:  "issue",
 		Usage: "List all relationships for an issue",
 		Description: `Shows every relationship attached to the given issue, including blocking
 dependencies, contextual references, and parent-child links. The output
 includes both directions — for example, if issue A blocks issue B, running
-"rel list" on A shows the "blocks" edge and running it on B shows the
+"rel issue" on A shows the "blocks" edge and running it on B shows the
 "blocked_by" edge.
 
 Use this command when you need a complete picture of how an issue connects to
@@ -216,7 +218,7 @@ func newRelTypeListCmd(f *cmdutil.Factory, typeName string, types ...string) *cl
 		Name:  "list",
 		Usage: fmt.Sprintf("List %s relationships for an issue", typeName),
 		Description: fmt.Sprintf(`Shows only the %s relationships for the given issue, filtering out all
-other relationship types. This is a focused alternative to "rel list" when you
+other relationship types. This is a focused alternative to "rel issue" when you
 only care about one category of relationships.`, typeName),
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{

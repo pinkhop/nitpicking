@@ -2,6 +2,7 @@ package completion
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
@@ -43,6 +44,52 @@ func TestNewCmd_UnsupportedShell_ReturnsFlagError(t *testing.T) {
 	}
 	if _, ok := errors.AsType[*cmdutil.FlagError](err); !ok {
 		t.Fatalf("expected FlagError, got %T: %v", err, err)
+	}
+}
+
+// TestBashCompletion_RelSubcommands_IncludesCurrentSubcommandSet asserts that the
+// bash completion script lists all current "rel" subcommands. This test exists
+// to prevent the completion script from drifting away from the actual command
+// tree when rel subcommands are added or renamed.
+func TestBashCompletion_RelSubcommands_IncludesCurrentSubcommandSet(t *testing.T) {
+	t.Parallel()
+
+	// Given: the current rel subcommands defined in relcmd.NewCmd.
+	wantSubcmds := []string{"add", "remove", "blocks", "refs", "parent", "issue", "tree", "graph"}
+
+	// When/Then: the bash script contains each expected subcommand.
+	for _, sub := range wantSubcmds {
+		if !strings.Contains(bashCompletion, sub) {
+			t.Errorf("bashCompletion missing rel subcommand %q", sub)
+		}
+	}
+	// The "list" rel subcommand was renamed to "issue" in commit 9b90a39; verify
+	// the obsolete token string is no longer present. We match the full old token
+	// list rather than the bare word "list" to avoid false positives from other
+	// commands that use "list" as a subcommand (e.g., label, comment).
+	if strings.Contains(bashCompletion, `add blocks refs parent list tree graph`) {
+		t.Errorf("bashCompletion still contains obsolete rel subcommand list; update the script to match the current command tree")
+	}
+}
+
+// TestFishCompletion_RelSubcommands_IncludesCurrentSubcommandSet asserts that
+// the fish completion script lists all current "rel" subcommands. This test
+// exists to prevent the completion script from drifting away from the actual
+// command tree when rel subcommands are added or renamed.
+func TestFishCompletion_RelSubcommands_IncludesCurrentSubcommandSet(t *testing.T) {
+	t.Parallel()
+
+	// Given: the current rel subcommands defined in relcmd.NewCmd.
+	wantSubcmds := []string{"add", "remove", "blocks", "refs", "parent", "issue", "tree", "graph"}
+
+	// When/Then: the fish script contains each expected subcommand.
+	for _, sub := range wantSubcmds {
+		if !strings.Contains(fishCompletion, sub) {
+			t.Errorf("fishCompletion missing rel subcommand %q", sub)
+		}
+	}
+	if strings.Contains(fishCompletion, `add blocks refs parent list tree graph`) {
+		t.Errorf("fishCompletion still contains obsolete 'list' rel subcommand in old token string")
 	}
 }
 

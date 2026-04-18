@@ -43,7 +43,7 @@ Commands are grouped by the categories shown in `np help`.
   - [rel parent children](#rel-parent-children)
   - [rel parent tree](#rel-parent-tree)
   - [rel parent detach](#rel-parent-detach)
-  - [rel list](#rel-list)
+  - [rel issue](#rel-issue)
   - [rel tree](#rel-tree)
   - [rel graph](#rel-graph)
   - [label add](#label-add)
@@ -1262,14 +1262,14 @@ np rel parent detach [options] <A> <B>
 
 ---
 
-### rel list
+### rel issue
 
 List all relationships for an issue — blocking, references, and parent-child.
 
 **Synopsis:**
 
 ```
-np rel list [options] <ISSUE-ID>
+np rel issue [options] <ISSUE-ID>
 ```
 
 **Flags:**

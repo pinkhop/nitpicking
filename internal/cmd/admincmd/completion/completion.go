@@ -88,7 +88,7 @@ _np() {
             COMPREPLY=($(compgen -W "status close-completed children" -- "${cur}"))
             ;;
         rel)
-            COMPREPLY=($(compgen -W "add blocks refs parent list tree graph" -- "${cur}"))
+            COMPREPLY=($(compgen -W "add remove blocks refs parent issue tree graph" -- "${cur}"))
             ;;
         comment)
             COMPREPLY=($(compgen -W "add list" -- "${cur}"))
@@ -179,7 +179,7 @@ complete -c np -n "__fish_seen_subcommand_from issue" -a "list search update edi
 complete -c np -n "__fish_seen_subcommand_from epic" -a "status close-completed children"
 
 # rel subcommands.
-complete -c np -n "__fish_seen_subcommand_from rel" -a "add blocks refs parent list tree graph"
+complete -c np -n "__fish_seen_subcommand_from rel" -a "add remove blocks refs parent issue tree graph"
 
 # comment subcommands.
 complete -c np -n "__fish_seen_subcommand_from comment" -a "add list"

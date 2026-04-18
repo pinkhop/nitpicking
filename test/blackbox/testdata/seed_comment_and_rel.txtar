@@ -17,6 +17,6 @@ stdout 'This is a comment on Task A.'
 np-seed-rel TASK_B blocked_by TASK_A test-agent
 
 # Verify the relationship exists.
-exec np rel list $TASK_B --json
+exec np rel issue $TASK_B --json
 stdout 'blocked_by'
 stdout $TASK_A

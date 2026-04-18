@@ -1,5 +1,5 @@
-# Rel list for an epic includes parent_of entries for its children;
-# rel list for a child includes child_of entry pointing to the epic.
+# Rel issue for an epic includes parent_of entries for its children;
+# rel issue for a child includes child_of entry pointing to the epic.
 
 np-init RL
 np-seed epic 'Parent epic' rellist-pc EPIC
@@ -7,11 +7,11 @@ np-seed task 'Child A' rellist-pc CHILD_A --parent $EPIC
 np-seed task 'Child B' rellist-pc CHILD_B --parent $EPIC
 
 # Epic lists parent_of for both children.
-exec np rel list $EPIC --json
+exec np rel issue $EPIC --json
 np-json-array-len relationships 2
 stdout 'parent_of'
 
 # Child lists child_of pointing to epic.
-exec np rel list $CHILD_A --json
+exec np rel issue $CHILD_A --json
 stdout 'child_of'
 stdout $EPIC

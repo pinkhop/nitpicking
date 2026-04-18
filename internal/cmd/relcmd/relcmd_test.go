@@ -12,12 +12,11 @@ import (
 func TestFilterRelationships_BlockedBy_ReturnsOnlyBlockingRels(t *testing.T) {
 	t.Parallel()
 
-	// Given: a full set of relationship DTOs.
+	// Given: a mixed set of relationship DTOs.
 	rels := []driving.RelationshipDTO{
 		{SourceID: "NP-aaaaa", TargetID: "NP-bbbbb", Type: "blocked_by"},
 		{SourceID: "NP-bbbbb", TargetID: "NP-aaaaa", Type: "blocks"},
-		{SourceID: "NP-aaaaa", TargetID: "NP-ccccc", Type: "cites"},
-		{SourceID: "NP-ccccc", TargetID: "NP-aaaaa", Type: "cited_by"},
+		{SourceID: "NP-aaaaa", TargetID: "NP-ccccc", Type: "refs"},
 	}
 
 	// When: filtering for blocked_by and blocks.
@@ -34,26 +33,23 @@ func TestFilterRelationships_BlockedBy_ReturnsOnlyBlockingRels(t *testing.T) {
 	}
 }
 
-func TestFilterRelationships_Cites_ReturnsOnlyCitationRels(t *testing.T) {
+func TestFilterRelationships_Refs_ReturnsOnlyRefsRels(t *testing.T) {
 	t.Parallel()
 
-	// Given
+	// Given: a mixed set of relationship DTOs.
 	rels := []driving.RelationshipDTO{
 		{SourceID: "NP-aaaaa", TargetID: "NP-bbbbb", Type: "blocked_by"},
-		{SourceID: "NP-aaaaa", TargetID: "NP-ccccc", Type: "cites"},
-		{SourceID: "NP-ccccc", TargetID: "NP-aaaaa", Type: "cited_by"},
+		{SourceID: "NP-aaaaa", TargetID: "NP-ccccc", Type: "refs"},
 	}
 
-	// When
-	filtered := relcmd.FilterRelationships(rels, "cites", "cited_by")
+	// When: filtering for refs.
+	filtered := relcmd.FilterRelationships(rels, "refs")
 
-	// Then
-	if len(filtered) != 2 {
-		t.Fatalf("count: got %d, want 2", len(filtered))
+	// Then: only the refs relationship is returned.
+	if len(filtered) != 1 {
+		t.Fatalf("count: got %d, want 1", len(filtered))
 	}
-	for _, r := range filtered {
-		if r.Type != "cites" && r.Type != "cited_by" {
-			t.Errorf("unexpected relationship type: %s", r.Type)
-		}
+	if filtered[0].Type != "refs" {
+		t.Errorf("unexpected relationship type: %s", filtered[0].Type)
 	}
 }

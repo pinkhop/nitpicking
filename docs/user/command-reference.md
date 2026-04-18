@@ -1001,7 +1001,7 @@ np rel add [options] <A> <rel> <B>
 | Argument | Description |
 |----------|-------------|
 | `A` | The source issue ID. |
-| `rel` | Relationship type: `blocked_by`, `blocks`, `refs`, `parent_of`, `child_of`. Legacy aliases `cites` and `cited_by` are accepted but `refs` is preferred. |
+| `rel` | Relationship type: `blocked_by`, `blocks`, `refs`, `parent_of`, `child_of`. |
 | `B` | The target issue ID. |
 
 **Flags:**

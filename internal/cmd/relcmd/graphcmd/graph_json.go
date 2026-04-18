@@ -31,8 +31,8 @@ type graphJSONRelationships struct {
 // representing a nested graph structure. Root issues (those with no parent)
 // appear at the top level; children are recursively nested under their parent.
 // Edges are distributed to both endpoints: a blocked_by edge from A→B appears
-// as blocked_by on A and blocks on B. Cites/cited_by edges are folded under
-// refs.
+// as blocked_by on A and blocks on B. Refs edges are symmetric and appear on
+// both endpoints.
 func RenderGraphJSON(nodes []GraphNode, edges []GraphEdge) string {
 	// Index nodes by ID and build relationship maps.
 	nodeIndex := make(map[string]*graphJSONIssue, len(nodes))
@@ -70,8 +70,8 @@ func RenderGraphJSON(nodes []GraphNode, edges []GraphEdge) string {
 		case domain.RelBlockedBy:
 			src.Relationships.BlockedBy = append(src.Relationships.BlockedBy, e.TargetID.String())
 			tgt.Relationships.Blocks = append(tgt.Relationships.Blocks, e.SourceID.String())
-		case domain.RelCites:
-			// cites/cited_by are folded under refs.
+		case domain.RelRefs:
+			// Refs is symmetric — both endpoints list each other.
 			src.Relationships.Refs = append(src.Relationships.Refs, e.TargetID.String())
 			tgt.Relationships.Refs = append(tgt.Relationships.Refs, e.SourceID.String())
 		}

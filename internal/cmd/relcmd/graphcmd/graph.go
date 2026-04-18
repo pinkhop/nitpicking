@@ -161,16 +161,18 @@ func toGraphNodes(items []driving.IssueListItemDTO) []GraphNode {
 }
 
 // toGraphEdges converts service-layer relationship DTOs into GraphEdge values
-// for rendering. Only blocked_by and cites relationships are included
-// (not their inverses) to avoid duplicate edges. Edges where either
-// endpoint is not in the visible set are skipped.
+// for rendering. Only blocked_by and refs relationships are included —
+// blocked_by is the canonical direction of the blocking dependency, and refs
+// is symmetric so only one direction is stored. Their inverses (blocks) are
+// excluded to avoid duplicate edges. Edges where either endpoint is not in the
+// visible set are skipped.
 func toGraphEdges(rels []driving.RelationshipDTO, visibleSet map[string]bool) []GraphEdge {
 	edges := make([]GraphEdge, 0, len(rels))
 	for _, rel := range rels {
 		if !visibleSet[rel.SourceID] || !visibleSet[rel.TargetID] {
 			continue
 		}
-		if rel.Type == domain.RelBlockedBy.String() || rel.Type == domain.RelCites.String() {
+		if rel.Type == domain.RelBlockedBy.String() || rel.Type == domain.RelRefs.String() {
 			srcID, _ := domain.ParseID(rel.SourceID)
 			tgtID, _ := domain.ParseID(rel.TargetID)
 			relType, _ := domain.ParseRelationType(rel.Type)

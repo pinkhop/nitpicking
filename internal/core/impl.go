@@ -2835,7 +2835,17 @@ func restoreIssues(ctx context.Context, db driven.DatabaseRepository, uow driven
 			}
 		}
 		for _, rel := range rec.Relationships {
-			if err := db.RestoreRelationshipRaw(ctx, rec.IssueID, rel); err != nil {
+			// Translate legacy v0.2.0 relationship types to their v0.3.0
+			// equivalents. 'cites' is semantically equivalent to 'refs' and
+			// maps directly. 'cited_by' is the inverse of 'cites'; because
+			// 'refs' is symmetric-by-inverse, restoring the cited_by direction
+			// would create a redundant row that the backup code would never
+			// produce under v0.3.0, so it is dropped.
+			translated, keep := translateLegacyRelType(rel)
+			if !keep {
+				continue
+			}
+			if err := db.RestoreRelationshipRaw(ctx, rec.IssueID, translated); err != nil {
 				return fmt.Errorf("restoring relationship on %s: %w", rec.IssueID, err)
 			}
 		}
@@ -2858,6 +2868,29 @@ func mustParseID(s string) domain.ID {
 		panic(fmt.Sprintf("invalid issue ID in backup: %s", s))
 	}
 	return id
+}
+
+// translateLegacyRelType converts a v0.2.0 relationship type to its v0.3.0
+// equivalent. It returns the translated record and true when the row should be
+// kept, or the zero record and false when it should be dropped.
+//
+// v0.2.0 shipped with two additional rel_type values that v0.3.0 removed:
+//   - "cites" maps directly to "refs" (same semantics, renamed).
+//   - "cited_by" is the inverse of "cites"; because "refs" is
+//     symmetric-by-inverse, the cited_by direction is redundant and is
+//     dropped to avoid inserting a row that the v0.3.0 backup code would
+//     never produce.
+//
+// All other rel_type values are passed through unchanged.
+func translateLegacyRelType(rec domain.BackupRelationshipRecord) (domain.BackupRelationshipRecord, bool) {
+	switch rec.RelType {
+	case "cites":
+		return domain.BackupRelationshipRecord{TargetID: rec.TargetID, RelType: "refs"}, true
+	case "cited_by":
+		return domain.BackupRelationshipRecord{}, false
+	default:
+		return rec, true
+	}
 }
 
 // --- Internal helpers ---
@@ -3228,7 +3261,8 @@ func (s *serviceImpl) CheckSchemaVersion(ctx context.Context) error {
 
 // MigrateV1ToV2 delegates the v1→v2 schema migration to the Migrator port.
 // It converts claimed-state issues to open, removes obsolete history event
-// types, and records schema_version=2 — all within a single atomic transaction.
+// types, translates legacy "cites"/"cited_by" relationship types to "refs",
+// and records schema_version=2 — all within a single atomic transaction.
 func (s *serviceImpl) MigrateV1ToV2(ctx context.Context) (driving.MigrationResult, error) {
 	if s.migrator == nil {
 		return driving.MigrationResult{}, errNoMigrator
@@ -3238,8 +3272,9 @@ func (s *serviceImpl) MigrateV1ToV2(ctx context.Context) (driving.MigrationResul
 		return driving.MigrationResult{}, err
 	}
 	return driving.MigrationResult{
-		ClaimedIssuesConverted: r.ClaimedIssuesConverted,
-		HistoryRowsRemoved:     r.HistoryRowsRemoved,
+		ClaimedIssuesConverted:        r.ClaimedIssuesConverted,
+		HistoryRowsRemoved:            r.HistoryRowsRemoved,
+		LegacyRelationshipsTranslated: r.LegacyRelationshipsTranslated,
 	}, nil
 }
 

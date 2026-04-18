@@ -37,7 +37,7 @@ func TestNewRelationship_SelfRelationship_Fails(t *testing.T) {
 	id := mustID(t)
 
 	// When
-	_, err := domain.NewRelationship(id, id, domain.RelCites)
+	_, err := domain.NewRelationship(id, id, domain.RelRefs)
 
 	// Then
 	if err == nil {
@@ -49,7 +49,7 @@ func TestNewRelationship_ZeroIDs_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
-	_, err := domain.NewRelationship(domain.ID{}, mustID(t), domain.RelCites)
+	_, err := domain.NewRelationship(domain.ID{}, mustID(t), domain.RelRefs)
 
 	// Then
 	if err == nil {
@@ -134,8 +134,6 @@ func TestRelationType_Inverse(t *testing.T) {
 	}{
 		{domain.RelBlockedBy, domain.RelBlocks},
 		{domain.RelBlocks, domain.RelBlockedBy},
-		{domain.RelCites, domain.RelCitedBy},
-		{domain.RelCitedBy, domain.RelCites},
 		{domain.RelRefs, domain.RelRefs},
 	}
 
@@ -163,8 +161,6 @@ func TestParseRelationType_ValidTypes(t *testing.T) {
 	}{
 		{"blocked_by", domain.RelBlockedBy},
 		{"blocks", domain.RelBlocks},
-		{"cites", domain.RelCites},
-		{"cited_by", domain.RelCitedBy},
 		{"refs", domain.RelRefs},
 	}
 

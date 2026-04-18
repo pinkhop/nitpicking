@@ -143,7 +143,7 @@ Add a relationship between two issues.
 np-seed-rel SOURCE_ENV REL_TYPE TARGET_ENV AUTHOR
 ```
 
-Both `SOURCE_ENV` and `TARGET_ENV` are environment variable names (not `$` references). `REL_TYPE` is one of: `blocked_by`, `blocks`, `refs`, `cites`, `cited_by`, `parent_of`, `child_of`.
+Both `SOURCE_ENV` and `TARGET_ENV` are environment variable names (not `$` references). `REL_TYPE` is one of: `blocked_by`, `blocks`, `refs`, `parent_of`, `child_of`.
 
 ### np-capture
 

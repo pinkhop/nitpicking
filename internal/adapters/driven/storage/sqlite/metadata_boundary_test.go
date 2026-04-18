@@ -528,6 +528,187 @@ func TestBoundary_MigrateV1ToV2_V1NoClaimedIssues_SetsVersionWithZeroCounts(t *t
 	}
 }
 
+// TestBoundary_MigrateV1ToV2_LegacyRelTypes_TranslatedAndDropped verifies that
+// MigrateV1ToV2 translates legacy v0.2.0 relationship types stored in the on-disk
+// database: "cites" rows are renamed to "refs" and "cited_by" rows are deleted.
+// The test inserts the legacy rows via a raw connection with CHECK constraints
+// disabled (PRAGMA ignore_check_constraints = ON) to simulate what a v0.2.0
+// database would contain, then runs the migration and asserts the expected
+// post-migration state.
+func TestBoundary_MigrateV1ToV2_LegacyRelTypes_TranslatedAndDropped(t *testing.T) {
+	// Given — a v1-style database containing "cites" and "cited_by" relationship
+	// rows alongside a "blocked_by" row that must be preserved unchanged.
+	store, dbPath := createV1DatabaseWithLegacyRelTypes(t)
+	ctx := context.Background()
+
+	// Confirm v1 state before migration.
+	if err := store.CheckSchemaVersion(ctx); err == nil {
+		t.Fatal("precondition: expected v1 database to fail CheckSchemaVersion before migration")
+	}
+
+	// When — MigrateV1ToV2 is called.
+	result, err := store.MigrateV1ToV2(ctx)
+	// Then — no error and the legacy relationship count is reported.
+	if err != nil {
+		t.Fatalf("unexpected error from MigrateV1ToV2: %v", err)
+	}
+	// Two rows are affected: one "cites" translated to "refs" and one "cited_by" dropped.
+	if result.LegacyRelationshipsTranslated != 2 {
+		t.Errorf("LegacyRelationshipsTranslated: got %d, want 2", result.LegacyRelationshipsTranslated)
+	}
+
+	// The database now passes the schema version check.
+	if err := store.CheckSchemaVersion(ctx); err != nil {
+		t.Errorf("expected CheckSchemaVersion to pass after migration, got: %v", err)
+	}
+
+	// Confirm the on-disk state via a raw query.
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("opening raw connection for verification: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	// "cites" must no longer exist.
+	var citesCount int
+	if err := sqlitex.Execute(conn, `SELECT COUNT(*) FROM relationships WHERE rel_type = 'cites'`, &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *zombiezen.Stmt) error {
+			citesCount = stmt.ColumnInt(0)
+			return nil
+		},
+	}); err != nil {
+		t.Fatalf("counting cites rows after migration: %v", err)
+	}
+	if citesCount != 0 {
+		t.Errorf("expected 0 'cites' rows after migration, got %d", citesCount)
+	}
+
+	// "cited_by" must no longer exist.
+	var citedByCount int
+	if err := sqlitex.Execute(conn, `SELECT COUNT(*) FROM relationships WHERE rel_type = 'cited_by'`, &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *zombiezen.Stmt) error {
+			citedByCount = stmt.ColumnInt(0)
+			return nil
+		},
+	}); err != nil {
+		t.Fatalf("counting cited_by rows after migration: %v", err)
+	}
+	if citedByCount != 0 {
+		t.Errorf("expected 0 'cited_by' rows after migration, got %d", citedByCount)
+	}
+
+	// The "cites(A,B)" row must now be a "refs(A,B)" row.
+	var refsCount int
+	if err := sqlitex.Execute(conn,
+		`SELECT COUNT(*) FROM relationships WHERE rel_type = 'refs' AND source_id = 'LEG-aaaaa' AND target_id = 'LEG-bbbbb'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				refsCount = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("counting translated refs rows after migration: %v", err)
+	}
+	if refsCount != 1 {
+		t.Errorf("expected 1 translated 'refs' row (LEG-aaaaa→LEG-bbbbb), got %d", refsCount)
+	}
+
+	// The original "blocked_by" row must be untouched.
+	var blockedByCount int
+	if err := sqlitex.Execute(conn,
+		`SELECT COUNT(*) FROM relationships WHERE rel_type = 'blocked_by'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				blockedByCount = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("counting blocked_by rows after migration: %v", err)
+	}
+	if blockedByCount != 1 {
+		t.Errorf("expected 1 preserved 'blocked_by' row, got %d", blockedByCount)
+	}
+}
+
+// createV1DatabaseWithLegacyRelTypes creates a v1-style database containing
+// relationship rows with legacy v0.2.0 rel_type values ("cites" and "cited_by")
+// as well as a modern "blocked_by" row. CHECK constraints are temporarily
+// disabled so the legacy values can be inserted into the narrowed schema.
+// The store and database path are returned; the store is closed via t.Cleanup.
+func createV1DatabaseWithLegacyRelTypes(t *testing.T) (*sqlite.Store, string) {
+	t.Helper()
+
+	dbPath := t.TempDir() + "/v1-legacy-rels.db"
+
+	store, err := sqlite.Create(dbPath)
+	if err != nil {
+		t.Fatalf("precondition: creating database: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadWrite)
+	if err != nil {
+		t.Fatalf("precondition: opening raw connection: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	now := "2024-01-01T00:00:00Z"
+
+	// Insert the prefix and skip schema_version to reproduce v1 state.
+	if err := sqlitex.Execute(conn, `INSERT INTO metadata (key, value) VALUES ('prefix', 'LEG')`, nil); err != nil {
+		t.Fatalf("precondition: inserting prefix: %v", err)
+	}
+
+	// Insert three issues that will be related.
+	for _, row := range []struct {
+		id    string
+		title string
+	}{
+		{"LEG-aaaaa", "Task A (citer)"},
+		{"LEG-bbbbb", "Task B (cited)"},
+		{"LEG-ccccc", "Task C (blocker)"},
+	} {
+		if err := sqlitex.Execute(conn,
+			`INSERT INTO issues (issue_id, role, title, state, created_at) VALUES (?, 'task', ?, 'open', ?)`,
+			&sqlitex.ExecOptions{Args: []any{row.id, row.title, now}}); err != nil {
+			t.Fatalf("precondition: inserting issue %s: %v", row.id, err)
+		}
+	}
+
+	// Temporarily disable CHECK constraints so we can insert legacy rel_type values.
+	if err := sqlitex.Execute(conn, `PRAGMA ignore_check_constraints = ON`, nil); err != nil {
+		t.Fatalf("precondition: disabling check constraints: %v", err)
+	}
+
+	// Insert a "cites" row (legacy; should be translated to "refs").
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO relationships (source_id, target_id, rel_type) VALUES ('LEG-aaaaa', 'LEG-bbbbb', 'cites')`,
+		nil); err != nil {
+		t.Fatalf("precondition: inserting cites relationship: %v", err)
+	}
+
+	// Insert a "cited_by" row (legacy; should be dropped during migration).
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO relationships (source_id, target_id, rel_type) VALUES ('LEG-bbbbb', 'LEG-aaaaa', 'cited_by')`,
+		nil); err != nil {
+		t.Fatalf("precondition: inserting cited_by relationship: %v", err)
+	}
+
+	// Insert a modern "blocked_by" row (should be preserved unchanged).
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO relationships (source_id, target_id, rel_type) VALUES ('LEG-ccccc', 'LEG-aaaaa', 'blocked_by')`,
+		nil); err != nil {
+		t.Fatalf("precondition: inserting blocked_by relationship: %v", err)
+	}
+
+	// Re-enable CHECK constraints.
+	if err := sqlitex.Execute(conn, `PRAGMA ignore_check_constraints = OFF`, nil); err != nil {
+		t.Fatalf("precondition: re-enabling check constraints: %v", err)
+	}
+
+	return store, dbPath
+}
+
 // TestBoundary_MigrateV1ToV2_V2Database_ReturnsNilWithZeroCounts verifies that
 // calling MigrateV1ToV2 on an already-migrated v2 database is safe — it applies
 // no changes and returns zero counts. The caller should check CheckSchemaVersion

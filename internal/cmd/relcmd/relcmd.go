@@ -1,6 +1,6 @@
 // Package relcmd provides the "rel" parent command, which groups relationship
 // management operations under a single namespace. Subcommands are organized by
-// relationship type (blocks, cites, parent) and include utilities for listing,
+// relationship type (blocks, refs, parent) and include utilities for listing,
 // tree views, and cycle detection.
 package relcmd
 
@@ -20,7 +20,7 @@ import (
 
 // FilterRelationships returns only the relationships whose type string matches
 // any of the given type strings. This is the shared filtering logic used by
-// blocks list and cites list.
+// blocks list and refs list.
 func FilterRelationships(rels []driving.RelationshipDTO, types ...string) []driving.RelationshipDTO {
 	var result []driving.RelationshipDTO
 	for _, r := range rels {

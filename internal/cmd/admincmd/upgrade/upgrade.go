@@ -31,6 +31,11 @@ type upgradeOutput struct {
 	// carried removed event types ("claimed" or "released"). Zero when Status
 	// is "up_to_date".
 	HistoryRowsRemoved int `json:"history_rows_removed"`
+
+	// LegacyRelationshipsTranslated is the number of relationship rows that
+	// were translated or removed during migration: "cites" rows are renamed to
+	// "refs" and "cited_by" rows are dropped. Zero when Status is "up_to_date".
+	LegacyRelationshipsTranslated int `json:"legacy_relationships_translated"`
 }
 
 // RunInput holds all parameters for the upgrade command's core logic, decoupled
@@ -76,9 +81,10 @@ func Run(ctx context.Context, input RunInput) error {
 	}
 
 	return writeResult(input, upgradeOutput{
-		Status:                 "migrated",
-		ClaimedIssuesConverted: migResult.ClaimedIssuesConverted,
-		HistoryRowsRemoved:     migResult.HistoryRowsRemoved,
+		Status:                        "migrated",
+		ClaimedIssuesConverted:        migResult.ClaimedIssuesConverted,
+		HistoryRowsRemoved:            migResult.HistoryRowsRemoved,
+		LegacyRelationshipsTranslated: migResult.LegacyRelationshipsTranslated,
 	})
 }
 
@@ -94,10 +100,11 @@ func writeResult(input RunInput, out upgradeOutput) error {
 		return err
 	default:
 		_, err := fmt.Fprintf(input.Out,
-			"%s Database migrated to v2 (claimed issues converted: %d, history rows removed: %d)\n",
+			"%s Database migrated to v2 (claimed issues converted: %d, history rows removed: %d, legacy relationships translated: %d)\n",
 			input.ColorScheme.SuccessIcon(),
 			out.ClaimedIssuesConverted,
 			out.HistoryRowsRemoved,
+			out.LegacyRelationshipsTranslated,
 		)
 		return err
 	}

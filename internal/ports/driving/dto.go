@@ -917,4 +917,9 @@ type MigrationResult struct {
 	// HistoryRowsRemoved is the number of history rows deleted because their
 	// event_type was "claimed" or "released", which are no longer valid in v2.
 	HistoryRowsRemoved int
+
+	// LegacyRelationshipsTranslated is the number of relationship rows that
+	// were translated or dropped during migration: "cites" rows are renamed to
+	// "refs" and "cited_by" rows are removed. Both counts are summed here.
+	LegacyRelationshipsTranslated int
 }

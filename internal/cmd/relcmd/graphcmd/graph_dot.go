@@ -33,7 +33,7 @@ var graphStateColors = map[domain.State]string{
 
 // RenderGraphDOT generates a Graphviz DOT string from the given nodes and
 // edges. Nodes are color-coded by state. Parent–child hierarchy is represented
-// with solid edges, blocked_by with dashed red edges, and cites with dotted
+// with solid edges, blocked_by with dashed red edges, and refs with dotted
 // gray edges. Children are clustered under their parent epic using subgraphs.
 func RenderGraphDOT(nodes []GraphNode, edges []GraphEdge) string {
 	var b strings.Builder
@@ -101,8 +101,8 @@ func RenderGraphDOT(nodes []GraphNode, edges []GraphEdge) string {
 		case domain.RelBlockedBy:
 			fmt.Fprintf(&b, "  %q -> %q [style=dashed, color=red, label=\"blocked_by\"];\n",
 				e.SourceID.String(), e.TargetID.String())
-		case domain.RelCites:
-			fmt.Fprintf(&b, "  %q -> %q [style=dotted, color=gray, label=\"cites\"];\n",
+		case domain.RelRefs:
+			fmt.Fprintf(&b, "  %q -> %q [style=dotted, color=gray, label=\"refs\"];\n",
 				e.SourceID.String(), e.TargetID.String())
 		}
 	}

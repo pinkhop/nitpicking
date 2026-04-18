@@ -252,13 +252,18 @@ func (s *Store) CheckSchemaVersion(ctx context.Context) error {
 // a v2 database — CheckSchemaVersion should be called first so that callers
 // can report "up to date" without executing the migration body.
 //
-// The migration performs three steps within one IMMEDIATE transaction:
+// The migration performs four steps within one IMMEDIATE transaction:
 //  1. Updates every issue with state="claimed" to state="open", so that the
 //     primary state column contains only lifecycle states. The active claims
 //     are already stored in the claims table and remain untouched.
 //  2. Deletes history rows whose event_type is "claimed" or "released" — these
 //     event types were removed in v2; the claims table replaces them.
-//  3. Sets schema_version=2 in the metadata table via SetSchemaVersion, marking
+//  3. Translates legacy v0.2.0 relationship types: renames "cites" rows to
+//     "refs" (same semantics) and deletes "cited_by" rows (redundant because
+//     "refs" is symmetric-by-inverse). This ensures on-disk databases upgraded
+//     from v0.2.0 do not contain rel_type values disallowed by the narrowed
+//     CHECK constraint on newly-created v0.3.0 databases.
+//  4. Sets schema_version=2 in the metadata table via SetSchemaVersion, marking
 //     the migration as complete.
 //
 // If any step fails the transaction is rolled back and the database is
@@ -282,7 +287,37 @@ func (s *Store) MigrateV1ToV2(ctx context.Context) (driven.MigrationResult, erro
 		}
 		result.HistoryRowsRemoved = int(conn.Changes())
 
-		// Step 3: Record the completed migration.
+		// Step 3: Translate legacy v0.2.0 relationship types.
+		//
+		// v0.2.0 shipped with 'cites' and 'cited_by' in the rel_type CHECK
+		// constraint; v0.3.0 narrowed it to ('blocked_by', 'blocks', 'refs').
+		// On-disk databases that were created under v0.2.0 may still carry
+		// these rows — renaming 'cites' to 'refs' preserves the semantics and
+		// dropping 'cited_by' removes the redundant inverse (refs is symmetric).
+		//
+		// The DELETE must precede the UPDATE to avoid primary-key conflicts:
+		// if a 'cites(A,B)' and a 'refs(A,B)' both exist, the UPDATE would
+		// produce a duplicate primary key. Dropping cited_by first is safe
+		// because it represents data that no v0.3.0 backup would ever write.
+		if err := sqlitex.Execute(conn, `DELETE FROM relationships WHERE rel_type = 'cited_by'`, nil); err != nil {
+			return &domain.DatabaseError{Op: "migrate: drop cited_by relationships", Err: err}
+		}
+		deletedCitedBy := int(conn.Changes())
+
+		// Rename cites→refs with INSERT OR REPLACE to handle the edge case
+		// where a matching 'refs' row already exists, then delete the old row.
+		if err := sqlitex.Execute(conn,
+			`INSERT OR IGNORE INTO relationships (source_id, target_id, rel_type)
+			 SELECT source_id, target_id, 'refs' FROM relationships WHERE rel_type = 'cites'`, nil); err != nil {
+			return &domain.DatabaseError{Op: "migrate: rename cites to refs (insert)", Err: err}
+		}
+		if err := sqlitex.Execute(conn, `DELETE FROM relationships WHERE rel_type = 'cites'`, nil); err != nil {
+			return &domain.DatabaseError{Op: "migrate: rename cites to refs (delete)", Err: err}
+		}
+		translatedCites := int(conn.Changes())
+		result.LegacyRelationshipsTranslated = deletedCitedBy + translatedCites
+
+		// Step 4: Record the completed migration.
 		return uow.Database().SetSchemaVersion(ctx, 2)
 	})
 	if err != nil {
@@ -467,8 +502,12 @@ func (r *dbRepo) RestoreClaimRaw(_ context.Context, issueID string, rec domain.B
 }
 
 func (r *dbRepo) RestoreRelationshipRaw(_ context.Context, sourceID string, rec domain.BackupRelationshipRecord) error {
+	// INSERT OR IGNORE handles the edge case where a backup contains both a
+	// legacy type (e.g. "cites") and a modern "refs" row for the same pair —
+	// after translation the second insert would otherwise violate the primary
+	// key constraint.
 	err := sqlitex.Execute(r.conn,
-		`INSERT INTO relationships (source_id, target_id, rel_type) VALUES (?, ?, ?)`,
+		`INSERT OR IGNORE INTO relationships (source_id, target_id, rel_type) VALUES (?, ?, ?)`,
 		&sqlitex.ExecOptions{
 			Args: []any{sourceID, rec.TargetID, rec.RelType},
 		})

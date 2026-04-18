@@ -169,7 +169,7 @@ func TestRenderGraphDOT_BlockedByEdge_DashedRed(t *testing.T) {
 	}
 }
 
-func TestRenderGraphDOT_CitesEdge_DottedGray(t *testing.T) {
+func TestRenderGraphDOT_RefsEdge_DottedGray(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -181,7 +181,7 @@ func TestRenderGraphDOT_CitesEdge_DottedGray(t *testing.T) {
 		{ID: id2, Role: domain.RoleTask, State: domain.StateOpen, Title: "Task B"},
 	}
 	edges := []graphcmd.GraphEdge{
-		{SourceID: id1, TargetID: id2, Type: domain.RelCites},
+		{SourceID: id1, TargetID: id2, Type: domain.RelRefs},
 	}
 
 	// When
@@ -189,7 +189,7 @@ func TestRenderGraphDOT_CitesEdge_DottedGray(t *testing.T) {
 
 	// Then
 	if !strings.Contains(result, `"NP-a3bxr" -> "NP-b4cys"`) {
-		t.Error("expected cites edge")
+		t.Error("expected refs edge")
 	}
 	if !strings.Contains(result, "style=dotted") {
 		t.Error("expected dotted style")

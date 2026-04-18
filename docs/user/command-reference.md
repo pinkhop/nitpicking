@@ -45,7 +45,6 @@ Commands are grouped by the categories shown in `np help`.
   - [rel parent detach](#rel-parent-detach)
   - [rel list](#rel-list)
   - [rel tree](#rel-tree)
-  - [rel cycles](#rel-cycles)
   - [rel graph](#rel-graph)
   - [label add](#label-add)
   - [label remove](#label-remove)
@@ -1309,34 +1308,6 @@ np rel tree [options] <ISSUE-ID>
 |------|---------|
 | 0 | Tree displayed successfully. |
 | 2 | Issue not found. |
-
----
-
-### rel cycles
-
-Detect relationship cycles in the issue graph.
-
-**Synopsis:**
-
-```
-np rel cycles [options]
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--json` | Output machine-readable JSON. |
-
-**Exit codes:**
-
-| Code | Meaning |
-|------|---------|
-| 0 | No cycles detected, or cycles listed successfully. |
-
-**Notes:**
-
-- Reports any cycles found in blocking or parent-child relationships. Blocking cycles are primarily a diagnostic concern and are surfaced by `np rel cycles` and `np admin doctor`; invalid parent-child structures are rejected during mutation.
 
 ---
 

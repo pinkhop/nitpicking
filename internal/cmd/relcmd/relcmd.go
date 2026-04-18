@@ -1,7 +1,7 @@
 // Package relcmd provides the "rel" parent command, which groups relationship
 // management operations under a single namespace. Subcommands are organized by
-// relationship type (blocks, refs, parent) and include utilities for listing,
-// tree views, and cycle detection.
+// relationship type (blocks, refs, parent) and include utilities for listing
+// and tree views.
 package relcmd
 
 import (
@@ -45,8 +45,8 @@ parent-child hierarchy (parent_of/child_of).
 
 Use "rel add" to create relationships, the type-specific subcommands (blocks,
 refs, parent) to manage and query them, and "rel list" or "rel tree" to inspect
-all relationships from a given issue. The "rel cycles" command detects circular
-blocking dependencies that would prevent issues from becoming ready.`,
+all relationships from a given issue. To detect circular blocking dependencies,
+use "np admin doctor".`,
 		Commands: []*cli.Command{
 			newAddCmd(f),
 			newBlocksCmd(f),
@@ -54,7 +54,6 @@ blocking dependencies that would prevent issues from becoming ready.`,
 			newParentCmd(f),
 			newListCmd(f),
 			newTreeCmd(f),
-			newCyclesCmd(f),
 			graphcmd.NewCmd(f),
 		},
 	}
@@ -202,73 +201,6 @@ connectors, use "rel parent tree" instead.`,
 			}
 			_ = tw.Flush()
 
-			return nil
-		},
-	}
-}
-
-// newCyclesCmd constructs "rel cycles" which runs the doctor diagnostic and
-// filters for cycle-related findings.
-func newCyclesCmd(f *cmdutil.Factory) *cli.Command {
-	var jsonOutput bool
-
-	return &cli.Command{
-		Name:  "cycles",
-		Usage: "Detect relationship cycles",
-		Description: `Scans the entire issue graph for circular blocking dependencies. A cycle
-occurs when issue A blocks B, B blocks C, and C blocks A — none of the issues
-can ever become ready because each one is waiting on another in the loop.
-
-This command runs the same diagnostic as "admin doctor" but filters the output
-to show only cycle-related findings. Use it when issues that should be ready
-are stuck, or as a periodic health check after bulk-importing or restructuring
-relationships.`,
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &jsonOutput,
-			},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
-			}
-
-			result, err := svc.Doctor(ctx, driving.DoctorInput{})
-			if err != nil {
-				return fmt.Errorf("running diagnostics: %w", err)
-			}
-
-			// Filter for cycle-related findings.
-			cycleFindings := make([]driving.DoctorFinding, 0)
-			for _, finding := range result.Findings {
-				if finding.Category == "blocker_cycle" {
-					cycleFindings = append(cycleFindings, finding)
-				}
-			}
-
-			if jsonOutput {
-				return cmdutil.WriteJSON(f.IOStreams.Out, map[string]any{
-					"findings": cycleFindings,
-					"count":    len(cycleFindings),
-				})
-			}
-
-			w := f.IOStreams.Out
-			if len(cycleFindings) == 0 {
-				_, _ = fmt.Fprintln(w, "No cycles detected.")
-				return nil
-			}
-
-			cs := f.IOStreams.ColorScheme()
-			for _, finding := range cycleFindings {
-				_, _ = fmt.Fprintf(w, "%s %s\n",
-					cs.Red(finding.Severity+":"),
-					finding.Message)
-			}
 			return nil
 		},
 	}

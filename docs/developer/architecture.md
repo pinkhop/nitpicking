@@ -237,7 +237,7 @@ internal/
   ├─ issuecmd/                 np issue (release, defer, undefer, reopen, delete, history, orphans)
   ├─ epiccmd/                  np epic (status, close-completed, children)
   ├─ comment/                  np comment (list, search)
-  ├─ relcmd/                   np rel (add, list, tree, cycles, blocks, refs, parent, graph)
+  ├─ relcmd/                   np rel (add, list, tree, blocks, refs, parent, graph)
   ├─ labelcmd/                 np label (add, remove, list, list-all, propagate)
   ├─ blocked/                  np blocked
   ├─ ready/                    np ready

@@ -702,7 +702,6 @@ func allCommands() []commandSpec {
 		{args: []string{"rel", "parent", "detach", "-h"}, requiredFlags: []string{"--author"}},
 		{args: []string{"rel", "list", "-h"}, requiredFlags: nil},
 		{args: []string{"rel", "tree", "-h"}, requiredFlags: nil},
-		{args: []string{"rel", "cycles", "-h"}, requiredFlags: nil},
 
 		// Label subcommands
 		{args: []string{"label", "add", "-h"}, requiredFlags: []string{"--claim"}},

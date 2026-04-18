@@ -397,7 +397,7 @@ $ np label remove area --claim d47f8...
 
 ### Filtering by label
 
-Labels become useful when filtering. Pass `--label` to `np list` or `--with-label` to `np claim ready`:
+Labels become useful when filtering. Pass `--label` to `np list` or `np claim ready`:
 
 ```
 $ np list --label area:api
@@ -418,7 +418,7 @@ MYAPP-w4ttx  task  open (ready)  P1  Sanitize HTML in comment bodies
 Claim the highest-priority ready bug:
 
 ```
-$ np claim ready --author alice --with-label kind:bug
+$ np claim ready --author alice --label kind:bug
 Claimed MYAPP-w4ttx
   Claim ID: d47f8...
   Author: alice

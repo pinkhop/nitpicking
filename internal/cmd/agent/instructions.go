@@ -43,15 +43,15 @@ np ready --parent NP-abc12                  # only ready children of NP-abc12
 np ready --role task --label kind:bug       # combine filters (AND semantics)
 ` + "```" + `
 
-Filter which issue gets claimed with ` + "`--with-label`" + ` and ` + "`--with-role`" + `:
+Filter which issue gets claimed with ` + "`--label`" + ` and ` + "`--role`" + `:
 
 ` + "```" + `
-np claim ready --with-label kind:bug --author <your-name>         # only claim bugs
-np claim ready --with-role task --author <your-name>              # only claim tasks
-np claim ready --with-label kind:bug --with-role task --author <your-name>  # combine filters
+np claim ready --label kind:bug --author <your-name>         # only claim bugs
+np claim ready --role task --author <your-name>              # only claim tasks
+np claim ready --label kind:bug --role task --author <your-name>  # combine filters
 ` + "```" + `
 
-` + "`--with-label`" + ` uses ` + "`key:value`" + ` or ` + "`key:*`" + ` format (repeatable, AND semantics). ` + "`--with-role`" + ` accepts ` + "`task`" + ` or ` + "`epic`" + `.
+` + "`--label`" + ` uses ` + "`key:value`" + ` or ` + "`key:*`" + ` format (repeatable, AND semantics). ` + "`--role`" + ` accepts ` + "`task`" + ` or ` + "`epic`" + `.
 
 Control claim staleness timing with ` + "`--duration`" + ` or ` + "`--stale-at`" + `:
 

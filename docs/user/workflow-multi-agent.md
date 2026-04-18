@@ -100,13 +100,13 @@ Labels allow agents to specialize without explicit coordination:
 
 ```
 # Agent A: bugs only
-np claim ready --author agent-a --with-label kind:bug --json
+np claim ready --author agent-a --label kind:bug --json
 
 # Agent B: features only
-np claim ready --author agent-b --with-label kind:feature --json
+np claim ready --author agent-b --label kind:feature --json
 
 # Agent C: documentation only
-np claim ready --author agent-c --with-label kind:docs --json
+np claim ready --author agent-c --label kind:docs --json
 ```
 
 Each agent uses a different label filter, naturally partitioning work. No orchestration layer needed — the label filters and priority ordering handle it.

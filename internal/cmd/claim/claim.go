@@ -128,7 +128,7 @@ for subsequent operations on that issue.
 There are two modes. Pass an issue ID to claim a specific issue you already
 know about. Pass the literal word "ready" to let np pick the highest-priority
 ready issue for you — this is the standard starting point for agents that need
-work. Use --with-role and --with-label to narrow what "ready" considers.
+work. Use --role and --label to narrow what "ready" considers.
 
 Claims expire after a configurable duration (default 2 hours). Stale claims
 are treated as nonexistent: any agent can overwrite them by claiming normally.`,
@@ -142,14 +142,31 @@ are treated as nonexistent: any agent can overwrite them by claiming normally.`,
 				Category:    cmdutil.FlagCategoryRequired,
 				Destination: &author,
 			},
+			// --role and --label intentionally share the same bare flag names as
+			// np list and np ready, but their semantics differ in an important way.
+			//
+			// In np list / np ready, these flags are advisory browse filters: they
+			// narrow the display set without any side effect. In np claim, they
+			// are atomic pre-claim guards: when "ready" mode is used, the filter
+			// is applied inside the claim transaction so only a matching issue is
+			// claimed; when claiming by ID, the flags act as guard-rail assertions
+			// that reject the claim if the issue does not match (preventing agents
+			// from accidentally claiming the wrong kind of issue).
+			//
+			// They were previously named --with-role / --with-label to make this
+			// semantic distinction visible at the call site. The names were unified
+			// with list/ready in commit 7d2730e so the CLI vocabulary is
+			// consistent, but the underlying behaviour was not changed.
+			// Resist the temptation to merge the implementations: the flag names
+			// are the same, but the contract is different.
 			&cli.StringFlag{
-				Name:        "with-role",
+				Name:        "role",
 				Usage:       "Filter by role: task or epic",
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &role,
 			},
 			&cli.StringSliceFlag{
-				Name:     "with-label",
+				Name:     "label",
 				Usage:    "Label filter in key:value or key:* format (repeatable, AND semantics)",
 				Category: cmdutil.FlagCategorySupplemental,
 			},
@@ -179,7 +196,7 @@ are treated as nonexistent: any agent can overwrite them by claiming normally.`,
 			}
 
 			// Parse label filters — must be key:value or key:*, not key-only.
-			rawLabels := cmd.StringSlice("with-label")
+			rawLabels := cmd.StringSlice("label")
 			labelFilters, err := parseLabelFiltersStrict(rawLabels)
 			if err != nil {
 				return cmdutil.FlagErrorf("%s", err)

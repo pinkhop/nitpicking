@@ -320,8 +320,8 @@ np claim [options] <ISSUE-ID | ready>
 | Flag | Description |
 |------|-------------|
 | `--author`, `-a` | Author name for the claim. Required. Env: `NP_AUTHOR`. |
-| `--with-label` | Label filter in `key:value` or `key:*` format. Repeatable, AND semantics. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
-| `--with-role` | Filter by role: `task` or `epic`. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
+| `--label` | Label filter in `key:value` or `key:*` format. Repeatable, AND semantics. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
+| `--role` | Filter by role: `task` or `epic`. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
 | `--duration` | Duration after which the claim becomes stale (e.g., `30m`, `1h`, `4h`). Default: `2h`. Mutually exclusive with `--stale-at`. |
 | `--stale-at` | RFC3339 UTC timestamp when the claim becomes stale (e.g., `2026-04-02T14:00:00Z`). Must be in the future and within 24h. Mutually exclusive with `--duration`. |
 | `--json` | Output machine-readable JSON. |
@@ -363,7 +363,7 @@ $ np claim ready --author alice
 Claim next ready issue with filters:
 
 ```
-$ np claim ready --author alice --with-role task --with-label kind:bug --json
+$ np claim ready --author alice --role task --label kind:bug --json
 {
   "issue_id": "MYAPP-x9y8z",
   "claim_id": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8",
@@ -380,7 +380,7 @@ $ np claim ready --author alice --with-role task --with-label kind:bug --json
 | 0 | Claim acquired successfully. |
 | 2 | Issue not found (by ID) or no ready issues found (with `ready`). |
 | 3 | Claim conflict — the issue is already claimed and the claim is not yet stale. |
-| 4 | Guard-rail assertion failed — the issue does not match `--with-label` or `--with-role`. |
+| 4 | Guard-rail assertion failed — the issue does not match `--label` or `--role`. |
 
 **Notes:**
 

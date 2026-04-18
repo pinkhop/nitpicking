@@ -84,7 +84,7 @@ MYAPP-2e22n  task  P1  Fix claim timeout race condition
 Use `np claim ready` with label filters to claim the highest-priority issue matching your criteria:
 
 ```
-$ np claim ready --author alice --with-label kind:bug
+$ np claim ready --author alice --label kind:bug
 [ok] Claimed MYAPP-2e22n
   Claim ID: f2fa05ba73d90760db00682f21df60f0
 ```
@@ -139,7 +139,7 @@ AUTHOR=$(np agent name)
 
 # Work loop:
 while true; do
-    RESULT=$(np claim ready --author "$AUTHOR" --with-label kind:bug --json)
+    RESULT=$(np claim ready --author "$AUTHOR" --label kind:bug --json)
 
     if [ $? -ne 0 ]; then
         echo "No bugs ready. Done."
@@ -172,6 +172,6 @@ Key patterns:
 
 Label-driven selection works alongside any workflow:
 
-- **Simple tasks** — label tasks and use `np claim ready --with-label` to pull specific types.
+- **Simple tasks** — label tasks and use `np claim ready --label` to pull specific types.
 - **Epic-driven** — propagate labels from epics to children, then agents filter by label to specialize.
 - **Multi-agent** — each agent uses a different label filter, naturally partitioning work without explicit coordination.

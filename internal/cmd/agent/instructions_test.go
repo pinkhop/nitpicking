@@ -197,29 +197,29 @@ func TestAgentInstructions_DoesNotMentionImportJson(t *testing.T) {
 	}
 }
 
-func TestAgentInstructions_DocumentsWithLabelFlag(t *testing.T) {
+func TestAgentInstructions_DocumentsLabelFlagOnClaim(t *testing.T) {
 	t.Parallel()
 
 	// When
 	output := agent.AgentInstructions()
 
-	// Then — the instructions must document the --with-label flag so agents
-	// know they can filter claims by label.
-	if !strings.Contains(output, "--with-label") {
-		t.Error("expected instructions to document --with-label flag")
+	// Then — the instructions must document the --label flag on np claim ready
+	// so agents know they can filter claims by label.
+	if !strings.Contains(output, "claim ready --label") {
+		t.Error("expected instructions to document --label flag on np claim ready")
 	}
 }
 
-func TestAgentInstructions_DocumentsWithRoleFlag(t *testing.T) {
+func TestAgentInstructions_DocumentsRoleFlagOnClaim(t *testing.T) {
 	t.Parallel()
 
 	// When
 	output := agent.AgentInstructions()
 
-	// Then — the instructions must document the --with-role flag so agents
-	// know they can filter claims by role.
-	if !strings.Contains(output, "--with-role") {
-		t.Error("expected instructions to document --with-role flag")
+	// Then — the instructions must document the --role flag on np claim ready
+	// so agents know they can filter claims by role.
+	if !strings.Contains(output, "claim ready --role") {
+		t.Error("expected instructions to document --role flag on np claim ready")
 	}
 }
 
@@ -260,24 +260,13 @@ func TestAgentInstructions_DoesNotMentionOldFlagNames(t *testing.T) {
 	oldFlags := []string{
 		"--stale-threshold",
 		"--steal-if-needed",
+		"--with-role",
+		"--with-label",
 	}
 	for _, old := range oldFlags {
 		if strings.Contains(output, old) {
 			t.Errorf("expected instructions NOT to contain old flag %q", old)
 		}
-	}
-
-	// The "claim ready" command uses --with-label and --with-role (not the
-	// bare --label / --role). Verify the instructions never combine
-	// "claim ready" with the bare flag names, which would direct agents to
-	// use the wrong flags when claiming.
-	claimWithBareLabel := strings.Contains(output, "claim ready --label")
-	claimWithBareRole := strings.Contains(output, "claim ready --role")
-	if claimWithBareLabel {
-		t.Error("expected instructions NOT to use --label with 'claim ready'; use --with-label instead")
-	}
-	if claimWithBareRole {
-		t.Error("expected instructions NOT to use --role with 'claim ready'; use --with-role instead")
 	}
 }
 

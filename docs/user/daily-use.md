@@ -101,10 +101,7 @@ This adds the reason as a comment and closes the issue in one step.
 
 ```
 $ np issue defer --claim <CLAIM-ID>
-$ np issue defer --claim <CLAIM-ID> --until 2026-04-01
 ```
-
-The `--until` date is informational. `np` does not auto-undefer, but `np admin doctor` reports overdue deferrals.
 
 ### Release without closing
 

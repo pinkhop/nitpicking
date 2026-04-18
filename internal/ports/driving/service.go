@@ -59,11 +59,8 @@ type Service interface {
 	// or the state transition is not allowed.
 	CloseWithReason(ctx context.Context, input CloseWithReasonInput) error
 
-	// DeferIssue atomically defers a claimed issue. When the input includes
-	// a non-empty Until value, a "defer-until" label is set on the issue
-	// before the state transition — both within a single transaction. This
-	// replaces the two-call pattern (UpdateIssue + TransitionState) that
-	// leaked ordering invariants into the CLI adapter.
+	// DeferIssue transitions a claimed issue to the deferred state and
+	// releases the claim — all within a single transaction.
 	DeferIssue(ctx context.Context, input DeferIssueInput) error
 
 	// ReopenIssue transitions a closed or deferred issue back to the open

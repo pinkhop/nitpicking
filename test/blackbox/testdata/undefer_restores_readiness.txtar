@@ -3,7 +3,7 @@
 np-init UDR
 np-seed task 'Ready after undefer' undefer-agent TASK --claim
 
-exec np issue defer --claim $TASK_CLAIM --until 2026-07-01 --json
+exec np issue defer --claim $TASK_CLAIM --json
 
 # Verify not ready while deferred.
 exec np show $TASK --json

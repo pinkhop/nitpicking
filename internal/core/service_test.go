@@ -4687,7 +4687,7 @@ func TestReopenIssue_ClaimedIssue_ReturnsError(t *testing.T) {
 
 // --- DeferIssue ---
 
-func TestDeferIssue_WithoutUntil_TransitionsToDeferred(t *testing.T) {
+func TestDeferIssue_ClaimedTask_TransitionsToDeferred(t *testing.T) {
 	t.Parallel()
 
 	// Given: a claimed task.
@@ -4703,12 +4703,12 @@ func TestDeferIssue_WithoutUntil_TransitionsToDeferred(t *testing.T) {
 		t.Fatalf("precondition: create issue: %v", err)
 	}
 
-	// When: deferring without an until value.
+	// When: deferring the issue.
 	err = svc.DeferIssue(t.Context(), driving.DeferIssueInput{
 		IssueID: created.Issue.ID().String(),
 		ClaimID: created.ClaimID,
 	})
-	// Then: issue is deferred and has no defer-until label.
+	// Then: issue transitions to the deferred state.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -4718,51 +4718,6 @@ func TestDeferIssue_WithoutUntil_TransitionsToDeferred(t *testing.T) {
 	}
 	if show.State != domain.StateDeferred {
 		t.Errorf("state: got %v, want %v", show.State, domain.StateDeferred)
-	}
-	if _, ok := show.Labels["defer-until"]; ok {
-		t.Error("defer-until label should not be set when Until is empty")
-	}
-}
-
-func TestDeferIssue_WithUntil_SetsLabelAndTransitions(t *testing.T) {
-	t.Parallel()
-
-	// Given: a claimed task.
-	svc, _ := setupService(t)
-	author := mustAuthor(t, "alice")
-	created, err := svc.CreateIssue(t.Context(), driving.CreateIssueInput{
-		Role:   domain.RoleTask,
-		Title:  "Defer with date",
-		Author: author,
-		Claim:  true,
-	})
-	if err != nil {
-		t.Fatalf("precondition: create issue: %v", err)
-	}
-
-	// When: deferring with an until value.
-	err = svc.DeferIssue(t.Context(), driving.DeferIssueInput{
-		IssueID: created.Issue.ID().String(),
-		ClaimID: created.ClaimID,
-		Until:   "2026-04-15",
-	})
-	// Then: issue is deferred and has the defer-until label.
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	show, showErr := svc.ShowIssue(t.Context(), created.Issue.ID().String())
-	if showErr != nil {
-		t.Fatalf("show issue: %v", showErr)
-	}
-	if show.State != domain.StateDeferred {
-		t.Errorf("state: got %v, want %v", show.State, domain.StateDeferred)
-	}
-	val, ok := show.Labels["defer-until"]
-	if !ok {
-		t.Fatal("expected defer-until label to be present")
-	}
-	if val != "2026-04-15" {
-		t.Errorf("defer-until: got %q, want %q", val, "2026-04-15")
 	}
 }
 
@@ -4786,10 +4741,9 @@ func TestDeferIssue_InvalidClaim_ReturnsError(t *testing.T) {
 	err = svc.DeferIssue(t.Context(), driving.DeferIssueInput{
 		IssueID: created.Issue.ID().String(),
 		ClaimID: "bogus-claim",
-		Until:   "2026-04-15",
 	})
 
-	// Then: returns an error and the issue is unchanged.
+	// Then: returns an error and the issue remains in its original state.
 	if err == nil {
 		t.Fatal("expected error for invalid claim ID")
 	}
@@ -4799,84 +4753,6 @@ func TestDeferIssue_InvalidClaim_ReturnsError(t *testing.T) {
 	}
 	if show.State != domain.StateOpen {
 		t.Errorf("state should remain open (claimed), got %v", show.State)
-	}
-}
-
-func TestDeferIssue_InvalidUntilValue_ReturnsError(t *testing.T) {
-	t.Parallel()
-
-	// Given: a claimed task with an invalid until value (label validation
-	// rejects values that are too long or contain invalid characters).
-	svc, _ := setupService(t)
-	author := mustAuthor(t, "alice")
-	created, err := svc.CreateIssue(t.Context(), driving.CreateIssueInput{
-		Role:   domain.RoleTask,
-		Title:  "Invalid until",
-		Author: author,
-		Claim:  true,
-	})
-	if err != nil {
-		t.Fatalf("precondition: create issue: %v", err)
-	}
-
-	// When: deferring with a value that fails label validation.
-	err = svc.DeferIssue(t.Context(), driving.DeferIssueInput{
-		IssueID: created.Issue.ID().String(),
-		ClaimID: created.ClaimID,
-		Until:   strings.Repeat("x", 500),
-	})
-
-	// Then: returns an error.
-	if err == nil {
-		t.Fatal("expected error for invalid until value")
-	}
-}
-
-func TestDeferIssue_WithUntil_RecordsLabelHistory(t *testing.T) {
-	t.Parallel()
-
-	// Given: a claimed task.
-	svc, _ := setupService(t)
-	author := mustAuthor(t, "alice")
-	created, err := svc.CreateIssue(t.Context(), driving.CreateIssueInput{
-		Role:   domain.RoleTask,
-		Title:  "History check",
-		Author: author,
-		Claim:  true,
-	})
-	if err != nil {
-		t.Fatalf("precondition: create issue: %v", err)
-	}
-
-	// When: deferring with an until value.
-	err = svc.DeferIssue(t.Context(), driving.DeferIssueInput{
-		IssueID: created.Issue.ID().String(),
-		ClaimID: created.ClaimID,
-		Until:   "2026-05-01",
-	})
-	// Then: history contains both a label-added event and a state-changed event.
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	histOut, histErr := svc.ShowHistory(t.Context(), driving.ListHistoryInput{
-		IssueID: created.Issue.ID().String(),
-		Limit:   50,
-	})
-	if histErr != nil {
-		t.Fatalf("show history: %v", histErr)
-	}
-
-	hasLabelEvent := slices.ContainsFunc(histOut.Entries, func(e driving.HistoryEntryDTO) bool {
-		return e.EventType == history.EventLabelAdded.String()
-	})
-	hasStateEvent := slices.ContainsFunc(histOut.Entries, func(e driving.HistoryEntryDTO) bool {
-		return e.EventType == history.EventStateChanged.String()
-	})
-	if !hasLabelEvent {
-		t.Error("expected a label-added history event")
-	}
-	if !hasStateEvent {
-		t.Error("expected a state-changed history event")
 	}
 }
 

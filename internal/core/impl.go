@@ -665,12 +665,10 @@ func (s *serviceImpl) TransitionState(ctx context.Context, input driving.Transit
 	})
 }
 
-// DeferIssue atomically defers a claimed domain. When Until is non-empty, a
-// "defer-until" label is set and recorded in history before the state
-// transition — all within one transaction. This replaces the two-call pattern
-// (UpdateIssue + TransitionState) that leaked an ordering invariant into the
-// CLI adapter: the label must be set before the transition because the
-// transition invalidates the claim.
+// DeferIssue transitions a claimed issue to the deferred state and releases
+// the claim — all within a single transaction. The caller supplies a valid
+// claim ID; if the claim does not match the issue or has gone stale, an error
+// is returned and the issue is unchanged.
 func (s *serviceImpl) DeferIssue(ctx context.Context, input driving.DeferIssueInput) error {
 	issueID, err := domain.ParseID(input.IssueID)
 	if err != nil {
@@ -694,51 +692,6 @@ func (s *serviceImpl) DeferIssue(ctx context.Context, input driving.DeferIssueIn
 		t, err := uow.Issues().GetIssue(ctx, issueID, false)
 		if err != nil {
 			return err
-		}
-
-		// Optionally set the defer-until label before transitioning, since
-		// the transition will invalidate the claim.
-		if input.Until != "" {
-			lbl, lblErr := domain.NewLabel("defer-until", input.Until)
-			if lblErr != nil {
-				return fmt.Errorf("invalid --until value: %w", lblErr)
-			}
-
-			oldLabels := t.Labels()
-			oldVal, existed := oldLabels.Get(lbl.Key())
-			labels := oldLabels.Set(lbl)
-			t = t.WithLabels(labels)
-
-			if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-				return err
-			}
-
-			// Record label history.
-			labelStr := lbl.Key() + ":" + lbl.Value()
-			var lc history.FieldChange
-			if !existed {
-				lc = history.FieldChange{Field: "label", After: labelStr}
-			} else if oldVal != lbl.Value() {
-				lc = history.FieldChange{Field: "label", Before: lbl.Key() + ":" + oldVal, After: labelStr}
-			}
-			if lc.Field != "" {
-				revision, _ := uow.History().CountHistory(ctx, t.ID())
-				if _, histErr := uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-					IssueID:   t.ID(),
-					Revision:  revision,
-					Author:    c.Author(),
-					Timestamp: now,
-					EventType: history.EventLabelAdded,
-					Changes:   []history.FieldChange{lc},
-				})); histErr != nil {
-					return histErr
-				}
-			}
-
-			newStaleAt := now.Add(c.StaleAt().Sub(c.ClaimedAt()))
-			if err := uow.Claims().UpdateClaimStaleAt(ctx, input.ClaimID, newStaleAt); err != nil {
-				return err
-			}
 		}
 
 		return s.transitionIssue(ctx, uow, t, input.ClaimID, c.Author(), now, domain.StateDeferred)
@@ -2398,8 +2351,7 @@ func (s *serviceImpl) checkMissingLabels(ctx context.Context, uow driven.UnitOfW
 	}}, nil
 }
 
-// checkDeferrals detects overdue and long-standing deferrals.
-// overdue_deferrals (warning): deferred issues past their defer-until date.
+// checkDeferrals detects long-standing deferrals.
 // long_deferrals (info): issues deferred for more than 1 week.
 func (s *serviceImpl) checkDeferrals(ctx context.Context, uow driven.UnitOfWork, now time.Time) ([]driving.DoctorFinding, error) {
 	deferred, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{
@@ -2413,27 +2365,6 @@ func (s *serviceImpl) checkDeferrals(ctx context.Context, uow driven.UnitOfWork,
 	oneWeek := 7 * 24 * time.Hour
 
 	for _, item := range deferred {
-		// Check overdue_deferrals: look for defer-until label.
-		shown, showErr := uow.Issues().GetIssue(ctx, item.ID, false)
-		if showErr != nil {
-			continue
-		}
-
-		deferUntil, hasDeferUntil := shown.Labels().Get("defer-until")
-		if hasDeferUntil {
-			parsedDate, parseErr := time.Parse("2006-01-02", deferUntil)
-			if parseErr == nil && now.After(parsedDate) {
-				overdueDays := int(now.Sub(parsedDate).Hours() / 24)
-				findings = append(findings, driving.DoctorFinding{
-					Category: "overdue_deferral",
-					Severity: "warning",
-					Message:  fmt.Sprintf("%s was deferred until %s (%d days overdue)", item.ID, deferUntil, overdueDays),
-					IssueIDs: []string{item.ID.String()},
-					Action:   &driving.ActionHint{Kind: driving.ActionKindUndefer, IssueID: item.ID.String()},
-				})
-			}
-		}
-
 		// Check long_deferrals: deferred for more than 1 week.
 		// Uses CreatedAt as a proxy — the schema has no updated_at column.
 		deferredDuration := now.Sub(item.CreatedAt)

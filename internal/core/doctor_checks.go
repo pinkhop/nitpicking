@@ -77,12 +77,6 @@ var diagnosticChecks = []checkDefinition{
 		PassDetail: "No open issues have closed parents",
 	},
 	{
-		Name:       "overdue_deferrals",
-		Severity:   driving.SeverityWarning,
-		Categories: []string{"overdue_deferral"},
-		PassDetail: "No overdue deferrals",
-	},
-	{
 		Name:       "instructions",
 		Severity:   driving.SeverityWarning,
 		Categories: []string{"instructions"},

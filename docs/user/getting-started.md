@@ -287,12 +287,8 @@ Claimed MYAPP-a3bxr
   Author: alice
   Stale at: 2026-03-28 16:30:00
 
-$ np issue defer \
-    --claim b8e1f20c... \
-    --until 2026-04-15
+$ np issue defer --claim b8e1f20c...
 ```
-
-The `--until` date is informational. `np` does not auto-undefer, but `np admin doctor` can report overdue deferrals.
 
 When you are ready to pick it back up:
 

@@ -1,8 +1,0 @@
-# Defer with --until includes the date in JSON output.
-
-np-init DF
-np-seed task 'Defer with date' defer-agent TASK --claim
-
-exec np issue defer --claim $TASK_CLAIM --until 2026-04-01 --json
-np-json-has action defer
-stdout '2026-04-01'

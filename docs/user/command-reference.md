@@ -699,17 +699,12 @@ np issue defer [options]
 | Flag | Description |
 |------|-------------|
 | `--claim` | Active claim ID. Required. Env: `NP_CLAIM`. |
-| `--until` | Date to revisit, in `YYYY-MM-DD` format. Recorded as a `defer-until` label. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**
 
 ```
 $ np issue defer --claim a4dace30
-```
-
-```
-$ np issue defer --claim a4dace30 --until 2026-04-01
 ```
 
 **Exit codes:**
@@ -722,7 +717,6 @@ $ np issue defer --claim a4dace30 --until 2026-04-01
 **Notes:**
 
 - Deferring an epic effectively defers all its descendants — they will not appear in `np ready` until the epic is undeferred.
-- The `--until` date is stored as a label and is informational only; `np` does not automatically undefer when the date passes.
 
 ---
 

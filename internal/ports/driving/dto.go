@@ -208,14 +208,12 @@ type CloseWithReasonInput struct {
 	Reason  string
 }
 
-// DeferIssueInput holds the parameters for atomically deferring an issue with
-// an optional "defer-until" label. When Until is non-empty, a "defer-until"
-// label is set on the issue before the state transition — both within a single
-// transaction so the label mutation and state change are atomic.
+// DeferIssueInput holds the parameters for deferring a claimed issue. The
+// operation transitions the issue to the deferred state and releases the claim
+// — both within a single transaction.
 type DeferIssueInput struct {
 	IssueID string
 	ClaimID string
-	Until   string
 }
 
 // ReopenInput holds the parameters for reopening a closed or deferred domain.

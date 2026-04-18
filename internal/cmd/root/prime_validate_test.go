@@ -196,7 +196,15 @@ func resolveCommand(t *testing.T, root *cli.Command, path []string) *cli.Command
 // commandHasFlag checks whether a command has a flag with the given long name
 // in its own Flags list. Global (root) flags are checked separately by the
 // caller since urfave/cli's parent chain is not accessible in static analysis.
+//
+// The "help" flag is always recognized as valid because urfave/cli adds --help
+// / -h implicitly to every command at runtime; it does not appear in the
+// static Flags slice.
 func commandHasFlag(cmd *cli.Command, name string) bool {
+	// --help is implicitly added by urfave/cli to every command.
+	if name == "help" {
+		return true
+	}
 	for _, f := range cmd.Flags {
 		for _, n := range f.Names() {
 			if n == name {

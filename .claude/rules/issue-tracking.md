@@ -112,6 +112,34 @@ Comments do not require claiming and can be added to any issue, including closed
 | `np issue release --claim <CID>` | Epic has been decomposed; or task cannot be completed now — deletes the local claim record without changing the issue's primary state |
 | `np issue defer --claim <CID>` | Shelve for later (can be restored with undefer) |
 
+## Discovering Command Structure
+
+**Always run `--help` before guessing a command's structure or arguments.** Every command and subcommand supports `--help`, which shows valid subcommands, flags, and usage examples. Never fabricate a subcommand or flag name — consult `--help` first.
+
+```
+np rel --help               # list rel subcommands
+np rel blocks --help        # list blocks subcommands and describe the command
+np rel blocks unblock --help  # show usage and flags for unblock
+```
+
+## Managing Relationships
+
+### Adding a blocking relationship
+
+```
+np rel add <YOUR-ISSUE> blocked_by <BLOCKER-ID> --author <your-name>
+```
+
+### Removing a blocking relationship
+
+Use `np rel blocks unblock` to remove a blocking edge that is no longer relevant — for example, when the blocking issue's work has been absorbed elsewhere, or when the dependency was added in error. Argument order does not matter.
+
+```
+np rel blocks unblock <ISSUE-A> <ISSUE-B> --author <your-name>
+```
+
+This removes any blocking relationship between the two issues regardless of direction.
+
 ## Handling Incidentals
 
 If you discover something unrelated to your current issue (e.g., a failing test, a bug, a missing feature):
@@ -238,6 +266,7 @@ Valid order values match the column names plus **MODIFIED**. The default order v
 
 ## Key Rules
 
+- **Run `--help` before guessing.** Any `np` command or subcommand supports `--help`; use it to discover valid subcommands, flags, and argument formats rather than fabricating them.
 - **Use `np claim ready` to find work.** Do not browse and cherry-pick issues.
 - **Document your work.** Add a comment before transitioning state — capture reasoning, trade-offs, and findings.
 - **Always transition state when done.** Close, release, or defer — never abandon a claim.

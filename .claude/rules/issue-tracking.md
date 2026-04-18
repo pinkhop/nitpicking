@@ -199,7 +199,7 @@ JSONEND
 ```
 
 **CLI flags:** `--author` (required), `--with-claim` (optional, immediately claims the new issue), `--deferred` (optional, creates the issue in the deferred state; mutually exclusive with `--with-claim`).
-**JSON fields:** `title` (required), `role` (defaults to `task`), `description`, `acceptance_criteria`, `priority`, `parent`, `labels` (array of `key:value` strings). Unknown fields are rejected.
+**JSON fields:** `title` (required), `role` (defaults to `task`), `description`, `acceptance_criteria` (**string**, not an array — Markdown-formatted text), `priority`, `parent`, `labels` (array of `key:value` strings). Unknown fields are rejected.
 
 ### json update
 
@@ -215,7 +215,7 @@ JSONEND
 ```
 
 **CLI flags:** `--claim` (required).
-**JSON fields:** `title`, `description`, `acceptance_criteria`, `priority`, `parent`, `labels` (array of `key:value` strings), `label_remove` (array of key strings), `role` (errors if different from current role). All fields are optional. Unknown fields are rejected.
+**JSON fields:** `title`, `description`, `acceptance_criteria` (**string**, not an array — Markdown-formatted text), `priority`, `parent`, `labels` (array of `key:value` strings), `label_remove` (array of key strings), `role` (errors if different from current role). All fields are optional. Unknown fields are rejected.
 
 ### json comment
 

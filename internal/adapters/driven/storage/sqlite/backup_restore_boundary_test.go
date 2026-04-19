@@ -768,7 +768,6 @@ type issueSnapshot struct {
 	priority           string
 	state              string
 	parentID           string
-	idempotencyKey     string
 	labels             map[string]string
 	commentCount       int
 	commentBodies      []string
@@ -881,9 +880,6 @@ func compareStates(t *testing.T, expected, actual databaseState) {
 		}
 		if exp.parentID != act.parentID {
 			t.Errorf("issue %s parent_id: expected %q, got %q", id, exp.parentID, act.parentID)
-		}
-		if exp.idempotencyKey != act.idempotencyKey {
-			t.Errorf("issue %s idempotency_key: expected %q, got %q", id, exp.idempotencyKey, act.idempotencyKey)
 		}
 		if exp.commentCount != act.commentCount {
 			t.Errorf("issue %s comment count: expected %d, got %d", id, exp.commentCount, act.commentCount)

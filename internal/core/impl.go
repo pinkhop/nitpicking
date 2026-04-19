@@ -1931,20 +1931,6 @@ func (s *serviceImpl) Doctor(ctx context.Context, input driving.DoctorInput) (dr
 		}
 		output.Findings = append(output.Findings, humanFindings...)
 
-		// Check for virtual labels stored in the labels table.
-		virtualLabelCount, vlErr := uow.Database().CountVirtualLabelsInTable(ctx)
-		if vlErr != nil {
-			return vlErr
-		}
-		if virtualLabelCount > 0 {
-			output.Findings = append(output.Findings, driving.DoctorFinding{
-				Category: "virtual_label_in_table",
-				Severity: "error",
-				Message:  fmt.Sprintf("%d idempotency-key label(s) found in the labels table — they should be stored in the issues.idempotency_key column", virtualLabelCount),
-				Action:   &driving.ActionHint{Kind: driving.ActionKindExecSQL, SQL: "DELETE FROM labels WHERE key = 'idempotency-key'"},
-			})
-		}
-
 		return nil
 	})
 	if err != nil {

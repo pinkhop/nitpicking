@@ -397,15 +397,6 @@ func (r *dbRepo) IntegrityCheck(_ context.Context) error {
 	return nil
 }
 
-func (r *dbRepo) CountVirtualLabelsInTable(_ context.Context) (int, error) {
-	count, err := queryInt(r.conn,
-		`SELECT COUNT(*) FROM labels WHERE key = ?`, domain.VirtualKeyIdempotency)
-	if err != nil {
-		return 0, &domain.DatabaseError{Op: "count virtual labels in table", Err: err}
-	}
-	return count, nil
-}
-
 func (r *dbRepo) CountDeletedRatio(_ context.Context) (total, deleted int, err error) {
 	err = sqlitex.Execute(r.conn,
 		`SELECT COUNT(*), COALESCE(SUM(CASE WHEN deleted = 1 THEN 1 ELSE 0 END), 0) FROM issues`,
@@ -457,18 +448,13 @@ func (r *dbRepo) RestoreIssueRaw(_ context.Context, rec domain.BackupIssueRecord
 	if rec.ParentID != "" {
 		parentID = rec.ParentID
 	}
-	var idemKey any
-	if rec.IdempotencyKey != "" {
-		idemKey = rec.IdempotencyKey
-	}
 
 	err := sqlitex.Execute(r.conn,
-		`INSERT INTO issues (issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+		`INSERT INTO issues (issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
 		&sqlitex.ExecOptions{
 			Args: []any{
 				rec.IssueID, rec.Role, rec.Title, rec.Description, rec.AcceptanceCriteria,
 				rec.Priority, rec.State, parentID, rec.CreatedAt.Format(time.RFC3339Nano),
-				idemKey,
 			},
 		})
 	if err != nil {
@@ -572,33 +558,21 @@ type issueRepo struct{ conn *sqlite.Conn }
 func (r *issueRepo) CreateIssue(_ context.Context, t domain.Issue) error {
 	parentID := nullable(t.ParentID())
 
-	// Resolve idempotency key: the virtual label takes precedence over
-	// the constructor field, allowing callers to set it via --label.
-	var idemKey any
-	if val, hasVirtual := t.Labels().Get(domain.VirtualKeyIdempotency); hasVirtual {
-		idemKey = val
-	} else if t.IdempotencyKey() != "" {
-		idemKey = t.IdempotencyKey()
-	}
-
 	err := sqlitex.Execute(r.conn,
-		`INSERT INTO issues (issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO issues (issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		&sqlitex.ExecOptions{
 			Args: []any{
 				t.ID().String(), t.Role().String(), t.Title(), t.Description(), t.AcceptanceCriteria(),
 				t.Priority().String(), t.State().String(), parentID, t.CreatedAt().Format(time.RFC3339Nano),
-				idemKey, boolToInt(t.IsDeleted()),
+				boolToInt(t.IsDeleted()),
 			},
 		})
 	if err != nil {
 		return &domain.DatabaseError{Op: "create issue", Err: err}
 	}
 
-	// Save labels — skip virtual keys that are backed by columns.
+	// Save all labels to the labels table.
 	for k, v := range t.Labels().All() {
-		if domain.IsVirtualLabelKey(k) {
-			continue
-		}
 		if err := sqlitex.Execute(r.conn, `INSERT INTO labels (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 			Args: []any{t.ID().String(), k, v},
 		}); err != nil {
@@ -618,7 +592,7 @@ func (r *issueRepo) CreateIssue(_ context.Context, t domain.Issue) error {
 }
 
 func (r *issueRepo) GetIssue(_ context.Context, id domain.ID, includeDeleted bool) (domain.Issue, error) {
-	query := `SELECT issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted FROM issues WHERE issue_id = ?`
+	query := `SELECT issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, deleted FROM issues WHERE issue_id = ?`
 	if !includeDeleted {
 		query += ` AND deleted = 0`
 	}
@@ -637,12 +611,6 @@ func (r *issueRepo) GetIssue(_ context.Context, id domain.ID, includeDeleted boo
 		return domain.Issue{}, err
 	}
 
-	// Inject the idempotency-key virtual label if the column is populated.
-	if t.IdempotencyKey() != "" {
-		lbl, _ := domain.NewLabel(domain.VirtualKeyIdempotency, t.IdempotencyKey())
-		labels = labels.Set(lbl)
-	}
-
 	t = t.WithLabels(labels)
 
 	return t, nil
@@ -651,37 +619,25 @@ func (r *issueRepo) GetIssue(_ context.Context, id domain.ID, includeDeleted boo
 func (r *issueRepo) UpdateIssue(_ context.Context, t domain.Issue) error {
 	parentID := nullable(t.ParentID())
 
-	// Sync the idempotency-key virtual label to the column. If the label
-	// is present, use its value; otherwise, derive from IdempotencyKey().
-	var idemKey any
-	if val, hasVirtual := t.Labels().Get(domain.VirtualKeyIdempotency); hasVirtual {
-		idemKey = val
-	} else if t.IdempotencyKey() != "" {
-		idemKey = t.IdempotencyKey()
-	}
-
 	err := sqlitex.Execute(r.conn,
-		`UPDATE issues SET title = ?, description = ?, acceptance_criteria = ?, priority = ?, state = ?, parent_id = ?, deleted = ?, idempotency_key = ? WHERE issue_id = ?`,
+		`UPDATE issues SET title = ?, description = ?, acceptance_criteria = ?, priority = ?, state = ?, parent_id = ?, deleted = ? WHERE issue_id = ?`,
 		&sqlitex.ExecOptions{
 			Args: []any{
 				t.Title(), t.Description(), t.AcceptanceCriteria(), t.Priority().String(),
-				t.State().String(), parentID, boolToInt(t.IsDeleted()), idemKey, t.ID().String(),
+				t.State().String(), parentID, boolToInt(t.IsDeleted()), t.ID().String(),
 			},
 		})
 	if err != nil {
 		return &domain.DatabaseError{Op: "update issue", Err: err}
 	}
 
-	// Replace labels — skip virtual keys that are backed by columns.
+	// Replace all labels.
 	if err := sqlitex.Execute(r.conn, `DELETE FROM labels WHERE issue_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{t.ID().String()},
 	}); err != nil {
 		return &domain.DatabaseError{Op: "delete labels", Err: err}
 	}
 	for k, v := range t.Labels().All() {
-		if domain.IsVirtualLabelKey(k) {
-			continue
-		}
 		if err := sqlitex.Execute(r.conn, `INSERT INTO labels (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 			Args: []any{t.ID().String(), k, v},
 		}); err != nil {
@@ -1053,36 +1009,7 @@ func (r *issueRepo) ListDistinctLabels(_ context.Context) ([]domain.Label, error
 		return nil, &domain.DatabaseError{Op: "list distinct labels", Err: err}
 	}
 
-	// Include virtual labels from the idempotency_key column.
-	err = sqlitex.Execute(r.conn,
-		`SELECT DISTINCT idempotency_key FROM issues WHERE deleted = 0 AND idempotency_key IS NOT NULL ORDER BY idempotency_key`,
-		&sqlitex.ExecOptions{
-			ResultFunc: func(stmt *sqlite.Stmt) error {
-				lbl, lErr := domain.NewLabel(domain.VirtualKeyIdempotency, stmt.ColumnText(0))
-				if lErr != nil {
-					return lErr
-				}
-				lbls = append(lbls, lbl)
-				return nil
-			},
-		})
-	if err != nil {
-		return nil, &domain.DatabaseError{Op: "list distinct virtual labels", Err: err}
-	}
-
 	return lbls, nil
-}
-
-func (r *issueRepo) GetIssueByIdempotencyKey(_ context.Context, key string) (domain.Issue, error) {
-	t, err := scanIssueRow(r.conn,
-		`SELECT issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted FROM issues WHERE idempotency_key = ?`, key)
-	if err != nil {
-		if isNotFound(err) {
-			return domain.Issue{}, domain.ErrNotFound
-		}
-		return domain.Issue{}, &domain.DatabaseError{Op: "get by idempotency key", Err: err}
-	}
-	return t, nil
 }
 
 // GetIssueSummary returns aggregate issue counts by state and computed
@@ -1398,13 +1325,7 @@ func buildCommentIssueScope(filter driven.CommentFilter) (string, []any) {
 
 	// Label scope: comments on issues with matching labels.
 	for _, lf := range filter.LabelFilters {
-		if domain.IsVirtualLabelKey(lf.Key) {
-			cond, condArgs := buildVirtualLabelCondition(lf)
-			// Rewrite column references from t. to issues table.
-			cond = strings.ReplaceAll(cond, "t.", "i.")
-			conditions = append(conditions, `c.issue_id IN (SELECT i.issue_id FROM issues i WHERE `+cond+`)`)
-			args = append(args, condArgs...)
-		} else if lf.Value == "" {
+		if lf.Value == "" {
 			conditions = append(conditions, `c.issue_id IN (SELECT f.issue_id FROM labels f WHERE f.key = ?)`)
 			args = append(args, lf.Key)
 		} else {
@@ -1864,7 +1785,9 @@ func (r *histRepo) GetLatestHistory(_ context.Context, issueID domain.ID) (histo
 // --- Helper functions ---
 
 // scanIssueRow executes a query expected to return a single issue row and
-// scans it into a domain Issue.
+// scans it into a domain Issue. The query must select the columns in this
+// order: issue_id, role, title, description, acceptance_criteria, priority,
+// state, parent_id, created_at, deleted.
 func scanIssueRow(conn *sqlite.Conn, query string, args ...any) (domain.Issue, error) {
 	var t domain.Issue
 	var found bool
@@ -1886,11 +1809,7 @@ func scanIssueRow(conn *sqlite.Conn, query string, args ...any) (domain.Issue, e
 				parentIDStr = stmt.ColumnText(7)
 			}
 			createdAtStr := stmt.ColumnText(8)
-			idemKey := ""
-			if !stmt.ColumnIsNull(9) {
-				idemKey = stmt.ColumnText(9)
-			}
-			deleted := stmt.ColumnInt(10)
+			deleted := stmt.ColumnInt(9)
 
 			id, _ := domain.ParseID(idStr)
 			priority, _ := domain.ParsePriority(priorityStr)
@@ -1909,13 +1828,11 @@ func scanIssueRow(conn *sqlite.Conn, query string, args ...any) (domain.Issue, e
 				t, _ = domain.NewTask(domain.NewTaskParams{
 					ID: id, Title: title, Description: desc, AcceptanceCriteria: ac,
 					Priority: priority, ParentID: pid, CreatedAt: createdAt,
-					IdempotencyKey: idemKey,
 				})
 			case domain.RoleEpic:
 				t, _ = domain.NewEpic(domain.NewEpicParams{
 					ID: id, Title: title, Description: desc, AcceptanceCriteria: ac,
 					Priority: priority, ParentID: pid, CreatedAt: createdAt,
-					IdempotencyKey: idemKey,
 				})
 			}
 
@@ -2050,15 +1967,6 @@ func buildIssueWhere(filter driven.IssueFilter) (string, []any) {
 	}
 
 	for _, ff := range filter.LabelFilters {
-		// Virtual labels are backed by columns on the issues table,
-		// not the labels table — generate column-based SQL.
-		if domain.IsVirtualLabelKey(ff.Key) {
-			cond, condArgs := buildVirtualLabelCondition(ff)
-			conditions = append(conditions, cond)
-			args = append(args, condArgs...)
-			continue
-		}
-
 		if ff.Negate {
 			if ff.Value == "" {
 				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM labels f WHERE f.issue_id = t.issue_id AND f.key = ?)`)
@@ -2173,28 +2081,6 @@ func buildIssueWhere(filter driven.IssueFilter) (string, []any) {
 	}
 
 	return "WHERE " + strings.Join(conditions, " AND "), args
-}
-
-// buildVirtualLabelCondition generates a SQL condition for a virtual label
-// filter that targets a column on the issues table instead of the labels
-// table. Currently supports the idempotency-key virtual label.
-func buildVirtualLabelCondition(ff driven.LabelFilter) (string, []any) {
-	switch ff.Key {
-	case domain.VirtualKeyIdempotency:
-		if ff.Negate {
-			if ff.Value == "" {
-				return `t.idempotency_key IS NULL`, nil
-			}
-			return `(t.idempotency_key IS NULL OR t.idempotency_key != ?)`, []any{ff.Value}
-		}
-		if ff.Value == "" {
-			return `t.idempotency_key IS NOT NULL`, nil
-		}
-		return `t.idempotency_key = ?`, []any{ff.Value}
-	default:
-		// Unknown virtual label — fall through to a no-match condition.
-		return `0`, nil
-	}
 }
 
 // parseIDList splits a comma-separated string of issue IDs into a slice.

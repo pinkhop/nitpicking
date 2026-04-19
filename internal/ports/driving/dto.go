@@ -919,12 +919,13 @@ type ImportOutput struct {
 
 // --- Schema Migration DTOs ---
 
-// MigrationResult describes the outcome of a v1→v2 schema migration. It is
-// returned by Service.MigrateV1ToV2 and consumed by the upgrade command to
-// produce human-readable or JSON output.
+// MigrationResult describes the outcome of a schema migration. It is returned
+// by Service.MigrateV1ToV2 and Service.MigrateV2ToV3 and consumed by the
+// upgrade command to produce human-readable or JSON output. Fields that are
+// not relevant to a particular migration step are zero.
 type MigrationResult struct {
 	// ClaimedIssuesConverted is the number of issues whose primary state was
-	// changed from "claimed" to "open" during the migration.
+	// changed from "claimed" to "open" during the v1→v2 migration.
 	ClaimedIssuesConverted int
 
 	// HistoryRowsRemoved is the number of history rows deleted because their
@@ -932,7 +933,22 @@ type MigrationResult struct {
 	HistoryRowsRemoved int
 
 	// LegacyRelationshipsTranslated is the number of relationship rows that
-	// were translated or dropped during migration: "cites" rows are renamed to
-	// "refs" and "cited_by" rows are removed. Both counts are summed here.
+	// were translated or dropped during v1→v2 migration: "cites" rows are
+	// renamed to "refs" and "cited_by" rows are removed. Both counts are summed.
 	LegacyRelationshipsTranslated int
+
+	// IdempotencyKeysMigrated is the number of non-NULL idempotency_key column
+	// values successfully written as idempotency:<value> label rows during the
+	// v2→v3 migration.
+	IdempotencyKeysMigrated int
+
+	// IdempotencyKeysSkipped is the number of idempotency_key column values not
+	// written because the issue already carried an idempotency label
+	// (skip-on-conflict policy, v2→v3 migration).
+	IdempotencyKeysSkipped int
+
+	// InvalidLabelValuesSkipped is the number of idempotency_key column values
+	// not written because domain.NewLabel rejected the stored value as invalid
+	// (v2→v3 migration).
+	InvalidLabelValuesSkipped int
 }

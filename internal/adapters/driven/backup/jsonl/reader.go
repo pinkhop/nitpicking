@@ -55,6 +55,26 @@ func (r *Reader) NextRecord() (domain.BackupIssueRecord, bool, error) {
 	return record, true, nil
 }
 
+// NextRawRecord returns the raw JSON bytes for the next issue record in the
+// stream without decoding them into a typed struct. This method is intended
+// for callers that need to decode older backup versions whose record schema
+// differs from the current domain.BackupIssueRecord (for example, restoring
+// a v2 backup that carries the now-removed idempotency_key field).
+//
+// When no more records are available it returns nil, false, nil. On parse
+// error it returns nil, false, and a non-nil error.
+func (r *Reader) NextRawRecord() ([]byte, bool, error) {
+	if !r.dec.More() {
+		return nil, false, nil
+	}
+
+	var raw json.RawMessage
+	if err := r.dec.Decode(&raw); err != nil {
+		return nil, false, fmt.Errorf("reading raw backup record: %w", err)
+	}
+	return raw, true, nil
+}
+
 // Close releases resources held by the reader.
 func (r *Reader) Close() error {
 	if err := r.closer.Close(); err != nil {

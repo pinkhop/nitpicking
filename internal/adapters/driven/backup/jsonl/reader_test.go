@@ -122,7 +122,7 @@ func TestRoundTrip_WriteAndReadProducesIdenticalData(t *testing.T) {
 	header := domain.BackupHeader{
 		Prefix:    "TEST",
 		Timestamp: time.Date(2026, 1, 15, 8, 30, 0, 0, time.UTC),
-		Version:   2,
+		Version:   domain.BackupAlgorithmVersion,
 	}
 
 	records := []domain.BackupIssueRecord{
@@ -136,7 +136,6 @@ func TestRoundTrip_WriteAndReadProducesIdenticalData(t *testing.T) {
 			State:              "open",
 			ParentID:           "TEST-xyz99",
 			CreatedAt:          time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
-			IdempotencyKey:     "idem-1",
 			Labels: []domain.BackupLabelRecord{
 				{Key: "kind", Value: "bug"},
 				{Key: "area", Value: "backend"},
@@ -236,9 +235,6 @@ func TestRoundTrip_WriteAndReadProducesIdenticalData(t *testing.T) {
 	}
 	if got.ParentID != want.ParentID {
 		t.Errorf("record[0].ParentID = %q, want %q", got.ParentID, want.ParentID)
-	}
-	if got.IdempotencyKey != want.IdempotencyKey {
-		t.Errorf("record[0].IdempotencyKey = %q, want %q", got.IdempotencyKey, want.IdempotencyKey)
 	}
 	if len(got.Labels) != len(want.Labels) {
 		t.Errorf("record[0].Labels count = %d, want %d", len(got.Labels), len(want.Labels))

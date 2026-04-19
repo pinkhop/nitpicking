@@ -151,7 +151,7 @@ type dbRepo struct{ conn *sqlite.Conn }
 // currentSchemaVersion is the schema version written to the metadata table when
 // a new database is initialised. Existing databases without a schema_version
 // key are treated as v1 and must be upgraded with 'np admin upgrade'.
-const currentSchemaVersion = 2
+const currentSchemaVersion = 3
 
 func (r *dbRepo) InitDatabase(_ context.Context, prefix string) error {
 	// Insert the prefix.
@@ -223,8 +223,9 @@ func (r *dbRepo) SetSchemaVersion(_ context.Context, version int) error {
 
 // CheckSchemaVersion opens a read transaction, fetches the schema version, and
 // returns domain.ErrSchemaMigrationRequired (wrapped in a DatabaseError) when
-// the version is below 2. Callers — typically root-command startup hooks —
-// use this to gate all database-touching commands on a migrated database.
+// the version is below 3 (the current version). Callers — typically
+// root-command startup hooks — use this to gate all database-touching commands
+// on a fully migrated database.
 func (s *Store) CheckSchemaVersion(ctx context.Context) error {
 	conn, err := s.pool.Take(ctx)
 	if err != nil {
@@ -238,10 +239,23 @@ func (s *Store) CheckSchemaVersion(ctx context.Context) error {
 		return err
 	}
 
-	if version < 2 {
+	switch {
+	case version == 0:
+		// Absent schema_version key means v1 — no metadata row was ever written.
 		return &domain.DatabaseError{
 			Op:  "schema version check",
 			Err: fmt.Errorf("%w: database is at v1 schema — run 'np admin upgrade' to migrate", domain.ErrSchemaMigrationRequired),
+		}
+	case version == 2:
+		return &domain.DatabaseError{
+			Op:  "schema version check",
+			Err: fmt.Errorf("%w: database is at v2 schema — run 'np admin upgrade' to migrate", domain.ErrSchemaMigrationRequired),
+		}
+	case version < 3:
+		// Catch any intermediate versions not individually handled above.
+		return &domain.DatabaseError{
+			Op:  "schema version check",
+			Err: fmt.Errorf("%w: database is at v%d schema — run 'np admin upgrade' to migrate", domain.ErrSchemaMigrationRequired, version),
 		}
 	}
 	return nil
@@ -319,6 +333,148 @@ func (s *Store) MigrateV1ToV2(ctx context.Context) (driven.MigrationResult, erro
 
 		// Step 4: Record the completed migration.
 		return uow.Database().SetSchemaVersion(ctx, 2)
+	})
+	if err != nil {
+		return driven.MigrationResult{}, err
+	}
+
+	return result, nil
+}
+
+// MigrateV2ToV3 upgrades a v2 database to v3 schema in a single atomic
+// transaction, satisfying the driven.Migrator interface. It is safe to call on
+// a v3 database — CheckSchemaVersion should be called first so that callers
+// can report "up to date" without executing the migration body.
+//
+// See docs/developer/adr/idempotency-key-migration.md for the migration-key
+// naming rationale, collision-handling policy, and label-value validation rule.
+//
+// The migration performs three steps within one IMMEDIATE transaction:
+//  1. For every row in issues where idempotency_key IS NOT NULL, attempts to
+//     INSERT a labels row with key="idempotency" and value=idempotency_key.
+//     - If the issue already carries an idempotency label (collision), the
+//     column value is skipped and IdempotencyKeysSkipped is incremented.
+//     - If domain.NewLabel rejects the value, the row is skipped and
+//     InvalidLabelValuesSkipped is incremented.
+//     - Otherwise IdempotencyKeysMigrated is incremented.
+//  2. Drops the unique partial index idx_issues_idempotency and then drops
+//     the idempotency_key column from the issues table. SQLite ≥ 3.35 supports
+//     ALTER TABLE … DROP COLUMN; the bundled zombiezen.com/go/sqlite v1.4.2
+//     ships SQLite 3.45, so the direct DROP COLUMN path is used here.
+//  3. Calls uow.Database().SetSchemaVersion(ctx, 3) as the final step.
+//
+// If any step fails the transaction is rolled back and the database is
+// unchanged. Returns a driven.MigrationResult with the per-step counters.
+func (s *Store) MigrateV2ToV3(ctx context.Context) (driven.MigrationResult, error) {
+	var result driven.MigrationResult
+
+	err := s.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
+		conn := uow.(*connUnitOfWork).conn
+
+		// Determine whether the idempotency_key column exists on the issues table.
+		// When this migration is called on a database that is already at v3 (i.e.,
+		// the column was already dropped), we skip the data-carry and DROP COLUMN
+		// steps so the migration remains safe to call more than once. Callers are
+		// expected to check CheckSchemaVersion first, but this guard prevents an
+		// unrecoverable error in the rare case they do not.
+		var columnExists bool
+		if err := sqlitex.Execute(conn,
+			`SELECT 1 FROM pragma_table_info('issues') WHERE name = 'idempotency_key' LIMIT 1`,
+			&sqlitex.ExecOptions{
+				ResultFunc: func(_ *sqlite.Stmt) error {
+					columnExists = true
+					return nil
+				},
+			}); err != nil {
+			return &domain.DatabaseError{Op: "migrate v2→v3: check idempotency_key column existence", Err: err}
+		}
+
+		if columnExists {
+			// Step 1: Carry non-NULL idempotency_key values forward as label rows.
+			//
+			// We read all (issue_id, idempotency_key) pairs where the column is set,
+			// validate each value via domain.NewLabel, check for a pre-existing
+			// idempotency label, and insert the label row when both conditions pass.
+			// A single SELECT fetches all candidates; then we use per-row inserts so
+			// we can apply the skip-on-conflict policy and count outcomes individually.
+			type candidate struct {
+				issueID string
+				value   string
+			}
+			var candidates []candidate
+
+			if err := sqlitex.Execute(conn,
+				`SELECT issue_id, idempotency_key FROM issues WHERE idempotency_key IS NOT NULL`,
+				&sqlitex.ExecOptions{
+					ResultFunc: func(stmt *sqlite.Stmt) error {
+						candidates = append(candidates, candidate{
+							issueID: stmt.ColumnText(0),
+							value:   stmt.ColumnText(1),
+						})
+						return nil
+					},
+				}); err != nil {
+				return &domain.DatabaseError{Op: "migrate v2→v3: select idempotency_key rows", Err: err}
+			}
+
+			for _, c := range candidates {
+				// Validate the column value against domain label rules. Invalid values
+				// (e.g., those containing whitespace or exceeding 256 bytes) that were
+				// accepted by the old unvalidated import path are skipped rather than
+				// failing the migration.
+				if _, err := domain.NewLabel("idempotency", c.value); err != nil {
+					result.InvalidLabelValuesSkipped++
+					continue
+				}
+
+				// Check for a pre-existing idempotency label on this issue. The labels
+				// primary key is (issue_id, key), so a collision means the issue already
+				// carries an idempotency:<x> label. Per the skip-on-conflict policy, we
+				// leave the existing label and count the skip rather than overwriting.
+				var alreadyExists bool
+				if err := sqlitex.Execute(conn,
+					`SELECT 1 FROM labels WHERE issue_id = ? AND key = 'idempotency' LIMIT 1`,
+					&sqlitex.ExecOptions{
+						Args: []any{c.issueID},
+						ResultFunc: func(_ *sqlite.Stmt) error {
+							alreadyExists = true
+							return nil
+						},
+					}); err != nil {
+					return &domain.DatabaseError{Op: "migrate v2→v3: check existing idempotency label", Err: err}
+				}
+
+				if alreadyExists {
+					result.IdempotencyKeysSkipped++
+					continue
+				}
+
+				if err := sqlitex.Execute(conn,
+					`INSERT INTO labels (issue_id, key, value) VALUES (?, 'idempotency', ?)`,
+					&sqlitex.ExecOptions{Args: []any{c.issueID, c.value}}); err != nil {
+					return &domain.DatabaseError{Op: "migrate v2→v3: insert idempotency label", Err: err}
+				}
+				result.IdempotencyKeysMigrated++
+			}
+
+			// Step 2a: Drop the unique partial index before dropping the column.
+			// SQLite requires that all indexes on a column be dropped before the
+			// column itself can be dropped.
+			if err := sqlitex.Execute(conn, `DROP INDEX IF EXISTS idx_issues_idempotency`, nil); err != nil {
+				return &domain.DatabaseError{Op: "migrate v2→v3: drop idx_issues_idempotency", Err: err}
+			}
+
+			// Step 2b: Drop the idempotency_key column from the issues table.
+			// SQLite 3.35+ supports ALTER TABLE … DROP COLUMN directly. The bundled
+			// zombiezen.com/go/sqlite v1.4.2 ships SQLite 3.45, so no table-rebuild
+			// dance is needed here.
+			if err := sqlitex.Execute(conn, `ALTER TABLE issues DROP COLUMN idempotency_key`, nil); err != nil {
+				return &domain.DatabaseError{Op: "migrate v2→v3: drop idempotency_key column", Err: err}
+			}
+		}
+
+		// Step 3: Record the completed migration.
+		return uow.Database().SetSchemaVersion(ctx, 3)
 	})
 	if err != nil {
 		return driven.MigrationResult{}, err

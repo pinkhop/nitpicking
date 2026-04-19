@@ -510,6 +510,21 @@ type MigrationResult struct {
 	// rel_type was translated from a v0.2.0 value ("cites" → "refs") or
 	// dropped ("cited_by") during the v1→v2 migration.
 	LegacyRelationshipsTranslated int
+
+	// IdempotencyKeysMigrated is the number of non-NULL idempotency_key column
+	// values successfully written as idempotency:<value> label rows during the
+	// v2→v3 migration. Zero for v1→v2 results.
+	IdempotencyKeysMigrated int
+
+	// IdempotencyKeysSkipped is the number of idempotency_key column values not
+	// written because the issue already carried an idempotency label (skip-on-conflict
+	// policy). Zero for v1→v2 results.
+	IdempotencyKeysSkipped int
+
+	// InvalidLabelValuesSkipped is the number of idempotency_key column values
+	// not written because domain.NewLabel rejected the stored value as invalid.
+	// Zero for v1→v2 results.
+	InvalidLabelValuesSkipped int
 }
 
 // Migrator exposes schema migration operations. It is implemented by the
@@ -520,7 +535,7 @@ type MigrationResult struct {
 // storage adapter package.
 type Migrator interface {
 	// CheckSchemaVersion returns nil when the database schema is at the
-	// current version (v2). It returns a wrapped domain.ErrSchemaMigrationRequired
+	// current version (v3). It returns a wrapped domain.ErrSchemaMigrationRequired
 	// when the schema is at an older version. Callers use this to determine
 	// whether a migration is needed before issuing regular database commands.
 	CheckSchemaVersion(ctx context.Context) error
@@ -531,4 +546,13 @@ type Migrator interface {
 	// case from a migration that made changes. Returns a MigrationResult
 	// describing the number of rows affected by each migration step.
 	MigrateV1ToV2(ctx context.Context) (MigrationResult, error)
+
+	// MigrateV2ToV3 upgrades a v2 database to v3 schema in a single atomic
+	// transaction. It carries each non-NULL idempotency_key column value forward
+	// as an idempotency:<value> label row, drops the idx_issues_idempotency unique
+	// index, drops the idempotency_key column, and records schema_version=3. It is
+	// safe to call on a v3 database but CheckSchemaVersion should be used first to
+	// distinguish the "already current" case. Returns a MigrationResult describing
+	// the number of rows affected by each migration step.
+	MigrateV2ToV3(ctx context.Context) (MigrationResult, error)
 }

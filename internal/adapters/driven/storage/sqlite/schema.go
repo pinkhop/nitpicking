@@ -1,6 +1,11 @@
 package sqlite
 
-// schemaSQL defines the SQLite database schema for nitpicking.
+// schemaSQL defines the SQLite database schema for nitpicking at v3.
+//
+// The idempotency_key column and its unique partial index were present in the
+// v2 schema and are intentionally absent here. Existing v2 databases carry
+// those values forward as ordinary label rows during the MigrateV2ToV3
+// migration; new databases initialised at v3 never have the column.
 const schemaSQL = `
 -- Metadata table for database configuration.
 CREATE TABLE IF NOT EXISTS metadata (
@@ -20,14 +25,12 @@ CREATE TABLE IF NOT EXISTS issues (
     state               TEXT NOT NULL,
     parent_id           TEXT DEFAULT NULL REFERENCES issues(issue_id),
     created_at          TEXT NOT NULL,
-    idempotency_key     TEXT DEFAULT NULL,
     deleted             INTEGER NOT NULL DEFAULT 0
 ) WITHOUT ROWID;
 
 CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id) WHERE parent_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_issues_state ON issues(state) WHERE deleted = 0;
 CREATE INDEX IF NOT EXISTS idx_issues_priority_created ON issues(priority, created_at) WHERE deleted = 0;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_idempotency ON issues(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 -- Labels table.
 CREATE TABLE IF NOT EXISTS labels (

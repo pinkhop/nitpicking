@@ -29,7 +29,7 @@ func TestWriter_WriteHeader_ProducesValidJSONLine(t *testing.T) {
 	header := domain.BackupHeader{
 		Prefix:    "NP",
 		Timestamp: time.Date(2026, 3, 27, 12, 0, 0, 0, time.UTC),
-		Version:   2,
+		Version:   domain.BackupAlgorithmVersion,
 	}
 
 	// When
@@ -47,8 +47,8 @@ func TestWriter_WriteHeader_ProducesValidJSONLine(t *testing.T) {
 	if got.Prefix != "NP" {
 		t.Errorf("prefix = %q, want %q", got.Prefix, "NP")
 	}
-	if got.Version != 2 {
-		t.Errorf("version = %d, want %d", got.Version, 2)
+	if got.Version != domain.BackupAlgorithmVersion {
+		t.Errorf("version = %d, want %d", got.Version, domain.BackupAlgorithmVersion)
 	}
 }
 

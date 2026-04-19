@@ -37,12 +37,6 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 			labelInputs[j] = driving.LabelInput{Key: l.Key(), Value: l.Value()}
 		}
 
-		// Use the idempotency label's canonical "key:value" string as the
-		// idempotency key passed to the service layer. The ports and adapters
-		// still carry a string-typed IdempotencyKey; they will be updated to
-		// use domain.Label directly in the subsequent ports-layer child task.
-		idempotencyKeyStr := rec.IdempotencyLabel.String()
-
 		createInput := driving.CreateIssueInput{
 			Role:               rec.Role,
 			Title:              rec.Title,
@@ -51,7 +45,7 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 			Priority:           rec.Priority,
 			Labels:             labelInputs,
 			Author:             author,
-			IdempotencyKey:     idempotencyKeyStr,
+			IdempotencyLabel:   rec.IdempotencyLabel,
 			// Claim creates a transient claim row immediately after creation,
 			// leaving the issue open but claimed. Only set when rec.Claim is
 			// true; validation ensures Claim is only true for open records.
@@ -63,8 +57,8 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 			parentID, resolveErr := s.resolveImportRef(ctx, rec.Parent, keyToID)
 			if resolveErr != nil {
 				output.Results[i] = driving.ImportLineResult{
-					IdempotencyKey: idempotencyKeyStr,
-					Err:            fmt.Errorf("resolving parent: %w", resolveErr),
+					IdempotencyLabel: rec.IdempotencyLabel,
+					Err:              fmt.Errorf("resolving parent: %w", resolveErr),
 				}
 				output.Failed++
 				continue
@@ -75,18 +69,21 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 		createOut, err := s.CreateIssue(ctx, createInput)
 		if err != nil {
 			output.Results[i] = driving.ImportLineResult{
-				IdempotencyKey: idempotencyKeyStr,
-				Err:            fmt.Errorf("creating issue: %w", err),
+				IdempotencyLabel: rec.IdempotencyLabel,
+				Err:              fmt.Errorf("creating issue: %w", err),
 			}
 			output.Failed++
 			continue
 		}
 
+		// Key the intra-file idempotency-label map by the canonical
+		// "key:value" string so that reference resolution in Phase 2 can
+		// look up created issue IDs by their idempotency label string.
 		issueID := createOut.Issue.ID()
-		keyToID[idempotencyKeyStr] = issueID
+		keyToID[rec.IdempotencyLabel.String()] = issueID
 		output.Results[i] = driving.ImportLineResult{
-			IdempotencyKey: idempotencyKeyStr,
-			IssueID:        issueID,
+			IdempotencyLabel: rec.IdempotencyLabel,
+			IssueID:          issueID,
 		}
 		output.Created++
 	}

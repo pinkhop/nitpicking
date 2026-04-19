@@ -77,7 +77,12 @@ type IssueListItemDTO struct {
 
 // --- Issue DTOs ---
 
-// CreateIssueInput holds the parameters for creating an domain.
+// CreateIssueInput holds the parameters for creating an issue.
+//
+// IdempotencyLabel, when non-zero (Key() != ""), enables deduplication: if
+// any non-deleted issue already carries that exact key:value label, the
+// service returns the existing issue without mutation. When zero, creation
+// always proceeds without a deduplication check.
 type CreateIssueInput struct {
 	Role               domain.Role
 	Title              string
@@ -89,7 +94,7 @@ type CreateIssueInput struct {
 	Relationships      []RelationshipInput
 	Author             string
 	Claim              bool
-	IdempotencyKey     string
+	IdempotencyLabel   domain.Label
 }
 
 // RelationshipInput describes a relationship to add during issue creation
@@ -887,11 +892,16 @@ type ImportInput struct {
 }
 
 // ImportLineResult describes the outcome of importing a single record.
+//
+// IdempotencyLabel holds the label that was used for deduplication. Its
+// canonical string form (Key():Value()) is suitable for human-readable
+// output. When the source record carried no idempotency label, this field
+// is the zero Label.
 type ImportLineResult struct {
-	IdempotencyKey string
-	IssueID        domain.ID
-	Skipped        bool // True if the idempotency key was already imported.
-	Err            error
+	IdempotencyLabel domain.Label
+	IssueID          domain.ID
+	Skipped          bool // True if the idempotency label matched an existing issue.
+	Err              error
 }
 
 // ImportOutput holds the aggregate result of an import operation.

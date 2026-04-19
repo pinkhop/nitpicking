@@ -109,33 +109,38 @@ func TestBoundary_GetPrefix_UninitializedDatabase_ReturnsError(t *testing.T) {
 	}
 }
 
-// --- Idempotency Key Returns Original Issue Without Mutation ---
+// --- IdempotencyLabel Returns Original Issue Without Mutation ---
 
-func TestBoundary_CreateIssue_IdempotencyKey_ReturnsOriginalWithoutMutation(t *testing.T) {
-	// Given — an issue created with an idempotency key.
+func TestBoundary_CreateIssue_IdempotencyLabel_ReturnsOriginalWithoutMutation(t *testing.T) {
+	// Given — an issue created with an idempotency label.
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
 
+	idemLabel, err := domain.NewLabel("idem", "test1")
+	if err != nil {
+		t.Fatalf("precondition: building idempotency label: %v", err)
+	}
+
 	original, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role:           domain.RoleTask,
-		Title:          "Original title",
-		Description:    "Original description",
-		Author:         author(t, "alice"),
-		IdempotencyKey: "idem-test-1",
+		Role:             domain.RoleTask,
+		Title:            "Original title",
+		Description:      "Original description",
+		Author:           author(t, "alice"),
+		IdempotencyLabel: idemLabel,
 	})
 	if err != nil {
 		t.Fatalf("precondition: first create failed: %v", err)
 	}
 
-	// When — create is called again with the same idempotency key but
+	// When — create is called again with the same idempotency label but
 	// different title, description, and priority.
 	duplicate, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role:           domain.RoleTask,
-		Title:          "Different title",
-		Description:    "Different description",
-		Priority:       domain.P0,
-		Author:         author(t, "bob"),
-		IdempotencyKey: "idem-test-1",
+		Role:             domain.RoleTask,
+		Title:            "Different title",
+		Description:      "Different description",
+		Priority:         domain.P0,
+		Author:           author(t, "bob"),
+		IdempotencyLabel: idemLabel,
 	})
 	// Then — the original issue is returned unchanged.
 	if err != nil {

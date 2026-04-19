@@ -428,18 +428,142 @@ func TestImportIssues_DuplicateIdempotencyLabel_SkipsSecondImport(t *testing.T) 
 	if err != nil {
 		t.Fatalf("first import: %v", err)
 	}
+	if firstOutput.Created != 1 {
+		t.Fatalf("precondition: expected first import to create 1 issue, got %d", firstOutput.Created)
+	}
 
 	// When — import again with the same idempotency label.
 	secondOutput, err := svc.ImportIssues(t.Context(), driving.ImportInput{
 		Records:       records,
 		DefaultAuthor: mustImportAuthor(t, "import-agent"),
 	})
-	// Then — second import should succeed but not create a new issue.
+	// Then — second import should succeed, report the skip, and return the same ID.
 	if err != nil {
 		t.Fatalf("second import: %v", err)
 	}
 	if secondOutput.Results[0].IssueID != firstOutput.Results[0].IssueID {
 		t.Errorf("expected same issue ID on re-import, got %s and %s",
 			firstOutput.Results[0].IssueID, secondOutput.Results[0].IssueID)
+	}
+	if !secondOutput.Results[0].Skipped {
+		t.Error("expected Results[0].Skipped to be true on second import")
+	}
+	if secondOutput.Skipped != 1 {
+		t.Errorf("expected Skipped counter to be 1, got %d", secondOutput.Skipped)
+	}
+	if secondOutput.Created != 0 {
+		t.Errorf("expected Created counter to be 0 on dedup, got %d", secondOutput.Created)
+	}
+}
+
+// TestImportIssues_IdempotencyLabel_NoMatch_CreatesWithLabel verifies AC5b:
+// a record with an idempotency_label that matches no existing issue is created
+// and the label is stored on the new issue so that subsequent deduplicated
+// imports can find it.
+func TestImportIssues_IdempotencyLabel_NoMatch_CreatesWithLabel(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc := setupImportService(t)
+	idemLabel := mustDomainLabel(t, "ticket", "ABC-100")
+	records := []domain.ValidatedRecord{
+		{
+			IdempotencyLabel: idemLabel,
+			Role:             domain.RoleTask,
+			Title:            "Labelled import task",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
+		},
+	}
+
+	// When
+	output, err := svc.ImportIssues(t.Context(), driving.ImportInput{
+		Records:       records,
+		DefaultAuthor: mustImportAuthor(t, "import-agent"),
+	})
+	// Then — the issue is created and the idempotency label is stored on it.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.Created != 1 {
+		t.Errorf("expected 1 created, got %d", output.Created)
+	}
+	if output.Results[0].IssueID.IsZero() {
+		t.Fatal("expected non-zero issue ID")
+	}
+	if output.Results[0].Skipped {
+		t.Error("expected Skipped to be false for a new issue")
+	}
+
+	// The idempotency label must be present on the stored issue so that a
+	// subsequent import of the same record finds it via the label lookup.
+	showOut, err := svc.ShowIssue(t.Context(), output.Results[0].IssueID.String())
+	if err != nil {
+		t.Fatalf("show issue: %v", err)
+	}
+	storedValue, hasLabel := showOut.Labels[idemLabel.Key()]
+	if !hasLabel {
+		t.Errorf("expected idempotency label key %q to be stored on issue, got labels: %v",
+			idemLabel.Key(), showOut.Labels)
+	} else if storedValue != idemLabel.Value() {
+		t.Errorf("expected label %q=%q, got value %q",
+			idemLabel.Key(), idemLabel.Value(), storedValue)
+	}
+}
+
+// TestImportIssues_IdempotencyLabel_Match_Skips verifies AC5a: a record with
+// an idempotency_label that matches an existing issue is skipped, the line
+// result carries Skipped=true and the existing issue's ID.
+func TestImportIssues_IdempotencyLabel_Match_Skips(t *testing.T) {
+	t.Parallel()
+
+	// Given — an existing issue already carrying the idempotency label.
+	svc := setupImportService(t)
+	idemLabel := mustDomainLabel(t, "ticket", "XYZ-42")
+	firstOut, err := svc.ImportIssues(t.Context(), driving.ImportInput{
+		Records: []domain.ValidatedRecord{
+			{
+				IdempotencyLabel: idemLabel,
+				Role:             domain.RoleTask,
+				Title:            "Existing issue",
+				Priority:         domain.DefaultPriority,
+				State:            domain.StateOpen,
+			},
+		},
+		DefaultAuthor: mustImportAuthor(t, "seed-agent"),
+	})
+	if err != nil {
+		t.Fatalf("precondition: seeding issue: %v", err)
+	}
+	existingID := firstOut.Results[0].IssueID
+
+	// When — import a record with the same idempotency label.
+	secondOut, err := svc.ImportIssues(t.Context(), driving.ImportInput{
+		Records: []domain.ValidatedRecord{
+			{
+				IdempotencyLabel: idemLabel,
+				Role:             domain.RoleTask,
+				Title:            "Duplicate import",
+				Priority:         domain.DefaultPriority,
+				State:            domain.StateOpen,
+			},
+		},
+		DefaultAuthor: mustImportAuthor(t, "import-agent"),
+	})
+	// Then — the record is skipped and the existing issue's ID is reported.
+	if err != nil {
+		t.Fatalf("second import: %v", err)
+	}
+	if !secondOut.Results[0].Skipped {
+		t.Error("expected Skipped=true for deduplicated record")
+	}
+	if secondOut.Results[0].IssueID != existingID {
+		t.Errorf("expected existing issue ID %s, got %s", existingID, secondOut.Results[0].IssueID)
+	}
+	if secondOut.Skipped != 1 {
+		t.Errorf("expected Skipped counter 1, got %d", secondOut.Skipped)
+	}
+	if secondOut.Created != 0 {
+		t.Errorf("expected Created counter 0, got %d", secondOut.Created)
 	}
 }

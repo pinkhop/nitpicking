@@ -175,6 +175,13 @@ func TestCreateIssue_IdempotencyLabel_ReturnsSameIssue(t *testing.T) {
 	if out1.Issue.ID() != out2.Issue.ID() {
 		t.Errorf("expected same issue ID, got %s and %s", out1.Issue.ID(), out2.Issue.ID())
 	}
+	// The first creation must not be marked as skipped; the second must be.
+	if out1.Skipped {
+		t.Error("expected first creation to not be skipped")
+	}
+	if !out2.Skipped {
+		t.Error("expected second creation with same label to be marked as skipped")
+	}
 }
 
 func TestCreateIssue_InvalidTitle_Fails(t *testing.T) {

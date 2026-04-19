@@ -83,15 +83,31 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 	var output driving.CreateIssueOutput
 
 	err = s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
-		// Check idempotency key.
-		if input.IdempotencyKey != "" {
-			existing, err := uow.Issues().GetIssueByIdempotencyKey(ctx, input.IdempotencyKey)
-			if err == nil {
-				output.Issue = existing
-				return nil
+		// Check idempotency label. When the input carries a label, query for
+		// any existing non-deleted issue that already carries the same key:value
+		// pair. If one is found, return it without creating a duplicate.
+		// output.Skipped is set so callers (e.g., the import pipeline) can
+		// distinguish a deduplicated return from a fresh creation.
+		if input.IdempotencyLabel.Key() != "" {
+			items, _, err := uow.Issues().ListIssues(ctx,
+				driven.IssueFilter{
+					LabelFilters: []driven.LabelFilter{{
+						Key:   input.IdempotencyLabel.Key(),
+						Value: input.IdempotencyLabel.Value(),
+					}},
+				},
+				driven.OrderByID, driven.SortAscending, 1)
+			if err != nil {
+				return fmt.Errorf("deduplication label lookup: %w", err)
 			}
-			if !errors.Is(err, domain.ErrNotFound) {
-				return err
+			if len(items) > 0 {
+				existing, getErr := uow.Issues().GetIssue(ctx, items[0].ID, false)
+				if getErr != nil {
+					return fmt.Errorf("fetching existing deduplicated issue: %w", getErr)
+				}
+				output.Issue = existing
+				output.Skipped = true
+				return nil
 			}
 		}
 
@@ -116,6 +132,20 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 			return err
 		}
 
+		// Merge the idempotency label into the issue's regular label set so
+		// that label-based deduplication lookups (via ListIssues) can find the
+		// issue on a subsequent import. The new design stores the idempotency
+		// label as a normal label rather than in a dedicated column. Using
+		// LabelSetFrom ensures a duplicate key in input.Labels is overwritten
+		// rather than duplicated — consistent with the cross-field validation
+		// rule in the domain layer.
+		if input.IdempotencyLabel.Key() != "" {
+			labelSet := domain.LabelSetFrom(domainLabels)
+			if _, exists := labelSet.Get(input.IdempotencyLabel.Key()); !exists {
+				domainLabels = append(domainLabels, input.IdempotencyLabel)
+			}
+		}
+
 		role := input.Role
 
 		priority := input.Priority
@@ -129,7 +159,9 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 			}
 		}
 
-		// Create domain.
+		// Create domain issue. The idempotency label was already merged into
+		// domainLabels above; it is stored as a normal label and found via
+		// label-based deduplication on subsequent imports.
 		var t domain.Issue
 		switch role {
 		case domain.RoleTask:
@@ -142,7 +174,6 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 				ParentID:           parentID,
 				Labels:             domain.LabelSetFrom(domainLabels),
 				CreatedAt:          now,
-				IdempotencyKey:     input.IdempotencyKey,
 			})
 		case domain.RoleEpic:
 			t, err = domain.NewEpic(domain.NewEpicParams{
@@ -154,7 +185,6 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 				ParentID:           parentID,
 				Labels:             domain.LabelSetFrom(domainLabels),
 				CreatedAt:          now,
-				IdempotencyKey:     input.IdempotencyKey,
 			})
 		default:
 			return domain.NewValidationError("role", "must be task or epic")
@@ -1901,20 +1931,6 @@ func (s *serviceImpl) Doctor(ctx context.Context, input driving.DoctorInput) (dr
 		}
 		output.Findings = append(output.Findings, humanFindings...)
 
-		// Check for virtual labels stored in the labels table.
-		virtualLabelCount, vlErr := uow.Database().CountVirtualLabelsInTable(ctx)
-		if vlErr != nil {
-			return vlErr
-		}
-		if virtualLabelCount > 0 {
-			output.Findings = append(output.Findings, driving.DoctorFinding{
-				Category: "virtual_label_in_table",
-				Severity: "error",
-				Message:  fmt.Sprintf("%d idempotency-key label(s) found in the labels table — they should be stored in the issues.idempotency_key column", virtualLabelCount),
-				Action:   &driving.ActionHint{Kind: driving.ActionKindExecSQL, SQL: "DELETE FROM labels WHERE key = 'idempotency-key'"},
-			})
-		}
-
 		return nil
 	})
 	if err != nil {
@@ -3175,14 +3191,14 @@ func (s *serviceImpl) ResetDatabase(ctx context.Context) error {
 
 // --- Schema Migration ---
 
-// errNoMigrator is returned by CheckSchemaVersion and MigrateV1ToV2 when the
-// service was constructed without a Migrator (e.g., in tests backed by the
-// in-memory adapter).
+// errNoMigrator is returned by CheckSchemaVersion, MigrateV1ToV2, and
+// MigrateV2ToV3 when the service was constructed without a Migrator (e.g., in
+// tests backed by the in-memory adapter).
 var errNoMigrator = errors.New("schema migration is not supported by the backing store")
 
 // CheckSchemaVersion delegates to the Migrator port to verify the database
-// schema version. It returns nil on a v2 database and a wrapped
-// domain.ErrSchemaMigrationRequired on a v1 database.
+// schema version. It returns nil on a v3 database and a wrapped
+// domain.ErrSchemaMigrationRequired on any older version.
 func (s *serviceImpl) CheckSchemaVersion(ctx context.Context) error {
 	if s.migrator == nil {
 		return errNoMigrator
@@ -3206,6 +3222,25 @@ func (s *serviceImpl) MigrateV1ToV2(ctx context.Context) (driving.MigrationResul
 		ClaimedIssuesConverted:        r.ClaimedIssuesConverted,
 		HistoryRowsRemoved:            r.HistoryRowsRemoved,
 		LegacyRelationshipsTranslated: r.LegacyRelationshipsTranslated,
+	}, nil
+}
+
+// MigrateV2ToV3 delegates the v2→v3 schema migration to the Migrator port.
+// It carries non-NULL idempotency_key column values forward as label rows,
+// drops the unique index and column, and records schema_version=3 — all within
+// a single atomic transaction.
+func (s *serviceImpl) MigrateV2ToV3(ctx context.Context) (driving.MigrationResult, error) {
+	if s.migrator == nil {
+		return driving.MigrationResult{}, errNoMigrator
+	}
+	r, err := s.migrator.MigrateV2ToV3(ctx)
+	if err != nil {
+		return driving.MigrationResult{}, err
+	}
+	return driving.MigrationResult{
+		IdempotencyKeysMigrated:   r.IdempotencyKeysMigrated,
+		IdempotencyKeysSkipped:    r.IdempotencyKeysSkipped,
+		InvalidLabelValuesSkipped: r.InvalidLabelValuesSkipped,
 	}, nil
 }
 

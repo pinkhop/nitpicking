@@ -322,9 +322,13 @@ func seedDatabase(t *testing.T, env *boundaryEnv) seedResult {
 	// Add a comment to the closed task too.
 	env.addComment(t, r.closedTask, "Post-close comment")
 
-	// --- Idempotency key ---
+	// --- Idempotency label ---
+	idemLabel, err := domain.NewLabel("uniquekey", "12345")
+	if err != nil {
+		t.Fatalf("building idempotency label: %v", err)
+	}
 	r.idempotentTask = env.createTask(t, "Idempotent task", func(in *driving.CreateIssueInput) {
-		in.IdempotencyKey = "unique-key-12345"
+		in.IdempotencyLabel = idemLabel
 	})
 
 	// --- Rich history via updates ---
@@ -764,7 +768,6 @@ type issueSnapshot struct {
 	priority           string
 	state              string
 	parentID           string
-	idempotencyKey     string
 	labels             map[string]string
 	commentCount       int
 	commentBodies      []string
@@ -877,9 +880,6 @@ func compareStates(t *testing.T, expected, actual databaseState) {
 		}
 		if exp.parentID != act.parentID {
 			t.Errorf("issue %s parent_id: expected %q, got %q", id, exp.parentID, act.parentID)
-		}
-		if exp.idempotencyKey != act.idempotencyKey {
-			t.Errorf("issue %s idempotency_key: expected %q, got %q", id, exp.idempotencyKey, act.idempotencyKey)
 		}
 		if exp.commentCount != act.commentCount {
 			t.Errorf("issue %s comment count: expected %d, got %d", id, exp.commentCount, act.commentCount)

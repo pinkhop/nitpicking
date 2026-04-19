@@ -1,16 +1,17 @@
-# Verify that when an issue has an idempotency_key, it appears as the
-# virtual label "idempotency-key" in show --json output.
-# Uses import jsonl because idempotency_key is only available via import.
+# Verify that when an issue is imported with an idempotency_label, the label
+# is stored as a normal key:value label and appears in show --json output.
+# The idempotency_label "jira:import-abc123" is stored with key "jira" and
+# value "import-abc123" — not as a virtual "idempotency-key" label.
 
 np-init VL
-exec np import jsonl testdata/with_key.jsonl --author vl-agent --json
+exec np import jsonl testdata/with_label.jsonl --author vl-agent --json
 
 # Claim the only ready issue to obtain its ID.
 exec np claim ready --author vl-agent --json
 np-capture TASK issue_id
 
 exec np show $TASK --json
-stdout '"idempotency-key": "import-abc123"'
+stdout '"jira": "import-abc123"'
 
--- testdata/with_key.jsonl --
-{"role":"task","title":"Has idem key","idempotency_key":"import-abc123"}
+-- testdata/with_label.jsonl --
+{"role":"task","title":"Has idem label","idempotency_label":"jira:import-abc123"}

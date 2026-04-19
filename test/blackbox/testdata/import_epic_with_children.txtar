@@ -1,5 +1,5 @@
 # Verify that np import creates an epic with child tasks linked by
-# intra-file idempotency key references (including forward references).
+# intra-file idempotency label references (including forward references).
 # The epic appears last to test forward reference support.
 
 np-init IC
@@ -17,6 +17,6 @@ exec np issue search "Unit tests" --json
 ! np-json-array-len items 0
 
 -- testdata/epic_children.jsonl --
-{"idempotency_key":"auth-epic","role":"epic","title":"Auth overhaul","priority":"P1"}
-{"idempotency_key":"auth-tests","role":"task","title":"Unit tests for auth","parent":"auth-epic","priority":"P1"}
-{"idempotency_key":"auth-integration","role":"task","title":"Integration tests","parent":"auth-epic","priority":"P1"}
+{"idempotency_label":"jira:auth-epic","role":"epic","title":"Auth overhaul","priority":"P1"}
+{"idempotency_label":"jira:auth-tests","role":"task","title":"Unit tests for auth","parent":"jira:auth-epic","priority":"P1"}
+{"idempotency_label":"jira:auth-integration","role":"task","title":"Integration tests","parent":"jira:auth-epic","priority":"P1"}

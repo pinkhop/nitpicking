@@ -490,29 +490,34 @@ func TestBoundary_IssueIDExists_DeletedIssue_NotFound(t *testing.T) {
 	}
 }
 
-// --- GetIssueByIdempotencyKey ---
+// --- IdempotencyLabel deduplication ---
 
-func TestBoundary_CreateIssue_IdempotencyKey_ReturnsSameIssue(t *testing.T) {
-	// Given — a task created with an idempotency key
+func TestBoundary_CreateIssue_IdempotencyLabel_ReturnsSameIssue(t *testing.T) {
+	// Given — a task created with an idempotency label
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
 
+	idemLabel, err := domain.NewLabel("uniquekey", "123")
+	if err != nil {
+		t.Fatalf("precondition: building idempotency label: %v", err)
+	}
+
 	firstOut, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role:           domain.RoleTask,
-		Title:          "Idempotent task",
-		Author:         author(t, "alice"),
-		IdempotencyKey: "unique-key-123",
+		Role:             domain.RoleTask,
+		Title:            "Idempotent task",
+		Author:           author(t, "alice"),
+		IdempotencyLabel: idemLabel,
 	})
 	if err != nil {
 		t.Fatalf("precondition: first create failed: %v", err)
 	}
 
-	// When — create again with the same idempotency key
+	// When — create again with the same idempotency label
 	secondOut, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role:           domain.RoleTask,
-		Title:          "Different title",
-		Author:         author(t, "alice"),
-		IdempotencyKey: "unique-key-123",
+		Role:             domain.RoleTask,
+		Title:            "Different title",
+		Author:           author(t, "alice"),
+		IdempotencyLabel: idemLabel,
 	})
 	// Then — should return the same issue
 	if err != nil {

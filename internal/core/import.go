@@ -13,7 +13,7 @@ import (
 // subsequent lines from being imported.
 //
 // The function performs three phases:
-//  1. Create all issues (collecting the idempotency-key-to-ID mapping).
+//  1. Create all issues (collecting the idempotency-label-to-ID mapping).
 //  2. Add relationships (blocked_by, blocks, refs) using the mapping.
 //  3. Add comments and transition states (deferred/closed) as needed.
 //
@@ -23,7 +23,8 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 	var output driving.ImportOutput
 	output.Results = make([]driving.ImportLineResult, len(input.Records))
 
-	// Phase 1: create issues and build idempotency-key-to-ID mapping.
+	// Phase 1: create issues and build idempotency-label-to-ID mapping.
+	// Keys are the canonical "key:value" string of each record's IdempotencyLabel.
 	keyToID := make(map[string]domain.ID, len(input.Records))
 
 	for i, rec := range input.Records {
@@ -44,7 +45,7 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 			Priority:           rec.Priority,
 			Labels:             labelInputs,
 			Author:             author,
-			IdempotencyKey:     rec.IdempotencyKey,
+			IdempotencyLabel:   rec.IdempotencyLabel,
 			// Claim creates a transient claim row immediately after creation,
 			// leaving the issue open but claimed. Only set when rec.Claim is
 			// true; validation ensures Claim is only true for open records.
@@ -56,8 +57,8 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 			parentID, resolveErr := s.resolveImportRef(ctx, rec.Parent, keyToID)
 			if resolveErr != nil {
 				output.Results[i] = driving.ImportLineResult{
-					IdempotencyKey: rec.IdempotencyKey,
-					Err:            fmt.Errorf("resolving parent: %w", resolveErr),
+					IdempotencyLabel: rec.IdempotencyLabel,
+					Err:              fmt.Errorf("resolving parent: %w", resolveErr),
 				}
 				output.Failed++
 				continue
@@ -68,26 +69,42 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 		createOut, err := s.CreateIssue(ctx, createInput)
 		if err != nil {
 			output.Results[i] = driving.ImportLineResult{
-				IdempotencyKey: rec.IdempotencyKey,
-				Err:            fmt.Errorf("creating issue: %w", err),
+				IdempotencyLabel: rec.IdempotencyLabel,
+				Err:              fmt.Errorf("creating issue: %w", err),
 			}
 			output.Failed++
 			continue
 		}
 
+		// Key the intra-file idempotency-label map by the canonical
+		// "key:value" string so that reference resolution in Phase 2 can
+		// look up created issue IDs by their idempotency label string.
+		// This is done for both new and deduplicated issues so that subsequent
+		// records in the same batch can reference them by label.
 		issueID := createOut.Issue.ID()
-		keyToID[rec.IdempotencyKey] = issueID
+		keyToID[rec.IdempotencyLabel.String()] = issueID
 		output.Results[i] = driving.ImportLineResult{
-			IdempotencyKey: rec.IdempotencyKey,
-			IssueID:        issueID,
+			IdempotencyLabel: rec.IdempotencyLabel,
+			IssueID:          issueID,
+			Skipped:          createOut.Skipped,
 		}
-		output.Created++
+		if createOut.Skipped {
+			// The issue already exists; count the skip and do not apply
+			// relationships, comments, or state transitions from this record.
+			// The existing issue is not mutated on re-import.
+			output.Skipped++
+		} else {
+			output.Created++
+		}
 	}
 
 	// Phase 2: add relationships.
 	for i, rec := range input.Records {
 		if output.Results[i].Err != nil {
 			continue // Skip failed issues.
+		}
+		if output.Results[i].Skipped {
+			continue // Skip deduplicated records — the existing issue is not mutated.
 		}
 		issueID := output.Results[i].IssueID
 		if issueID.IsZero() {
@@ -147,6 +164,9 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 		if output.Results[i].Err != nil {
 			continue
 		}
+		if output.Results[i].Skipped {
+			continue // Skip deduplicated records — the existing issue is not mutated.
+		}
 		issueID := output.Results[i].IssueID
 		if issueID.IsZero() {
 			continue
@@ -186,8 +206,8 @@ func (s *serviceImpl) resolveImportAuthor(rec domain.ValidatedRecord, input driv
 }
 
 // resolveImportRef resolves a reference string to an issue ID. It first
-// checks the idempotency-key-to-ID mapping (for intra-file references),
-// then falls back to parsing it as an issue ID.
+// checks the intra-file idempotency-label-to-ID mapping (for intra-file
+// references), then falls back to parsing it as an issue ID.
 func (s *serviceImpl) resolveImportRef(ctx context.Context, ref string, keyToID map[string]domain.ID) (domain.ID, error) {
 	// Check intra-file mapping first.
 	if id, ok := keyToID[ref]; ok {
@@ -197,7 +217,7 @@ func (s *serviceImpl) resolveImportRef(ctx context.Context, ref string, keyToID 
 	// Try parsing as an issue ID.
 	id, err := domain.ParseID(ref)
 	if err != nil {
-		return domain.ID{}, fmt.Errorf("cannot resolve reference %q: not a known idempotency key or valid issue ID", ref)
+		return domain.ID{}, fmt.Errorf("cannot resolve reference %q: not a known idempotency label or valid issue ID", ref)
 	}
 
 	// Verify the issue exists.

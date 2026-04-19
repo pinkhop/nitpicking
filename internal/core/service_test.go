@@ -144,20 +144,24 @@ func TestCreateIssue_WithClaim_ReturnsClaimID(t *testing.T) {
 	}
 }
 
-func TestCreateIssue_IdempotencyKey_ReturnsSameIssue(t *testing.T) {
+func TestCreateIssue_IdempotencyLabel_ReturnsSameIssue(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
+	idemLabel, err := domain.NewLabel("idem", "1")
+	if err != nil {
+		t.Fatalf("building idempotency label: %v", err)
+	}
 	input := driving.CreateIssueInput{
-		Role:           domain.RoleTask,
-		Title:          "Idempotent task",
-		Author:         author,
-		IdempotencyKey: "idem-1",
+		Role:             domain.RoleTask,
+		Title:            "Idempotent task",
+		Author:           author,
+		IdempotencyLabel: idemLabel,
 	}
 
-	// When — create twice with same key
+	// When — create twice with same label
 	out1, err1 := svc.CreateIssue(t.Context(), input)
 	out2, err2 := svc.CreateIssue(t.Context(), input)
 
@@ -170,6 +174,13 @@ func TestCreateIssue_IdempotencyKey_ReturnsSameIssue(t *testing.T) {
 	}
 	if out1.Issue.ID() != out2.Issue.ID() {
 		t.Errorf("expected same issue ID, got %s and %s", out1.Issue.ID(), out2.Issue.ID())
+	}
+	// The first creation must not be marked as skipped; the second must be.
+	if out1.Skipped {
+		t.Error("expected first creation to not be skipped")
+	}
+	if !out2.Skipped {
+		t.Error("expected second creation with same label to be marked as skipped")
 	}
 }
 

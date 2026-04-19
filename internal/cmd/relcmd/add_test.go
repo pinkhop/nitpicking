@@ -97,18 +97,6 @@ func TestParseRelArg_ValidTypes_ReturnsExpectedResult(t *testing.T) {
 			wantLabel: "blocks",
 		},
 		{
-			name:      "cites",
-			input:     "cites",
-			wantType:  relcmd.RelArgRelationship,
-			wantLabel: "cites",
-		},
-		{
-			name:      "cited_by",
-			input:     "cited_by",
-			wantType:  relcmd.RelArgRelationship,
-			wantLabel: "cited_by",
-		},
-		{
 			name:      "refs",
 			input:     "refs",
 			wantType:  relcmd.RelArgRelationship,

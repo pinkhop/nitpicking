@@ -230,10 +230,10 @@ type seedResult struct {
 	// Issues with relationships.
 	blockerTask domain.ID
 	blockedTask domain.ID
-	citingTask  domain.ID
-	citedTask   domain.ID
 	refsTask1   domain.ID
 	refsTask2   domain.ID
+	refsTask3   domain.ID
+	refsTask4   domain.ID
 
 	// Issues with labels.
 	labeledTask    domain.ID
@@ -293,13 +293,13 @@ func seedDatabase(t *testing.T, env *boundaryEnv) seedResult {
 	r.blockedTask = env.createTask(t, "Blocked task")
 	env.addRelationship(t, r.blockedTask, r.blockerTask, domain.RelBlockedBy)
 
-	r.citingTask = env.createTask(t, "Citing task")
-	r.citedTask = env.createTask(t, "Cited task")
-	env.addRelationship(t, r.citingTask, r.citedTask, domain.RelCites)
-
 	r.refsTask1 = env.createTask(t, "Refs task 1")
 	r.refsTask2 = env.createTask(t, "Refs task 2")
 	env.addRelationship(t, r.refsTask1, r.refsTask2, domain.RelRefs)
+
+	r.refsTask3 = env.createTask(t, "Refs task 3")
+	r.refsTask4 = env.createTask(t, "Refs task 4")
+	env.addRelationship(t, r.refsTask3, r.refsTask4, domain.RelRefs)
 
 	// --- Labels ---
 	r.labeledTask = env.createTask(t, "Labeled task", func(in *driving.CreateIssueInput) {
@@ -649,6 +649,82 @@ func TestBoundary_BackupRestore_V1BackupClaimedReleasedHistoryFiltered(t *testin
 	}
 }
 
+// TestBoundary_BackupRestore_LegacyCitesRelTypeTranslatedToRefs verifies that
+// restoring a backup produced by v0.2.0 — which may contain relationship rows
+// with rel_type="cites" or rel_type="cited_by" — succeeds without CHECK
+// constraint errors and that the resulting relationships are semantically
+// correct:
+//
+//   - "cites" rows are translated to "refs" (same semantics, renamed).
+//   - "cited_by" rows are dropped (redundant because "refs" is
+//     symmetric-by-inverse; storing the inverse direction would create a
+//     duplicate that the v0.3.0 backup code would never produce).
+func TestBoundary_BackupRestore_LegacyCitesRelTypeTranslatedToRefs(t *testing.T) {
+	// Given — a hand-crafted v2 backup that contains two issues where taskA
+	// has a "cites" relationship to taskB and taskB has a "cited_by"
+	// relationship back to taskA (exactly the pattern a v0.2.0 database
+	// would produce). The prefix uses only uppercase ASCII letters.
+	//
+	// Note: the backup format is v2 here because we are simulating the content
+	// a v0.2.0 database would have written — the version field reflects the
+	// backup-algorithm version, not the np binary version, and both v0.2.0 and
+	// v0.3.0 write algorithm version 2.
+	const legacyBackup = `{"prefix":"CIT","timestamp":"2026-01-01T00:00:00Z","version":2}
+{"issue_id":"CIT-aaaaa","role":"task","title":"Task A (citer)","state":"open","priority":"P2","created_at":"2026-01-01T00:00:00Z","labels":[],"comments":[],"relationships":[{"target_id":"CIT-bbbbb","rel_type":"cites"}],"claims":[],"history":[]}
+{"issue_id":"CIT-bbbbb","role":"task","title":"Task B (cited)","state":"open","priority":"P2","created_at":"2026-01-01T00:00:00Z","labels":[],"comments":[],"relationships":[{"target_id":"CIT-aaaaa","rel_type":"cited_by"}],"claims":[],"history":[]}
+`
+	env := newBoundaryEnv(t, "TEMP")
+	backupPath := writeGZIPBackup(t, env.tmpDir, legacyBackup)
+
+	// When — restore the legacy backup into a v0.3.0 database.
+	env.doRestore(t, backupPath)
+
+	// Then — both issues exist.
+	showA, err := env.svc.ShowIssue(env.ctx, "CIT-aaaaa")
+	if err != nil {
+		t.Fatalf("ShowIssue CIT-aaaaa after restore: %v", err)
+	}
+	showB, err := env.svc.ShowIssue(env.ctx, "CIT-bbbbb")
+	if err != nil {
+		t.Fatalf("ShowIssue CIT-bbbbb after restore: %v", err)
+	}
+
+	// Task A's "cites" row must have been translated to "refs". Because "refs"
+	// is symmetric, ShowIssue surfaces it from both sides. RelationshipDTO.Type
+	// is the canonical string name of the relationship type.
+	var aHasRefs bool
+	for _, rel := range showA.Relationships {
+		if rel.Type == "refs" && (rel.TargetID == "CIT-bbbbb" || rel.SourceID == "CIT-bbbbb") {
+			aHasRefs = true
+		}
+		if rel.Type == "cites" {
+			t.Errorf("CIT-aaaaa still has a 'cites' relationship — it should have been translated to 'refs'")
+		}
+	}
+	if !aHasRefs {
+		t.Errorf("CIT-aaaaa should have a 'refs' relationship to CIT-bbbbb after translating 'cites'; got relationships: %+v", showA.Relationships)
+	}
+
+	// The "cited_by" row from task B must have been dropped. Because the
+	// symmetric "refs" stored from task A's side is visible to both issues,
+	// task B also sees exactly one relationship (the translated refs).
+	for _, rel := range showB.Relationships {
+		// cited_by must not appear — it was dropped during restore.
+		if rel.Type == "cited_by" {
+			t.Errorf("CIT-bbbbb still has a 'cited_by' relationship — it should have been dropped")
+		}
+	}
+
+	// Exactly one refs relationship should be visible from each side (the
+	// translated cites row). The dropped cited_by must not create a second entry.
+	if len(showA.Relationships) != 1 {
+		t.Errorf("CIT-aaaaa relationship count = %d, want 1", len(showA.Relationships))
+	}
+	if len(showB.Relationships) != 1 {
+		t.Errorf("CIT-bbbbb relationship count = %d, want 1", len(showB.Relationships))
+	}
+}
+
 // writeGZIPBackup writes raw JSONL content to a gzip-compressed file and
 // returns the file path.
 func writeGZIPBackup(t *testing.T, tmpDir, content string) string {
@@ -707,8 +783,8 @@ func captureState(t *testing.T, env *boundaryEnv, seed seedResult) databaseState
 	ids := []domain.ID{
 		seed.openTask, seed.closedTask, seed.deferredTask, seed.claimedTask,
 		seed.epic, seed.childTask1, seed.childTask2, seed.subEpic, seed.subEpicChild,
-		seed.blockerTask, seed.blockedTask, seed.citingTask, seed.citedTask,
-		seed.refsTask1, seed.refsTask2,
+		seed.blockerTask, seed.blockedTask,
+		seed.refsTask1, seed.refsTask2, seed.refsTask3, seed.refsTask4,
 		seed.labeledTask, seed.multiLabelTask,
 		seed.commentedTask, seed.idempotentTask,
 	}

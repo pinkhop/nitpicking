@@ -156,17 +156,17 @@ func TestListRelationships_ReturnsAllDirections(t *testing.T) {
 	ctx := context.Background()
 	repo := memory.NewRepository()
 
-	// Given — A blocked_by B, A cites C
+	// Given — A blocked_by B, A refs C
 	aID := mustIssueID(t)
 	bID := mustIssueID(t)
 	cID := mustIssueID(t)
 
 	blockedBy := mustRelationship(t, aID, bID, domain.RelBlockedBy)
-	cites := mustRelationship(t, aID, cID, domain.RelCites)
+	refs := mustRelationship(t, aID, cID, domain.RelRefs)
 	if _, err := repo.CreateRelationship(ctx, blockedBy); err != nil {
 		t.Fatalf("precondition: %v", err)
 	}
-	if _, err := repo.CreateRelationship(ctx, cites); err != nil {
+	if _, err := repo.CreateRelationship(ctx, refs); err != nil {
 		t.Fatalf("precondition: %v", err)
 	}
 

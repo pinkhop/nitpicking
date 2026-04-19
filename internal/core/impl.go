@@ -665,12 +665,10 @@ func (s *serviceImpl) TransitionState(ctx context.Context, input driving.Transit
 	})
 }
 
-// DeferIssue atomically defers a claimed domain. When Until is non-empty, a
-// "defer-until" label is set and recorded in history before the state
-// transition — all within one transaction. This replaces the two-call pattern
-// (UpdateIssue + TransitionState) that leaked an ordering invariant into the
-// CLI adapter: the label must be set before the transition because the
-// transition invalidates the claim.
+// DeferIssue transitions a claimed issue to the deferred state and releases
+// the claim — all within a single transaction. The caller supplies a valid
+// claim ID; if the claim does not match the issue or has gone stale, an error
+// is returned and the issue is unchanged.
 func (s *serviceImpl) DeferIssue(ctx context.Context, input driving.DeferIssueInput) error {
 	issueID, err := domain.ParseID(input.IssueID)
 	if err != nil {
@@ -694,51 +692,6 @@ func (s *serviceImpl) DeferIssue(ctx context.Context, input driving.DeferIssueIn
 		t, err := uow.Issues().GetIssue(ctx, issueID, false)
 		if err != nil {
 			return err
-		}
-
-		// Optionally set the defer-until label before transitioning, since
-		// the transition will invalidate the claim.
-		if input.Until != "" {
-			lbl, lblErr := domain.NewLabel("defer-until", input.Until)
-			if lblErr != nil {
-				return fmt.Errorf("invalid --until value: %w", lblErr)
-			}
-
-			oldLabels := t.Labels()
-			oldVal, existed := oldLabels.Get(lbl.Key())
-			labels := oldLabels.Set(lbl)
-			t = t.WithLabels(labels)
-
-			if err := uow.Issues().UpdateIssue(ctx, t); err != nil {
-				return err
-			}
-
-			// Record label history.
-			labelStr := lbl.Key() + ":" + lbl.Value()
-			var lc history.FieldChange
-			if !existed {
-				lc = history.FieldChange{Field: "label", After: labelStr}
-			} else if oldVal != lbl.Value() {
-				lc = history.FieldChange{Field: "label", Before: lbl.Key() + ":" + oldVal, After: labelStr}
-			}
-			if lc.Field != "" {
-				revision, _ := uow.History().CountHistory(ctx, t.ID())
-				if _, histErr := uow.History().AppendHistory(ctx, history.NewEntry(history.NewEntryParams{
-					IssueID:   t.ID(),
-					Revision:  revision,
-					Author:    c.Author(),
-					Timestamp: now,
-					EventType: history.EventLabelAdded,
-					Changes:   []history.FieldChange{lc},
-				})); histErr != nil {
-					return histErr
-				}
-			}
-
-			newStaleAt := now.Add(c.StaleAt().Sub(c.ClaimedAt()))
-			if err := uow.Claims().UpdateClaimStaleAt(ctx, input.ClaimID, newStaleAt); err != nil {
-				return err
-			}
 		}
 
 		return s.transitionIssue(ctx, uow, t, input.ClaimID, c.Author(), now, domain.StateDeferred)
@@ -2398,8 +2351,7 @@ func (s *serviceImpl) checkMissingLabels(ctx context.Context, uow driven.UnitOfW
 	}}, nil
 }
 
-// checkDeferrals detects overdue and long-standing deferrals.
-// overdue_deferrals (warning): deferred issues past their defer-until date.
+// checkDeferrals detects long-standing deferrals.
 // long_deferrals (info): issues deferred for more than 1 week.
 func (s *serviceImpl) checkDeferrals(ctx context.Context, uow driven.UnitOfWork, now time.Time) ([]driving.DoctorFinding, error) {
 	deferred, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{
@@ -2413,27 +2365,6 @@ func (s *serviceImpl) checkDeferrals(ctx context.Context, uow driven.UnitOfWork,
 	oneWeek := 7 * 24 * time.Hour
 
 	for _, item := range deferred {
-		// Check overdue_deferrals: look for defer-until label.
-		shown, showErr := uow.Issues().GetIssue(ctx, item.ID, false)
-		if showErr != nil {
-			continue
-		}
-
-		deferUntil, hasDeferUntil := shown.Labels().Get("defer-until")
-		if hasDeferUntil {
-			parsedDate, parseErr := time.Parse("2006-01-02", deferUntil)
-			if parseErr == nil && now.After(parsedDate) {
-				overdueDays := int(now.Sub(parsedDate).Hours() / 24)
-				findings = append(findings, driving.DoctorFinding{
-					Category: "overdue_deferral",
-					Severity: "warning",
-					Message:  fmt.Sprintf("%s was deferred until %s (%d days overdue)", item.ID, deferUntil, overdueDays),
-					IssueIDs: []string{item.ID.String()},
-					Action:   &driving.ActionHint{Kind: driving.ActionKindUndefer, IssueID: item.ID.String()},
-				})
-			}
-		}
-
 		// Check long_deferrals: deferred for more than 1 week.
 		// Uses CreatedAt as a proxy — the schema has no updated_at column.
 		deferredDuration := now.Sub(item.CreatedAt)
@@ -2835,7 +2766,17 @@ func restoreIssues(ctx context.Context, db driven.DatabaseRepository, uow driven
 			}
 		}
 		for _, rel := range rec.Relationships {
-			if err := db.RestoreRelationshipRaw(ctx, rec.IssueID, rel); err != nil {
+			// Translate legacy v0.2.0 relationship types to their v0.3.0
+			// equivalents. 'cites' is semantically equivalent to 'refs' and
+			// maps directly. 'cited_by' is the inverse of 'cites'; because
+			// 'refs' is symmetric-by-inverse, restoring the cited_by direction
+			// would create a redundant row that the backup code would never
+			// produce under v0.3.0, so it is dropped.
+			translated, keep := translateLegacyRelType(rel)
+			if !keep {
+				continue
+			}
+			if err := db.RestoreRelationshipRaw(ctx, rec.IssueID, translated); err != nil {
 				return fmt.Errorf("restoring relationship on %s: %w", rec.IssueID, err)
 			}
 		}
@@ -2858,6 +2799,29 @@ func mustParseID(s string) domain.ID {
 		panic(fmt.Sprintf("invalid issue ID in backup: %s", s))
 	}
 	return id
+}
+
+// translateLegacyRelType converts a v0.2.0 relationship type to its v0.3.0
+// equivalent. It returns the translated record and true when the row should be
+// kept, or the zero record and false when it should be dropped.
+//
+// v0.2.0 shipped with two additional rel_type values that v0.3.0 removed:
+//   - "cites" maps directly to "refs" (same semantics, renamed).
+//   - "cited_by" is the inverse of "cites"; because "refs" is
+//     symmetric-by-inverse, the cited_by direction is redundant and is
+//     dropped to avoid inserting a row that the v0.3.0 backup code would
+//     never produce.
+//
+// All other rel_type values are passed through unchanged.
+func translateLegacyRelType(rec domain.BackupRelationshipRecord) (domain.BackupRelationshipRecord, bool) {
+	switch rec.RelType {
+	case "cites":
+		return domain.BackupRelationshipRecord{TargetID: rec.TargetID, RelType: "refs"}, true
+	case "cited_by":
+		return domain.BackupRelationshipRecord{}, false
+	default:
+		return rec, true
+	}
 }
 
 // --- Internal helpers ---
@@ -3228,7 +3192,8 @@ func (s *serviceImpl) CheckSchemaVersion(ctx context.Context) error {
 
 // MigrateV1ToV2 delegates the v1→v2 schema migration to the Migrator port.
 // It converts claimed-state issues to open, removes obsolete history event
-// types, and records schema_version=2 — all within a single atomic transaction.
+// types, translates legacy "cites"/"cited_by" relationship types to "refs",
+// and records schema_version=2 — all within a single atomic transaction.
 func (s *serviceImpl) MigrateV1ToV2(ctx context.Context) (driving.MigrationResult, error) {
 	if s.migrator == nil {
 		return driving.MigrationResult{}, errNoMigrator
@@ -3238,8 +3203,9 @@ func (s *serviceImpl) MigrateV1ToV2(ctx context.Context) (driving.MigrationResul
 		return driving.MigrationResult{}, err
 	}
 	return driving.MigrationResult{
-		ClaimedIssuesConverted: r.ClaimedIssuesConverted,
-		HistoryRowsRemoved:     r.HistoryRowsRemoved,
+		ClaimedIssuesConverted:        r.ClaimedIssuesConverted,
+		HistoryRowsRemoved:            r.HistoryRowsRemoved,
+		LegacyRelationshipsTranslated: r.LegacyRelationshipsTranslated,
 	}, nil
 }
 

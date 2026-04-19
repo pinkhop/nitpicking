@@ -1,0 +1,35 @@
+# Verify that np claim uses --role and --label (not the old --with-role /
+# --with-label names), and that the old names are rejected as unknown flags.
+
+np-init CRL
+np-seed task 'Bug task' role-label-agent BUG --label kind:bug
+np-seed task 'Feature task' role-label-agent FEAT --label kind:feature
+
+# --role filters by role: claiming with --role task claims a task.
+exec np claim ready --author role-label-agent --role task --json
+stdout '"issue_id"'
+
+np-init CRL2
+np-seed task 'Second bug' role-label-agent BUG2 --label kind:bug
+
+# --label filters by label: claiming with --label kind:bug claims a bug.
+exec np claim ready --author role-label-agent --label kind:bug --json
+stdout '"issue_id"'
+
+# Help output lists --role and --label, not --with-role / --with-label.
+exec np claim --help
+stdout '\-\-role'
+stdout '\-\-label'
+! stdout '\-\-with-role'
+! stdout '\-\-with-label'
+
+np-init CRL3
+np-seed task 'Old flag task' role-label-agent OLD
+
+# --with-role is no longer accepted — must fail with an unknown flag error.
+! exec np claim ready --author role-label-agent --with-role task --json
+stderr 'flag'
+
+# --with-label is no longer accepted — must fail with an unknown flag error.
+! exec np claim ready --author role-label-agent --with-label kind:bug --json
+stderr 'flag'

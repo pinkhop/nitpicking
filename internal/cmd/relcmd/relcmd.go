@@ -1,7 +1,7 @@
 // Package relcmd provides the "rel" parent command, which groups relationship
 // management operations under a single namespace. Subcommands are organized by
-// relationship type (blocks, cites, parent) and include utilities for listing,
-// tree views, and cycle detection.
+// relationship type (blocks, refs, parent) and include utilities for listing
+// and tree views.
 package relcmd
 
 import (
@@ -20,7 +20,7 @@ import (
 
 // FilterRelationships returns only the relationships whose type string matches
 // any of the given type strings. This is the shared filtering logic used by
-// blocks list and cites list.
+// blocks list and refs list.
 func FilterRelationships(rels []driving.RelationshipDTO, types ...string) []driving.RelationshipDTO {
 	var result []driving.RelationshipDTO
 	for _, r := range rels {
@@ -43,35 +43,37 @@ issues. Relationships express structural and dependency information: blocking
 dependencies (blocked_by/blocks), contextual references (refs), and
 parent-child hierarchy (parent_of/child_of).
 
-Use "rel add" to create relationships, the type-specific subcommands (blocks,
-refs, parent) to manage and query them, and "rel list" or "rel tree" to inspect
-all relationships from a given issue. The "rel cycles" command detects circular
-blocking dependencies that would prevent issues from becoming ready.`,
+Use "rel add" to create relationships, "rel remove" to delete them, and
+"rel issue" or "rel tree" to inspect all relationships from a given issue.
+Both commands accept the same <rel> argument values, making the surface
+predictable. To detect circular blocking dependencies, use "np admin doctor".`,
 		Commands: []*cli.Command{
 			newAddCmd(f),
+			newRemoveCmd(f),
 			newBlocksCmd(f),
 			newRefsCmd(f),
 			newParentCmd(f),
-			newListCmd(f),
+			newIssueCmd(f),
 			newTreeCmd(f),
-			newCyclesCmd(f),
 			graphcmd.NewCmd(f),
 		},
 	}
 }
 
-// newListCmd constructs "rel list <ID>" which shows all relationships for an
-// domain.
-func newListCmd(f *cmdutil.Factory) *cli.Command {
+// newIssueCmd constructs "rel issue <ID>" which shows all relationships for a
+// single issue. The name "issue" distinguishes this per-issue view from the
+// forthcoming "rel list" command, which will enumerate relationships across all
+// active issues.
+func newIssueCmd(f *cmdutil.Factory) *cli.Command {
 	var jsonOutput bool
 
 	return &cli.Command{
-		Name:  "list",
+		Name:  "issue",
 		Usage: "List all relationships for an issue",
 		Description: `Shows every relationship attached to the given issue, including blocking
 dependencies, contextual references, and parent-child links. The output
 includes both directions — for example, if issue A blocks issue B, running
-"rel list" on A shows the "blocks" edge and running it on B shows the
+"rel issue" on A shows the "blocks" edge and running it on B shows the
 "blocked_by" edge.
 
 Use this command when you need a complete picture of how an issue connects to
@@ -207,73 +209,6 @@ connectors, use "rel parent tree" instead.`,
 	}
 }
 
-// newCyclesCmd constructs "rel cycles" which runs the doctor diagnostic and
-// filters for cycle-related findings.
-func newCyclesCmd(f *cmdutil.Factory) *cli.Command {
-	var jsonOutput bool
-
-	return &cli.Command{
-		Name:  "cycles",
-		Usage: "Detect relationship cycles",
-		Description: `Scans the entire issue graph for circular blocking dependencies. A cycle
-occurs when issue A blocks B, B blocks C, and C blocks A — none of the issues
-can ever become ready because each one is waiting on another in the loop.
-
-This command runs the same diagnostic as "admin doctor" but filters the output
-to show only cycle-related findings. Use it when issues that should be ready
-are stuck, or as a periodic health check after bulk-importing or restructuring
-relationships.`,
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &jsonOutput,
-			},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
-			}
-
-			result, err := svc.Doctor(ctx, driving.DoctorInput{})
-			if err != nil {
-				return fmt.Errorf("running diagnostics: %w", err)
-			}
-
-			// Filter for cycle-related findings.
-			cycleFindings := make([]driving.DoctorFinding, 0)
-			for _, finding := range result.Findings {
-				if finding.Category == "blocker_cycle" {
-					cycleFindings = append(cycleFindings, finding)
-				}
-			}
-
-			if jsonOutput {
-				return cmdutil.WriteJSON(f.IOStreams.Out, map[string]any{
-					"findings": cycleFindings,
-					"count":    len(cycleFindings),
-				})
-			}
-
-			w := f.IOStreams.Out
-			if len(cycleFindings) == 0 {
-				_, _ = fmt.Fprintln(w, "No cycles detected.")
-				return nil
-			}
-
-			cs := f.IOStreams.ColorScheme()
-			for _, finding := range cycleFindings {
-				_, _ = fmt.Fprintf(w, "%s %s\n",
-					cs.Red(finding.Severity+":"),
-					finding.Message)
-			}
-			return nil
-		},
-	}
-}
-
 // newRelTypeListCmd constructs a "list <ID>" subcommand that shows
 // relationships filtered by the given type strings.
 func newRelTypeListCmd(f *cmdutil.Factory, typeName string, types ...string) *cli.Command {
@@ -283,7 +218,7 @@ func newRelTypeListCmd(f *cmdutil.Factory, typeName string, types ...string) *cl
 		Name:  "list",
 		Usage: fmt.Sprintf("List %s relationships for an issue", typeName),
 		Description: fmt.Sprintf(`Shows only the %s relationships for the given issue, filtering out all
-other relationship types. This is a focused alternative to "rel list" when you
+other relationship types. This is a focused alternative to "rel issue" when you
 only care about one category of relationships.`, typeName),
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{

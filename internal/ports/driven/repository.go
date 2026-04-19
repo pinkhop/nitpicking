@@ -515,6 +515,11 @@ type MigrationResult struct {
 	// HistoryRowsRemoved is the number of history rows deleted because their
 	// event_type was "claimed" or "released" — event types removed in v2.
 	HistoryRowsRemoved int
+
+	// LegacyRelationshipsTranslated is the number of relationship rows whose
+	// rel_type was translated from a v0.2.0 value ("cites" → "refs") or
+	// dropped ("cited_by") during the v1→v2 migration.
+	LegacyRelationshipsTranslated int
 }
 
 // Migrator exposes schema migration operations. It is implemented by the

@@ -117,7 +117,7 @@ func TestRenderGraphJSON_ParentChild_ChildrenNested(t *testing.T) {
 func TestRenderGraphJSON_Relationships_BlockedByAndRefs(t *testing.T) {
 	t.Parallel()
 
-	// Given — A is blocked_by B, and A cites C.
+	// Given — A is blocked_by B, and A refs C.
 	idA := mustParseGraphID(t, "NP-aaaaa")
 	idB := mustParseGraphID(t, "NP-bbbbb")
 	idC := mustParseGraphID(t, "NP-ccccc")
@@ -130,7 +130,7 @@ func TestRenderGraphJSON_Relationships_BlockedByAndRefs(t *testing.T) {
 
 	edges := []graphcmd.GraphEdge{
 		{SourceID: idA, TargetID: idB, Type: domain.RelBlockedBy},
-		{SourceID: idA, TargetID: idC, Type: domain.RelCites},
+		{SourceID: idA, TargetID: idC, Type: domain.RelRefs},
 	}
 
 	// When

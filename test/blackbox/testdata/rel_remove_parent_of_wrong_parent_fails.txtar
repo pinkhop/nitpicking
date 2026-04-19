@@ -1,0 +1,14 @@
+# Regression: np rel remove A parent_of B must fail when B is not a child of A.
+# Before the fix, this silently detached B from its actual parent C.
+
+np-init RP
+np-seed epic 'Actual parent' rel-agent ACTUAL_PARENT
+np-seed epic 'Unrelated epic' rel-agent UNRELATED
+np-seed task 'Child task' rel-agent CHILD --parent $ACTUAL_PARENT
+
+# Attempt to detach CHILD using an incorrect parent (UNRELATED).
+! exec np rel remove $UNRELATED parent_of $CHILD --author rel-agent
+
+# CHILD must still be attached to ACTUAL_PARENT.
+exec np show $CHILD --json
+np-json-has parent_id $ACTUAL_PARENT

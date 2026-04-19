@@ -2,6 +2,7 @@ package ready_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -453,5 +454,486 @@ func TestRun_TextOutput_IncludesIssueDetails(t *testing.T) {
 	}
 	if !strings.Contains(output, "1 ready") {
 		t.Errorf("expected '1 ready' summary in text output, got: %s", output)
+	}
+}
+
+// --- Filter flag tests ---
+
+// createEpicWithParent creates a ready epic with no blockers and returns its ID.
+func createEpic(t *testing.T, svc driving.Service, title string) domain.ID {
+	t.Helper()
+	ctx := t.Context()
+	out, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:   domain.RoleEpic,
+		Title:  title,
+		Author: mustAuthor(t, "test-agent"),
+	})
+	if err != nil {
+		t.Fatalf("precondition: create epic failed: %v", err)
+	}
+	return out.Issue.ID()
+}
+
+// createTaskWithLabel creates a ready task with the given label.
+func createTaskWithLabel(t *testing.T, svc driving.Service, title, labelKey, labelValue string) domain.ID {
+	t.Helper()
+	ctx := t.Context()
+	out, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:   domain.RoleTask,
+		Title:  title,
+		Author: mustAuthor(t, "test-agent"),
+		Labels: []driving.LabelInput{{Key: labelKey, Value: labelValue}},
+	})
+	if err != nil {
+		t.Fatalf("precondition: create labeled task failed: %v", err)
+	}
+	return out.Issue.ID()
+}
+
+// createTaskUnderParent creates a ready task whose parent is the given epic.
+func createTaskUnderParent(t *testing.T, svc driving.Service, title string, parentID domain.ID) domain.ID {
+	t.Helper()
+	ctx := t.Context()
+	out, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:     domain.RoleTask,
+		Title:    title,
+		Author:   mustAuthor(t, "test-agent"),
+		ParentID: parentID.String(),
+	})
+	if err != nil {
+		t.Fatalf("precondition: create child task failed: %v", err)
+	}
+	return out.Issue.ID()
+}
+
+// TestRun_RoleFilterTask_ReturnsOnlyReadyTasks verifies that --role task
+// restricts results to ready tasks, hiding ready epics.
+func TestRun_RoleFilterTask_ReturnsOnlyReadyTasks(t *testing.T) {
+	t.Parallel()
+
+	// Given — one ready task and one ready epic
+	svc := setupService(t)
+	taskID := createTask(t, svc, "Ready task")
+	_ = createEpic(t, svc, "Ready epic")
+
+	var buf bytes.Buffer
+	input := ready.RunInput{
+		Service: svc,
+		Filter:  driving.IssueFilterInput{Roles: []domain.Role{domain.RoleTask}},
+		JSON:    true,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := ready.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result cmdutil.ListOutput
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Items))
+	}
+	if result.Items[0].ID != taskID.String() {
+		t.Errorf("item ID: got %q, want %q (task)", result.Items[0].ID, taskID.String())
+	}
+}
+
+// TestRun_RoleFilterEpic_ReturnsOnlyReadyEpics verifies that --role epic
+// restricts results to ready epics, hiding ready tasks.
+func TestRun_RoleFilterEpic_ReturnsOnlyReadyEpics(t *testing.T) {
+	t.Parallel()
+
+	// Given — one ready task and one ready epic
+	svc := setupService(t)
+	_ = createTask(t, svc, "Ready task")
+	epicID := createEpic(t, svc, "Ready epic")
+
+	var buf bytes.Buffer
+	input := ready.RunInput{
+		Service: svc,
+		Filter:  driving.IssueFilterInput{Roles: []domain.Role{domain.RoleEpic}},
+		JSON:    true,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := ready.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result cmdutil.ListOutput
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Items))
+	}
+	if result.Items[0].ID != epicID.String() {
+		t.Errorf("item ID: got %q, want %q (epic)", result.Items[0].ID, epicID.String())
+	}
+}
+
+// TestRun_StateFilter_Open_ReturnsOnlyOpenIssues verifies that --state open
+// behaves identically to np list --ready --state open.
+func TestRun_StateFilter_Open_ReturnsOnlyOpenIssues(t *testing.T) {
+	t.Parallel()
+
+	// Given — one open ready task (closed issues are never ready, so this
+	// just confirms the state filter threads through correctly)
+	svc := setupService(t)
+	taskID := createTask(t, svc, "Open ready task")
+
+	var buf bytes.Buffer
+	input := ready.RunInput{
+		Service: svc,
+		Filter:  driving.IssueFilterInput{States: []domain.State{domain.StateOpen}},
+		JSON:    true,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := ready.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result cmdutil.ListOutput
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Items))
+	}
+	if result.Items[0].ID != taskID.String() {
+		t.Errorf("item ID: got %q, want %q", result.Items[0].ID, taskID.String())
+	}
+}
+
+// TestRun_LabelFilter_ReturnsOnlyMatchingLabel verifies that --label kind:bug
+// restricts results to ready issues bearing that label.
+func TestRun_LabelFilter_ReturnsOnlyMatchingLabel(t *testing.T) {
+	t.Parallel()
+
+	// Given — one labeled task and one unlabeled task
+	svc := setupService(t)
+	bugID := createTaskWithLabel(t, svc, "Bug task", "kind", "bug")
+	_ = createTask(t, svc, "Unlabeled task")
+
+	var buf bytes.Buffer
+	input := ready.RunInput{
+		Service: svc,
+		Filter: driving.IssueFilterInput{
+			LabelFilters: []driving.LabelFilterInput{{Key: "kind", Value: "bug"}},
+		},
+		JSON:    true,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := ready.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result cmdutil.ListOutput
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Items))
+	}
+	if result.Items[0].ID != bugID.String() {
+		t.Errorf("item ID: got %q, want %q (bug task)", result.Items[0].ID, bugID.String())
+	}
+}
+
+// TestRun_ParentFilter_ReturnsOnlyChildrenOfParent verifies that --parent
+// restricts results to ready children of the specified epic.
+func TestRun_ParentFilter_ReturnsOnlyChildrenOfParent(t *testing.T) {
+	t.Parallel()
+
+	// Given — one epic with one child task, and one unrelated task
+	svc := setupService(t)
+	epicID := createEpic(t, svc, "Parent epic")
+	childID := createTaskUnderParent(t, svc, "Child task", epicID)
+	_ = createTask(t, svc, "Unrelated task")
+
+	var buf bytes.Buffer
+	input := ready.RunInput{
+		Service: svc,
+		Filter:  driving.IssueFilterInput{ParentIDs: []string{epicID.String()}},
+		JSON:    true,
+		WriteTo: &buf,
+	}
+
+	// When
+	err := ready.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result cmdutil.ListOutput
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Items))
+	}
+	if result.Items[0].ID != childID.String() {
+		t.Errorf("item ID: got %q, want %q (child task)", result.Items[0].ID, childID.String())
+	}
+}
+
+// TestRun_CombinedFilters_ANDSemantics verifies that combining --role, --label,
+// and --parent applies AND semantics: only issues matching all conditions appear.
+func TestRun_CombinedFilters_ANDSemantics(t *testing.T) {
+	t.Parallel()
+
+	// Given — an epic with two children: one labeled bug task and one
+	// unlabeled task; plus an unrelated bug task outside the epic
+	svc := setupService(t)
+	epicID := createEpic(t, svc, "Parent epic")
+
+	// Child task with both the right parent and the bug label — should match all three filters.
+	ctx := t.Context()
+	matchOut, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:     domain.RoleTask,
+		Title:    "Bug child task",
+		Author:   mustAuthor(t, "test-agent"),
+		ParentID: epicID.String(),
+		Labels:   []driving.LabelInput{{Key: "kind", Value: "bug"}},
+	})
+	if err != nil {
+		t.Fatalf("precondition: create labeled child task failed: %v", err)
+	}
+	matchID := matchOut.Issue.ID()
+
+	_ = createTaskUnderParent(t, svc, "Unlabeled child task", epicID)    // same parent, no label
+	_ = createTaskWithLabel(t, svc, "Unrelated bug task", "kind", "bug") // bug label, no parent
+
+	var buf bytes.Buffer
+	input := ready.RunInput{
+		Service: svc,
+		Filter: driving.IssueFilterInput{
+			Roles:        []domain.Role{domain.RoleTask},
+			ParentIDs:    []string{epicID.String()},
+			LabelFilters: []driving.LabelFilterInput{{Key: "kind", Value: "bug"}},
+		},
+		JSON:    true,
+		WriteTo: &buf,
+	}
+
+	// When
+	err = ready.Run(t.Context(), input)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result cmdutil.ListOutput
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(result.Items) != 1 {
+		ids := make([]string, len(result.Items))
+		for i, it := range result.Items {
+			ids[i] = it.ID
+		}
+		t.Fatalf("items: got %d (%v), want 1", len(result.Items), ids)
+	}
+	if result.Items[0].ID != matchID.String() {
+		t.Errorf("item ID: got %q, want %q (labeled child task)", result.Items[0].ID, matchID.String())
+	}
+}
+
+// --- Flag-parsing tests via NewCmd runFn injection ---
+
+// TestNewCmd_FlagParsing_Role_SetsRoleFilter verifies that --role task is
+// parsed and placed in the RunInput.Filter.Roles field.
+func TestNewCmd_FlagParsing_Role_SetsRoleFilter(t *testing.T) {
+	t.Parallel()
+
+	// Given — a factory with test streams and a runFn that captures input.
+	ios, _, _, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+
+	var captured ready.RunInput
+	runFn := func(_ context.Context, input ready.RunInput) error {
+		captured = input
+		return nil
+	}
+
+	// When
+	cmd := ready.NewCmd(f, runFn)
+	err := cmd.Run(t.Context(), []string{"ready", "--role", "task"})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(captured.Filter.Roles) != 1 || captured.Filter.Roles[0] != domain.RoleTask {
+		t.Errorf("Filter.Roles: got %v, want [task]", captured.Filter.Roles)
+	}
+}
+
+// TestNewCmd_FlagParsing_Role_InvalidValue_ReturnsError verifies that an
+// unrecognised role value produces an error consistent with np list's behavior.
+func TestNewCmd_FlagParsing_Role_InvalidValue_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	ios, _, _, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+
+	runFn := func(_ context.Context, _ ready.RunInput) error { return nil }
+
+	// When
+	cmd := ready.NewCmd(f, runFn)
+	err := cmd.Run(t.Context(), []string{"ready", "--role", "invalid-role"})
+	// Then
+	if err == nil {
+		t.Fatal("expected an error for invalid role, got nil")
+	}
+}
+
+// TestNewCmd_FlagParsing_State_SetsStateFilter verifies that --state open is
+// parsed and placed in the RunInput.Filter.States field.
+func TestNewCmd_FlagParsing_State_SetsStateFilter(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	ios, _, _, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+
+	var captured ready.RunInput
+	runFn := func(_ context.Context, input ready.RunInput) error {
+		captured = input
+		return nil
+	}
+
+	// When
+	cmd := ready.NewCmd(f, runFn)
+	err := cmd.Run(t.Context(), []string{"ready", "--state", "open"})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(captured.Filter.States) != 1 || captured.Filter.States[0] != domain.StateOpen {
+		t.Errorf("Filter.States: got %v, want [open]", captured.Filter.States)
+	}
+}
+
+// TestNewCmd_FlagParsing_State_InvalidValue_ReturnsError verifies that an
+// unrecognised state value produces an error, delegated to domain.ParseState.
+func TestNewCmd_FlagParsing_State_InvalidValue_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	ios, _, _, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+
+	runFn := func(_ context.Context, _ ready.RunInput) error { return nil }
+
+	// When
+	cmd := ready.NewCmd(f, runFn)
+	err := cmd.Run(t.Context(), []string{"ready", "--state", "notastate"})
+	// Then
+	if err == nil {
+		t.Fatal("expected an error for invalid state, got nil")
+	}
+}
+
+// TestNewCmd_FlagParsing_Label_SetsLabelFilter verifies that --label kind:bug
+// is parsed via cmdutil.ParseLabelFilters and placed in Filter.LabelFilters.
+func TestNewCmd_FlagParsing_Label_SetsLabelFilter(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	ios, _, _, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+
+	var captured ready.RunInput
+	runFn := func(_ context.Context, input ready.RunInput) error {
+		captured = input
+		return nil
+	}
+
+	// When
+	cmd := ready.NewCmd(f, runFn)
+	err := cmd.Run(t.Context(), []string{"ready", "--label", "kind:bug"})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(captured.Filter.LabelFilters) != 1 {
+		t.Fatalf("LabelFilters: got %d, want 1", len(captured.Filter.LabelFilters))
+	}
+	lf := captured.Filter.LabelFilters[0]
+	if lf.Key != "kind" || lf.Value != "bug" || lf.Negate {
+		t.Errorf("LabelFilter: got {Key:%q Value:%q Negate:%v}, want {Key:\"kind\" Value:\"bug\" Negate:false}",
+			lf.Key, lf.Value, lf.Negate)
+	}
+}
+
+// TestNewCmd_FlagParsing_Label_InvalidValue_ReturnsError verifies that a
+// label value without the key:value separator is rejected.
+func TestNewCmd_FlagParsing_Label_InvalidValue_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	ios, _, _, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+
+	runFn := func(_ context.Context, _ ready.RunInput) error { return nil }
+
+	// When
+	cmd := ready.NewCmd(f, runFn)
+	err := cmd.Run(t.Context(), []string{"ready", "--label", "no-colon"})
+	// Then
+	if err == nil {
+		t.Fatal("expected an error for invalid label format, got nil")
+	}
+}
+
+// TestNewCmd_FlagParsing_CombinedFilters_AllFieldsSet verifies that passing
+// --role, --state, and --label together populates all three filter fields.
+func TestNewCmd_FlagParsing_CombinedFilters_AllFieldsSet(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	ios, _, _, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+
+	var captured ready.RunInput
+	runFn := func(_ context.Context, input ready.RunInput) error {
+		captured = input
+		return nil
+	}
+
+	// When
+	cmd := ready.NewCmd(f, runFn)
+	err := cmd.Run(t.Context(), []string{
+		"ready",
+		"--role", "task",
+		"--state", "open",
+		"--label", "kind:bug",
+	})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(captured.Filter.Roles) != 1 || captured.Filter.Roles[0] != domain.RoleTask {
+		t.Errorf("Filter.Roles: got %v, want [task]", captured.Filter.Roles)
+	}
+	if len(captured.Filter.States) != 1 || captured.Filter.States[0] != domain.StateOpen {
+		t.Errorf("Filter.States: got %v, want [open]", captured.Filter.States)
+	}
+	if len(captured.Filter.LabelFilters) != 1 ||
+		captured.Filter.LabelFilters[0].Key != "kind" ||
+		captured.Filter.LabelFilters[0].Value != "bug" {
+		t.Errorf("Filter.LabelFilters: got %v, want [{Key:kind Value:bug}]", captured.Filter.LabelFilters)
 	}
 }

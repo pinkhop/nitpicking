@@ -287,12 +287,8 @@ Claimed MYAPP-a3bxr
   Author: alice
   Stale at: 2026-03-28 16:30:00
 
-$ np issue defer \
-    --claim b8e1f20c... \
-    --until 2026-04-15
+$ np issue defer --claim b8e1f20c...
 ```
-
-The `--until` date is informational. `np` does not auto-undefer, but `np admin doctor` can report overdue deferrals.
 
 When you are ready to pick it back up:
 
@@ -401,7 +397,7 @@ $ np label remove area --claim d47f8...
 
 ### Filtering by label
 
-Labels become useful when filtering. Pass `--label` to `np list` or `--with-label` to `np claim ready`:
+Labels become useful when filtering. Pass `--label` to `np list` or `np claim ready`:
 
 ```
 $ np list --label area:api
@@ -422,7 +418,7 @@ MYAPP-w4ttx  task  open (ready)  P1  Sanitize HTML in comment bodies
 Claim the highest-priority ready bug:
 
 ```
-$ np claim ready --author alice --with-label kind:bug
+$ np claim ready --author alice --label kind:bug
 Claimed MYAPP-w4ttx
   Claim ID: d47f8...
   Author: alice

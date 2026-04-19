@@ -402,7 +402,7 @@ func cmdNPSeedComment(ts *testscript.TestScript, neg bool, args []string) {
 //
 // SOURCE_ENV and TARGET_ENV are names of environment variables holding issue
 // IDs (set by prior np-seed calls). REL_TYPE is the relationship type
-// (blocked_by, blocks, refs, cites, cited_by, parent_of, child_of).
+// (blocked_by, blocks, refs, parent_of, child_of).
 func cmdNPSeedRel(ts *testscript.TestScript, neg bool, args []string) {
 	if neg {
 		ts.Fatalf("np-seed-rel does not support negation")

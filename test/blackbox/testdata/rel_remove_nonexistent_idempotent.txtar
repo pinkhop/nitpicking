@@ -5,4 +5,4 @@ np-seed task 'Task A' rel-agent TASK_A
 np-seed task 'Task B' rel-agent TASK_B
 
 # No relationship exists between them — removal should still succeed.
-exec np rel blocks unblock $TASK_A $TASK_B --author rel-agent --json
+exec np rel remove $TASK_A blocked_by $TASK_B --author rel-agent --json

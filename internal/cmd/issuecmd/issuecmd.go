@@ -199,14 +199,11 @@ remaining issues.`,
 }
 
 // newDeferCmd constructs the "issue defer" subcommand, which defers a claimed
-// issue for later work. An optional --until flag records a revisit date as a
-// label (informational only — np has no scheduler, but doctor can report
-// overdue deferrals).
+// issue for later work.
 func newDeferCmd(f *cmdutil.Factory) *cli.Command {
 	var (
 		jsonOutput bool
 		claimID    string
-		until      string
 	)
 
 	return &cli.Command{
@@ -217,10 +214,8 @@ deferred state. Use this when you have claimed an issue but cannot complete it
 now — for example, because it depends on work that has not been done yet, or
 because higher-priority work has come in.
 
-The optional --until flag records a target revisit date as a label on the issue.
-This date is informational only (np has no scheduler), but "np admin doctor" can
-report overdue deferrals. The claim is released as part of the deferral, so the
-issue is no longer held by any agent.`,
+The claim is released as part of the deferral, so the issue is no longer held
+by any agent.`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "claim",
@@ -229,12 +224,6 @@ issue is no longer held by any agent.`,
 				Required:    true,
 				Category:    cmdutil.FlagCategoryRequired,
 				Destination: &claimID,
-			},
-			&cli.StringFlag{
-				Name:        "until",
-				Usage:       "Date to revisit (YYYY-MM-DD); recorded as defer-until label",
-				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &until,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -258,7 +247,6 @@ issue is no longer held by any agent.`,
 				Service: svc,
 				IssueID: issueID,
 				ClaimID: claimID,
-				Until:   until,
 				JSON:    jsonOutput,
 				WriteTo: f.IOStreams.Out,
 			})

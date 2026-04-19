@@ -35,9 +35,9 @@ func NewCmd(f *cmdutil.Factory) *cli.Command {
 		Name:  "epic",
 		Usage: "Epic management commands",
 		Description: `Groups commands for managing epics — the organizational layer above
-tasks. Epics are never closed directly; they complete automatically when all
-their children are closed, at which point they enter the "completed" secondary
-state and can be batch-closed with "epic close-completed".
+tasks. When all of an epic's children are closed, the epic acquires the
+"completed" display badge, but its primary state remains open until it is
+explicitly closed. The standard batch mechanism for this is "epic close-completed".
 
 Use these subcommands to inspect epic progress, view an epic's children, and
 close completed epics. For creating epics, use "np create" with role "epic". For

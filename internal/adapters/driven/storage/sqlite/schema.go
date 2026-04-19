@@ -63,7 +63,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_issue ON claims(issue_id);
 CREATE TABLE IF NOT EXISTS relationships (
     source_id TEXT NOT NULL REFERENCES issues(issue_id),
     target_id TEXT NOT NULL REFERENCES issues(issue_id),
-    rel_type  TEXT NOT NULL CHECK(rel_type IN ('blocked_by', 'blocks', 'cites', 'cited_by', 'refs')),
+    rel_type  TEXT NOT NULL CHECK(rel_type IN ('blocked_by', 'blocks', 'refs')),
     PRIMARY KEY (source_id, target_id, rel_type)
 ) WITHOUT ROWID;
 

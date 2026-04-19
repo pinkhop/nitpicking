@@ -197,29 +197,29 @@ func TestAgentInstructions_DoesNotMentionImportJson(t *testing.T) {
 	}
 }
 
-func TestAgentInstructions_DocumentsWithLabelFlag(t *testing.T) {
+func TestAgentInstructions_DocumentsLabelFlagOnClaim(t *testing.T) {
 	t.Parallel()
 
 	// When
 	output := agent.AgentInstructions()
 
-	// Then — the instructions must document the --with-label flag so agents
-	// know they can filter claims by label.
-	if !strings.Contains(output, "--with-label") {
-		t.Error("expected instructions to document --with-label flag")
+	// Then — the instructions must document the --label flag on np claim ready
+	// so agents know they can filter claims by label.
+	if !strings.Contains(output, "claim ready --label") {
+		t.Error("expected instructions to document --label flag on np claim ready")
 	}
 }
 
-func TestAgentInstructions_DocumentsWithRoleFlag(t *testing.T) {
+func TestAgentInstructions_DocumentsRoleFlagOnClaim(t *testing.T) {
 	t.Parallel()
 
 	// When
 	output := agent.AgentInstructions()
 
-	// Then — the instructions must document the --with-role flag so agents
-	// know they can filter claims by role.
-	if !strings.Contains(output, "--with-role") {
-		t.Error("expected instructions to document --with-role flag")
+	// Then — the instructions must document the --role flag on np claim ready
+	// so agents know they can filter claims by role.
+	if !strings.Contains(output, "claim ready --role") {
+		t.Error("expected instructions to document --role flag on np claim ready")
 	}
 }
 
@@ -255,13 +255,13 @@ func TestAgentInstructions_DoesNotMentionOldFlagNames(t *testing.T) {
 	// When
 	output := agent.AgentInstructions()
 
-	// Then — old flag names that were renamed in the claim refactor must
-	// not appear in the instructions.
+	// Then — old flag names that were removed in previous refactors must not
+	// appear anywhere in the instructions.
 	oldFlags := []string{
 		"--stale-threshold",
 		"--steal-if-needed",
-		"--label ", // bare --label (not --with-label)
-		"--role ",  // bare --role (not --with-role)
+		"--with-role",
+		"--with-label",
 	}
 	for _, old := range oldFlags {
 		if strings.Contains(output, old) {

@@ -32,10 +32,11 @@ func newCloseCompletedCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:  "close-completed",
 		Usage: "Close all epics in the completed secondary state",
-		Description: `Finds all epics whose children are entirely closed (the "completed"
-secondary state) and batch-closes them. This is the standard way to finalize
-epics — since epics cannot be closed directly, this command handles the
-claim-close-release cycle for each eligible epic automatically.
+		Description: `Finds all epics carrying the "completed" display badge (all children closed)
+and batch-closes them. When an epic's children are all closed, the epic acquires
+the "completed" badge but its primary state remains open — this command performs
+the claim-close-release cycle for each eligible epic automatically, making it
+the standard way to finalize completed epics.
 
 Run this after closing the last child task of an epic to keep the issue database
 tidy. Use --dry-run to preview which epics would be closed without actually

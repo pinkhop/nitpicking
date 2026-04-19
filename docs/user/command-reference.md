@@ -43,9 +43,8 @@ Commands are grouped by the categories shown in `np help`.
   - [rel parent children](#rel-parent-children)
   - [rel parent tree](#rel-parent-tree)
   - [rel parent detach](#rel-parent-detach)
-  - [rel list](#rel-list)
+  - [rel issue](#rel-issue)
   - [rel tree](#rel-tree)
-  - [rel cycles](#rel-cycles)
   - [rel graph](#rel-graph)
   - [label add](#label-add)
   - [label remove](#label-remove)
@@ -321,8 +320,8 @@ np claim [options] <ISSUE-ID | ready>
 | Flag | Description |
 |------|-------------|
 | `--author`, `-a` | Author name for the claim. Required. Env: `NP_AUTHOR`. |
-| `--with-label` | Label filter in `key:value` or `key:*` format. Repeatable, AND semantics. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
-| `--with-role` | Filter by role: `task` or `epic`. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
+| `--label` | Label filter in `key:value` or `key:*` format. Repeatable, AND semantics. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
+| `--role` | Filter by role: `task` or `epic`. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
 | `--duration` | Duration after which the claim becomes stale (e.g., `30m`, `1h`, `4h`). Default: `2h`. Mutually exclusive with `--stale-at`. |
 | `--stale-at` | RFC3339 UTC timestamp when the claim becomes stale (e.g., `2026-04-02T14:00:00Z`). Must be in the future and within 24h. Mutually exclusive with `--duration`. |
 | `--json` | Output machine-readable JSON. |
@@ -364,7 +363,7 @@ $ np claim ready --author alice
 Claim next ready issue with filters:
 
 ```
-$ np claim ready --author alice --with-role task --with-label kind:bug --json
+$ np claim ready --author alice --role task --label kind:bug --json
 {
   "issue_id": "MYAPP-x9y8z",
   "claim_id": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8",
@@ -381,7 +380,7 @@ $ np claim ready --author alice --with-role task --with-label kind:bug --json
 | 0 | Claim acquired successfully. |
 | 2 | Issue not found (by ID) or no ready issues found (with `ready`). |
 | 3 | Claim conflict — the issue is already claimed and the claim is not yet stale. |
-| 4 | Guard-rail assertion failed — the issue does not match `--with-label` or `--with-role`. |
+| 4 | Guard-rail assertion failed — the issue does not match `--label` or `--role`. |
 
 **Notes:**
 
@@ -442,6 +441,12 @@ np ready [options]
 
 | Flag | Description |
 |------|-------------|
+| `--role`, `-r` | Filter by role: `task` or `epic`. Repeatable, AND semantics. |
+| `--state`, `-s` | Filter by state: `open`, `closed`, `deferred`. Repeatable. |
+| `--parent` | Filter by parent epic ID. Repeatable. |
+| `--label` | Label filter in `key:value` format. Repeatable, AND semantics. |
+| `--order` | Sort order. One of `ID`, `CREATED`, `PARENT_ID`, `PARENT_CREATED`, `PRIORITY` (default), `ROLE`, `STATE`, `TITLE`, or `MODIFIED`. Append `:asc` or `:desc` to set direction (ascending is the default). |
+| `--columns` | Comma-separated list of columns to display. Valid columns: `ID`, `CREATED`, `PARENT_ID`, `PARENT_CREATED`, `PRIORITY`, `ROLE`, `STATE`, `TITLE`. |
 | `--limit N`, `-n N` | Maximum number of results (default 20). |
 | `--no-limit` | Return all matching results. |
 | `--json` | Output machine-readable JSON. |
@@ -450,6 +455,22 @@ np ready [options]
 
 ```
 $ np ready
+```
+
+```
+$ np ready --role task
+```
+
+```
+$ np ready --label kind:bug
+```
+
+```
+$ np ready --parent NP-abc12
+```
+
+```
+$ np ready --role task --label kind:bug
 ```
 
 **Exit codes:**
@@ -461,6 +482,8 @@ $ np ready
 **Notes:**
 
 - An issue is ready when it is `open`, has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred`. For epics, readiness additionally requires having no children — a childless epic signals a planning gap that needs decomposition.
+- Filter flags combine with AND semantics: `--role task --label kind:bug --parent NP-abc12` returns only ready tasks labeled `kind:bug` whose parent is `NP-abc12`.
+- The default sort order is priority ascending (P0 first), which differs from `np list` whose default is ID ascending.
 
 ---
 
@@ -699,17 +722,12 @@ np issue defer [options]
 | Flag | Description |
 |------|-------------|
 | `--claim` | Active claim ID. Required. Env: `NP_CLAIM`. |
-| `--until` | Date to revisit, in `YYYY-MM-DD` format. Recorded as a `defer-until` label. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**
 
 ```
 $ np issue defer --claim a4dace30
-```
-
-```
-$ np issue defer --claim a4dace30 --until 2026-04-01
 ```
 
 **Exit codes:**
@@ -722,7 +740,6 @@ $ np issue defer --claim a4dace30 --until 2026-04-01
 **Notes:**
 
 - Deferring an epic effectively defers all its descendants — they will not appear in `np ready` until the epic is undeferred.
-- The `--until` date is stored as a label and is informational only; `np` does not automatically undefer when the date passes.
 
 ---
 
@@ -1001,7 +1018,7 @@ np rel add [options] <A> <rel> <B>
 | Argument | Description |
 |----------|-------------|
 | `A` | The source issue ID. |
-| `rel` | Relationship type: `blocked_by`, `blocks`, `refs`, `parent_of`, `child_of`. Legacy aliases `cites` and `cited_by` are accepted but `refs` is preferred. |
+| `rel` | Relationship type: `blocked_by`, `blocks`, `refs`, `parent_of`, `child_of`. |
 | `B` | The target issue ID. |
 
 **Flags:**
@@ -1245,14 +1262,14 @@ np rel parent detach [options] <A> <B>
 
 ---
 
-### rel list
+### rel issue
 
 List all relationships for an issue — blocking, references, and parent-child.
 
 **Synopsis:**
 
 ```
-np rel list [options] <ISSUE-ID>
+np rel issue [options] <ISSUE-ID>
 ```
 
 **Flags:**
@@ -1291,34 +1308,6 @@ np rel tree [options] <ISSUE-ID>
 |------|---------|
 | 0 | Tree displayed successfully. |
 | 2 | Issue not found. |
-
----
-
-### rel cycles
-
-Detect relationship cycles in the issue graph.
-
-**Synopsis:**
-
-```
-np rel cycles [options]
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--json` | Output machine-readable JSON. |
-
-**Exit codes:**
-
-| Code | Meaning |
-|------|---------|
-| 0 | No cycles detected, or cycles listed successfully. |
-
-**Notes:**
-
-- Reports any cycles found in blocking or parent-child relationships. Blocking cycles are primarily a diagnostic concern and are surfaced by `np rel cycles` and `np admin doctor`; invalid parent-child structures are rejected during mutation.
 
 ---
 

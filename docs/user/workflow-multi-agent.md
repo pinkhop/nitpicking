@@ -100,13 +100,13 @@ Labels allow agents to specialize without explicit coordination:
 
 ```
 # Agent A: bugs only
-np claim ready --author agent-a --with-label kind:bug --json
+np claim ready --author agent-a --label kind:bug --json
 
 # Agent B: features only
-np claim ready --author agent-b --with-label kind:feature --json
+np claim ready --author agent-b --label kind:feature --json
 
 # Agent C: documentation only
-np claim ready --author agent-c --with-label kind:docs --json
+np claim ready --author agent-c --label kind:docs --json
 ```
 
 Each agent uses a different label filter, naturally partitioning work. No orchestration layer needed — the label filters and priority ordering handle it.
@@ -250,9 +250,8 @@ Or let `np claim ready` handle it automatically — if the stale-claimed issue i
 When an agent discovers that its current task cannot be completed — a missing dependency, unclear requirements, or an architectural blocker — it should defer rather than abandon:
 
 ```
-# Defer the issue (optionally with a target date):
+# Defer the issue:
 np issue defer --claim <claim-id>
-np issue defer --claim <claim-id> --until 2026-04-15
 ```
 
 Deferring records *why* the work stopped and removes the issue from the ready pool. Unlike abandoning a claim (which blocks other agents until the stale duration expires), deferring is an explicit, immediate signal.

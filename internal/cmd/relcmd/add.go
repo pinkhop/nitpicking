@@ -17,7 +17,7 @@ type RelArgType int
 
 const (
 	// RelArgRelationship means the argument maps to a standard
-	// AddRelationship call (blocks, blocked_by, cites, cited_by, refs).
+	// AddRelationship call (blocks, blocked_by, refs).
 	RelArgRelationship RelArgType = iota + 1
 
 	// RelArgParentOf means A is the parent of B — sets B's parent to A.
@@ -39,7 +39,7 @@ type RelArgResult struct {
 }
 
 // validRelArgs enumerates all accepted <rel> values for help text.
-const validRelArgs = "blocked_by, blocks, refs, cites, cited_by, parent_of, child_of"
+const validRelArgs = "blocked_by, blocks, refs, parent_of, child_of"
 
 // ParseRelArg parses a relationship argument string into a dispatch decision.
 // Returns an error if the argument is not one of the six accepted values.
@@ -124,7 +124,7 @@ func runAddParent(ctx context.Context, input RunAddInput, childID, parentID stri
 	return err
 }
 
-// runAddRelationship creates a standard relationship (blocks, cites, etc.)
+// runAddRelationship creates a standard relationship (blocks, blocked_by, refs)
 // via AddRelationship.
 func runAddRelationship(ctx context.Context, input RunAddInput, parsed RelArgResult) error {
 	rel := driving.RelationshipInput{
@@ -170,12 +170,11 @@ Supported relationship types:
                          become ready until B is closed.
   refs                 — Symmetric contextual reference. Neither issue blocks
                          the other; the link is informational.
-  cites / cited_by     — Directional citation for traceability.
   parent_of / child_of — Structural hierarchy. Requires --claim because it
                          mutates the child issue's parent field.
 
-Use "rel blocks unblock", "rel refs unref", or "rel parent detach" to remove
-relationships.`,
+Use "rel remove <A> <rel> <B>" to remove a relationship using the same
+argument syntax.`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "author",

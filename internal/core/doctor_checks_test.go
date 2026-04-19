@@ -405,6 +405,31 @@ func TestDoctorSeverityString_ReturnsLabel(t *testing.T) {
 	}
 }
 
+// TestDiagnosticChecks_OverdueDeferralsNotRegistered verifies that the
+// overdue_deferrals check is not in the registry. The defer-until feature that
+// would have emitted overdue_deferral findings was removed; the stale check
+// definition causes admin doctor to report a permanently-passing check for a
+// feature that no longer exists.
+func TestDiagnosticChecks_OverdueDeferralsNotRegistered(t *testing.T) {
+	t.Parallel()
+
+	// Given — the diagnosticChecks registry.
+	// When — we scan it for the overdue_deferrals check.
+	var found bool
+	for _, def := range diagnosticChecks {
+		if def.Name == "overdue_deferrals" {
+			found = true
+			break
+		}
+	}
+
+	// Then — overdue_deferrals must not be registered; the feature that produced
+	// overdue_deferral findings no longer exists, so the check is permanently vacuous.
+	if found {
+		t.Error("diagnosticChecks must not contain 'overdue_deferrals': the defer-until feature was removed and no code emits 'overdue_deferral' findings")
+	}
+}
+
 // checkByName returns the driving.DoctorCheckResult with the given name, or nil.
 func checkByName(checks []driving.DoctorCheckResult, name string) *driving.DoctorCheckResult {
 	for i := range checks {

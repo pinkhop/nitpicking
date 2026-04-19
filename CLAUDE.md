@@ -55,7 +55,7 @@ The project follows **Hexagonal (Ports & Adapters) Architecture**. The authorita
 
 ## Domain Model (key concepts)
 
-- **Two issue types:** Epic (organizes children; completion via the `completed` secondary state) and Task (leaf node; directly stateful).
+- **Two issue types:** Epic (organizes children; acquires a `completed` display badge when all children are closed, but remains open until explicitly closed via `np epic close-completed`) and Task (leaf node; directly stateful). Both epics and tasks may have children; `np epic close-completed --include-tasks` handles parent tasks in the completed-by-children condition the same way.
 - **Claiming gates all mutations.** Bearer-authenticated via random claim IDs. Comments and relationships can be added without claiming.
 - **Issue IDs:** `<PREFIX>-<random>` (e.g., `PKHP-a3bxr`). Prefix set at db init; random part is 5 lowercase Crockford Base32 characters.
 - **Database discovery:** `np` walks up from `cwd` looking for a `.np/` directory.

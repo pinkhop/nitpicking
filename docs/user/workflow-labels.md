@@ -27,6 +27,8 @@ Some label keys are reserved by `np` for internal use. These **virtual labels** 
 
 **Naming convention:** System labels use hyphen-separated keys (e.g., `idempotency-key`). User-defined labels conventionally use short alphanumeric keys (e.g., `kind`, `area`, `scope`). This reduces collision risk — hyphens are valid label key characters but uncommon in user-defined keys.
 
+**Key validation rules:** A label key must be 1–64 bytes of ASCII printable characters. The **first character must be an ASCII letter (`A`–`Z` or `a`–`z`) or an underscore (`_`)**; interior and trailing characters may be any ASCII printable non-whitespace character. Leading digits, hyphens, colons, and other punctuation are rejected to avoid ambiguity with CLI filter grammar (e.g., leading `!` means negation in `--label` filters) and to align with the identifier convention developers intuitively recognize as a "name".
+
 ---
 
 ## Labeling Issues
@@ -82,7 +84,7 @@ MYAPP-2e22n  task  P1  Fix claim timeout race condition
 Use `np claim ready` with label filters to claim the highest-priority issue matching your criteria:
 
 ```
-$ np claim ready --author alice --with-label kind:bug
+$ np claim ready --author alice --label kind:bug
 [ok] Claimed MYAPP-2e22n
   Claim ID: f2fa05ba73d90760db00682f21df60f0
 ```
@@ -137,7 +139,7 @@ AUTHOR=$(np agent name)
 
 # Work loop:
 while true; do
-    RESULT=$(np claim ready --author "$AUTHOR" --with-label kind:bug --json)
+    RESULT=$(np claim ready --author "$AUTHOR" --label kind:bug --json)
 
     if [ $? -ne 0 ]; then
         echo "No bugs ready. Done."
@@ -170,6 +172,6 @@ Key patterns:
 
 Label-driven selection works alongside any workflow:
 
-- **Simple tasks** — label tasks and use `np claim ready --with-label` to pull specific types.
+- **Simple tasks** — label tasks and use `np claim ready --label` to pull specific types.
 - **Epic-driven** — propagate labels from epics to children, then agents filter by label to specialize.
 - **Multi-agent** — each agent uses a different label filter, naturally partitioning work without explicit coordination.

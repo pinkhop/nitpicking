@@ -208,14 +208,12 @@ type CloseWithReasonInput struct {
 	Reason  string
 }
 
-// DeferIssueInput holds the parameters for atomically deferring an issue with
-// an optional "defer-until" label. When Until is non-empty, a "defer-until"
-// label is set on the issue before the state transition — both within a single
-// transaction so the label mutation and state change are atomic.
+// DeferIssueInput holds the parameters for deferring a claimed issue. The
+// operation transitions the issue to the deferred state and releases the claim
+// — both within a single transaction.
 type DeferIssueInput struct {
 	IssueID string
 	ClaimID string
-	Until   string
 }
 
 // ReopenInput holds the parameters for reopening a closed or deferred domain.
@@ -917,4 +915,9 @@ type MigrationResult struct {
 	// HistoryRowsRemoved is the number of history rows deleted because their
 	// event_type was "claimed" or "released", which are no longer valid in v2.
 	HistoryRowsRemoved int
+
+	// LegacyRelationshipsTranslated is the number of relationship rows that
+	// were translated or dropped during migration: "cites" rows are renamed to
+	// "refs" and "cited_by" rows are removed. Both counts are summed here.
+	LegacyRelationshipsTranslated int
 }

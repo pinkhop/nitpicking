@@ -11,9 +11,9 @@ Every mutation requires an `--author` flag identifying who is acting. If you do 
 | Role | Purpose | How to work on it |
 |------|---------|-------------------|
 | **Task** | Leaf-node work item | Implement what it describes, then close it |
-| **Epic** | Organizes children; completion via `completed` secondary state | Decompose into child tasks (and sub-epics if large), then release it |
+| **Epic** | Organizes children; carries a `completed` display badge when all children are closed, but remains open until explicitly closed | Decompose into child tasks (and sub-epics if large), then release it |
 
-An epic is complete when all its children are closed or complete. You never close an epic directly.
+The `completed` badge is a display indicator only — it does not change the epic's primary state. An epic remains open until it is explicitly closed, typically via `np epic close-completed` (which handles the claim-close-release cycle in batch). Both epics and tasks may have children; `np epic close-completed --include-tasks` closes parent tasks in the same completed-by-children condition.
 
 ## Core Workflow
 
@@ -21,18 +21,28 @@ An epic is complete when all its children are closed or complete. You never clos
 
 ```
 np claim ready --author <your-name>   # claim the highest-priority ready issue
-np list --ready                       # browse all ready issues without claiming
+np ready                              # browse the ready queue without claiming
+np list --ready                       # equivalent to np ready (longer form)
 ```
 
-Filter which issue gets claimed with `--with-label` and `--with-role`:
+`np ready` supports the same filter flags as `np list`: `--role`, `--state`, `--parent`, and `--label`. Use them to narrow the ready queue without falling back to `np list --ready`:
 
 ```
-np claim ready --with-label kind:bug --author <your-name>         # only claim bugs
-np claim ready --with-role task --author <your-name>              # only claim tasks
-np claim ready --with-label kind:bug --with-role task --author <your-name>  # combine filters
+np ready --role task                        # only ready tasks
+np ready --label kind:bug                   # only ready bugs
+np ready --parent NP-abc12                  # only ready children of NP-abc12
+np ready --role task --label kind:bug       # combine filters (AND semantics)
 ```
 
-`--with-label` uses `key:value` or `key:*` format (repeatable, AND semantics). `--with-role` accepts `task` or `epic`.
+Filter which issue gets claimed with `--label` and `--role`:
+
+```
+np claim ready --label kind:bug --author <your-name>         # only claim bugs
+np claim ready --role task --author <your-name>              # only claim tasks
+np claim ready --label kind:bug --role task --author <your-name>  # combine filters
+```
+
+`--label` uses `key:value` or `key:*` format (repeatable, AND semantics). `--role` accepts `task` or `epic`.
 
 Control claim staleness timing with `--duration` or `--stale-at`:
 
@@ -112,6 +122,35 @@ Comments do not require claiming and can be added to any issue, including closed
 | `np issue release --claim <CID>` | Epic has been decomposed; or task cannot be completed now — deletes the local claim record without changing the issue's primary state |
 | `np issue defer --claim <CID>` | Shelve for later (can be restored with undefer) |
 
+## Discovering Command Structure
+
+**Always run `--help` before guessing a command's structure or arguments.** Every command and subcommand supports `--help`, which shows valid subcommands, flags, and usage examples. Never fabricate a subcommand or flag name — consult `--help` first.
+
+```
+np rel --help               # list rel subcommands
+np rel add --help           # show usage and flags for rel add
+np rel remove --help        # show usage and flags for rel remove
+```
+
+## Managing Relationships
+
+### Adding a relationship
+
+```
+np rel add <YOUR-ISSUE> blocked_by <BLOCKER-ID> --author <your-name>
+np rel add <YOUR-ISSUE> refs <OTHER-ID> --author <your-name>
+```
+
+### Removing a relationship
+
+Use `np rel remove` to delete a relationship that is no longer relevant. The argument syntax mirrors `np rel add` exactly — the same `<rel>` values are accepted, and the same positional order applies.
+
+```
+np rel remove <ISSUE-A> blocked_by <ISSUE-B> --author <your-name>
+np rel remove <ISSUE-A> blocks <ISSUE-B> --author <your-name>
+np rel remove <ISSUE-A> refs <ISSUE-B> --author <your-name>
+```
+
 ## Handling Incidentals
 
 If you discover something unrelated to your current issue (e.g., a failing test, a bug, a missing feature):
@@ -171,7 +210,7 @@ JSONEND
 ```
 
 **CLI flags:** `--author` (required), `--with-claim` (optional, immediately claims the new issue), `--deferred` (optional, creates the issue in the deferred state; mutually exclusive with `--with-claim`).
-**JSON fields:** `title` (required), `role` (defaults to `task`), `description`, `acceptance_criteria`, `priority`, `parent`, `labels` (array of `key:value` strings). Unknown fields are rejected.
+**JSON fields:** `title` (required), `role` (defaults to `task`), `description`, `acceptance_criteria` (**string**, not an array — Markdown-formatted text), `priority`, `parent`, `labels` (array of `key:value` strings). Unknown fields are rejected.
 
 ### json update
 
@@ -187,7 +226,7 @@ JSONEND
 ```
 
 **CLI flags:** `--claim` (required).
-**JSON fields:** `title`, `description`, `acceptance_criteria`, `priority`, `parent`, `labels` (array of `key:value` strings), `label_remove` (array of key strings), `role` (errors if different from current role). All fields are optional. Unknown fields are rejected.
+**JSON fields:** `title`, `description`, `acceptance_criteria` (**string**, not an array — Markdown-formatted text), `priority`, `parent`, `labels` (array of `key:value` strings), `label_remove` (array of key strings), `role` (errors if different from current role). All fields are optional. Unknown fields are rejected.
 
 ### json comment
 
@@ -238,10 +277,11 @@ Valid order values match the column names plus **MODIFIED**. The default order v
 
 ## Key Rules
 
+- **Run `--help` before guessing.** Any `np` command or subcommand supports `--help`; use it to discover valid subcommands, flags, and argument formats rather than fabricating them.
 - **Use `np claim ready` to find work.** Do not browse and cherry-pick issues.
 - **Document your work.** Add a comment before transitioning state — capture reasoning, trade-offs, and findings.
 - **Always transition state when done.** Close, release, or defer — never abandon a claim.
 - **Closed issues can be reopened.** Use `np issue reopen <ID> --author <name>` to restore them.
-- **Epics are never closed directly.** They complete when all children resolve.
+- **Epics are typically closed via `np epic close-completed`.** When an epic's children are all closed, it acquires the `completed` display badge but stays open. Run `np epic close-completed --author <name>` (add `--include-tasks` to also close parent tasks in the same condition) to batch-close all eligible issues.
 - **Use `np` exclusively.** Do not track work outside of `np`.
 

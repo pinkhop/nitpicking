@@ -8,7 +8,7 @@ np-seed task 'Task C' rellist-audit TASK_C
 exec np rel add $TASK_A blocked_by $TASK_B --author rellist-audit --json
 exec np rel add $TASK_A refs $TASK_C --author rellist-audit --json
 
-exec np rel list $TASK_A --json
+exec np rel issue $TASK_A --json
 np-json-has issue_id $TASK_A
 np-json-array-len relationships 2
 np-json-no-field is_deleted

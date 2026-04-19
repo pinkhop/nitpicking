@@ -36,8 +36,8 @@ type Label struct {
 
 // NewLabel creates a Label after validating both key and value.
 //
-// Key rules: 1–64 bytes, ASCII printable (0x21–0x7E), no whitespace, at
-// least one alphanumeric character.
+// Key rules: 1–64 bytes, ASCII printable (0x21–0x7E), no whitespace; the
+// first character must be an ASCII letter (A-Z or a-z) or underscore (_).
 //
 // Value rules: 1–256 bytes, free-form UTF-8, no whitespace, at least one
 // alphanumeric character.
@@ -116,7 +116,16 @@ func (fs LabelSet) All() iter.Seq2[string, string] {
 }
 
 // validateLabelKey checks that a label key is 1–64 bytes of ASCII printable
-// characters (0x21–0x7E) with at least one alphanumeric character.
+// characters (0x21–0x7E) whose first character is an ASCII letter (A-Z or
+// a-z) or an underscore (_). Interior and trailing characters may be any
+// ASCII printable non-whitespace character, which preserves existing system
+// keys like "idempotency-key" and "waiting-on".
+//
+// The stricter first-character rule — letter or underscore only — prevents
+// collision with CLI filter grammar (leading "!" means negation in
+// ParseLabelFilters), avoids confusion with flag-style arguments, and aligns
+// label keys with the C-style identifier convention that developers intuitively
+// recognize as a "name".
 func validateLabelKey(key string) error {
 	if len(key) == 0 {
 		return fmt.Errorf("label key must not be empty")
@@ -125,20 +134,28 @@ func validateLabelKey(key string) error {
 		return fmt.Errorf("label key must be at most 64 bytes, got %d", len(key))
 	}
 
-	hasAlphanumeric := false
-	for _, r := range key {
+	// Validate first character: must be an ASCII letter or underscore.
+	first := rune(key[0])
+	if !isASCIILetter(first) && first != '_' {
+		return fmt.Errorf("label key must start with a letter or underscore")
+	}
+
+	// Validate remaining characters: must be ASCII printable (0x21–0x7E).
+	for _, r := range key[1:] {
 		if r < 0x21 || r > 0x7E {
 			return fmt.Errorf("label key contains non-printable or whitespace character %q", r)
 		}
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			hasAlphanumeric = true
-		}
 	}
 
-	if !hasAlphanumeric {
-		return fmt.Errorf("label key must contain at least one alphanumeric character")
-	}
 	return nil
+}
+
+// isASCIILetter reports whether r is an ASCII letter (A-Z or a-z). It is
+// intentionally stricter than unicode.IsLetter, which would accept non-ASCII
+// letters such as "α". Only ASCII letters are valid as the first character of
+// a label key to keep keys unambiguous across CLI grammars and encodings.
+func isASCIILetter(r rune) bool {
+	return (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z')
 }
 
 // validateLabelValue checks that a label value is 1–256 bytes of UTF-8 text

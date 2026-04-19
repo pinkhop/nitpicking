@@ -76,7 +76,7 @@ Use a child epic when a sub-feature is large enough to need its own decompositio
 Yes. Adding `A refs B` is equivalent to `B refs A`. Either issue will show the other in its relationship list.
 
 **Can I create cycles?**
-`np` prevents invalid parent-child structures such as cycles and over-deep nesting at creation time, but blocking cycles are handled diagnostically rather than rejected on insert. Use `np rel cycles` and `np admin doctor` to detect circular blocking chains. See [Relationships](key-concepts.md#relationships) in key concepts for the design reasoning.
+`np` prevents invalid parent-child structures such as cycles and over-deep nesting at creation time, but blocking cycles are handled diagnostically rather than rejected on insert. Use `np admin doctor` to detect circular blocking chains. See [Relationships](key-concepts.md#relationships) in key concepts for the design reasoning.
 
 ---
 

@@ -693,16 +693,14 @@ func allCommands() []commandSpec {
 
 		// Rel subcommands
 		{args: []string{"rel", "add", "-h"}, requiredFlags: []string{"--author"}},
+		{args: []string{"rel", "remove", "-h"}, requiredFlags: []string{"--author"}},
 		{args: []string{"rel", "blocks", "list", "-h"}, requiredFlags: nil},
-		{args: []string{"rel", "blocks", "unblock", "-h"}, requiredFlags: []string{"--author"}},
 		{args: []string{"rel", "refs", "list", "-h"}, requiredFlags: nil},
-		{args: []string{"rel", "refs", "unref", "-h"}, requiredFlags: []string{"--author"}},
 		{args: []string{"rel", "parent", "children", "-h"}, requiredFlags: nil},
 		{args: []string{"rel", "parent", "tree", "-h"}, requiredFlags: nil},
 		{args: []string{"rel", "parent", "detach", "-h"}, requiredFlags: []string{"--author"}},
-		{args: []string{"rel", "list", "-h"}, requiredFlags: nil},
+		{args: []string{"rel", "issue", "-h"}, requiredFlags: nil},
 		{args: []string{"rel", "tree", "-h"}, requiredFlags: nil},
-		{args: []string{"rel", "cycles", "-h"}, requiredFlags: nil},
 
 		// Label subcommands
 		{args: []string{"label", "add", "-h"}, requiredFlags: []string{"--claim"}},

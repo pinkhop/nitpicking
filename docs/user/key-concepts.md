@@ -235,7 +235,7 @@ A directional dependency: "this issue cannot progress until the other issue is c
 
 - `blocked_by` and `blocks` are two views of the same relationship. Adding `A blocked_by B` is equivalent to adding `B blocks A`.
 - Blocking relationships directly affect readiness — an issue with unresolved blockers is not ready.
-- Circular blocking chains are not prevented at creation time. They are detected by `np rel cycles` and the `np admin doctor` command. This is a pragmatic choice: preventing cycles would require a graph traversal on every insert, which is disproportionate to the risk. Cycles are rare and easily resolved once detected.
+- Circular blocking chains are not prevented at creation time. They are detected by the `np admin doctor` command. This is a pragmatic choice: preventing cycles would require a graph traversal on every insert, which is disproportionate to the risk. Cycles are rare and easily resolved once detected.
 
 ### refs
 

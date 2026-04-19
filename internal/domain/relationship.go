@@ -13,16 +13,9 @@ const (
 	// RelBlocks is the inverse of RelBlockedBy — the source blocks the target.
 	RelBlocks
 
-	// RelCites indicates the source issue references the target as relevant
-	// context.
-	RelCites
-
-	// RelCitedBy is the inverse of RelCites — the source is cited by the target.
-	RelCitedBy
-
-	// RelRefs indicates the two issues are contextually related. Unlike
-	// cites/cited_by, refs is symmetric — there is no directional distinction.
-	// If A refs B, then B refs A implicitly.
+	// RelRefs indicates the two issues are contextually related. Refs is
+	// symmetric — there is no directional distinction. If A refs B, then
+	// B refs A implicitly.
 	RelRefs
 
 	// RelParentOf indicates the source issue is the parent epic of the target.
@@ -39,8 +32,6 @@ const (
 var relationTypeStrings = map[RelationType]string{
 	RelBlockedBy: "blocked_by",
 	RelBlocks:    "blocks",
-	RelCites:     "cites",
-	RelCitedBy:   "cited_by",
 	RelRefs:      "refs",
 	RelParentOf:  "parent_of",
 	RelChildOf:   "child_of",
@@ -61,7 +52,7 @@ func ParseRelationType(s string) (RelationType, error) {
 			return rt, nil
 		}
 	}
-	return 0, fmt.Errorf("invalid relationship type %q: must be blocked_by, blocks, cites, cited_by, or refs", s)
+	return 0, fmt.Errorf("invalid relationship type %q: must be blocked_by, blocks, or refs", s)
 }
 
 // IsSymmetric reports whether the relationship type is symmetric — i.e., if
@@ -77,10 +68,6 @@ func (rt RelationType) Inverse() RelationType {
 		return RelBlocks
 	case RelBlocks:
 		return RelBlockedBy
-	case RelCites:
-		return RelCitedBy
-	case RelCitedBy:
-		return RelCites
 	case RelRefs:
 		return RelRefs
 	case RelParentOf:

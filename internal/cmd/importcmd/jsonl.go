@@ -16,12 +16,13 @@ import (
 
 // jsonlOutput is the JSON representation of a JSONL import result.
 type jsonlOutput struct {
-	Action  string           `json:"action"`
-	Source  string           `json:"source"`
-	Created int              `json:"created"`
-	Skipped int              `json:"skipped"`
-	Failed  int              `json:"failed"`
-	Errors  []jsonlLineError `json:"errors,omitzero"`
+	Action     string           `json:"action"`
+	Source     string           `json:"source"`
+	Created    int              `json:"created"`
+	Skipped    int              `json:"skipped"`
+	Failed     int              `json:"failed"`
+	SkippedIDs []string         `json:"skipped_ids,omitzero"`
+	Errors     []jsonlLineError `json:"errors,omitzero"`
 }
 
 // jsonlLineError is a per-line error in the JSON output.
@@ -131,6 +132,11 @@ func writeImportResult(input JSONLRunInput, result driving.ImportOutput) error {
 			Failed:  result.Failed,
 		}
 		for _, r := range result.Results {
+			if r.Skipped && !r.IssueID.IsZero() {
+				// Include the existing issue's ID so callers can trace which
+				// issue matched the idempotency label and was deduplicated.
+				out.SkippedIDs = append(out.SkippedIDs, r.IssueID.String())
+			}
 			if r.Err != nil {
 				out.Errors = append(out.Errors, jsonlLineError{
 					Message: r.Err.Error(),
@@ -148,6 +154,13 @@ func writeImportResult(input JSONLRunInput, result driving.ImportOutput) error {
 
 	if result.Skipped > 0 {
 		_, _ = fmt.Fprintf(input.WriteTo, "  Skipped: %d (already imported)\n", result.Skipped)
+		for _, r := range result.Results {
+			if r.Skipped && !r.IssueID.IsZero() {
+				// Report the existing issue's ID so the user can identify
+				// which issues were matched by idempotency label.
+				_, _ = fmt.Fprintf(input.WriteTo, "    %s (existing)\n", r.IssueID)
+			}
+		}
 	}
 	if result.Failed > 0 {
 		_, _ = fmt.Fprintf(input.WriteTo, "  Failed: %d\n", result.Failed)
@@ -182,11 +195,11 @@ if any line fails validation, the entire import is aborted.
 
 Use this for project bootstrapping — seeding an empty database with a
 planned backlog — or for restoring a subset of issues from a backup
-file. Each line may include an idempotency_key; lines whose key already
-exists in the database are silently skipped, making the import safe to
-re-run. The --force-author flag overrides per-line author fields with
-the --author value, which is useful when re-importing issues authored
-by agents that no longer exist.`,
+file. Each line may include an idempotency_label (a key:value string);
+lines whose label already exists in the database are silently skipped,
+making the import safe to re-run. The --force-author flag overrides
+per-line author fields with the --author value, which is useful when
+re-importing issues authored by agents that no longer exist.`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "author",

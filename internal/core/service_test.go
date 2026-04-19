@@ -175,6 +175,54 @@ func TestCreateIssue_IdempotencyLabel_ReturnsSameIssue(t *testing.T) {
 	if out1.Issue.ID() != out2.Issue.ID() {
 		t.Errorf("expected same issue ID, got %s and %s", out1.Issue.ID(), out2.Issue.ID())
 	}
+	// The first creation must not be marked as skipped; the second must be.
+	if out1.Skipped {
+		t.Error("expected first creation to not be skipped")
+	}
+	if !out2.Skipped {
+		t.Error("expected second creation with same label to be marked as skipped")
+	}
+}
+
+// TestCreateIssue_IdempotencyLabelConflictsWithInputLabels_IdempotencyWins
+// verifies that when input.Labels includes a label whose key matches the
+// IdempotencyLabel's key but with a different value, the idempotency label's
+// value is persisted on the created issue. If the input label were allowed to
+// win, a subsequent create call with the same IdempotencyLabel would fail to
+// match and would silently create a duplicate — breaking the service's
+// idempotency contract at the API boundary.
+func TestCreateIssue_IdempotencyLabelConflictsWithInputLabels_IdempotencyWins(t *testing.T) {
+	t.Parallel()
+
+	// Given — an idempotency label of idem:v1 plus an input label of idem:v2
+	// under the same key.
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "alice")
+	idemLabel, err := domain.NewLabel("idem", "v1")
+	if err != nil {
+		t.Fatalf("building idempotency label: %v", err)
+	}
+	input := driving.CreateIssueInput{
+		Role:             domain.RoleTask,
+		Title:            "Conflicting labels",
+		Author:           author,
+		IdempotencyLabel: idemLabel,
+		Labels:           []driving.LabelInput{{Key: "idem", Value: "v2"}},
+	}
+
+	// When
+	out, err := svc.CreateIssue(t.Context(), input)
+	// Then — created issue's idem label must be v1 (idempotency value), not v2.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := out.Issue.Labels().Get("idem")
+	if !ok {
+		t.Fatalf("expected idem label on created issue, got none")
+	}
+	if got != "v1" {
+		t.Errorf("idem label value: got %q, want %q (idempotency label must win over conflicting input label)", got, "v1")
+	}
 }
 
 func TestCreateIssue_InvalidTitle_Fails(t *testing.T) {

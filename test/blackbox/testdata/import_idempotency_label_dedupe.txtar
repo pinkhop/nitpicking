@@ -1,0 +1,31 @@
+# Verify that re-importing a record with an already-seen idempotency_label
+# skips the duplicate and reports the existing issue's ID in skipped_ids.
+# This exercises the end-to-end dedupe path: the label is stored as a normal
+# label, and a second import run matches it via label lookup.
+
+np-init ID
+
+# First import: create the issue.
+exec np import jsonl testdata/dedupe.jsonl --author import-agent --json
+stdout '"created": 1'
+stdout '"skipped": 0'
+
+# Capture the created issue's ID so we can verify it appears in the second run.
+exec np claim ready --author import-agent --json
+np-capture ISSUE_ID issue_id
+np-capture CLAIM_ID claim_id
+
+exec np issue release --claim $CLAIM_ID
+
+# Second import: the idempotency label matches the existing issue; skip it.
+exec np import jsonl testdata/dedupe.jsonl --author import-agent --json
+stdout '"created": 0'
+stdout '"skipped": 1'
+
+# The skipped_ids array must contain the existing issue's ID — this confirms
+# that the import pipeline reports which existing record was matched.
+stdout '"skipped_ids"'
+stdout $ISSUE_ID
+
+-- testdata/dedupe.jsonl --
+{"idempotency_label":"tracker:dedupe-1","role":"task","title":"Deduplicated task"}

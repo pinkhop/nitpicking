@@ -86,13 +86,8 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 		// Check idempotency label. When the input carries a label, query for
 		// any existing non-deleted issue that already carries the same key:value
 		// pair. If one is found, return it without creating a duplicate.
-		//
-		// Bridge: the label-based lookup below replaces the former
-		// GetIssueByIdempotencyKey column lookup. The storage adapter still
-		// persists the value in the idempotency_key column via Issue.IdempotencyKey();
-		// full removal of that column is scoped to NP-pnw2t. The service-layer
-		// call to domain.NewTask/NewEpic still passes the string form so that
-		// the column continues to be written until migration — replaced in NP-qqs93.
+		// output.Skipped is set so callers (e.g., the import pipeline) can
+		// distinguish a deduplicated return from a fresh creation.
 		if input.IdempotencyLabel.Key() != "" {
 			items, _, err := uow.Issues().ListIssues(ctx,
 				driven.IssueFilter{
@@ -111,6 +106,7 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 					return fmt.Errorf("fetching existing deduplicated issue: %w", getErr)
 				}
 				output.Issue = existing
+				output.Skipped = true
 				return nil
 			}
 		}
@@ -139,13 +135,27 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 		// Merge the idempotency label into the issue's regular label set so
 		// that label-based deduplication lookups (via ListIssues) can find the
 		// issue on a subsequent import. The new design stores the idempotency
-		// label as a normal label rather than in a dedicated column. Using
-		// LabelSetFrom ensures a duplicate key in input.Labels is overwritten
-		// rather than duplicated — consistent with the cross-field validation
-		// rule in the domain layer.
+		// label as a normal label rather than in a dedicated column.
+		//
+		// The idempotency label always wins over a same-key entry in
+		// input.Labels: if it did not, a caller passing K:V1 as the
+		// idempotency label alongside labels containing K:V2 would produce
+		// an issue tagged only with K:V2, and a subsequent create call using
+		// the same K:V1 idempotency label would fail to match and would
+		// create a duplicate — silently breaking the service's idempotency
+		// contract. Import validation rejects this mismatch at the domain
+		// layer, but the service API itself has no such guard.
 		if input.IdempotencyLabel.Key() != "" {
-			labelSet := domain.LabelSetFrom(domainLabels)
-			if _, exists := labelSet.Get(input.IdempotencyLabel.Key()); !exists {
+			key := input.IdempotencyLabel.Key()
+			replaced := false
+			for i, lbl := range domainLabels {
+				if lbl.Key() == key {
+					domainLabels[i] = input.IdempotencyLabel
+					replaced = true
+					break
+				}
+			}
+			if !replaced {
 				domainLabels = append(domainLabels, input.IdempotencyLabel)
 			}
 		}
@@ -163,15 +173,9 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 			}
 		}
 
-		// Create domain.
-		// Bridge: pass the label's string form as IdempotencyKey so that the
-		// idempotency_key column continues to be written until the schema
-		// migration in NP-pnw2t. Full removal of this bridge is scoped to
-		// NP-qqs93 (service layer) and NP-pnw2t (schema migration).
-		idempotencyKeyStr := input.IdempotencyLabel.String()
-		if input.IdempotencyLabel.Key() == "" {
-			idempotencyKeyStr = ""
-		}
+		// Create domain issue. The idempotency label was already merged into
+		// domainLabels above; it is stored as a normal label and found via
+		// label-based deduplication on subsequent imports.
 		var t domain.Issue
 		switch role {
 		case domain.RoleTask:
@@ -184,7 +188,6 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 				ParentID:           parentID,
 				Labels:             domain.LabelSetFrom(domainLabels),
 				CreatedAt:          now,
-				IdempotencyKey:     idempotencyKeyStr,
 			})
 		case domain.RoleEpic:
 			t, err = domain.NewEpic(domain.NewEpicParams{
@@ -196,7 +199,6 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 				ParentID:           parentID,
 				Labels:             domain.LabelSetFrom(domainLabels),
 				CreatedAt:          now,
-				IdempotencyKey:     idempotencyKeyStr,
 			})
 		default:
 			return domain.NewValidationError("role", "must be task or epic")

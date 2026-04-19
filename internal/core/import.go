@@ -79,19 +79,32 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 		// Key the intra-file idempotency-label map by the canonical
 		// "key:value" string so that reference resolution in Phase 2 can
 		// look up created issue IDs by their idempotency label string.
+		// This is done for both new and deduplicated issues so that subsequent
+		// records in the same batch can reference them by label.
 		issueID := createOut.Issue.ID()
 		keyToID[rec.IdempotencyLabel.String()] = issueID
 		output.Results[i] = driving.ImportLineResult{
 			IdempotencyLabel: rec.IdempotencyLabel,
 			IssueID:          issueID,
+			Skipped:          createOut.Skipped,
 		}
-		output.Created++
+		if createOut.Skipped {
+			// The issue already exists; count the skip and do not apply
+			// relationships, comments, or state transitions from this record.
+			// The existing issue is not mutated on re-import.
+			output.Skipped++
+		} else {
+			output.Created++
+		}
 	}
 
 	// Phase 2: add relationships.
 	for i, rec := range input.Records {
 		if output.Results[i].Err != nil {
 			continue // Skip failed issues.
+		}
+		if output.Results[i].Skipped {
+			continue // Skip deduplicated records — the existing issue is not mutated.
 		}
 		issueID := output.Results[i].IssueID
 		if issueID.IsZero() {
@@ -150,6 +163,9 @@ func (s *serviceImpl) ImportIssues(ctx context.Context, input driving.ImportInpu
 	for i, rec := range input.Records {
 		if output.Results[i].Err != nil {
 			continue
+		}
+		if output.Results[i].Skipped {
+			continue // Skip deduplicated records — the existing issue is not mutated.
 		}
 		issueID := output.Results[i].IssueID
 		if issueID.IsZero() {

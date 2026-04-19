@@ -104,10 +104,15 @@ type RelationshipInput struct {
 	TargetID string
 }
 
-// CreateIssueOutput holds the result of creating an domain.
+// CreateIssueOutput holds the result of creating an issue.
+//
+// When Skipped is true, a non-deleted issue carrying the same idempotency
+// label already existed; Issue contains that existing issue and no new issue
+// was created. ClaimID is always empty in the skipped case.
 type CreateIssueOutput struct {
 	Issue   domain.Issue
 	ClaimID string // Non-empty if the issue was created as claimed.
+	Skipped bool   // True if the issue was deduplicated against an existing one.
 }
 
 // ClaimInput holds the parameters for claiming an issue.

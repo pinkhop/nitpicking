@@ -1,0 +1,30 @@
+# Verify that a record specifying idempotency_label with key K and value V1,
+# and also specifying the same key K in labels with a different value V2, is
+# rejected with a clear validation error. The mismatch is ambiguous and must
+# not be silently resolved.
+#
+# Also verifies the inverse: when the key and value match exactly in both
+# idempotency_label and labels, the record is accepted (no-op duplication).
+
+np-init IC
+
+# Conflicting case: idempotency_label has "jira:V1", labels has "jira": "V2".
+! exec np import jsonl testdata/conflict.jsonl --author import-agent
+stderr 'conflicts with labels'
+
+# Same result via --json: validation_failed with a descriptive message.
+exec np import jsonl testdata/conflict.jsonl --author import-agent --json
+stdout '"action": "validation_failed"'
+stdout 'conflicts with labels'
+
+# Non-conflicting case: idempotency_label and labels both specify "jira:match",
+# which is a no-op duplication and must be accepted.
+exec np import jsonl testdata/no_conflict.jsonl --author import-agent --json
+stdout '"action": "imported"'
+stdout '"created": 1'
+
+-- testdata/conflict.jsonl --
+{"role":"task","title":"Conflict task","idempotency_label":"jira:V1","labels":{"jira":"V2"}}
+
+-- testdata/no_conflict.jsonl --
+{"role":"task","title":"No conflict task","idempotency_label":"jira:match","labels":{"jira":"match"}}

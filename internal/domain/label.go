@@ -57,6 +57,9 @@ func (f Label) Key() string { return f.key }
 // Value returns the label value.
 func (f Label) Value() string { return f.value }
 
+// String returns the canonical "key:value" representation of the label.
+func (f Label) String() string { return f.key + ":" + f.value }
+
 // LabelSet is an ordered collection of labels with unique keys. Setting an
 // existing key overwrites the previous value. LabelSet is immutable — all
 // mutation methods return a new LabelSet.

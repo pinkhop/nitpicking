@@ -5,10 +5,6 @@ import (
 	"strings"
 )
 
-// reservedLabelKey is the label key reserved for the idempotency_key virtual
-// label. It must not appear in the labels object of an import line.
-const reservedLabelKey = "idempotency-key"
-
 // importableStates lists the primary lifecycle states that are valid for
 // import. "blocked" is excluded because it is a secondary state computed from
 // relationships, not a primary state. "claimed" is excluded because it is also
@@ -22,15 +18,15 @@ var importableStates = map[string]bool{
 
 // Validate performs a two-pass validation of the given import lines.
 //
-// Pass 1 collects all idempotency keys and their line indices, detecting
+// Pass 1 collects all idempotency labels and their line indices, detecting
 // duplicates. Pass 2 validates each line's fields and resolves references.
 //
 // The prefix parameter is the database's issue ID prefix (e.g., "NP"),
-// used to distinguish issue ID references from idempotency key references.
+// used to distinguish issue ID references from idempotency label references.
 func Validate(lines []RawLine, prefix string) ValidationResult {
 	var result ValidationResult
 
-	// Pass 1: collect idempotency keys and detect duplicates.
+	// Pass 1: collect idempotency labels and detect duplicates.
 	keyIndex := buildKeyIndex(lines, &result)
 
 	// Pass 2: validate each line.
@@ -45,24 +41,49 @@ func Validate(lines []RawLine, prefix string) ValidationResult {
 	return result
 }
 
-// buildKeyIndex maps each idempotency key to its first occurrence line index.
-// Duplicate keys generate errors on the second and subsequent occurrences.
+// buildKeyIndex maps each idempotency label string (key:value) to its first
+// occurrence line index. Duplicate labels generate errors on the second and
+// subsequent occurrences. Lines whose idempotency_label is missing or
+// malformed are skipped here and caught in validateLine.
 func buildKeyIndex(lines []RawLine, result *ValidationResult) map[string]int {
 	keyIndex := make(map[string]int, len(lines))
 	for i, line := range lines {
-		if line.IdempotencyKey == "" {
-			continue // Missing key is caught in validateLine.
+		if line.IdempotencyLabel == "" {
+			continue // Missing label is caught in validateLine.
 		}
-		if _, exists := keyIndex[line.IdempotencyKey]; exists {
+		// Only index well-formed "key:value" strings so that the key index
+		// contains only labels that will actually resolve in reference lookups.
+		if _, _, ok := strings.Cut(line.IdempotencyLabel, ":"); !ok {
+			continue // Malformed label is caught in validateLine.
+		}
+		if _, exists := keyIndex[line.IdempotencyLabel]; exists {
 			result.Errors = append(result.Errors, LineError{
 				Line:    i,
-				Message: fmt.Sprintf("duplicate idempotency_key %q", line.IdempotencyKey),
+				Message: fmt.Sprintf("duplicate idempotency_label %q", line.IdempotencyLabel),
 			})
 		} else {
-			keyIndex[line.IdempotencyKey] = i
+			keyIndex[line.IdempotencyLabel] = i
 		}
 	}
 	return keyIndex
+}
+
+// parseIdempotencyLabel parses a "key:value" string into a domain Label.
+// It returns a non-nil error if the string is empty, missing the colon
+// separator, or contains an invalid key or value.
+func parseIdempotencyLabel(raw string) (Label, error) {
+	if raw == "" {
+		return Label{}, fmt.Errorf("idempotency_label is required")
+	}
+	key, value, ok := strings.Cut(raw, ":")
+	if !ok {
+		return Label{}, fmt.Errorf("idempotency_label must be in key:value format, got %q", raw)
+	}
+	label, err := NewLabel(key, value)
+	if err != nil {
+		return Label{}, fmt.Errorf("idempotency_label %q: %w", raw, err)
+	}
+	return label, nil
 }
 
 // validateLine validates a single import line and returns either a validated
@@ -72,11 +93,12 @@ func validateLine(idx int, line RawLine, prefix string, keyIndex map[string]int,
 	var errs []LineError
 	var record ValidatedRecord
 
-	// Required fields.
-	if line.IdempotencyKey == "" {
-		errs = append(errs, LineError{Line: idx, Message: "idempotency_key is required"})
+	// Required field: idempotency_label.
+	idempotencyLabel, err := parseIdempotencyLabel(line.IdempotencyLabel)
+	if err != nil {
+		errs = append(errs, LineError{Line: idx, Message: err.Error()})
 	} else {
-		record.IdempotencyKey = line.IdempotencyKey
+		record.IdempotencyLabel = idempotencyLabel
 	}
 
 	// Role.
@@ -153,8 +175,13 @@ func validateLine(idx int, line RawLine, prefix string, keyIndex map[string]int,
 		}
 	}
 
-	// Labels.
+	// Labels — validate the labels map, then apply the cross-field rule against
+	// idempotency_label. The cross-field check is only performed when both the
+	// label list and the idempotency label parsed cleanly.
 	record.Labels = validateLabels(idx, line.Labels, &errs)
+	if err == nil {
+		validateIdempotencyLabelConflict(idx, idempotencyLabel, line.Labels, &errs)
+	}
 
 	// References.
 	record.Parent = line.Parent
@@ -167,8 +194,30 @@ func validateLine(idx int, line RawLine, prefix string, keyIndex map[string]int,
 	return record, errs
 }
 
-// validateLabels checks each label key/value pair and rejects the reserved
-// idempotency-key label key.
+// validateIdempotencyLabelConflict checks that the idempotency_label does not
+// conflict with an entry in the labels map. If the labels map contains the
+// same key as the idempotency_label with a different value, the record is
+// rejected — it is ambiguous which value the author intended. If the labels
+// map contains the same key with the same value (a no-op duplicate), validation
+// passes silently; deduplication is handled downstream.
+func validateIdempotencyLabelConflict(idx int, idempotencyLabel Label, labels map[string]string, errs *[]LineError) {
+	labelValue, exists := labels[idempotencyLabel.Key()]
+	if !exists {
+		return
+	}
+	if labelValue != idempotencyLabel.Value() {
+		*errs = append(*errs, LineError{
+			Line: idx,
+			Message: fmt.Sprintf(
+				"idempotency_label key %q conflicts with labels: idempotency_label has value %q but labels has value %q",
+				idempotencyLabel.Key(), idempotencyLabel.Value(), labelValue,
+			),
+		})
+	}
+	// Equal values: silent no-op — downstream deduplication handles it.
+}
+
+// validateLabels checks each label key/value pair for validity.
 func validateLabels(idx int, labels map[string]string, errs *[]LineError) []Label {
 	if len(labels) == 0 {
 		return nil
@@ -176,13 +225,6 @@ func validateLabels(idx int, labels map[string]string, errs *[]LineError) []Labe
 
 	var result []Label
 	for key, value := range labels {
-		if key == reservedLabelKey {
-			*errs = append(*errs, LineError{
-				Line:    idx,
-				Message: fmt.Sprintf("label key %q is reserved; use the top-level idempotency_key field instead", reservedLabelKey),
-			})
-			continue
-		}
 		label, err := NewLabel(key, value)
 		if err != nil {
 			*errs = append(*errs, LineError{Line: idx, Message: fmt.Sprintf("invalid label %q: %s", key+":"+value, err)})
@@ -194,7 +236,7 @@ func validateLabels(idx int, labels map[string]string, errs *[]LineError) []Labe
 }
 
 // validateReferences checks that all reference strings (parent, blocked_by,
-// blocks, refs) resolve to either an intra-file idempotency key or a valid
+// blocks, refs) resolve to either an intra-file idempotency label or a valid
 // issue ID format. Parent references are additionally checked to ensure the
 // target has role "epic" (for intra-file references).
 func validateReferences(idx int, line RawLine, prefix string, keyIndex map[string]int, allLines []RawLine, errs *[]LineError) {
@@ -214,7 +256,7 @@ func validateReferences(idx int, line RawLine, prefix string, keyIndex map[strin
 		} else {
 			*errs = append(*errs, LineError{
 				Line:    idx,
-				Message: fmt.Sprintf("unresolvable parent reference %q: not an intra-file idempotency key or valid issue ID", line.Parent),
+				Message: fmt.Sprintf("unresolvable parent reference %q: not an intra-file idempotency label or valid issue ID", line.Parent),
 			})
 		}
 	}
@@ -236,7 +278,7 @@ func validateReferences(idx int, line RawLine, prefix string, keyIndex map[strin
 }
 
 // validateRef checks that a single reference string resolves to either an
-// intra-file idempotency key or a valid issue ID format.
+// intra-file idempotency label or a valid issue ID format.
 func validateRef(idx int, field, ref, prefix string, keyIndex map[string]int, errs *[]LineError) {
 	if ref == "" {
 		*errs = append(*errs, LineError{
@@ -256,7 +298,7 @@ func validateRef(idx int, field, ref, prefix string, keyIndex map[string]int, er
 
 	*errs = append(*errs, LineError{
 		Line:    idx,
-		Message: fmt.Sprintf("unresolvable %s reference %q: not an intra-file idempotency key or valid issue ID", field, ref),
+		Message: fmt.Sprintf("unresolvable %s reference %q: not an intra-file idempotency label or valid issue ID", field, ref),
 	})
 }
 

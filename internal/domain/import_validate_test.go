@@ -8,7 +8,7 @@ import (
 
 // --- Required fields ---
 
-func TestValidate_MissingIdempotencyKey_ReturnsError(t *testing.T) {
+func TestValidate_MissingIdempotencyLabel_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -21,9 +21,9 @@ func TestValidate_MissingIdempotencyKey_ReturnsError(t *testing.T) {
 
 	// Then
 	if len(result.Errors) == 0 {
-		t.Fatal("expected validation errors for missing idempotency_key")
+		t.Fatal("expected validation errors for missing idempotency_label")
 	}
-	assertLineError(t, result.Errors, 0, "idempotency_key")
+	assertLineError(t, result.Errors, 0, "idempotency_label")
 }
 
 func TestValidate_MissingRole_ReturnsError(t *testing.T) {
@@ -31,7 +31,7 @@ func TestValidate_MissingRole_ReturnsError(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Title: "A task"},
+		{IdempotencyLabel: "jira:KEY-1", Title: "A task"},
 	}
 
 	// When
@@ -49,7 +49,7 @@ func TestValidate_MissingTitle_ReturnsError(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task"},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task"},
 	}
 
 	// When
@@ -69,7 +69,7 @@ func TestValidate_MinimalValidLine_Succeeds(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task"},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task"},
 	}
 
 	// When
@@ -84,6 +84,73 @@ func TestValidate_MinimalValidLine_Succeeds(t *testing.T) {
 	}
 }
 
+// --- Idempotency label is stored as a parsed Label ---
+
+func TestValidate_ValidLine_IdempotencyLabelParsedCorrectly(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	lines := []domain.RawLine{
+		{IdempotencyLabel: "jira:PKHP-1234", Role: "task", Title: "A task"},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then
+	if len(result.Errors) != 0 {
+		t.Fatalf("expected no errors, got %v", result.Errors)
+	}
+	if len(result.Records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(result.Records))
+	}
+	got := result.Records[0].IdempotencyLabel
+	if got.Key() != "jira" {
+		t.Errorf("expected IdempotencyLabel.Key() = %q, got %q", "jira", got.Key())
+	}
+	if got.Value() != "PKHP-1234" {
+		t.Errorf("expected IdempotencyLabel.Value() = %q, got %q", "PKHP-1234", got.Value())
+	}
+}
+
+// --- idempotency_label format validation ---
+
+func TestValidate_IdempotencyLabelMissingColon_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given — idempotency_label without the required key:value colon separator.
+	lines := []domain.RawLine{
+		{IdempotencyLabel: "nokeyvalue", Role: "task", Title: "A task"},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then
+	if len(result.Errors) == 0 {
+		t.Fatal("expected validation error for idempotency_label without colon")
+	}
+	assertLineError(t, result.Errors, 0, "idempotency_label")
+}
+
+func TestValidate_IdempotencyLabelInvalidKey_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given — key starts with a digit, violating label key rules.
+	lines := []domain.RawLine{
+		{IdempotencyLabel: "1bad:value", Role: "task", Title: "A task"},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then
+	if len(result.Errors) == 0 {
+		t.Fatal("expected validation error for idempotency_label with invalid key")
+	}
+	assertLineError(t, result.Errors, 0, "idempotency_label")
+}
+
 // --- Field value validation ---
 
 func TestValidate_InvalidRole_ReturnsError(t *testing.T) {
@@ -91,7 +158,7 @@ func TestValidate_InvalidRole_ReturnsError(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "story", Title: "A story"},
+		{IdempotencyLabel: "jira:KEY-1", Role: "story", Title: "A story"},
 	}
 
 	// When
@@ -109,7 +176,7 @@ func TestValidate_InvalidPriority_ReturnsError(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", Priority: "P9"},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", Priority: "P9"},
 	}
 
 	// When
@@ -127,7 +194,7 @@ func TestValidate_ValidPriority_Succeeds(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", Priority: "P0"},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", Priority: "P0"},
 	}
 
 	// When
@@ -144,7 +211,7 @@ func TestValidate_InvalidState_ReturnsError(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", State: "claimed"},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", State: "claimed"},
 	}
 
 	// When
@@ -162,7 +229,7 @@ func TestValidate_BlockedState_ReturnsError(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", State: "blocked"},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", State: "blocked"},
 	}
 
 	// When
@@ -182,7 +249,7 @@ func TestValidate_ClaimTrueWithOpenState_Succeeds(t *testing.T) {
 
 	// Given — claim: true is allowed when state is open.
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", Claim: true},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", Claim: true},
 	}
 
 	// When
@@ -202,7 +269,7 @@ func TestValidate_ClaimTrueWithExplicitOpenState_Succeeds(t *testing.T) {
 
 	// Given — claim: true with explicit state: open.
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", State: "open", Claim: true},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", State: "open", Claim: true},
 	}
 
 	// When
@@ -222,7 +289,7 @@ func TestValidate_ClaimTrueWithClosedState_ReturnsError(t *testing.T) {
 
 	// Given — claim: true is not valid for closed state.
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", State: "closed", Claim: true},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", State: "closed", Claim: true},
 	}
 
 	// When
@@ -240,7 +307,7 @@ func TestValidate_ClaimTrueWithDeferredState_ReturnsError(t *testing.T) {
 
 	// Given — claim: true is not valid for deferred state.
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", State: "deferred", Claim: true},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", State: "deferred", Claim: true},
 	}
 
 	// When
@@ -272,7 +339,7 @@ func TestValidate_ValidStates_Succeeds(t *testing.T) {
 
 			// Given
 			lines := []domain.RawLine{
-				{IdempotencyKey: "key-1", Role: "task", Title: "A task", State: tc.state},
+				{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", State: tc.state},
 			}
 
 			// When
@@ -286,15 +353,15 @@ func TestValidate_ValidStates_Succeeds(t *testing.T) {
 	}
 }
 
-// --- Idempotency key uniqueness ---
+// --- Idempotency label uniqueness ---
 
-func TestValidate_DuplicateIdempotencyKey_ReturnsError(t *testing.T) {
+func TestValidate_DuplicateIdempotencyLabel_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "dup-key", Role: "task", Title: "First"},
-		{IdempotencyKey: "dup-key", Role: "task", Title: "Second"},
+		{IdempotencyLabel: "jira:DUP-1", Role: "task", Title: "First"},
+		{IdempotencyLabel: "jira:DUP-1", Role: "task", Title: "Second"},
 	}
 
 	// When
@@ -302,23 +369,23 @@ func TestValidate_DuplicateIdempotencyKey_ReturnsError(t *testing.T) {
 
 	// Then
 	if len(result.Errors) == 0 {
-		t.Fatal("expected validation error for duplicate idempotency_key")
+		t.Fatal("expected validation error for duplicate idempotency_label")
 	}
-	assertLineError(t, result.Errors, 1, "idempotency_key")
+	assertLineError(t, result.Errors, 1, "idempotency_label")
 }
 
-// --- Label validation ---
+// --- Cross-field validation: idempotency_label vs labels ---
 
-func TestValidate_ReservedIdempotencyKeyLabel_ReturnsError(t *testing.T) {
+func TestValidate_IdempotencyLabelConflictsWithLabels_DifferentValue_ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	// Given
+	// Given — idempotency_label is "jira:V1" but labels has jira:V2.
 	lines := []domain.RawLine{
 		{
-			IdempotencyKey: "key-1",
-			Role:           "task",
-			Title:          "A task",
-			Labels:         map[string]string{"idempotency-key": "some-value"},
+			IdempotencyLabel: "jira:V1",
+			Role:             "task",
+			Title:            "A task",
+			Labels:           map[string]string{"jira": "V2"},
 		},
 	}
 
@@ -327,9 +394,113 @@ func TestValidate_ReservedIdempotencyKeyLabel_ReturnsError(t *testing.T) {
 
 	// Then
 	if len(result.Errors) == 0 {
-		t.Fatal("expected validation error for reserved idempotency-key label")
+		t.Fatal("expected validation error for conflicting idempotency_label and labels entry")
 	}
-	assertLineError(t, result.Errors, 0, "idempotency-key")
+	assertLineError(t, result.Errors, 0, "jira")
+}
+
+func TestValidate_IdempotencyLabelMatchesLabels_SameValue_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — idempotency_label is "jira:V1" and labels also has jira:V1 (no-op duplicate).
+	lines := []domain.RawLine{
+		{
+			IdempotencyLabel: "jira:V1",
+			Role:             "task",
+			Title:            "A task",
+			Labels:           map[string]string{"jira": "V1"},
+		},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then
+	if len(result.Errors) != 0 {
+		t.Fatalf("expected no errors for matching idempotency_label and labels entry, got %v", result.Errors)
+	}
+}
+
+func TestValidate_IdempotencyLabelMatchingLabels_ProducesExactlyOneLabel(t *testing.T) {
+	t.Parallel()
+
+	// Given — idempotency_label "jira:V1" and labels with jira:V1 (duplicate no-op).
+	// The validated record's Labels slice should not double-insert the label.
+	lines := []domain.RawLine{
+		{
+			IdempotencyLabel: "jira:V1",
+			Role:             "task",
+			Title:            "A task",
+			Labels:           map[string]string{"jira": "V1"},
+		},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then — validation succeeds and the labels slice contains jira:V1 exactly once.
+	if len(result.Errors) != 0 {
+		t.Fatalf("expected no errors, got %v", result.Errors)
+	}
+	if len(result.Records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(result.Records))
+	}
+	labels := result.Records[0].Labels
+	count := 0
+	for _, l := range labels {
+		if l.Key() == "jira" && l.Value() == "V1" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected exactly 1 jira:V1 label in record, got %d", count)
+	}
+}
+
+func TestValidate_IdempotencyLabelKeyNotInLabels_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — idempotency_label uses a key that does not appear in labels.
+	lines := []domain.RawLine{
+		{
+			IdempotencyLabel: "jira:KEY-1",
+			Role:             "task",
+			Title:            "A task",
+			Labels:           map[string]string{"kind": "bug"},
+		},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then
+	if len(result.Errors) != 0 {
+		t.Fatalf("expected no errors, got %v", result.Errors)
+	}
+}
+
+// --- Label validation ---
+
+func TestValidate_FormerlyReservedIdempotencyKeyLabel_IsNowAllowed(t *testing.T) {
+	t.Parallel()
+
+	// Given — "idempotency-key" was previously reserved; it is now a normal label key.
+	lines := []domain.RawLine{
+		{
+			IdempotencyLabel: "jira:KEY-1",
+			Role:             "task",
+			Title:            "A task",
+			Labels:           map[string]string{"idempotency-key": "some-value"},
+		},
+	}
+
+	// When
+	result := domain.Validate(lines, "NP")
+
+	// Then — no error; "idempotency-key" is no longer a reserved key.
+	if len(result.Errors) != 0 {
+		t.Fatalf("expected no errors — idempotency-key is no longer reserved, got %v", result.Errors)
+	}
 }
 
 func TestValidate_InvalidLabelKey_ReturnsError(t *testing.T) {
@@ -338,10 +509,10 @@ func TestValidate_InvalidLabelKey_ReturnsError(t *testing.T) {
 	// Given
 	lines := []domain.RawLine{
 		{
-			IdempotencyKey: "key-1",
-			Role:           "task",
-			Title:          "A task",
-			Labels:         map[string]string{"": "value"},
+			IdempotencyLabel: "jira:KEY-1",
+			Role:             "task",
+			Title:            "A task",
+			Labels:           map[string]string{"": "value"},
 		},
 	}
 
@@ -362,7 +533,7 @@ func TestValidate_InvalidAuthor_ReturnsError(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", Author: ""},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", Author: ""},
 	}
 
 	// When — empty author is allowed (defaults to command-line author).
@@ -376,13 +547,13 @@ func TestValidate_InvalidAuthor_ReturnsError(t *testing.T) {
 
 // --- Reference resolution: intra-file ---
 
-func TestValidate_ParentRefToIntraFileKey_Succeeds(t *testing.T) {
+func TestValidate_ParentRefToIntraFileLabel_Succeeds(t *testing.T) {
 	t.Parallel()
 
-	// Given
+	// Given — parent references the idempotency_label of an intra-file epic.
 	lines := []domain.RawLine{
-		{IdempotencyKey: "child-1", Role: "task", Title: "Child task", Parent: "parent-epic"},
-		{IdempotencyKey: "parent-epic", Role: "epic", Title: "Parent epic"},
+		{IdempotencyLabel: "jira:CHILD-1", Role: "task", Title: "Child task", Parent: "jira:PARENT-EPIC"},
+		{IdempotencyLabel: "jira:PARENT-EPIC", Role: "epic", Title: "Parent epic"},
 	}
 
 	// When
@@ -399,8 +570,8 @@ func TestValidate_ParentRefToTaskRole_ReturnsError(t *testing.T) {
 
 	// Given — parent references a task, not an epic.
 	lines := []domain.RawLine{
-		{IdempotencyKey: "child-1", Role: "task", Title: "Child task", Parent: "parent-task"},
-		{IdempotencyKey: "parent-task", Role: "task", Title: "A task, not an epic"},
+		{IdempotencyLabel: "jira:CHILD-1", Role: "task", Title: "Child task", Parent: "jira:PARENT-TASK"},
+		{IdempotencyLabel: "jira:PARENT-TASK", Role: "task", Title: "A task, not an epic"},
 	}
 
 	// When
@@ -418,7 +589,7 @@ func TestValidate_UnresolvableRef_ReturnsError(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", BlockedBy: []string{"nonexistent"}},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", BlockedBy: []string{"jira:NONEXISTENT"}},
 	}
 
 	// When
@@ -436,8 +607,8 @@ func TestValidate_BlockedByIntraFile_Succeeds(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "blocker", Role: "task", Title: "Blocker"},
-		{IdempotencyKey: "blocked", Role: "task", Title: "Blocked task", BlockedBy: []string{"blocker"}},
+		{IdempotencyLabel: "jira:BLOCKER-1", Role: "task", Title: "Blocker"},
+		{IdempotencyLabel: "jira:BLOCKED-1", Role: "task", Title: "Blocked task", BlockedBy: []string{"jira:BLOCKER-1"}},
 	}
 
 	// When
@@ -454,8 +625,8 @@ func TestValidate_BlocksIntraFile_Succeeds(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "blocker", Role: "task", Title: "Blocker", Blocks: []string{"blocked"}},
-		{IdempotencyKey: "blocked", Role: "task", Title: "Blocked task"},
+		{IdempotencyLabel: "jira:BLOCKER-1", Role: "task", Title: "Blocker", Blocks: []string{"jira:BLOCKED-1"}},
+		{IdempotencyLabel: "jira:BLOCKED-1", Role: "task", Title: "Blocked task"},
 	}
 
 	// When
@@ -472,8 +643,8 @@ func TestValidate_RefsIntraFile_Succeeds(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "a", Role: "task", Title: "Task A", Refs: []string{"b"}},
-		{IdempotencyKey: "b", Role: "task", Title: "Task B"},
+		{IdempotencyLabel: "jira:A-1", Role: "task", Title: "Task A", Refs: []string{"jira:B-1"}},
+		{IdempotencyLabel: "jira:B-1", Role: "task", Title: "Task B"},
 	}
 
 	// When
@@ -492,7 +663,7 @@ func TestValidate_ParentRefToIssueID_Succeeds(t *testing.T) {
 
 	// Given — reference looks like an issue ID matching the prefix.
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", Parent: "NP-a3bxr"},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", Parent: "NP-a3bxr"},
 	}
 
 	// When — issue ID format refs are accepted without intra-file resolution.
@@ -509,7 +680,7 @@ func TestValidate_BlockedByIssueID_Succeeds(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "key-1", Role: "task", Title: "A task", BlockedBy: []string{"NP-a3bxr"}},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", BlockedBy: []string{"NP-a3bxr"}},
 	}
 
 	// When
@@ -534,7 +705,7 @@ func TestValidate_MultipleErrorsOnOneLine_ReportsAll(t *testing.T) {
 	// When
 	result := domain.Validate(lines, "NP")
 
-	// Then — should report errors for idempotency_key, role, and title.
+	// Then — should report errors for idempotency_label, role, and title.
 	if len(result.Errors) < 3 {
 		t.Fatalf("expected at least 3 errors, got %d: %v", len(result.Errors), result.Errors)
 	}
@@ -547,8 +718,8 @@ func TestValidate_MixedValidAndInvalidLines_ReportsErrorsForInvalidOnly(t *testi
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyKey: "good", Role: "task", Title: "Valid task"},
-		{IdempotencyKey: "bad", Role: "invalid", Title: "Invalid role"},
+		{IdempotencyLabel: "jira:GOOD-1", Role: "task", Title: "Valid task"},
+		{IdempotencyLabel: "jira:BAD-1", Role: "invalid", Title: "Invalid role"},
 	}
 
 	// When

@@ -2358,11 +2358,11 @@ $ np import jsonl migration.jsonl --author alice --force-author --json
 **Notes:**
 
 - The JSONL format is documented in `docs/developer/jsonl-import-format.md`.
-- Import is idempotent: re-importing a file with the same `idempotency_key` values skips already-imported issues.
+- Import is idempotent: each line carries a required `idempotency_label` (a `key:value` string), and re-importing a file skips lines whose `idempotency_label` is already present as a label on a non-deleted issue.
 - Validation runs before any database mutations. If any line fails validation, no issues are created.
 - Per-line `author` fields override the `--author` default unless `--force-author` is set.
 - Issues can be imported in `open`, `deferred`, or `closed` state. The `claimed` and `blocked` states are not valid for import.
-- References between issues (parent, blocked_by, blocks, refs) can use intra-file idempotency keys or existing np issue IDs.
+- References between issues (parent, blocked_by, blocks, refs) can use intra-file `idempotency_label` values or existing np issue IDs.
 
 ---
 

@@ -105,7 +105,7 @@ func TestJSONLRun_SingleTask_ImportsSuccessfully(t *testing.T) {
 	// Given: a JSONL reader with one valid task line.
 	svc := setupService(t)
 	var out bytes.Buffer
-	input := `{"role":"task","title":"Test task","idempotency_key":"key-1"}` + "\n"
+	input := `{"role":"task","title":"Test task","idempotency_label":"jira:key-1"}` + "\n"
 
 	// When: JSONLRun is called.
 	err := importcmd.JSONLRun(t.Context(), importcmd.JSONLRunInput{
@@ -132,7 +132,7 @@ func TestJSONLRun_SingleTask_JSON_ReturnsCreatedCount(t *testing.T) {
 	// Given: a JSONL reader with one valid task line and JSON output enabled.
 	svc := setupService(t)
 	var out bytes.Buffer
-	input := `{"role":"task","title":"Test task","idempotency_key":"key-2"}` + "\n"
+	input := `{"role":"task","title":"Test task","idempotency_label":"jira:key-2"}` + "\n"
 
 	// When: JSONLRun is called with JSON=true.
 	err := importcmd.JSONLRun(t.Context(), importcmd.JSONLRunInput{

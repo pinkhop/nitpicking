@@ -10,4 +10,4 @@ exec np issue search "Commented import" --json
 ! np-json-array-len items 0
 
 -- testdata/with_comment.jsonl --
-{"idempotency_key":"comment-1","role":"task","title":"Commented import","comment":"Migrated from external tracker."}
+{"idempotency_label":"tracker:comment-1","role":"task","title":"Commented import","comment":"Migrated from external tracker."}

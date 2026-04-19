@@ -1,24 +1,25 @@
 # Verify that --label idempotency-key:<value> filters against the
 # idempotency_key column, and --label idempotency-key:* matches any
 # issue with an idempotency key.
-# Uses import jsonl because idempotency_key is only available via import.
+# The idempotency_key column is populated via the idempotency_label field
+# in import JSONL; the stored value is the full "key:value" label string.
 
 np-init VL
-exec np import jsonl testdata/with_key.jsonl --author vl-agent --json
+exec np import jsonl testdata/with_label.jsonl --author vl-agent --json
 stdin input2.json
 exec np json create --author vl-agent
 
-# Exact value match.
-exec np list --ready --label idempotency-key:abc --json
+# Exact value match — the stored column value is the full idempotency_label string.
+exec np list --ready --label idempotency-key:jira:abc --json
 np-json-array-len items 1
-stdout 'With key'
+stdout 'With label'
 
 # Wildcard match — any issue with an idempotency key.
 exec np list --ready --label idempotency-key:* --json
 np-json-array-len items 1
-stdout 'With key'
+stdout 'With label'
 
--- testdata/with_key.jsonl --
-{"role":"task","title":"With key","idempotency_key":"abc"}
+-- testdata/with_label.jsonl --
+{"role":"task","title":"With label","idempotency_label":"jira:abc"}
 -- input2.json --
-{"role":"task","title":"Without key"}
+{"role":"task","title":"Without label"}

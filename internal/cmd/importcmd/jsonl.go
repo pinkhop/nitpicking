@@ -153,7 +153,7 @@ func writeImportResult(input JSONLRunInput, result driving.ImportOutput) error {
 		_, _ = fmt.Fprintf(input.WriteTo, "  Failed: %d\n", result.Failed)
 		for _, r := range result.Results {
 			if r.Err != nil {
-				_, _ = fmt.Fprintf(input.ErrWriteTo, "  %s: %s\n", r.IdempotencyKey, r.Err)
+				_, _ = fmt.Fprintf(input.ErrWriteTo, "  %s: %s\n", r.IdempotencyLabel.String(), r.Err)
 			}
 		}
 	}

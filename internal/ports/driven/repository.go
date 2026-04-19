@@ -282,10 +282,6 @@ type IssueRepository interface {
 	// across non-deleted issues.
 	ListDistinctLabels(ctx context.Context) ([]domain.Label, error)
 
-	// GetIssueByIdempotencyKey retrieves an issue by its idempotency key.
-	// Returns domain.ErrNotFound if no issue exists with that key.
-	GetIssueByIdempotencyKey(ctx context.Context, key string) (domain.Issue, error)
-
 	// GetIssueSummary returns aggregate issue counts by primary state and
 	// computed readiness/blocked status. Excludes soft-deleted issues. Ready
 	// and blocked counts follow the same rules as the Ready and Blocked
@@ -406,6 +402,11 @@ type DatabaseRepository interface {
 	// table where the key matches a virtual label key (e.g., "idempotency-key").
 	// Virtual labels should be stored in their respective columns, not in
 	// the labels table — any rows found indicate data integrity issues.
+	//
+	// Scheduled for removal: this method and the virtual-label machinery it
+	// supports will be deleted in the doctor-check cleanup child task
+	// (NP-fc61g) once the virtual-label column is dropped. Do not add new
+	// callers.
 	CountVirtualLabelsInTable(ctx context.Context) (int, error)
 
 	// GetSchemaVersion returns the schema version stored in the metadata table.

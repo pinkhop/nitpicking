@@ -322,9 +322,13 @@ func seedDatabase(t *testing.T, env *boundaryEnv) seedResult {
 	// Add a comment to the closed task too.
 	env.addComment(t, r.closedTask, "Post-close comment")
 
-	// --- Idempotency key ---
+	// --- Idempotency label ---
+	idemLabel, err := domain.NewLabel("uniquekey", "12345")
+	if err != nil {
+		t.Fatalf("building idempotency label: %v", err)
+	}
 	r.idempotentTask = env.createTask(t, "Idempotent task", func(in *driving.CreateIssueInput) {
-		in.IdempotencyKey = "unique-key-12345"
+		in.IdempotencyLabel = idemLabel
 	})
 
 	// --- Rich history via updates ---

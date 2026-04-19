@@ -203,7 +203,7 @@ type Service interface {
 	// --- Schema Migration ---
 
 	// CheckSchemaVersion returns nil when the database is at the current
-	// schema version (v2). It returns a wrapped domain.ErrSchemaMigrationRequired
+	// schema version (v3). It returns a wrapped domain.ErrSchemaMigrationRequired
 	// when the schema is at an older version. Commands that gate on schema
 	// version call this method rather than accessing the storage adapter directly.
 	CheckSchemaVersion(ctx context.Context) error
@@ -215,4 +215,13 @@ type Service interface {
 	// from a migration that made changes. Returns a MigrationResult with row
 	// counts for each migration step.
 	MigrateV1ToV2(ctx context.Context) (MigrationResult, error)
+
+	// MigrateV2ToV3 upgrades a v2 database to v3 schema in a single atomic
+	// transaction. The migration carries each non-NULL idempotency_key column
+	// value forward as an idempotency:<value> label row (skip-on-conflict policy),
+	// drops the idx_issues_idempotency unique index and the idempotency_key column,
+	// and records schema_version=3. Callers should call CheckSchemaVersion first to
+	// distinguish the "already current" case. Returns a MigrationResult with counts
+	// for migrated, skipped, and invalid rows.
+	MigrateV2ToV3(ctx context.Context) (MigrationResult, error)
 }

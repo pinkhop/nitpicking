@@ -3191,14 +3191,14 @@ func (s *serviceImpl) ResetDatabase(ctx context.Context) error {
 
 // --- Schema Migration ---
 
-// errNoMigrator is returned by CheckSchemaVersion and MigrateV1ToV2 when the
-// service was constructed without a Migrator (e.g., in tests backed by the
-// in-memory adapter).
+// errNoMigrator is returned by CheckSchemaVersion, MigrateV1ToV2, and
+// MigrateV2ToV3 when the service was constructed without a Migrator (e.g., in
+// tests backed by the in-memory adapter).
 var errNoMigrator = errors.New("schema migration is not supported by the backing store")
 
 // CheckSchemaVersion delegates to the Migrator port to verify the database
-// schema version. It returns nil on a v2 database and a wrapped
-// domain.ErrSchemaMigrationRequired on a v1 database.
+// schema version. It returns nil on a v3 database and a wrapped
+// domain.ErrSchemaMigrationRequired on any older version.
 func (s *serviceImpl) CheckSchemaVersion(ctx context.Context) error {
 	if s.migrator == nil {
 		return errNoMigrator
@@ -3222,6 +3222,25 @@ func (s *serviceImpl) MigrateV1ToV2(ctx context.Context) (driving.MigrationResul
 		ClaimedIssuesConverted:        r.ClaimedIssuesConverted,
 		HistoryRowsRemoved:            r.HistoryRowsRemoved,
 		LegacyRelationshipsTranslated: r.LegacyRelationshipsTranslated,
+	}, nil
+}
+
+// MigrateV2ToV3 delegates the v2→v3 schema migration to the Migrator port.
+// It carries non-NULL idempotency_key column values forward as label rows,
+// drops the unique index and column, and records schema_version=3 — all within
+// a single atomic transaction.
+func (s *serviceImpl) MigrateV2ToV3(ctx context.Context) (driving.MigrationResult, error) {
+	if s.migrator == nil {
+		return driving.MigrationResult{}, errNoMigrator
+	}
+	r, err := s.migrator.MigrateV2ToV3(ctx)
+	if err != nil {
+		return driving.MigrationResult{}, err
+	}
+	return driving.MigrationResult{
+		IdempotencyKeysMigrated:   r.IdempotencyKeysMigrated,
+		IdempotencyKeysSkipped:    r.IdempotencyKeysSkipped,
+		InvalidLabelValuesSkipped: r.InvalidLabelValuesSkipped,
 	}, nil
 }
 

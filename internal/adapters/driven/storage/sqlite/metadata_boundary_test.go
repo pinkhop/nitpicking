@@ -238,22 +238,22 @@ func TestBoundary_CountDeletedRatio_MixedIssues_ReflectsCorrectRatio(t *testing.
 
 // --- GetSchemaVersion ---
 
-// TestBoundary_GetSchemaVersion_NewDatabase_ReturnsTwo verifies that a database
-// created and initialised via the normal path reports schema version 2.
-func TestBoundary_GetSchemaVersion_NewDatabase_ReturnsTwo(t *testing.T) {
-	// Given — a freshly created and initialised v2 database.
+// TestBoundary_GetSchemaVersion_NewDatabase_ReturnsThree verifies that a database
+// created and initialised via the normal path reports schema version 3.
+func TestBoundary_GetSchemaVersion_NewDatabase_ReturnsThree(t *testing.T) {
+	// Given — a freshly created and initialised v3 database.
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
 
 	// When — GetSchemaVersion is read through the Doctor diagnostic path.
 	doctorOut, err := svc.Doctor(ctx, driving.DoctorInput{})
-	// Then — no schema_migration_required finding, confirming version is 2.
+	// Then — no schema_migration_required finding, confirming version is 3.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	for _, f := range doctorOut.Findings {
 		if f.Category == "schema_migration_required" {
-			t.Errorf("unexpected schema_migration_required finding on v2 database: %s", f.Message)
+			t.Errorf("unexpected schema_migration_required finding on v3 database: %s", f.Message)
 		}
 	}
 }
@@ -287,11 +287,11 @@ func TestBoundary_GetSchemaVersion_V1Database_ReturnsZero(t *testing.T) {
 
 // --- CheckSchemaVersion ---
 
-// TestBoundary_CheckSchemaVersion_V2Database_ReturnsNil verifies that
-// CheckSchemaVersion succeeds on a properly initialised v2 database.
-func TestBoundary_CheckSchemaVersion_V2Database_ReturnsNil(t *testing.T) {
-	// Given — a freshly created and initialised v2 database.
-	dbPath := t.TempDir() + "/v2.db"
+// TestBoundary_CheckSchemaVersion_V3Database_ReturnsNil verifies that
+// CheckSchemaVersion succeeds on a properly initialised v3 database.
+func TestBoundary_CheckSchemaVersion_V3Database_ReturnsNil(t *testing.T) {
+	// Given — a freshly created and initialised v3 database.
+	dbPath := t.TempDir() + "/v3.db"
 	store, err := sqlite.Create(dbPath)
 	if err != nil {
 		t.Fatalf("precondition: creating database: %v", err)
@@ -308,13 +308,13 @@ func TestBoundary_CheckSchemaVersion_V2Database_ReturnsNil(t *testing.T) {
 	err = store.CheckSchemaVersion(ctx)
 	// Then — no error is returned.
 	if err != nil {
-		t.Errorf("expected nil from CheckSchemaVersion on v2 database, got: %v", err)
+		t.Errorf("expected nil from CheckSchemaVersion on v3 database, got: %v", err)
 	}
 }
 
 // TestBoundary_CheckSchemaVersion_V1Database_ReturnsError verifies that
 // CheckSchemaVersion returns an error wrapping ErrSchemaMigrationRequired when
-// the database has no schema_version key.
+// the database has no schema_version key (v1 state).
 func TestBoundary_CheckSchemaVersion_V1Database_ReturnsError(t *testing.T) {
 	// Given — a v1-style database without a schema_version key.
 	store, _ := createV1Database(t)
@@ -332,11 +332,45 @@ func TestBoundary_CheckSchemaVersion_V1Database_ReturnsError(t *testing.T) {
 	}
 }
 
+// TestBoundary_CheckSchemaVersion_V2Database_ReturnsError verifies that
+// CheckSchemaVersion returns an error wrapping ErrSchemaMigrationRequired on
+// a database at schema version 2 (needs the v2→v3 migration).
+func TestBoundary_CheckSchemaVersion_V2Database_ReturnsError(t *testing.T) {
+	// Given — a v2-style database: schema applied, schema_version=2 set, but
+	// not yet migrated to v3. We use a raw connection to insert the old
+	// schema_version value without going through the normal init path.
+	store, dbPath := createV1Database(t)
+	ctx := context.Background()
+
+	// Write schema_version=2 to place the database in the v2-needs-upgrade state.
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadWrite)
+	if err != nil {
+		t.Fatalf("precondition: opening raw connection: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO metadata (key, value) VALUES ('schema_version', '2')`, nil); err != nil {
+		t.Fatalf("precondition: setting schema_version=2: %v", err)
+	}
+
+	// When — CheckSchemaVersion is called.
+	err = store.CheckSchemaVersion(ctx)
+
+	// Then — an error is returned and it wraps ErrSchemaMigrationRequired.
+	if err == nil {
+		t.Fatal("expected error from CheckSchemaVersion on v2 database, got nil")
+	}
+	if !errors.Is(err, domain.ErrSchemaMigrationRequired) {
+		t.Errorf("expected error wrapping ErrSchemaMigrationRequired, got: %T — %v", err, err)
+	}
+}
+
 // --- SetSchemaVersion ---
 
 // TestBoundary_SetSchemaVersion_WritesVersionToMetadataTable verifies that
 // SetSchemaVersion inserts the schema_version key and that CheckSchemaVersion
-// subsequently passes for a database that started at v1.
+// subsequently passes for a database that was at v1 after writing version 3.
 func TestBoundary_SetSchemaVersion_WritesVersionToMetadataTable(t *testing.T) {
 	// Given — a v1-style database (schema applied, prefix set, no schema_version key).
 	store, _ := createV1Database(t)
@@ -347,9 +381,9 @@ func TestBoundary_SetSchemaVersion_WritesVersionToMetadataTable(t *testing.T) {
 		t.Fatal("precondition: expected v1 database to fail CheckSchemaVersion before migration")
 	}
 
-	// When — SetSchemaVersion is called within a transaction to record v2.
+	// When — SetSchemaVersion is called within a transaction to record v3.
 	err := store.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
-		return uow.Database().SetSchemaVersion(ctx, 2)
+		return uow.Database().SetSchemaVersion(ctx, 3)
 	})
 	// Then — no error from the transaction.
 	if err != nil {
@@ -358,7 +392,7 @@ func TestBoundary_SetSchemaVersion_WritesVersionToMetadataTable(t *testing.T) {
 
 	// And — CheckSchemaVersion now reports success.
 	if err := store.CheckSchemaVersion(ctx); err != nil {
-		t.Errorf("expected CheckSchemaVersion to pass after SetSchemaVersion(2), got: %v", err)
+		t.Errorf("expected CheckSchemaVersion to pass after SetSchemaVersion(3), got: %v", err)
 	}
 }
 
@@ -436,7 +470,8 @@ func createV1DatabaseWithClaimedIssues(t *testing.T) (*sqlite.Store, string) {
 
 // TestBoundary_MigrateV1ToV2_V1WithClaimedIssues_MigratesAtomically verifies
 // that MigrateV1ToV2 converts claimed issues to open, removes obsolete history
-// rows, and marks the database as v2.
+// rows, and marks the database as v2 (which requires a further v2→v3 migration
+// before CheckSchemaVersion will report success).
 func TestBoundary_MigrateV1ToV2_V1WithClaimedIssues_MigratesAtomically(t *testing.T) {
 	// Given — a v1 database with two claimed issues and three obsolete history rows.
 	store, dbPath := createV1DatabaseWithClaimedIssues(t)
@@ -462,17 +497,27 @@ func TestBoundary_MigrateV1ToV2_V1WithClaimedIssues_MigratesAtomically(t *testin
 		t.Errorf("HistoryRowsRemoved: got %d, want 3", result.HistoryRowsRemoved)
 	}
 
-	// The database now passes the schema version check.
-	if err := store.CheckSchemaVersion(ctx); err != nil {
-		t.Errorf("expected CheckSchemaVersion to pass after migration, got: %v", err)
-	}
-
-	// Confirm the issues were converted by querying the raw database.
+	// Confirm the migration wrote schema_version=2 by querying the raw database.
+	// CheckSchemaVersion is not used here because v2 is no longer the current
+	// version — the database still needs the v2→v3 migration.
 	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
 	if err != nil {
 		t.Fatalf("opening raw connection for verification: %v", err)
 	}
 	defer func() { _ = conn.Close() }()
+
+	var schemaVersion int
+	if err := sqlitex.Execute(conn, `SELECT value FROM metadata WHERE key = 'schema_version'`, &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *zombiezen.Stmt) error {
+			schemaVersion = stmt.ColumnInt(0)
+			return nil
+		},
+	}); err != nil {
+		t.Fatalf("reading schema_version after migration: %v", err)
+	}
+	if schemaVersion != 2 {
+		t.Errorf("expected schema_version=2 after MigrateV1ToV2, got %d", schemaVersion)
+	}
 
 	var claimedCount int
 	if err := sqlitex.Execute(conn, `SELECT COUNT(*) FROM issues WHERE state = 'claimed'`, &sqlitex.ExecOptions{
@@ -503,10 +548,10 @@ func TestBoundary_MigrateV1ToV2_V1WithClaimedIssues_MigratesAtomically(t *testin
 
 // TestBoundary_MigrateV1ToV2_V1NoClaimedIssues_SetsVersionWithZeroCounts
 // verifies that MigrateV1ToV2 succeeds on a v1 database with no claimed issues,
-// reporting zero for both conversion counts.
+// reporting zero for both conversion counts, and writes schema_version=2.
 func TestBoundary_MigrateV1ToV2_V1NoClaimedIssues_SetsVersionWithZeroCounts(t *testing.T) {
 	// Given — a v1-style database with no claimed issues.
-	store, _ := createV1Database(t)
+	store, dbPath := createV1Database(t)
 	ctx := context.Background()
 
 	// Confirm v1 state.
@@ -527,9 +572,26 @@ func TestBoundary_MigrateV1ToV2_V1NoClaimedIssues_SetsVersionWithZeroCounts(t *t
 		t.Errorf("HistoryRowsRemoved: got %d, want 0", result.HistoryRowsRemoved)
 	}
 
-	// The database now passes the schema version check.
-	if err := store.CheckSchemaVersion(ctx); err != nil {
-		t.Errorf("expected CheckSchemaVersion to pass after migration, got: %v", err)
+	// Confirm schema_version=2 was written. CheckSchemaVersion is not used here
+	// because v2 is no longer the current version — a further v2→v3 migration is
+	// still required.
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("opening raw connection for version check: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	var schemaVersion int
+	if err := sqlitex.Execute(conn, `SELECT value FROM metadata WHERE key = 'schema_version'`, &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *zombiezen.Stmt) error {
+			schemaVersion = stmt.ColumnInt(0)
+			return nil
+		},
+	}); err != nil {
+		t.Fatalf("reading schema_version after migration: %v", err)
+	}
+	if schemaVersion != 2 {
+		t.Errorf("expected schema_version=2 after MigrateV1ToV2, got %d", schemaVersion)
 	}
 }
 
@@ -562,12 +624,9 @@ func TestBoundary_MigrateV1ToV2_LegacyRelTypes_TranslatedAndDropped(t *testing.T
 		t.Errorf("LegacyRelationshipsTranslated: got %d, want 2", result.LegacyRelationshipsTranslated)
 	}
 
-	// The database now passes the schema version check.
-	if err := store.CheckSchemaVersion(ctx); err != nil {
-		t.Errorf("expected CheckSchemaVersion to pass after migration, got: %v", err)
-	}
-
 	// Confirm the on-disk state via a raw query.
+	// Note: CheckSchemaVersion is not called here because v2 is no longer the
+	// current version — the database still requires the v2→v3 migration.
 	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
 	if err != nil {
 		t.Fatalf("opening raw connection for verification: %v", err)
@@ -714,31 +773,32 @@ func createV1DatabaseWithLegacyRelTypes(t *testing.T) (*sqlite.Store, string) {
 	return store, dbPath
 }
 
-// TestBoundary_MigrateV1ToV2_V2Database_ReturnsNilWithZeroCounts verifies that
-// calling MigrateV1ToV2 on an already-migrated v2 database is safe — it applies
-// no changes and returns zero counts. The caller should check CheckSchemaVersion
-// first to avoid unnecessary work, but the migration is idempotent.
-func TestBoundary_MigrateV1ToV2_V2Database_ReturnsNilWithZeroCounts(t *testing.T) {
-	// Given — a fully initialised v2 database.
-	dbPath := t.TempDir() + "/v2.db"
-	store, err := sqlite.Create(dbPath)
-	if err != nil {
-		t.Fatalf("precondition: creating database: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	svc := core.New(store, store)
+// TestBoundary_MigrateV1ToV2_V2DatabaseSeedData_ReturnsNilWithZeroCounts verifies
+// that calling MigrateV1ToV2 on a database that already has schema_version=2 is
+// safe — it applies no changes and returns zero counts. The caller should check
+// CheckSchemaVersion first to avoid unnecessary work, but the migration is idempotent
+// with respect to its own data operations.
+//
+// Note: a freshly-initialised database is now at v3. This test constructs a
+// v2-state database explicitly by setting schema_version=2 after creation so
+// that it has the idempotency_key column the migration expects.
+func TestBoundary_MigrateV1ToV2_V2DatabaseSeedData_ReturnsNilWithZeroCounts(t *testing.T) {
+	// Given — a v1-style database promoted to schema_version=2 via raw SQL,
+	// but with no claimed issues or legacy history rows, so conversion counts are zero.
+	store, dbPath := createV1Database(t)
 	ctx := context.Background()
-	if err := svc.Init(ctx, "TEST"); err != nil {
-		t.Fatalf("precondition: initialising database: %v", err)
-	}
 
-	// Confirm v2 state.
-	if err := store.CheckSchemaVersion(ctx); err != nil {
-		t.Fatalf("precondition: expected v2 database to pass CheckSchemaVersion, got: %v", err)
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadWrite)
+	if err != nil {
+		t.Fatalf("precondition: opening raw connection: %v", err)
 	}
+	if err := sqlitex.Execute(conn, `INSERT INTO metadata (key, value) VALUES ('schema_version', '2')`, nil); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: setting schema_version=2: %v", err)
+	}
+	_ = conn.Close()
 
-	// When — MigrateV1ToV2 is called on a v2 database.
+	// When — MigrateV1ToV2 is called on a v2 database with no claimed issues.
 	result, err := store.MigrateV1ToV2(ctx)
 	// Then — no error; counts are zero (nothing to convert).
 	if err != nil {

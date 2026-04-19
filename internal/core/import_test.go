@@ -29,6 +29,18 @@ func mustImportAuthor(t *testing.T, name string) string {
 	return name
 }
 
+// mustDomainLabel creates a domain.Label from a key and value, failing the
+// test if the label is invalid. Used in import tests to populate
+// IdempotencyLabel on ValidatedRecord.
+func mustDomainLabel(t *testing.T, key, value string) domain.Label {
+	t.Helper()
+	l, err := domain.NewLabel(key, value)
+	if err != nil {
+		t.Fatalf("precondition: invalid label %q:%q: %v", key, value, err)
+	}
+	return l
+}
+
 // --- ImportIssues tests ---
 
 func TestImportIssues_SingleTask_CreatesIssue(t *testing.T) {
@@ -38,11 +50,11 @@ func TestImportIssues_SingleTask_CreatesIssue(t *testing.T) {
 	svc := setupImportService(t)
 	records := []domain.ValidatedRecord{
 		{
-			IdempotencyKey: "import-task-1",
-			Role:           domain.RoleTask,
-			Title:          "Imported task",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateOpen,
+			IdempotencyLabel: mustDomainLabel(t, "jira", "import-task-1"),
+			Role:             domain.RoleTask,
+			Title:            "Imported task",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
 		},
 	}
 
@@ -73,12 +85,12 @@ func TestImportIssues_WithPerLineAuthor_UsesLineAuthor(t *testing.T) {
 	svc := setupImportService(t)
 	records := []domain.ValidatedRecord{
 		{
-			IdempotencyKey: "authored-task",
-			Role:           domain.RoleTask,
-			Title:          "Task with author",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateOpen,
-			Author:         "line-author",
+			IdempotencyLabel: mustDomainLabel(t, "jira", "authored-task"),
+			Role:             domain.RoleTask,
+			Title:            "Task with author",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
+			Author:           "line-author",
 		},
 	}
 
@@ -103,12 +115,12 @@ func TestImportIssues_ForceAuthor_OverridesLineAuthor(t *testing.T) {
 	svc := setupImportService(t)
 	records := []domain.ValidatedRecord{
 		{
-			IdempotencyKey: "forced-author-task",
-			Role:           domain.RoleTask,
-			Title:          "Force author task",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateOpen,
-			Author:         "line-author",
+			IdempotencyLabel: mustDomainLabel(t, "jira", "forced-author-task"),
+			Role:             domain.RoleTask,
+			Title:            "Force author task",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
+			Author:           "line-author",
 		},
 	}
 
@@ -134,19 +146,19 @@ func TestImportIssues_WithParent_SetsParentRelationship(t *testing.T) {
 	svc := setupImportService(t)
 	records := []domain.ValidatedRecord{
 		{
-			IdempotencyKey: "parent-epic",
-			Role:           domain.RoleEpic,
-			Title:          "Parent Epic",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateOpen,
+			IdempotencyLabel: mustDomainLabel(t, "jira", "parent-epic"),
+			Role:             domain.RoleEpic,
+			Title:            "Parent Epic",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
 		},
 		{
-			IdempotencyKey: "child-task",
-			Role:           domain.RoleTask,
-			Title:          "Child Task",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateOpen,
-			Parent:         "parent-epic",
+			IdempotencyLabel: mustDomainLabel(t, "jira", "child-task"),
+			Role:             domain.RoleTask,
+			Title:            "Child Task",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
+			Parent:           "jira:parent-epic",
 		},
 	}
 
@@ -184,19 +196,19 @@ func TestImportIssues_WithBlockedBy_CreatesRelationship(t *testing.T) {
 	svc := setupImportService(t)
 	records := []domain.ValidatedRecord{
 		{
-			IdempotencyKey: "blocker",
-			Role:           domain.RoleTask,
-			Title:          "Blocker task",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateOpen,
+			IdempotencyLabel: mustDomainLabel(t, "jira", "blocker"),
+			Role:             domain.RoleTask,
+			Title:            "Blocker task",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
 		},
 		{
-			IdempotencyKey: "blocked",
-			Role:           domain.RoleTask,
-			Title:          "Blocked task",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateOpen,
-			BlockedBy:      []string{"blocker"},
+			IdempotencyLabel: mustDomainLabel(t, "jira", "blocked"),
+			Role:             domain.RoleTask,
+			Title:            "Blocked task",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
+			BlockedBy:        []string{"jira:blocker"},
 		},
 	}
 
@@ -231,12 +243,12 @@ func TestImportIssues_WithComment_AddsComment(t *testing.T) {
 	svc := setupImportService(t)
 	records := []domain.ValidatedRecord{
 		{
-			IdempotencyKey: "commented-task",
-			Role:           domain.RoleTask,
-			Title:          "Task with comment",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateOpen,
-			Comment:        "This is a migration note.",
+			IdempotencyLabel: mustDomainLabel(t, "jira", "commented-task"),
+			Role:             domain.RoleTask,
+			Title:            "Task with comment",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
+			Comment:          "This is a migration note.",
 		},
 	}
 
@@ -273,11 +285,11 @@ func TestImportIssues_ClosedState_TransitionsIssue(t *testing.T) {
 	svc := setupImportService(t)
 	records := []domain.ValidatedRecord{
 		{
-			IdempotencyKey: "closed-task",
-			Role:           domain.RoleTask,
-			Title:          "Already closed task",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateClosed,
+			IdempotencyLabel: mustDomainLabel(t, "jira", "closed-task"),
+			Role:             domain.RoleTask,
+			Title:            "Already closed task",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateClosed,
 		},
 	}
 
@@ -312,11 +324,11 @@ func TestImportIssues_DeferredState_TransitionsIssue(t *testing.T) {
 	svc := setupImportService(t)
 	records := []domain.ValidatedRecord{
 		{
-			IdempotencyKey: "deferred-task",
-			Role:           domain.RoleTask,
-			Title:          "Deferred task",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateDeferred,
+			IdempotencyLabel: mustDomainLabel(t, "jira", "deferred-task"),
+			Role:             domain.RoleTask,
+			Title:            "Deferred task",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateDeferred,
 		},
 	}
 
@@ -352,12 +364,12 @@ func TestImportIssues_WithClaim_CreatesOpenIssueClaimed(t *testing.T) {
 	svc := setupImportService(t)
 	records := []domain.ValidatedRecord{
 		{
-			IdempotencyKey: "claimed-task",
-			Role:           domain.RoleTask,
-			Title:          "Task to be claimed on import",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateOpen,
-			Claim:          true,
+			IdempotencyLabel: mustDomainLabel(t, "jira", "claimed-task"),
+			Role:             domain.RoleTask,
+			Title:            "Task to be claimed on import",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
+			Claim:            true,
 		},
 	}
 
@@ -393,18 +405,18 @@ func TestImportIssues_WithClaim_CreatesOpenIssueClaimed(t *testing.T) {
 	}
 }
 
-func TestImportIssues_DuplicateIdempotencyKey_SkipsSecondImport(t *testing.T) {
+func TestImportIssues_DuplicateIdempotencyLabel_SkipsSecondImport(t *testing.T) {
 	t.Parallel()
 
-	// Given — import the same record twice
+	// Given — import the same record twice.
 	svc := setupImportService(t)
 	records := []domain.ValidatedRecord{
 		{
-			IdempotencyKey: "idempotent-task",
-			Role:           domain.RoleTask,
-			Title:          "Idempotent task",
-			Priority:       domain.DefaultPriority,
-			State:          domain.StateOpen,
+			IdempotencyLabel: mustDomainLabel(t, "jira", "idempotent-task"),
+			Role:             domain.RoleTask,
+			Title:            "Idempotent task",
+			Priority:         domain.DefaultPriority,
+			State:            domain.StateOpen,
 		},
 	}
 
@@ -417,12 +429,12 @@ func TestImportIssues_DuplicateIdempotencyKey_SkipsSecondImport(t *testing.T) {
 		t.Fatalf("first import: %v", err)
 	}
 
-	// When — import again with the same idempotency key.
+	// When — import again with the same idempotency label.
 	secondOutput, err := svc.ImportIssues(t.Context(), driving.ImportInput{
 		Records:       records,
 		DefaultAuthor: mustImportAuthor(t, "import-agent"),
 	})
-	// Then — second import should succeed but not create a new domain.
+	// Then — second import should succeed but not create a new issue.
 	if err != nil {
 		t.Fatalf("second import: %v", err)
 	}

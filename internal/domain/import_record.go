@@ -4,7 +4,10 @@ package domain
 // types. It retains all data needed by the import pass to create issues and
 // relationships without re-parsing.
 type ValidatedRecord struct {
-	IdempotencyKey     string
+	// IdempotencyLabel is the parsed label used for deduplication. Its string
+	// form (Key():Value()) is also the intra-file reference key used to resolve
+	// parent, blocked_by, blocks, and refs fields within the same import file.
+	IdempotencyLabel   Label
 	Role               Role
 	Title              string
 	Description        string

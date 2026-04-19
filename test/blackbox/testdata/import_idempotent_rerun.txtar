@@ -1,4 +1,4 @@
-# Verify that re-importing a JSONL file with the same idempotency keys
+# Verify that re-importing a JSONL file with the same idempotency labels
 # does not create duplicate issues.
 
 np-init IR
@@ -15,4 +15,4 @@ exec np list --json
 np-json-array-len items 1
 
 -- testdata/rerun.jsonl --
-{"idempotency_key":"idempotent-1","role":"task","title":"Idempotent task"}
+{"idempotency_label":"tracker:idempotent-1","role":"task","title":"Idempotent task"}

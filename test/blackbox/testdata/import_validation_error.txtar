@@ -3,7 +3,7 @@
 np-init IV
 
 ! exec np import jsonl testdata/invalid.jsonl --author import-agent
-stderr 'idempotency_key is required'
+stderr 'idempotency_label is required'
 
 -- testdata/invalid.jsonl --
-{"role":"task","title":"Missing idempotency key"}
+{"role":"task","title":"Missing idempotency label"}

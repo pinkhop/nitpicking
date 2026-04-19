@@ -10,4 +10,4 @@ exec np list --state closed --json
 ! np-json-array-len items 0
 
 -- testdata/closed.jsonl --
-{"idempotency_key":"closed-1","role":"task","title":"Already closed","state":"closed"}
+{"idempotency_label":"tracker:closed-1","role":"task","title":"Already closed","state":"closed"}

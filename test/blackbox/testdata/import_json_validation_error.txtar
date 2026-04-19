@@ -4,7 +4,7 @@ np-init IJ
 
 exec np import jsonl testdata/invalid.jsonl --author import-agent --json
 stdout '"action": "validation_failed"'
-stdout 'idempotency_key is required'
+stdout 'idempotency_label is required'
 
 -- testdata/invalid.jsonl --
-{"role":"task","title":"Missing key"}
+{"role":"task","title":"Missing label"}

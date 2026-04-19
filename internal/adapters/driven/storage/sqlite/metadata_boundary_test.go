@@ -773,6 +773,758 @@ func createV1DatabaseWithLegacyRelTypes(t *testing.T) (*sqlite.Store, string) {
 	return store, dbPath
 }
 
+// v2SchemaSQL is the SQLite DDL for schema version 2. It is identical to the
+// current v3 schema except that the issues table carries an idempotency_key
+// column and the idx_issues_idempotency unique partial index. This literal is
+// used by createV2Database to create a pre-migration fixture without coupling
+// the test to the current schemaSQL constant.
+const v2SchemaSQL = `
+CREATE TABLE IF NOT EXISTS metadata (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS issues (
+    issue_id            TEXT PRIMARY KEY,
+    role                TEXT NOT NULL CHECK(role IN ('task', 'epic')),
+    title               TEXT NOT NULL,
+    description         TEXT NOT NULL DEFAULT '',
+    acceptance_criteria TEXT NOT NULL DEFAULT '',
+    priority            TEXT NOT NULL DEFAULT 'P2',
+    state               TEXT NOT NULL,
+    parent_id           TEXT DEFAULT NULL REFERENCES issues(issue_id),
+    created_at          TEXT NOT NULL,
+    idempotency_key     TEXT DEFAULT NULL,
+    deleted             INTEGER NOT NULL DEFAULT 0
+) WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id) WHERE parent_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_issues_state ON issues(state) WHERE deleted = 0;
+CREATE INDEX IF NOT EXISTS idx_issues_priority_created ON issues(priority, created_at) WHERE deleted = 0;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_idempotency ON issues(idempotency_key) WHERE idempotency_key IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS labels (
+    issue_id TEXT NOT NULL REFERENCES issues(issue_id),
+    key       TEXT NOT NULL,
+    value     TEXT NOT NULL,
+    PRIMARY KEY (issue_id, key)
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS comments (
+    comment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_id   TEXT NOT NULL REFERENCES issues(issue_id),
+    author     TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    body       TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_comments_issue ON comments(issue_id);
+
+CREATE TABLE IF NOT EXISTS claims (
+    claim_sha512    TEXT PRIMARY KEY,
+    issue_id       TEXT NOT NULL REFERENCES issues(issue_id),
+    author          TEXT NOT NULL,
+    stale_threshold INTEGER NOT NULL,
+    last_activity   TEXT NOT NULL
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_issue ON claims(issue_id);
+
+CREATE TABLE IF NOT EXISTS relationships (
+    source_id TEXT NOT NULL REFERENCES issues(issue_id),
+    target_id TEXT NOT NULL REFERENCES issues(issue_id),
+    rel_type  TEXT NOT NULL CHECK(rel_type IN ('blocked_by', 'blocks', 'refs')),
+    PRIMARY KEY (source_id, target_id, rel_type)
+) WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships(target_id);
+
+CREATE TABLE IF NOT EXISTS history (
+    entry_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_id  TEXT NOT NULL REFERENCES issues(issue_id),
+    revision   INTEGER NOT NULL,
+    author     TEXT NOT NULL,
+    timestamp  TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    changes    TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE INDEX IF NOT EXISTS idx_history_issue ON history(issue_id, revision);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS issues_fts USING fts5(
+    issue_id,
+    title,
+    description,
+    acceptance_criteria
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS comments_fts USING fts5(
+    comment_id,
+    body
+);
+`
+
+// createV2Database creates a SQLite database file with the v2 schema applied
+// (which includes the idempotency_key column and idx_issues_idempotency index),
+// sets schema_version=2 in the metadata table, and inserts the given prefix.
+// The *sqlite.Store is opened with sqlite.Open (no schema DDL applied), and is
+// registered for cleanup via t.Cleanup. The database path is returned so
+// callers can open additional raw connections for seeding or verification.
+func createV2Database(t *testing.T) (*sqlite.Store, string) {
+	t.Helper()
+
+	dbPath := t.TempDir() + "/v2.db"
+
+	// Create the database file and apply the v2 schema using a raw connection.
+	// sqlite.Create applies the current (v3) schema which lacks idempotency_key,
+	// so we bootstrap the file with the v2 DDL via OpenConn(OpenCreate).
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadWrite|zombiezen.OpenCreate)
+	if err != nil {
+		t.Fatalf("precondition: creating v2 database file: %v", err)
+	}
+
+	if err := sqlitex.ExecuteScript(conn, v2SchemaSQL, nil); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: applying v2 schema: %v", err)
+	}
+
+	if err := sqlitex.Execute(conn, `INSERT INTO metadata (key, value) VALUES ('prefix', 'V2')`, nil); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting prefix: %v", err)
+	}
+
+	if err := sqlitex.Execute(conn, `INSERT INTO metadata (key, value) VALUES ('schema_version', '2')`, nil); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: setting schema_version=2: %v", err)
+	}
+
+	if err := conn.Close(); err != nil {
+		t.Fatalf("precondition: closing bootstrap connection: %v", err)
+	}
+
+	// Open the database through the store layer. sqlite.Open does not re-apply
+	// schema DDL, so the v2 column shape (with idempotency_key) is preserved.
+	store, err := sqlite.Open(dbPath)
+	if err != nil {
+		t.Fatalf("precondition: opening v2 database via store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	return store, dbPath
+}
+
+// --- MigrateV2ToV3 ---
+
+// TestBoundary_MigrateV2ToV3_V2WithIdempotencyKeys_MigratesAtomically seeds a v2
+// database with issues carrying non-NULL and NULL idempotency_key values, calls
+// MigrateV2ToV3, and asserts that label rows are created, the column and index are
+// dropped, and schema_version is set to 3.
+func TestBoundary_MigrateV2ToV3_V2WithIdempotencyKeys_MigratesAtomically(t *testing.T) {
+	// Given — a v2 database with two issues: one carrying a non-NULL idempotency_key
+	// and one with a NULL idempotency_key (must not receive a new label row).
+	store, dbPath := createV2Database(t)
+	ctx := context.Background()
+
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadWrite)
+	if err != nil {
+		t.Fatalf("precondition: opening raw connection: %v", err)
+	}
+
+	now := "2024-01-01T00:00:00Z"
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO issues (issue_id, role, title, state, created_at, idempotency_key) VALUES ('V2-aaaaa', 'task', 'Task A', 'open', ?, 'jira-k1')`,
+		&sqlitex.ExecOptions{Args: []any{now}}); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting issue with idempotency_key: %v", err)
+	}
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO issues (issue_id, role, title, state, created_at) VALUES ('V2-bbbbb', 'task', 'Task B', 'open', ?)`,
+		&sqlitex.ExecOptions{Args: []any{now}}); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting issue without idempotency_key: %v", err)
+	}
+
+	if err := conn.Close(); err != nil {
+		t.Fatalf("precondition: closing seed connection: %v", err)
+	}
+
+	// When — MigrateV2ToV3 is called on the seeded v2 database.
+	result, err := store.MigrateV2ToV3(ctx)
+	// Then — no error and one key is migrated, zero skipped.
+	if err != nil {
+		t.Fatalf("unexpected error from MigrateV2ToV3: %v", err)
+	}
+	if result.IdempotencyKeysMigrated != 1 {
+		t.Errorf("IdempotencyKeysMigrated: got %d, want 1", result.IdempotencyKeysMigrated)
+	}
+	if result.IdempotencyKeysSkipped != 0 {
+		t.Errorf("IdempotencyKeysSkipped: got %d, want 0", result.IdempotencyKeysSkipped)
+	}
+	if result.InvalidLabelValuesSkipped != 0 {
+		t.Errorf("InvalidLabelValuesSkipped: got %d, want 0", result.InvalidLabelValuesSkipped)
+	}
+
+	// Verify post-migration state via a raw read-only connection.
+	verifyConn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("opening verification connection: %v", err)
+	}
+	defer func() { _ = verifyConn.Close() }()
+
+	// (a) The idempotency label row exists for V2-aaaaa with value "jira-k1".
+	var labelValue string
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT value FROM labels WHERE issue_id = 'V2-aaaaa' AND key = 'idempotency'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				labelValue = stmt.ColumnText(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading idempotency label: %v", err)
+	}
+	if labelValue != "jira-k1" {
+		t.Errorf("idempotency label value: got %q, want %q", labelValue, "jira-k1")
+	}
+
+	// No label row exists for V2-bbbbb (NULL idempotency_key must not be migrated).
+	var nullIssueLabelCount int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT COUNT(*) FROM labels WHERE issue_id = 'V2-bbbbb' AND key = 'idempotency'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				nullIssueLabelCount = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading null-issue label count: %v", err)
+	}
+	if nullIssueLabelCount != 0 {
+		t.Errorf("expected no idempotency label for null-key issue, got %d", nullIssueLabelCount)
+	}
+
+	// (b) The idempotency_key column is absent from PRAGMA table_info(issues).
+	var columnFound bool
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT 1 FROM pragma_table_info('issues') WHERE name = 'idempotency_key' LIMIT 1`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(_ *zombiezen.Stmt) error {
+				columnFound = true
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("checking table_info for idempotency_key: %v", err)
+	}
+	if columnFound {
+		t.Error("idempotency_key column still present in issues after migration")
+	}
+
+	// (c) The idx_issues_idempotency index is absent from PRAGMA index_list(issues).
+	var indexFound bool
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT 1 FROM pragma_index_list('issues') WHERE name = 'idx_issues_idempotency' LIMIT 1`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(_ *zombiezen.Stmt) error {
+				indexFound = true
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("checking index_list for idx_issues_idempotency: %v", err)
+	}
+	if indexFound {
+		t.Error("idx_issues_idempotency index still present after migration")
+	}
+
+	// (d) schema_version is 3.
+	var schemaVersion int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT value FROM metadata WHERE key = 'schema_version'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				schemaVersion = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading schema_version: %v", err)
+	}
+	if schemaVersion != 3 {
+		t.Errorf("schema_version: got %d, want 3", schemaVersion)
+	}
+}
+
+// TestBoundary_MigrateV2ToV3_NoIdempotencyKeyRows_SucceedsIdempotently verifies that
+// a v2 database in which all idempotency_key values are NULL still has its column and
+// index dropped and schema_version bumped to 3, and that no label rows are written.
+func TestBoundary_MigrateV2ToV3_NoIdempotencyKeyRows_SucceedsIdempotently(t *testing.T) {
+	// Given — a v2 database with one issue whose idempotency_key is NULL.
+	store, dbPath := createV2Database(t)
+	ctx := context.Background()
+
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadWrite)
+	if err != nil {
+		t.Fatalf("precondition: opening raw connection: %v", err)
+	}
+
+	now := "2024-01-01T00:00:00Z"
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO issues (issue_id, role, title, state, created_at) VALUES ('V2-ccccc', 'task', 'No-key task', 'open', ?)`,
+		&sqlitex.ExecOptions{Args: []any{now}}); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting issue: %v", err)
+	}
+
+	if err := conn.Close(); err != nil {
+		t.Fatalf("precondition: closing seed connection: %v", err)
+	}
+
+	// When — MigrateV2ToV3 is called.
+	result, err := store.MigrateV2ToV3(ctx)
+	// Then — no error; all counters are zero.
+	if err != nil {
+		t.Fatalf("unexpected error from MigrateV2ToV3: %v", err)
+	}
+	if result.IdempotencyKeysMigrated != 0 {
+		t.Errorf("IdempotencyKeysMigrated: got %d, want 0", result.IdempotencyKeysMigrated)
+	}
+	if result.IdempotencyKeysSkipped != 0 {
+		t.Errorf("IdempotencyKeysSkipped: got %d, want 0", result.IdempotencyKeysSkipped)
+	}
+
+	// Verify via raw connection.
+	verifyConn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("opening verification connection: %v", err)
+	}
+	defer func() { _ = verifyConn.Close() }()
+
+	// Column must be absent.
+	var columnFound bool
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT 1 FROM pragma_table_info('issues') WHERE name = 'idempotency_key' LIMIT 1`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(_ *zombiezen.Stmt) error {
+				columnFound = true
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("checking table_info: %v", err)
+	}
+	if columnFound {
+		t.Error("idempotency_key column still present after migration of NULL-only database")
+	}
+
+	// Index must be absent.
+	var indexFound bool
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT 1 FROM pragma_index_list('issues') WHERE name = 'idx_issues_idempotency' LIMIT 1`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(_ *zombiezen.Stmt) error {
+				indexFound = true
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("checking index_list: %v", err)
+	}
+	if indexFound {
+		t.Error("idx_issues_idempotency index still present after migration")
+	}
+
+	// schema_version must be 3.
+	var schemaVersion int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT value FROM metadata WHERE key = 'schema_version'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				schemaVersion = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading schema_version: %v", err)
+	}
+	if schemaVersion != 3 {
+		t.Errorf("schema_version: got %d, want 3", schemaVersion)
+	}
+
+	// No label rows must exist for the issue.
+	var labelCount int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT COUNT(*) FROM labels WHERE issue_id = 'V2-ccccc'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				labelCount = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading label count: %v", err)
+	}
+	if labelCount != 0 {
+		t.Errorf("expected 0 labels for null-key issue, got %d", labelCount)
+	}
+}
+
+// TestBoundary_MigrateV2ToV3_AlreadyV3_IsNoOp verifies that calling MigrateV2ToV3
+// on a database that is already at v3 (i.e., the idempotency_key column was already
+// dropped) does not fail, does not mutate the labels table, and leaves
+// schema_version at 3.
+func TestBoundary_MigrateV2ToV3_AlreadyV3_IsNoOp(t *testing.T) {
+	// Given — a freshly created v3 database (no idempotency_key column).
+	dbPath := t.TempDir() + "/v3.db"
+	store, err := sqlite.Create(dbPath)
+	if err != nil {
+		t.Fatalf("precondition: creating v3 database: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	svc := core.New(store, store)
+	ctx := context.Background()
+	if err := svc.Init(ctx, "VVV"); err != nil {
+		t.Fatalf("precondition: initialising database: %v", err)
+	}
+
+	// Record the label count before the call.
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("precondition: opening raw connection for pre-check: %v", err)
+	}
+	var labelCountBefore int
+	if err := sqlitex.Execute(conn,
+		`SELECT COUNT(*) FROM labels`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				labelCountBefore = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: counting labels before migration: %v", err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatalf("precondition: closing read connection: %v", err)
+	}
+
+	// When — MigrateV2ToV3 is called on the already-v3 database.
+	result, err := store.MigrateV2ToV3(ctx)
+	// Then — no error; all counters are zero (nothing to migrate).
+	if err != nil {
+		t.Fatalf("unexpected error from MigrateV2ToV3 on v3 database: %v", err)
+	}
+	if result.IdempotencyKeysMigrated != 0 {
+		t.Errorf("IdempotencyKeysMigrated: got %d, want 0", result.IdempotencyKeysMigrated)
+	}
+	if result.IdempotencyKeysSkipped != 0 {
+		t.Errorf("IdempotencyKeysSkipped: got %d, want 0", result.IdempotencyKeysSkipped)
+	}
+
+	// The label count must not have changed.
+	verifyConn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("opening verification connection: %v", err)
+	}
+	defer func() { _ = verifyConn.Close() }()
+
+	var labelCountAfter int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT COUNT(*) FROM labels`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				labelCountAfter = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading label count after migration: %v", err)
+	}
+	if labelCountAfter != labelCountBefore {
+		t.Errorf("label count changed: was %d, now %d", labelCountBefore, labelCountAfter)
+	}
+
+	// schema_version must remain 3.
+	var schemaVersion int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT value FROM metadata WHERE key = 'schema_version'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				schemaVersion = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading schema_version: %v", err)
+	}
+	if schemaVersion != 3 {
+		t.Errorf("schema_version: got %d, want 3", schemaVersion)
+	}
+}
+
+// TestBoundary_MigrateV1ToV3_ChainedMigrationEndToEnd seeds a v1 database (no
+// schema_version, with the idempotency_key column from the v2 DDL), runs
+// MigrateV1ToV2 followed by MigrateV2ToV3, and asserts that both migrations'
+// invariants hold on the single seeded database.
+func TestBoundary_MigrateV1ToV3_ChainedMigrationEndToEnd(t *testing.T) {
+	// Given — a v1-style database built on the v2 schema (idempotency_key column
+	// present), with a claimed issue (v1 state) and a non-NULL idempotency_key.
+	// schema_version is absent (true v1 state).
+	dbPath := t.TempDir() + "/v1-for-chain.db"
+
+	// Create the file with the v2 DDL so that both migration steps have the
+	// schema shape they each expect.
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadWrite|zombiezen.OpenCreate)
+	if err != nil {
+		t.Fatalf("precondition: creating database file: %v", err)
+	}
+
+	if err := sqlitex.ExecuteScript(conn, v2SchemaSQL, nil); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: applying v2 schema: %v", err)
+	}
+
+	now := "2024-01-01T00:00:00Z"
+
+	// Set the prefix; leave schema_version absent (v1 state).
+	if err := sqlitex.Execute(conn, `INSERT INTO metadata (key, value) VALUES ('prefix', 'CHAIN')`, nil); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting prefix: %v", err)
+	}
+
+	// Insert one issue with state='claimed' (v1 state) and a non-NULL idempotency_key.
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO issues (issue_id, role, title, state, created_at, idempotency_key) VALUES ('CHAIN-aaaaa', 'task', 'Chained task', 'claimed', ?, 'chain-key-1')`,
+		&sqlitex.ExecOptions{Args: []any{now}}); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting issue: %v", err)
+	}
+
+	// Insert one history row with event_type='claimed' (removed in v2).
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO history (issue_id, revision, author, timestamp, event_type, changes) VALUES ('CHAIN-aaaaa', 0, 'tester', ?, 'claimed', '[]')`,
+		&sqlitex.ExecOptions{Args: []any{now}}); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting history row: %v", err)
+	}
+
+	if err := conn.Close(); err != nil {
+		t.Fatalf("precondition: closing seed connection: %v", err)
+	}
+
+	store, err := sqlite.Open(dbPath)
+	if err != nil {
+		t.Fatalf("precondition: opening store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ctx := context.Background()
+
+	// Confirm v1 state.
+	if err := store.CheckSchemaVersion(ctx); err == nil {
+		t.Fatal("precondition: expected v1 database to fail CheckSchemaVersion")
+	}
+
+	// When — run v1→v2 migration.
+	v12Result, err := store.MigrateV1ToV2(ctx)
+	// Then — v1→v2 succeeded with the expected counts.
+	if err != nil {
+		t.Fatalf("MigrateV1ToV2: unexpected error: %v", err)
+	}
+	if v12Result.ClaimedIssuesConverted != 1 {
+		t.Errorf("ClaimedIssuesConverted: got %d, want 1", v12Result.ClaimedIssuesConverted)
+	}
+	if v12Result.HistoryRowsRemoved != 1 {
+		t.Errorf("HistoryRowsRemoved: got %d, want 1", v12Result.HistoryRowsRemoved)
+	}
+
+	// When — run v2→v3 migration.
+	v23Result, err := store.MigrateV2ToV3(ctx)
+	// Then — v2→v3 succeeded and carried the idempotency_key forward.
+	if err != nil {
+		t.Fatalf("MigrateV2ToV3: unexpected error: %v", err)
+	}
+	if v23Result.IdempotencyKeysMigrated != 1 {
+		t.Errorf("IdempotencyKeysMigrated: got %d, want 1", v23Result.IdempotencyKeysMigrated)
+	}
+	if v23Result.IdempotencyKeysSkipped != 0 {
+		t.Errorf("IdempotencyKeysSkipped: got %d, want 0", v23Result.IdempotencyKeysSkipped)
+	}
+
+	// Verify the combined post-migration state.
+	verifyConn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("opening verification connection: %v", err)
+	}
+	defer func() { _ = verifyConn.Close() }()
+
+	// The issue must be in state='open' (claimed→open by v1→v2).
+	var state string
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT state FROM issues WHERE issue_id = 'CHAIN-aaaaa'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				state = stmt.ColumnText(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading issue state: %v", err)
+	}
+	if state != "open" {
+		t.Errorf("issue state after v1→v2: got %q, want %q", state, "open")
+	}
+
+	// The idempotency label must exist.
+	var labelValue string
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT value FROM labels WHERE issue_id = 'CHAIN-aaaaa' AND key = 'idempotency'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				labelValue = stmt.ColumnText(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading idempotency label: %v", err)
+	}
+	if labelValue != "chain-key-1" {
+		t.Errorf("idempotency label value: got %q, want %q", labelValue, "chain-key-1")
+	}
+
+	// The idempotency_key column must be absent.
+	var columnFound bool
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT 1 FROM pragma_table_info('issues') WHERE name = 'idempotency_key' LIMIT 1`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(_ *zombiezen.Stmt) error {
+				columnFound = true
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("checking table_info: %v", err)
+	}
+	if columnFound {
+		t.Error("idempotency_key column still present after chained migration")
+	}
+
+	// No obsolete history rows (claimed/released event types) must remain.
+	var obsoleteCount int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT COUNT(*) FROM history WHERE event_type IN ('claimed', 'released')`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				obsoleteCount = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("counting obsolete history rows: %v", err)
+	}
+	if obsoleteCount != 0 {
+		t.Errorf("expected 0 obsolete history rows after chained migration, got %d", obsoleteCount)
+	}
+
+	// schema_version must be 3.
+	var schemaVersion int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT value FROM metadata WHERE key = 'schema_version'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				schemaVersion = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading schema_version: %v", err)
+	}
+	if schemaVersion != 3 {
+		t.Errorf("schema_version: got %d, want 3", schemaVersion)
+	}
+
+	// CheckSchemaVersion must now pass.
+	if err := store.CheckSchemaVersion(ctx); err != nil {
+		t.Errorf("expected CheckSchemaVersion to pass after v1→v2→v3, got: %v", err)
+	}
+}
+
+// TestBoundary_MigrateV2ToV3_SkipOnConflict_ExistingLabelPreserved verifies the
+// skip-on-conflict collision policy: when an issue already carries an
+// idempotency:<value> label row, the idempotency_key column value is not written
+// and the skip counter is incremented.
+func TestBoundary_MigrateV2ToV3_SkipOnConflict_ExistingLabelPreserved(t *testing.T) {
+	// Given — a v2 database with one issue that has both a non-NULL idempotency_key
+	// and a pre-existing idempotency label (simulating a partial prior migration or
+	// manual labelling). The pre-existing label carries the same key but a
+	// different value to confirm the original label is left unchanged.
+	store, dbPath := createV2Database(t)
+	ctx := context.Background()
+
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadWrite)
+	if err != nil {
+		t.Fatalf("precondition: opening raw connection: %v", err)
+	}
+
+	now := "2024-01-01T00:00:00Z"
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO issues (issue_id, role, title, state, created_at, idempotency_key) VALUES ('V2-skip1', 'task', 'Skip task', 'open', ?, 'new-key')`,
+		&sqlitex.ExecOptions{Args: []any{now}}); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting issue: %v", err)
+	}
+
+	// Insert a pre-existing idempotency label with a different value.
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO labels (issue_id, key, value) VALUES ('V2-skip1', 'idempotency', 'existing-key')`,
+		nil); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting pre-existing label: %v", err)
+	}
+
+	if err := conn.Close(); err != nil {
+		t.Fatalf("precondition: closing seed connection: %v", err)
+	}
+
+	// When — MigrateV2ToV3 is called.
+	result, err := store.MigrateV2ToV3(ctx)
+	// Then — no error; the collision is counted as skipped.
+	if err != nil {
+		t.Fatalf("unexpected error from MigrateV2ToV3: %v", err)
+	}
+	if result.IdempotencyKeysMigrated != 0 {
+		t.Errorf("IdempotencyKeysMigrated: got %d, want 0", result.IdempotencyKeysMigrated)
+	}
+	if result.IdempotencyKeysSkipped != 1 {
+		t.Errorf("IdempotencyKeysSkipped: got %d, want 1", result.IdempotencyKeysSkipped)
+	}
+
+	// The pre-existing label value must be preserved unchanged.
+	verifyConn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("opening verification connection: %v", err)
+	}
+	defer func() { _ = verifyConn.Close() }()
+
+	var labelValue string
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT value FROM labels WHERE issue_id = 'V2-skip1' AND key = 'idempotency'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				labelValue = stmt.ColumnText(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading label value: %v", err)
+	}
+	if labelValue != "existing-key" {
+		t.Errorf("pre-existing label value changed: got %q, want %q", labelValue, "existing-key")
+	}
+
+	// Only one label row must exist for V2-skip1.
+	var labelCount int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT COUNT(*) FROM labels WHERE issue_id = 'V2-skip1'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				labelCount = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("counting labels: %v", err)
+	}
+	if labelCount != 1 {
+		t.Errorf("label count: got %d, want 1", labelCount)
+	}
+}
+
 // TestBoundary_MigrateV1ToV2_V2DatabaseSeedData_ReturnsNilWithZeroCounts verifies
 // that calling MigrateV1ToV2 on a database that already has schema_version=2 is
 // safe — it applies no changes and returns zero counts. The caller should check

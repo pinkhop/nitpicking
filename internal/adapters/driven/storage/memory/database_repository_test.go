@@ -264,24 +264,6 @@ func TestCountDeletedRatio_EmptyRepository_ReturnsZeros(t *testing.T) {
 	}
 }
 
-// --- CountVirtualLabelsInTable ---
-
-func TestCountVirtualLabelsInTable_AlwaysReturnsZero(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	repo := memory.NewRepository()
-
-	// When
-	count, err := repo.CountVirtualLabelsInTable(ctx)
-	// Then
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if count != 0 {
-		t.Errorf("expected 0, got %d", count)
-	}
-}
-
 // --- ClearAllData ---
 
 func TestClearAllData_RemovesAllState(t *testing.T) {

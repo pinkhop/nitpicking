@@ -7,26 +7,6 @@ import (
 	"unicode"
 )
 
-// Virtual label keys — convention: system/internal labels use hyphens
-//
-// Virtual labels are backed by dedicated columns on the issues table, not
-// by rows in the labels table. They appear in label output and support
-// filtering, but reads and writes are redirected to their columns.
-//
-// Naming convention: system/internal labels use hyphen-separated keys
-// (e.g., "idempotency-key") to distinguish them from user-defined labels,
-// which conventionally use colon-separated key:value pairs with short,
-// alphanumeric keys (e.g., "kind:bug", "area:auth"). Hyphens are valid
-// label key characters but are uncommon in user-defined keys, reducing
-// collision risk. New virtual labels should follow the same pattern.
-const VirtualKeyIdempotency = "idempotency-key"
-
-// IsVirtualLabelKey reports whether the given label key is backed by a
-// column on the issues table rather than the labels table.
-func IsVirtualLabelKey(key string) bool {
-	return key == VirtualKeyIdempotency
-}
-
 // Label represents a validated key–value pair attached to an issue for
 // filtering and agent coordination.
 type Label struct {
@@ -121,8 +101,8 @@ func (fs LabelSet) All() iter.Seq2[string, string] {
 // validateLabelKey checks that a label key is 1–64 bytes of ASCII printable
 // characters (0x21–0x7E) whose first character is an ASCII letter (A-Z or
 // a-z) or an underscore (_). Interior and trailing characters may be any
-// ASCII printable non-whitespace character, which preserves existing system
-// keys like "idempotency-key" and "waiting-on".
+// ASCII printable non-whitespace character, which preserves keys like
+// "waiting-on" that use hyphens.
 //
 // The stricter first-character rule — letter or underscore only — prevents
 // collision with CLI filter grammar (leading "!" means negation in

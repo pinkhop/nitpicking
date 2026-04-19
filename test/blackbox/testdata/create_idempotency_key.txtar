@@ -1,9 +1,0 @@
-# Verify that idempotency_key is rejected by json create (it was removed;
-# idempotency is a batch import concern, not a single-issue creation concern).
-
-np-init FLAG
-stdin input.json
-! exec np json create --author flag-agent
-
--- input.json --
-{"role":"task","title":"Idempotent task","idempotency_key":"unique-key-123"}

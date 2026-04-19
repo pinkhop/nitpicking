@@ -280,18 +280,6 @@ func (r *Repository) ListDistinctLabels(_ context.Context) ([]domain.Label, erro
 	return lbls, nil
 }
 
-func (r *Repository) GetIssueByIdempotencyKey(_ context.Context, key string) (domain.Issue, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for _, t := range r.issues {
-		if t.IdempotencyKey() == key && key != "" {
-			return t, nil
-		}
-	}
-	return domain.Issue{}, domain.ErrNotFound
-}
-
 func (r *Repository) GetIssueSummary(_ context.Context) (driven.IssueSummary, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -762,13 +750,6 @@ func (r *Repository) IntegrityCheck(_ context.Context) error {
 	return nil
 }
 
-// CountVirtualLabelsInTable always returns 0 in the in-memory adapter because
-// it never stores virtual labels in the labels backing structure — they are
-// always handled correctly.
-func (r *Repository) CountVirtualLabelsInTable(_ context.Context) (int, error) {
-	return 0, nil
-}
-
 // GetSchemaVersion always returns 2 in the in-memory adapter because the
 // in-memory store is always freshly initialized at v2. There is no on-disk
 // v1 schema to migrate.
@@ -1149,27 +1130,14 @@ func (r *Repository) collectDescendants(treeID domain.ID, scope map[string]struc
 }
 
 // issueMatchesLabelFilter checks whether an issue's labels match a single
-// LabelFilter criterion. Virtual label keys (e.g., "idempotency-key") are
-// checked against the issue's dedicated field; regular labels are checked
-// against the issue's LabelSet.
+// LabelFilter criterion against the issue's LabelSet.
 func (r *Repository) issueMatchesLabelFilter(iss domain.Issue, lf driven.LabelFilter) bool {
+	v, ok := iss.Labels().Get(lf.Key)
 	var matched bool
-
-	if domain.IsVirtualLabelKey(lf.Key) {
-		// Only "idempotency-key" is currently virtual.
-		val := iss.IdempotencyKey()
-		if lf.Value == "" {
-			matched = val != ""
-		} else {
-			matched = val == lf.Value
-		}
+	if lf.Value == "" {
+		matched = ok // key-only wildcard match
 	} else {
-		v, ok := iss.Labels().Get(lf.Key)
-		if lf.Value == "" {
-			matched = ok // key-only wildcard match
-		} else {
-			matched = ok && v == lf.Value
-		}
+		matched = ok && v == lf.Value
 	}
 
 	if lf.Negate {

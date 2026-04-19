@@ -17,17 +17,9 @@ Labels are key-value pairs. Establish conventions early so labels are consistent
 
 Conventions are not enforced by `np` — they work by agreement. Use `np label list-all` to see what labels are already in use.
 
-### Reserved system labels
-
-Some label keys are reserved by `np` for internal use. These **virtual labels** are backed by dedicated database columns rather than the labels table — they look like labels in output and filtering, but reads and writes are redirected to their columns.
-
-| Key | Purpose |
-|-----|---------|
-| `idempotency-key` | Deduplication key for imports; backed by the `issues.idempotency_key` column |
-
-**Naming convention:** System labels use hyphen-separated keys (e.g., `idempotency-key`). User-defined labels conventionally use short alphanumeric keys (e.g., `kind`, `area`, `scope`). This reduces collision risk — hyphens are valid label key characters but uncommon in user-defined keys.
-
 **Key validation rules:** A label key must be 1–64 bytes of ASCII printable characters. The **first character must be an ASCII letter (`A`–`Z` or `a`–`z`) or an underscore (`_`)**; interior and trailing characters may be any ASCII printable non-whitespace character. Leading digits, hyphens, colons, and other punctuation are rejected to avoid ambiguity with CLI filter grammar (e.g., leading `!` means negation in `--label` filters) and to align with the identifier convention developers intuitively recognize as a "name".
+
+No label keys are reserved by `np` for internal use. All `key:value` pairs in the labels table are user-owned.
 
 ---
 

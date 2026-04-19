@@ -398,17 +398,6 @@ type DatabaseRepository interface {
 	// soft-deleted issues, for GC threshold calculations.
 	CountDeletedRatio(ctx context.Context) (total, deleted int, err error)
 
-	// CountVirtualLabelsInTable returns the number of rows in the labels
-	// table where the key matches a virtual label key (e.g., "idempotency-key").
-	// Virtual labels should be stored in their respective columns, not in
-	// the labels table — any rows found indicate data integrity issues.
-	//
-	// Scheduled for removal: this method and the virtual-label machinery it
-	// supports will be deleted in the doctor-check cleanup child task
-	// (NP-fc61g) once the virtual-label column is dropped. Do not add new
-	// callers.
-	CountVirtualLabelsInTable(ctx context.Context) (int, error)
-
 	// GetSchemaVersion returns the schema version stored in the metadata table.
 	// Returns 0 when the database has no schema_version key (v1 schema), and
 	// 2 when the database has been migrated to v2. The doctor command uses this

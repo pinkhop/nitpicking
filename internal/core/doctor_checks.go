@@ -51,12 +51,6 @@ var diagnosticChecks = []checkDefinition{
 		Categories: []string{"deleted_parent"},
 		PassDetail: "No issues reference deleted parents",
 	},
-	{
-		Name:       "virtual_labels",
-		Severity:   driving.SeverityError,
-		Categories: []string{"virtual_label_in_table"},
-		PassDetail: "No virtual labels stored in the labels table",
-	},
 	// Warning-level checks.
 	{
 		Name:       "close_completed", // #nosec G101 -- not a credential; diagnostic check name

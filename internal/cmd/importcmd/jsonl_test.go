@@ -105,7 +105,7 @@ func TestJSONLRun_SingleTask_ImportsSuccessfully(t *testing.T) {
 	// Given: a JSONL reader with one valid task line.
 	svc := setupService(t)
 	var out bytes.Buffer
-	input := `{"role":"task","title":"Test task","idempotency_key":"key-1"}` + "\n"
+	input := `{"role":"task","title":"Test task","idempotency_label":"jira:key-1"}` + "\n"
 
 	// When: JSONLRun is called.
 	err := importcmd.JSONLRun(t.Context(), importcmd.JSONLRunInput{
@@ -132,7 +132,7 @@ func TestJSONLRun_SingleTask_JSON_ReturnsCreatedCount(t *testing.T) {
 	// Given: a JSONL reader with one valid task line and JSON output enabled.
 	svc := setupService(t)
 	var out bytes.Buffer
-	input := `{"role":"task","title":"Test task","idempotency_key":"key-2"}` + "\n"
+	input := `{"role":"task","title":"Test task","idempotency_label":"jira:key-2"}` + "\n"
 
 	// When: JSONLRun is called with JSON=true.
 	err := importcmd.JSONLRun(t.Context(), importcmd.JSONLRunInput{
@@ -246,5 +246,61 @@ func TestJSONLRun_MalformedJSON_ReturnsParseError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "parsing JSONL") {
 		t.Errorf("error = %q, want to contain %q", err.Error(), "parsing JSONL")
+	}
+}
+
+func TestJSONLRun_DeduplicatedImport_JSON_IncludesSkippedIDs(t *testing.T) {
+	t.Parallel()
+
+	// Given: a service with one already-imported issue sharing the idempotency label.
+	svc := setupService(t)
+	input := `{"role":"task","title":"Idempotent task","idempotency_label":"jira:key-dedup"}` + "\n"
+
+	// Pre-populate: first import creates the issue.
+	var firstOut bytes.Buffer
+	if err := importcmd.JSONLRun(t.Context(), importcmd.JSONLRunInput{
+		Service:     svc,
+		Reader:      strings.NewReader(input),
+		FilePath:    "tasks.jsonl",
+		Author:      testAuthor,
+		JSON:        true,
+		WriteTo:     &firstOut,
+		ErrWriteTo:  &firstOut,
+		ColorScheme: noColorScheme,
+	}); err != nil {
+		t.Fatalf("precondition: first import failed: %v", err)
+	}
+
+	// When: the same file is imported a second time.
+	var secondOut bytes.Buffer
+	err := importcmd.JSONLRun(t.Context(), importcmd.JSONLRunInput{
+		Service:     svc,
+		Reader:      strings.NewReader(input),
+		FilePath:    "tasks.jsonl",
+		Author:      testAuthor,
+		JSON:        true,
+		WriteTo:     &secondOut,
+		ErrWriteTo:  &secondOut,
+		ColorScheme: noColorScheme,
+	})
+	// Then: no error, skipped=1, and skipped_ids contains the existing issue's ID.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var secondResult map[string]any
+	if err := json.Unmarshal(secondOut.Bytes(), &secondResult); err != nil {
+		t.Fatalf("invalid JSON output: %v", err)
+	}
+	if secondResult["skipped"] != float64(1) {
+		t.Errorf("skipped = %v, want 1", secondResult["skipped"])
+	}
+	skippedIDs, ok := secondResult["skipped_ids"].([]any)
+	if !ok || len(skippedIDs) != 1 {
+		t.Fatalf("skipped_ids = %v, want a one-element array", secondResult["skipped_ids"])
+	}
+	// The skipped ID must be a non-empty string (a valid issue ID).
+	id, ok := skippedIDs[0].(string)
+	if !ok || id == "" {
+		t.Errorf("skipped_ids[0] = %v, want a non-empty issue ID string", skippedIDs[0])
 	}
 }

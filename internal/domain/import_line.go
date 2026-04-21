@@ -5,7 +5,9 @@ package domain
 // specification. All fields are strings or string collections to defer
 // validation to the Validate function.
 type RawLine struct {
-	IdempotencyKey     string            `json:"idempotency_key"`
+	// IdempotencyLabel is the full "key:value" label string used for deduplication.
+	// It is required on every import line.
+	IdempotencyLabel   string            `json:"idempotency_label"`
 	Role               string            `json:"role"`
 	Title              string            `json:"title"`
 	Description        string            `json:"description"`

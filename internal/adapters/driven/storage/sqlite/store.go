@@ -151,7 +151,7 @@ type dbRepo struct{ conn *sqlite.Conn }
 // currentSchemaVersion is the schema version written to the metadata table when
 // a new database is initialised. Existing databases without a schema_version
 // key are treated as v1 and must be upgraded with 'np admin upgrade'.
-const currentSchemaVersion = 2
+const currentSchemaVersion = 3
 
 func (r *dbRepo) InitDatabase(_ context.Context, prefix string) error {
 	// Insert the prefix.
@@ -223,8 +223,9 @@ func (r *dbRepo) SetSchemaVersion(_ context.Context, version int) error {
 
 // CheckSchemaVersion opens a read transaction, fetches the schema version, and
 // returns domain.ErrSchemaMigrationRequired (wrapped in a DatabaseError) when
-// the version is below 2. Callers — typically root-command startup hooks —
-// use this to gate all database-touching commands on a migrated database.
+// the version is below 3 (the current version). Callers — typically
+// root-command startup hooks — use this to gate all database-touching commands
+// on a fully migrated database.
 func (s *Store) CheckSchemaVersion(ctx context.Context) error {
 	conn, err := s.pool.Take(ctx)
 	if err != nil {
@@ -238,10 +239,23 @@ func (s *Store) CheckSchemaVersion(ctx context.Context) error {
 		return err
 	}
 
-	if version < 2 {
+	switch {
+	case version == 0:
+		// Absent schema_version key means v1 — no metadata row was ever written.
 		return &domain.DatabaseError{
 			Op:  "schema version check",
 			Err: fmt.Errorf("%w: database is at v1 schema — run 'np admin upgrade' to migrate", domain.ErrSchemaMigrationRequired),
+		}
+	case version == 2:
+		return &domain.DatabaseError{
+			Op:  "schema version check",
+			Err: fmt.Errorf("%w: database is at v2 schema — run 'np admin upgrade' to migrate", domain.ErrSchemaMigrationRequired),
+		}
+	case version < 3:
+		// Catch any intermediate versions not individually handled above.
+		return &domain.DatabaseError{
+			Op:  "schema version check",
+			Err: fmt.Errorf("%w: database is at v%d schema — run 'np admin upgrade' to migrate", domain.ErrSchemaMigrationRequired, version),
 		}
 	}
 	return nil
@@ -327,6 +341,148 @@ func (s *Store) MigrateV1ToV2(ctx context.Context) (driven.MigrationResult, erro
 	return result, nil
 }
 
+// MigrateV2ToV3 upgrades a v2 database to v3 schema in a single atomic
+// transaction, satisfying the driven.Migrator interface. It is safe to call on
+// a v3 database — CheckSchemaVersion should be called first so that callers
+// can report "up to date" without executing the migration body.
+//
+// See docs/developer/adr/idempotency-key-migration.md for the migration-key
+// naming rationale, collision-handling policy, and label-value validation rule.
+//
+// The migration performs three steps within one IMMEDIATE transaction:
+//  1. For every row in issues where idempotency_key IS NOT NULL, attempts to
+//     INSERT a labels row with key="idempotency" and value=idempotency_key.
+//     - If the issue already carries an idempotency label (collision), the
+//     column value is skipped and IdempotencyKeysSkipped is incremented.
+//     - If domain.NewLabel rejects the value, the row is skipped and
+//     InvalidLabelValuesSkipped is incremented.
+//     - Otherwise IdempotencyKeysMigrated is incremented.
+//  2. Drops the unique partial index idx_issues_idempotency and then drops
+//     the idempotency_key column from the issues table. SQLite ≥ 3.35 supports
+//     ALTER TABLE … DROP COLUMN; the bundled zombiezen.com/go/sqlite v1.4.2
+//     ships SQLite 3.45, so the direct DROP COLUMN path is used here.
+//  3. Calls uow.Database().SetSchemaVersion(ctx, 3) as the final step.
+//
+// If any step fails the transaction is rolled back and the database is
+// unchanged. Returns a driven.MigrationResult with the per-step counters.
+func (s *Store) MigrateV2ToV3(ctx context.Context) (driven.MigrationResult, error) {
+	var result driven.MigrationResult
+
+	err := s.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
+		conn := uow.(*connUnitOfWork).conn
+
+		// Determine whether the idempotency_key column exists on the issues table.
+		// When this migration is called on a database that is already at v3 (i.e.,
+		// the column was already dropped), we skip the data-carry and DROP COLUMN
+		// steps so the migration remains safe to call more than once. Callers are
+		// expected to check CheckSchemaVersion first, but this guard prevents an
+		// unrecoverable error in the rare case they do not.
+		var columnExists bool
+		if err := sqlitex.Execute(conn,
+			`SELECT 1 FROM pragma_table_info('issues') WHERE name = 'idempotency_key' LIMIT 1`,
+			&sqlitex.ExecOptions{
+				ResultFunc: func(_ *sqlite.Stmt) error {
+					columnExists = true
+					return nil
+				},
+			}); err != nil {
+			return &domain.DatabaseError{Op: "migrate v2→v3: check idempotency_key column existence", Err: err}
+		}
+
+		if columnExists {
+			// Step 1: Carry non-NULL idempotency_key values forward as label rows.
+			//
+			// We read all (issue_id, idempotency_key) pairs where the column is set,
+			// validate each value via domain.NewLabel, check for a pre-existing
+			// idempotency label, and insert the label row when both conditions pass.
+			// A single SELECT fetches all candidates; then we use per-row inserts so
+			// we can apply the skip-on-conflict policy and count outcomes individually.
+			type candidate struct {
+				issueID string
+				value   string
+			}
+			var candidates []candidate
+
+			if err := sqlitex.Execute(conn,
+				`SELECT issue_id, idempotency_key FROM issues WHERE idempotency_key IS NOT NULL`,
+				&sqlitex.ExecOptions{
+					ResultFunc: func(stmt *sqlite.Stmt) error {
+						candidates = append(candidates, candidate{
+							issueID: stmt.ColumnText(0),
+							value:   stmt.ColumnText(1),
+						})
+						return nil
+					},
+				}); err != nil {
+				return &domain.DatabaseError{Op: "migrate v2→v3: select idempotency_key rows", Err: err}
+			}
+
+			for _, c := range candidates {
+				// Validate the column value against domain label rules. Invalid values
+				// (e.g., those containing whitespace or exceeding 256 bytes) that were
+				// accepted by the old unvalidated import path are skipped rather than
+				// failing the migration.
+				if _, err := domain.NewLabel("idempotency", c.value); err != nil {
+					result.InvalidLabelValuesSkipped++
+					continue
+				}
+
+				// Check for a pre-existing idempotency label on this issue. The labels
+				// primary key is (issue_id, key), so a collision means the issue already
+				// carries an idempotency:<x> label. Per the skip-on-conflict policy, we
+				// leave the existing label and count the skip rather than overwriting.
+				var alreadyExists bool
+				if err := sqlitex.Execute(conn,
+					`SELECT 1 FROM labels WHERE issue_id = ? AND key = 'idempotency' LIMIT 1`,
+					&sqlitex.ExecOptions{
+						Args: []any{c.issueID},
+						ResultFunc: func(_ *sqlite.Stmt) error {
+							alreadyExists = true
+							return nil
+						},
+					}); err != nil {
+					return &domain.DatabaseError{Op: "migrate v2→v3: check existing idempotency label", Err: err}
+				}
+
+				if alreadyExists {
+					result.IdempotencyKeysSkipped++
+					continue
+				}
+
+				if err := sqlitex.Execute(conn,
+					`INSERT INTO labels (issue_id, key, value) VALUES (?, 'idempotency', ?)`,
+					&sqlitex.ExecOptions{Args: []any{c.issueID, c.value}}); err != nil {
+					return &domain.DatabaseError{Op: "migrate v2→v3: insert idempotency label", Err: err}
+				}
+				result.IdempotencyKeysMigrated++
+			}
+
+			// Step 2a: Drop the unique partial index before dropping the column.
+			// SQLite requires that all indexes on a column be dropped before the
+			// column itself can be dropped.
+			if err := sqlitex.Execute(conn, `DROP INDEX IF EXISTS idx_issues_idempotency`, nil); err != nil {
+				return &domain.DatabaseError{Op: "migrate v2→v3: drop idx_issues_idempotency", Err: err}
+			}
+
+			// Step 2b: Drop the idempotency_key column from the issues table.
+			// SQLite 3.35+ supports ALTER TABLE … DROP COLUMN directly. The bundled
+			// zombiezen.com/go/sqlite v1.4.2 ships SQLite 3.45, so no table-rebuild
+			// dance is needed here.
+			if err := sqlitex.Execute(conn, `ALTER TABLE issues DROP COLUMN idempotency_key`, nil); err != nil {
+				return &domain.DatabaseError{Op: "migrate v2→v3: drop idempotency_key column", Err: err}
+			}
+		}
+
+		// Step 3: Record the completed migration.
+		return uow.Database().SetSchemaVersion(ctx, 3)
+	})
+	if err != nil {
+		return driven.MigrationResult{}, err
+	}
+
+	return result, nil
+}
+
 func (r *dbRepo) GC(_ context.Context, includeClosed bool) (int, int, error) {
 	gcQueries := []struct {
 		op    string
@@ -397,15 +553,6 @@ func (r *dbRepo) IntegrityCheck(_ context.Context) error {
 	return nil
 }
 
-func (r *dbRepo) CountVirtualLabelsInTable(_ context.Context) (int, error) {
-	count, err := queryInt(r.conn,
-		`SELECT COUNT(*) FROM labels WHERE key = ?`, domain.VirtualKeyIdempotency)
-	if err != nil {
-		return 0, &domain.DatabaseError{Op: "count virtual labels in table", Err: err}
-	}
-	return count, nil
-}
-
 func (r *dbRepo) CountDeletedRatio(_ context.Context) (total, deleted int, err error) {
 	err = sqlitex.Execute(r.conn,
 		`SELECT COUNT(*), COALESCE(SUM(CASE WHEN deleted = 1 THEN 1 ELSE 0 END), 0) FROM issues`,
@@ -457,18 +604,13 @@ func (r *dbRepo) RestoreIssueRaw(_ context.Context, rec domain.BackupIssueRecord
 	if rec.ParentID != "" {
 		parentID = rec.ParentID
 	}
-	var idemKey any
-	if rec.IdempotencyKey != "" {
-		idemKey = rec.IdempotencyKey
-	}
 
 	err := sqlitex.Execute(r.conn,
-		`INSERT INTO issues (issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+		`INSERT INTO issues (issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
 		&sqlitex.ExecOptions{
 			Args: []any{
 				rec.IssueID, rec.Role, rec.Title, rec.Description, rec.AcceptanceCriteria,
 				rec.Priority, rec.State, parentID, rec.CreatedAt.Format(time.RFC3339Nano),
-				idemKey,
 			},
 		})
 	if err != nil {
@@ -572,33 +714,21 @@ type issueRepo struct{ conn *sqlite.Conn }
 func (r *issueRepo) CreateIssue(_ context.Context, t domain.Issue) error {
 	parentID := nullable(t.ParentID())
 
-	// Resolve idempotency key: the virtual label takes precedence over
-	// the constructor field, allowing callers to set it via --label.
-	var idemKey any
-	if val, hasVirtual := t.Labels().Get(domain.VirtualKeyIdempotency); hasVirtual {
-		idemKey = val
-	} else if t.IdempotencyKey() != "" {
-		idemKey = t.IdempotencyKey()
-	}
-
 	err := sqlitex.Execute(r.conn,
-		`INSERT INTO issues (issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO issues (issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		&sqlitex.ExecOptions{
 			Args: []any{
 				t.ID().String(), t.Role().String(), t.Title(), t.Description(), t.AcceptanceCriteria(),
 				t.Priority().String(), t.State().String(), parentID, t.CreatedAt().Format(time.RFC3339Nano),
-				idemKey, boolToInt(t.IsDeleted()),
+				boolToInt(t.IsDeleted()),
 			},
 		})
 	if err != nil {
 		return &domain.DatabaseError{Op: "create issue", Err: err}
 	}
 
-	// Save labels — skip virtual keys that are backed by columns.
+	// Save all labels to the labels table.
 	for k, v := range t.Labels().All() {
-		if domain.IsVirtualLabelKey(k) {
-			continue
-		}
 		if err := sqlitex.Execute(r.conn, `INSERT INTO labels (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 			Args: []any{t.ID().String(), k, v},
 		}); err != nil {
@@ -618,7 +748,7 @@ func (r *issueRepo) CreateIssue(_ context.Context, t domain.Issue) error {
 }
 
 func (r *issueRepo) GetIssue(_ context.Context, id domain.ID, includeDeleted bool) (domain.Issue, error) {
-	query := `SELECT issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted FROM issues WHERE issue_id = ?`
+	query := `SELECT issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, deleted FROM issues WHERE issue_id = ?`
 	if !includeDeleted {
 		query += ` AND deleted = 0`
 	}
@@ -637,12 +767,6 @@ func (r *issueRepo) GetIssue(_ context.Context, id domain.ID, includeDeleted boo
 		return domain.Issue{}, err
 	}
 
-	// Inject the idempotency-key virtual label if the column is populated.
-	if t.IdempotencyKey() != "" {
-		lbl, _ := domain.NewLabel(domain.VirtualKeyIdempotency, t.IdempotencyKey())
-		labels = labels.Set(lbl)
-	}
-
 	t = t.WithLabels(labels)
 
 	return t, nil
@@ -651,37 +775,25 @@ func (r *issueRepo) GetIssue(_ context.Context, id domain.ID, includeDeleted boo
 func (r *issueRepo) UpdateIssue(_ context.Context, t domain.Issue) error {
 	parentID := nullable(t.ParentID())
 
-	// Sync the idempotency-key virtual label to the column. If the label
-	// is present, use its value; otherwise, derive from IdempotencyKey().
-	var idemKey any
-	if val, hasVirtual := t.Labels().Get(domain.VirtualKeyIdempotency); hasVirtual {
-		idemKey = val
-	} else if t.IdempotencyKey() != "" {
-		idemKey = t.IdempotencyKey()
-	}
-
 	err := sqlitex.Execute(r.conn,
-		`UPDATE issues SET title = ?, description = ?, acceptance_criteria = ?, priority = ?, state = ?, parent_id = ?, deleted = ?, idempotency_key = ? WHERE issue_id = ?`,
+		`UPDATE issues SET title = ?, description = ?, acceptance_criteria = ?, priority = ?, state = ?, parent_id = ?, deleted = ? WHERE issue_id = ?`,
 		&sqlitex.ExecOptions{
 			Args: []any{
 				t.Title(), t.Description(), t.AcceptanceCriteria(), t.Priority().String(),
-				t.State().String(), parentID, boolToInt(t.IsDeleted()), idemKey, t.ID().String(),
+				t.State().String(), parentID, boolToInt(t.IsDeleted()), t.ID().String(),
 			},
 		})
 	if err != nil {
 		return &domain.DatabaseError{Op: "update issue", Err: err}
 	}
 
-	// Replace labels — skip virtual keys that are backed by columns.
+	// Replace all labels.
 	if err := sqlitex.Execute(r.conn, `DELETE FROM labels WHERE issue_id = ?`, &sqlitex.ExecOptions{
 		Args: []any{t.ID().String()},
 	}); err != nil {
 		return &domain.DatabaseError{Op: "delete labels", Err: err}
 	}
 	for k, v := range t.Labels().All() {
-		if domain.IsVirtualLabelKey(k) {
-			continue
-		}
 		if err := sqlitex.Execute(r.conn, `INSERT INTO labels (issue_id, key, value) VALUES (?, ?, ?)`, &sqlitex.ExecOptions{
 			Args: []any{t.ID().String(), k, v},
 		}); err != nil {
@@ -1053,36 +1165,7 @@ func (r *issueRepo) ListDistinctLabels(_ context.Context) ([]domain.Label, error
 		return nil, &domain.DatabaseError{Op: "list distinct labels", Err: err}
 	}
 
-	// Include virtual labels from the idempotency_key column.
-	err = sqlitex.Execute(r.conn,
-		`SELECT DISTINCT idempotency_key FROM issues WHERE deleted = 0 AND idempotency_key IS NOT NULL ORDER BY idempotency_key`,
-		&sqlitex.ExecOptions{
-			ResultFunc: func(stmt *sqlite.Stmt) error {
-				lbl, lErr := domain.NewLabel(domain.VirtualKeyIdempotency, stmt.ColumnText(0))
-				if lErr != nil {
-					return lErr
-				}
-				lbls = append(lbls, lbl)
-				return nil
-			},
-		})
-	if err != nil {
-		return nil, &domain.DatabaseError{Op: "list distinct virtual labels", Err: err}
-	}
-
 	return lbls, nil
-}
-
-func (r *issueRepo) GetIssueByIdempotencyKey(_ context.Context, key string) (domain.Issue, error) {
-	t, err := scanIssueRow(r.conn,
-		`SELECT issue_id, role, title, description, acceptance_criteria, priority, state, parent_id, created_at, idempotency_key, deleted FROM issues WHERE idempotency_key = ?`, key)
-	if err != nil {
-		if isNotFound(err) {
-			return domain.Issue{}, domain.ErrNotFound
-		}
-		return domain.Issue{}, &domain.DatabaseError{Op: "get by idempotency key", Err: err}
-	}
-	return t, nil
 }
 
 // GetIssueSummary returns aggregate issue counts by state and computed
@@ -1398,13 +1481,7 @@ func buildCommentIssueScope(filter driven.CommentFilter) (string, []any) {
 
 	// Label scope: comments on issues with matching labels.
 	for _, lf := range filter.LabelFilters {
-		if domain.IsVirtualLabelKey(lf.Key) {
-			cond, condArgs := buildVirtualLabelCondition(lf)
-			// Rewrite column references from t. to issues table.
-			cond = strings.ReplaceAll(cond, "t.", "i.")
-			conditions = append(conditions, `c.issue_id IN (SELECT i.issue_id FROM issues i WHERE `+cond+`)`)
-			args = append(args, condArgs...)
-		} else if lf.Value == "" {
+		if lf.Value == "" {
 			conditions = append(conditions, `c.issue_id IN (SELECT f.issue_id FROM labels f WHERE f.key = ?)`)
 			args = append(args, lf.Key)
 		} else {
@@ -1864,7 +1941,9 @@ func (r *histRepo) GetLatestHistory(_ context.Context, issueID domain.ID) (histo
 // --- Helper functions ---
 
 // scanIssueRow executes a query expected to return a single issue row and
-// scans it into a domain Issue.
+// scans it into a domain Issue. The query must select the columns in this
+// order: issue_id, role, title, description, acceptance_criteria, priority,
+// state, parent_id, created_at, deleted.
 func scanIssueRow(conn *sqlite.Conn, query string, args ...any) (domain.Issue, error) {
 	var t domain.Issue
 	var found bool
@@ -1886,11 +1965,7 @@ func scanIssueRow(conn *sqlite.Conn, query string, args ...any) (domain.Issue, e
 				parentIDStr = stmt.ColumnText(7)
 			}
 			createdAtStr := stmt.ColumnText(8)
-			idemKey := ""
-			if !stmt.ColumnIsNull(9) {
-				idemKey = stmt.ColumnText(9)
-			}
-			deleted := stmt.ColumnInt(10)
+			deleted := stmt.ColumnInt(9)
 
 			id, _ := domain.ParseID(idStr)
 			priority, _ := domain.ParsePriority(priorityStr)
@@ -1909,13 +1984,11 @@ func scanIssueRow(conn *sqlite.Conn, query string, args ...any) (domain.Issue, e
 				t, _ = domain.NewTask(domain.NewTaskParams{
 					ID: id, Title: title, Description: desc, AcceptanceCriteria: ac,
 					Priority: priority, ParentID: pid, CreatedAt: createdAt,
-					IdempotencyKey: idemKey,
 				})
 			case domain.RoleEpic:
 				t, _ = domain.NewEpic(domain.NewEpicParams{
 					ID: id, Title: title, Description: desc, AcceptanceCriteria: ac,
 					Priority: priority, ParentID: pid, CreatedAt: createdAt,
-					IdempotencyKey: idemKey,
 				})
 			}
 
@@ -2050,15 +2123,6 @@ func buildIssueWhere(filter driven.IssueFilter) (string, []any) {
 	}
 
 	for _, ff := range filter.LabelFilters {
-		// Virtual labels are backed by columns on the issues table,
-		// not the labels table — generate column-based SQL.
-		if domain.IsVirtualLabelKey(ff.Key) {
-			cond, condArgs := buildVirtualLabelCondition(ff)
-			conditions = append(conditions, cond)
-			args = append(args, condArgs...)
-			continue
-		}
-
 		if ff.Negate {
 			if ff.Value == "" {
 				conditions = append(conditions, `NOT EXISTS (SELECT 1 FROM labels f WHERE f.issue_id = t.issue_id AND f.key = ?)`)
@@ -2173,28 +2237,6 @@ func buildIssueWhere(filter driven.IssueFilter) (string, []any) {
 	}
 
 	return "WHERE " + strings.Join(conditions, " AND "), args
-}
-
-// buildVirtualLabelCondition generates a SQL condition for a virtual label
-// filter that targets a column on the issues table instead of the labels
-// table. Currently supports the idempotency-key virtual label.
-func buildVirtualLabelCondition(ff driven.LabelFilter) (string, []any) {
-	switch ff.Key {
-	case domain.VirtualKeyIdempotency:
-		if ff.Negate {
-			if ff.Value == "" {
-				return `t.idempotency_key IS NULL`, nil
-			}
-			return `(t.idempotency_key IS NULL OR t.idempotency_key != ?)`, []any{ff.Value}
-		}
-		if ff.Value == "" {
-			return `t.idempotency_key IS NOT NULL`, nil
-		}
-		return `t.idempotency_key = ?`, []any{ff.Value}
-	default:
-		// Unknown virtual label — fall through to a no-match condition.
-		return `0`, nil
-	}
 }
 
 // parseIDList splits a comma-separated string of issue IDs into a slice.

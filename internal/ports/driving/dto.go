@@ -77,7 +77,12 @@ type IssueListItemDTO struct {
 
 // --- Issue DTOs ---
 
-// CreateIssueInput holds the parameters for creating an domain.
+// CreateIssueInput holds the parameters for creating an issue.
+//
+// IdempotencyLabel, when non-zero (Key() != ""), enables deduplication: if
+// any non-deleted issue already carries that exact key:value label, the
+// service returns the existing issue without mutation. When zero, creation
+// always proceeds without a deduplication check.
 type CreateIssueInput struct {
 	Role               domain.Role
 	Title              string
@@ -89,7 +94,7 @@ type CreateIssueInput struct {
 	Relationships      []RelationshipInput
 	Author             string
 	Claim              bool
-	IdempotencyKey     string
+	IdempotencyLabel   domain.Label
 }
 
 // RelationshipInput describes a relationship to add during issue creation
@@ -99,10 +104,15 @@ type RelationshipInput struct {
 	TargetID string
 }
 
-// CreateIssueOutput holds the result of creating an domain.
+// CreateIssueOutput holds the result of creating an issue.
+//
+// When Skipped is true, a non-deleted issue carrying the same idempotency
+// label already existed; Issue contains that existing issue and no new issue
+// was created. ClaimID is always empty in the skipped case.
 type CreateIssueOutput struct {
 	Issue   domain.Issue
 	ClaimID string // Non-empty if the issue was created as claimed.
+	Skipped bool   // True if the issue was deduplicated against an existing one.
 }
 
 // ClaimInput holds the parameters for claiming an issue.
@@ -887,11 +897,16 @@ type ImportInput struct {
 }
 
 // ImportLineResult describes the outcome of importing a single record.
+//
+// IdempotencyLabel holds the label that was used for deduplication. Its
+// canonical string form (Key():Value()) is suitable for human-readable
+// output. When the source record carried no idempotency label, this field
+// is the zero Label.
 type ImportLineResult struct {
-	IdempotencyKey string
-	IssueID        domain.ID
-	Skipped        bool // True if the idempotency key was already imported.
-	Err            error
+	IdempotencyLabel domain.Label
+	IssueID          domain.ID
+	Skipped          bool // True if the idempotency label matched an existing issue.
+	Err              error
 }
 
 // ImportOutput holds the aggregate result of an import operation.
@@ -904,12 +919,13 @@ type ImportOutput struct {
 
 // --- Schema Migration DTOs ---
 
-// MigrationResult describes the outcome of a v1→v2 schema migration. It is
-// returned by Service.MigrateV1ToV2 and consumed by the upgrade command to
-// produce human-readable or JSON output.
+// MigrationResult describes the outcome of a schema migration. It is returned
+// by Service.MigrateV1ToV2 and Service.MigrateV2ToV3 and consumed by the
+// upgrade command to produce human-readable or JSON output. Fields that are
+// not relevant to a particular migration step are zero.
 type MigrationResult struct {
 	// ClaimedIssuesConverted is the number of issues whose primary state was
-	// changed from "claimed" to "open" during the migration.
+	// changed from "claimed" to "open" during the v1→v2 migration.
 	ClaimedIssuesConverted int
 
 	// HistoryRowsRemoved is the number of history rows deleted because their
@@ -917,7 +933,22 @@ type MigrationResult struct {
 	HistoryRowsRemoved int
 
 	// LegacyRelationshipsTranslated is the number of relationship rows that
-	// were translated or dropped during migration: "cites" rows are renamed to
-	// "refs" and "cited_by" rows are removed. Both counts are summed here.
+	// were translated or dropped during v1→v2 migration: "cites" rows are
+	// renamed to "refs" and "cited_by" rows are removed. Both counts are summed.
 	LegacyRelationshipsTranslated int
+
+	// IdempotencyKeysMigrated is the number of non-NULL idempotency_key column
+	// values successfully written as idempotency:<value> label rows during the
+	// v2→v3 migration.
+	IdempotencyKeysMigrated int
+
+	// IdempotencyKeysSkipped is the number of idempotency_key column values not
+	// written because the issue already carried an idempotency label
+	// (skip-on-conflict policy, v2→v3 migration).
+	IdempotencyKeysSkipped int
+
+	// InvalidLabelValuesSkipped is the number of idempotency_key column values
+	// not written because domain.NewLabel rejected the stored value as invalid
+	// (v2→v3 migration).
+	InvalidLabelValuesSkipped int
 }

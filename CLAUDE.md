@@ -59,7 +59,7 @@ The project follows **Hexagonal (Ports & Adapters) Architecture**. The authorita
 - **Claiming gates all mutations.** Bearer-authenticated via random claim IDs. Comments and relationships can be added without claiming.
 - **Issue IDs:** `<PREFIX>-<random>` (e.g., `PKHP-a3bxr`). Prefix set at db init; random part is 5 lowercase Crockford Base32 characters.
 - **Database discovery:** `np` walks up from `cwd` looking for a `.np/` directory.
-- **JSONL import:** `np import` reads a JSONL file and bulk-creates issues with relationships, comments, labels, and state transitions. The import pipeline is two-phase: validation (domain layer, `internal/domain/`) runs before any mutations, then the import pass (service layer, `ImportIssues`) creates issues. Import is idempotent via `idempotency_key`.
+- **JSONL import:** `np import` reads a JSONL file and bulk-creates issues with relationships, comments, labels, and state transitions. The import pipeline is two-phase: validation (domain layer, `internal/domain/`) runs before any mutations, then the import pass (service layer, `ImportIssues`) creates issues. Each line carries a required `idempotency_label` (a `key:value` string stored as an ordinary label on the created issue); on re-import, lines whose label already exists on a non-deleted issue in the database are skipped.
 
 ## Gotchas
 

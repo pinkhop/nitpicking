@@ -10,7 +10,12 @@ import "time"
 //
 //	1 — initial format; included claim rows in the backup.
 //	2 — claims are transient and excluded from backup.
-const BackupAlgorithmVersion = 2
+//	3 — IdempotencyKey removed; the field is no longer written. Existing v2
+//	    backups that contain a non-empty idempotency_key value are accepted by
+//	    the restore path, which carries the value forward as an ordinary label
+//	    under the key "idempotency" (the migration-key scheme documented in
+//	    docs/developer/adr/idempotency-key-migration.md).
+const BackupAlgorithmVersion = 3
 
 // BackupHeader is the first record in a backup file. It contains metadata
 // about the backup itself — when it was taken, from which database
@@ -61,9 +66,6 @@ type BackupIssueRecord struct {
 	// CreatedAt is the issue creation timestamp in RFC 3339 with
 	// nanosecond precision.
 	CreatedAt time.Time `json:"created_at"`
-
-	// IdempotencyKey is the optional deduplication key set at creation.
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
 
 	// --- Associated data ---
 

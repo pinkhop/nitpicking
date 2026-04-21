@@ -1,18 +1,21 @@
-# Verify that re-importing a JSONL file with the same idempotency keys
-# does not create duplicate issues.
+# Verify that re-importing a JSONL file with the same idempotency labels
+# does not create duplicate issues. The first run creates the issue; the
+# second run skips it and reports skipped=1 and created=0.
 
 np-init IR
 
 exec np import jsonl testdata/rerun.jsonl --author import-agent --json
 stdout '"created": 1'
+stdout '"skipped": 0'
 
-# Import the same file again.
+# Import the same file again — the existing label match skips the record.
 exec np import jsonl testdata/rerun.jsonl --author import-agent --json
-stdout '"created": 1'
+stdout '"created": 0'
+stdout '"skipped": 1'
 
 # There should still be only one issue matching the title.
 exec np list --json
 np-json-array-len items 1
 
 -- testdata/rerun.jsonl --
-{"idempotency_key":"idempotent-1","role":"task","title":"Idempotent task"}
+{"idempotency_label":"tracker:idempotent-1","role":"task","title":"Idempotent task"}

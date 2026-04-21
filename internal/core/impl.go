@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -83,15 +84,31 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 	var output driving.CreateIssueOutput
 
 	err = s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
-		// Check idempotency key.
-		if input.IdempotencyKey != "" {
-			existing, err := uow.Issues().GetIssueByIdempotencyKey(ctx, input.IdempotencyKey)
-			if err == nil {
-				output.Issue = existing
-				return nil
+		// Check idempotency label. When the input carries a label, query for
+		// any existing non-deleted issue that already carries the same key:value
+		// pair. If one is found, return it without creating a duplicate.
+		// output.Skipped is set so callers (e.g., the import pipeline) can
+		// distinguish a deduplicated return from a fresh creation.
+		if input.IdempotencyLabel.Key() != "" {
+			items, _, err := uow.Issues().ListIssues(ctx,
+				driven.IssueFilter{
+					LabelFilters: []driven.LabelFilter{{
+						Key:   input.IdempotencyLabel.Key(),
+						Value: input.IdempotencyLabel.Value(),
+					}},
+				},
+				driven.OrderByID, driven.SortAscending, 1)
+			if err != nil {
+				return fmt.Errorf("deduplication label lookup: %w", err)
 			}
-			if !errors.Is(err, domain.ErrNotFound) {
-				return err
+			if len(items) > 0 {
+				existing, getErr := uow.Issues().GetIssue(ctx, items[0].ID, false)
+				if getErr != nil {
+					return fmt.Errorf("fetching existing deduplicated issue: %w", getErr)
+				}
+				output.Issue = existing
+				output.Skipped = true
+				return nil
 			}
 		}
 
@@ -116,6 +133,34 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 			return err
 		}
 
+		// Merge the idempotency label into the issue's regular label set so
+		// that label-based deduplication lookups (via ListIssues) can find the
+		// issue on a subsequent import. The new design stores the idempotency
+		// label as a normal label rather than in a dedicated column.
+		//
+		// The idempotency label always wins over a same-key entry in
+		// input.Labels: if it did not, a caller passing K:V1 as the
+		// idempotency label alongside labels containing K:V2 would produce
+		// an issue tagged only with K:V2, and a subsequent create call using
+		// the same K:V1 idempotency label would fail to match and would
+		// create a duplicate — silently breaking the service's idempotency
+		// contract. Import validation rejects this mismatch at the domain
+		// layer, but the service API itself has no such guard.
+		if input.IdempotencyLabel.Key() != "" {
+			key := input.IdempotencyLabel.Key()
+			replaced := false
+			for i, lbl := range domainLabels {
+				if lbl.Key() == key {
+					domainLabels[i] = input.IdempotencyLabel
+					replaced = true
+					break
+				}
+			}
+			if !replaced {
+				domainLabels = append(domainLabels, input.IdempotencyLabel)
+			}
+		}
+
 		role := input.Role
 
 		priority := input.Priority
@@ -129,7 +174,9 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 			}
 		}
 
-		// Create domain.
+		// Create domain issue. The idempotency label was already merged into
+		// domainLabels above; it is stored as a normal label and found via
+		// label-based deduplication on subsequent imports.
 		var t domain.Issue
 		switch role {
 		case domain.RoleTask:
@@ -142,7 +189,6 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 				ParentID:           parentID,
 				Labels:             domain.LabelSetFrom(domainLabels),
 				CreatedAt:          now,
-				IdempotencyKey:     input.IdempotencyKey,
 			})
 		case domain.RoleEpic:
 			t, err = domain.NewEpic(domain.NewEpicParams{
@@ -154,7 +200,6 @@ func (s *serviceImpl) CreateIssue(ctx context.Context, input driving.CreateIssue
 				ParentID:           parentID,
 				Labels:             domain.LabelSetFrom(domainLabels),
 				CreatedAt:          now,
-				IdempotencyKey:     input.IdempotencyKey,
 			})
 		default:
 			return domain.NewValidationError("role", "must be task or epic")
@@ -1901,20 +1946,6 @@ func (s *serviceImpl) Doctor(ctx context.Context, input driving.DoctorInput) (dr
 		}
 		output.Findings = append(output.Findings, humanFindings...)
 
-		// Check for virtual labels stored in the labels table.
-		virtualLabelCount, vlErr := uow.Database().CountVirtualLabelsInTable(ctx)
-		if vlErr != nil {
-			return vlErr
-		}
-		if virtualLabelCount > 0 {
-			output.Findings = append(output.Findings, driving.DoctorFinding{
-				Category: "virtual_label_in_table",
-				Severity: "error",
-				Message:  fmt.Sprintf("%d idempotency-key label(s) found in the labels table — they should be stored in the issues.idempotency_key column", virtualLabelCount),
-				Action:   &driving.ActionHint{Kind: driving.ActionKindExecSQL, SQL: "DELETE FROM labels WHERE key = 'idempotency-key'"},
-			})
-		}
-
 		return nil
 	})
 	if err != nil {
@@ -2497,7 +2528,6 @@ func (s *serviceImpl) buildIssueRecord(ctx context.Context, uow driven.UnitOfWor
 		Priority:           t.Priority().String(),
 		State:              t.State().String(),
 		CreatedAt:          t.CreatedAt(),
-		IdempotencyKey:     t.IdempotencyKey(),
 	}
 	if !t.ParentID().IsZero() {
 		rec.ParentID = t.ParentID().String()
@@ -2591,21 +2621,29 @@ func (s *serviceImpl) Restore(ctx context.Context, input driving.RestoreInput) e
 	case 1:
 		// v1 backups may include claim rows and issues with state="claimed".
 		// restoreV1 discards claim data and converts claimed issues to open,
-		// producing a v2 database.
+		// producing a v3 database.
 		return s.restoreV1(ctx, header, input.Reader)
 	case 2:
-		// v2 backups exclude claim data entirely; restore is straightforward.
+		// v2 backups exclude claim data but still carry the now-removed
+		// idempotency_key column value as a top-level JSON field. restoreV2
+		// reads records through a compatibility shim that captures the legacy
+		// field, then carries any non-empty value forward as an ordinary label
+		// under the key "idempotency" (skip-on-conflict; invalid values are
+		// skipped silently). See docs/developer/adr/idempotency-key-migration.md.
 		return s.restoreV2(ctx, header, input.Reader)
+	case 3:
+		// v3 backups omit idempotency_key entirely; restore is straightforward.
+		return s.restoreV3(ctx, header, input.Reader)
 	default:
 		return fmt.Errorf("unsupported backup version %d", header.Version)
 	}
 }
 
-// restoreV1 implements restore for backup algorithm version 1. It applies a
-// migration step while restoring: claimed-state issues are converted to open
-// (since claimed is no longer a lifecycle state in v2), and claim rows are
-// not restored (claims are transient). The resulting database is a v2 database.
-// All work is performed in a single write transaction for atomicity.
+// restoreV1 implements restore for backup algorithm version 1. It applies
+// migration steps while restoring: claimed-state issues are converted to open
+// (claimed is no longer a lifecycle state), and claim rows are not restored
+// (claims are transient). All work is performed in a single write transaction
+// for atomicity.
 func (s *serviceImpl) restoreV1(ctx context.Context, header domain.BackupHeader, reader driven.BackupReader) error {
 	records, err := collectBackupRecords(reader)
 	if err != nil {
@@ -2620,7 +2658,7 @@ func (s *serviceImpl) restoreV1(ctx context.Context, header domain.BackupHeader,
 	}
 
 	// Convert any v1-era "claimed" issues to "open" before restoring.
-	// In v2, claimed is a transient secondary state, not a lifecycle state.
+	// Since v2, claimed is a transient secondary state, not a lifecycle state.
 	for i := range records {
 		if records[i].State == "claimed" {
 			records[i].State = "open"
@@ -2667,11 +2705,125 @@ func (s *serviceImpl) restoreV1(ctx context.Context, header domain.BackupHeader,
 	})
 }
 
+// backupIssueRecordV2 is a compatibility shim used only during v2 backup
+// restore. It mirrors domain.BackupIssueRecord but retains the legacy
+// idempotency_key field that was removed in the v3 format. The value is
+// carried forward as an ordinary label during restore.
+type backupIssueRecordV2 struct {
+	domain.BackupIssueRecord
+	// IdempotencyKey holds the legacy idempotency_key JSON field present in
+	// v2 backups. Any non-empty value is migrated to an "idempotency:<value>"
+	// label on the restored issue. See
+	// docs/developer/adr/idempotency-key-migration.md.
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// migrateIdempotencyKeyToLabel carries a non-empty idempotency key forward as
+// an ordinary label on the record. The migration key is "idempotency", per the
+// scheme documented in docs/developer/adr/idempotency-key-migration.md.
+//
+// If the record already carries an "idempotency" label (skip-on-conflict
+// policy) or the value fails domain.NewLabel validation, the key is silently
+// dropped and the record is returned unchanged.
+func migrateIdempotencyKeyToLabel(shim backupIssueRecordV2) domain.BackupIssueRecord {
+	if shim.IdempotencyKey == "" {
+		return shim.BackupIssueRecord
+	}
+
+	// Validate the stored value against domain label rules before inserting.
+	// Values that were accepted by the old JSONL import may contain whitespace
+	// or other characters that fail label validation — skip them silently.
+	lbl, err := domain.NewLabel("idempotency", shim.IdempotencyKey)
+	if err != nil {
+		return shim.BackupIssueRecord
+	}
+
+	// Skip-on-conflict: if the issue already has an "idempotency" label from
+	// some other source, leave it in place.
+	for _, existing := range shim.Labels {
+		if existing.Key == "idempotency" {
+			return shim.BackupIssueRecord
+		}
+	}
+
+	rec := shim.BackupIssueRecord
+	rec.Labels = append(rec.Labels, domain.BackupLabelRecord{
+		Key:   lbl.Key(),
+		Value: lbl.Value(),
+	})
+	return rec
+}
+
+// collectV2BackupRecords reads all issue records from a v2 backup reader,
+// carrying any non-empty idempotency_key field forward as an "idempotency"
+// label on the resulting record. It uses a compatibility shim to decode the
+// legacy field that was removed in v3.
+func collectV2BackupRecords(reader driven.BackupReader) ([]domain.BackupIssueRecord, error) {
+	// driven.BackupReader.NextRecord decodes into domain.BackupIssueRecord,
+	// which no longer carries IdempotencyKey. To recover the legacy field from
+	// v2 backup JSON we need raw bytes before the typed decode discards the
+	// field. We detect this capability via an optional interface: if the reader
+	// exposes NextRawRecord (returning raw JSON per line), we decode through the
+	// backupIssueRecordV2 shim that still defines the field. If the reader does
+	// not expose raw bytes (e.g. an in-memory test fake), we fall back to the
+	// standard NextRecord path — no data is lost because those fakes do not
+	// produce the legacy field.
+	type rawRecordReader interface {
+		NextRawRecord() ([]byte, bool, error)
+	}
+	if rr, ok := reader.(rawRecordReader); ok {
+		return collectV2BackupRecordsRaw(rr)
+	}
+	// Fallback: carry-forward not possible without raw bytes. Readers that do
+	// not expose NextRawRecord are test fakes that never produce idempotency_key.
+	var records []domain.BackupIssueRecord
+	for {
+		rec, ok, err := reader.NextRecord()
+		if err != nil {
+			return nil, fmt.Errorf("reading backup record: %w", err)
+		}
+		if !ok {
+			break
+		}
+		records = append(records, rec)
+	}
+	return records, nil
+}
+
+// collectV2BackupRecordsRaw reads all issue records from a v2 backup reader
+// that exposes raw JSON bytes per record. It decodes each record through the
+// backupIssueRecordV2 shim to capture the legacy idempotency_key field, then
+// carries any non-empty value forward as an "idempotency" label.
+func collectV2BackupRecordsRaw(reader interface {
+	NextRawRecord() ([]byte, bool, error)
+},
+) ([]domain.BackupIssueRecord, error) {
+	var records []domain.BackupIssueRecord
+	for {
+		raw, ok, err := reader.NextRawRecord()
+		if err != nil {
+			return nil, fmt.Errorf("reading v2 backup record: %w", err)
+		}
+		if !ok {
+			break
+		}
+		var shim backupIssueRecordV2
+		if err := json.Unmarshal(raw, &shim); err != nil {
+			return nil, fmt.Errorf("decoding v2 backup record: %w", err)
+		}
+		records = append(records, migrateIdempotencyKeyToLabel(shim))
+	}
+	return records, nil
+}
+
 // restoreV2 implements restore for backup algorithm version 2. v2 backups
-// exclude claim data, so restore is straightforward. All work is performed
-// in a single write transaction for atomicity.
+// exclude claim data but still carry the now-removed idempotency_key column
+// value as a top-level JSON field. Any non-empty idempotency_key is carried
+// forward as an ordinary "idempotency:<value>" label (skip-on-conflict; invalid
+// values are dropped silently). All work is performed in a single write
+// transaction for atomicity.
 func (s *serviceImpl) restoreV2(ctx context.Context, header domain.BackupHeader, reader driven.BackupReader) error {
-	records, err := collectBackupRecords(reader)
+	records, err := collectV2BackupRecords(reader)
 	if err != nil {
 		return err
 	}
@@ -2704,9 +2856,48 @@ func (s *serviceImpl) restoreV2(ctx context.Context, header domain.BackupHeader,
 	})
 }
 
+// restoreV3 implements restore for backup algorithm version 3. v3 backups
+// omit idempotency_key entirely; restore is straightforward. All work is
+// performed in a single write transaction for atomicity.
+func (s *serviceImpl) restoreV3(ctx context.Context, header domain.BackupHeader, reader driven.BackupReader) error {
+	records, err := collectBackupRecords(reader)
+	if err != nil {
+		return err
+	}
+
+	if err := domain.ValidatePrefix(header.Prefix); err != nil {
+		return fmt.Errorf("invalid prefix in backup header: %w", err)
+	}
+
+	return s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
+		db := uow.Database()
+
+		if err := db.ClearAllData(ctx); err != nil {
+			return fmt.Errorf("clearing database: %w", err)
+		}
+
+		if err := db.InitDatabase(ctx, header.Prefix); err != nil {
+			return fmt.Errorf("restoring prefix: %w", err)
+		}
+
+		// Claim data is not present in v3 backups.
+		if err := restoreIssues(ctx, db, uow, records); err != nil {
+			return err
+		}
+
+		if err := db.RebuildFTS(ctx); err != nil {
+			return fmt.Errorf("rebuilding FTS: %w", err)
+		}
+
+		return nil
+	})
+}
+
 // collectBackupRecords reads all issue records from a backup reader,
-// returning them as a slice. It is used by both restoreV1 and restoreV2
-// to decouple record collection from the restore transaction.
+// returning them as a slice. It is used by restoreV1 and restoreV3
+// to decouple record collection from the restore transaction. restoreV2
+// uses collectV2BackupRecords instead, which decodes through a shim to
+// capture the legacy idempotency_key field before carrying it forward as a label.
 func collectBackupRecords(reader driven.BackupReader) ([]domain.BackupIssueRecord, error) {
 	var records []domain.BackupIssueRecord
 	for {
@@ -3175,14 +3366,14 @@ func (s *serviceImpl) ResetDatabase(ctx context.Context) error {
 
 // --- Schema Migration ---
 
-// errNoMigrator is returned by CheckSchemaVersion and MigrateV1ToV2 when the
-// service was constructed without a Migrator (e.g., in tests backed by the
-// in-memory adapter).
+// errNoMigrator is returned by CheckSchemaVersion, MigrateV1ToV2, and
+// MigrateV2ToV3 when the service was constructed without a Migrator (e.g., in
+// tests backed by the in-memory adapter).
 var errNoMigrator = errors.New("schema migration is not supported by the backing store")
 
 // CheckSchemaVersion delegates to the Migrator port to verify the database
-// schema version. It returns nil on a v2 database and a wrapped
-// domain.ErrSchemaMigrationRequired on a v1 database.
+// schema version. It returns nil on a v3 database and a wrapped
+// domain.ErrSchemaMigrationRequired on any older version.
 func (s *serviceImpl) CheckSchemaVersion(ctx context.Context) error {
 	if s.migrator == nil {
 		return errNoMigrator
@@ -3206,6 +3397,25 @@ func (s *serviceImpl) MigrateV1ToV2(ctx context.Context) (driving.MigrationResul
 		ClaimedIssuesConverted:        r.ClaimedIssuesConverted,
 		HistoryRowsRemoved:            r.HistoryRowsRemoved,
 		LegacyRelationshipsTranslated: r.LegacyRelationshipsTranslated,
+	}, nil
+}
+
+// MigrateV2ToV3 delegates the v2→v3 schema migration to the Migrator port.
+// It carries non-NULL idempotency_key column values forward as label rows,
+// drops the unique index and column, and records schema_version=3 — all within
+// a single atomic transaction.
+func (s *serviceImpl) MigrateV2ToV3(ctx context.Context) (driving.MigrationResult, error) {
+	if s.migrator == nil {
+		return driving.MigrationResult{}, errNoMigrator
+	}
+	r, err := s.migrator.MigrateV2ToV3(ctx)
+	if err != nil {
+		return driving.MigrationResult{}, err
+	}
+	return driving.MigrationResult{
+		IdempotencyKeysMigrated:   r.IdempotencyKeysMigrated,
+		IdempotencyKeysSkipped:    r.IdempotencyKeysSkipped,
+		InvalidLabelValuesSkipped: r.InvalidLabelValuesSkipped,
 	}, nil
 }
 

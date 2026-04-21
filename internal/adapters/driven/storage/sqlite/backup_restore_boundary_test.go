@@ -322,9 +322,13 @@ func seedDatabase(t *testing.T, env *boundaryEnv) seedResult {
 	// Add a comment to the closed task too.
 	env.addComment(t, r.closedTask, "Post-close comment")
 
-	// --- Idempotency key ---
+	// --- Idempotency label ---
+	idemLabel, err := domain.NewLabel("uniquekey", "12345")
+	if err != nil {
+		t.Fatalf("building idempotency label: %v", err)
+	}
 	r.idempotentTask = env.createTask(t, "Idempotent task", func(in *driving.CreateIssueInput) {
-		in.IdempotencyKey = "unique-key-12345"
+		in.IdempotencyLabel = idemLabel
 	})
 
 	// --- Rich history via updates ---
@@ -725,6 +729,145 @@ func TestBoundary_BackupRestore_LegacyCitesRelTypeTranslatedToRefs(t *testing.T)
 	}
 }
 
+// TestBoundary_BackupRestore_V2IdempotencyKeyCarriedForwardAsLabel verifies
+// that restoring a v2 backup that contains a non-empty idempotency_key field
+// results in the restored issue carrying an ordinary label "idempotency:<value>".
+//
+// This tests the migration path defined in
+// docs/developer/adr/idempotency-key-migration.md: v2 backups that predate the
+// v3 format change may carry idempotency_key values that must not be silently
+// dropped on restore.
+func TestBoundary_BackupRestore_V2IdempotencyKeyCarriedForwardAsLabel(t *testing.T) {
+	// Given — a hand-crafted v2 backup containing one issue with a non-empty
+	// idempotency_key and another without. The prefix uses only uppercase ASCII
+	// letters to satisfy validation.
+	const v2Backup = `{"prefix":"IDM","timestamp":"2026-01-01T00:00:00Z","version":2}
+{"issue_id":"IDM-aaaaa","role":"task","title":"Issue with idempotency key","state":"open","priority":"P2","created_at":"2026-01-01T00:00:00Z","idempotency_key":"jira:PROJ-123","labels":[],"comments":[],"relationships":[],"claims":[],"history":[]}
+{"issue_id":"IDM-bbbbb","role":"task","title":"Issue without idempotency key","state":"open","priority":"P2","created_at":"2026-01-01T00:00:00Z","labels":[],"comments":[],"relationships":[],"claims":[],"history":[]}
+`
+	env := newBoundaryEnv(t, "TEMP")
+	backupPath := writeGZIPBackup(t, env.tmpDir, v2Backup)
+
+	// When — restore the v2 backup into a fresh database.
+	env.doRestore(t, backupPath)
+
+	// Then — the issue with idempotency_key must carry an "idempotency" label.
+	showA, err := env.svc.ShowIssue(env.ctx, "IDM-aaaaa")
+	if err != nil {
+		t.Fatalf("ShowIssue IDM-aaaaa after v2 restore: %v", err)
+	}
+
+	idempotencyLabelValue, hasIdempotency := showA.Labels["idempotency"]
+	if !hasIdempotency {
+		t.Errorf("IDM-aaaaa missing idempotency label; labels: %v", showA.Labels)
+	} else if idempotencyLabelValue != "jira:PROJ-123" {
+		t.Errorf("idempotency label value = %q, want %q", idempotencyLabelValue, "jira:PROJ-123")
+	}
+
+	// The issue without idempotency_key must have no "idempotency" label.
+	showB, err := env.svc.ShowIssue(env.ctx, "IDM-bbbbb")
+	if err != nil {
+		t.Fatalf("ShowIssue IDM-bbbbb after v2 restore: %v", err)
+	}
+	if v, ok := showB.Labels["idempotency"]; ok {
+		t.Errorf("IDM-bbbbb unexpectedly has an idempotency label: %q=%q", "idempotency", v)
+	}
+}
+
+// TestBoundary_BackupRestore_V2IdempotencyKeyCollisionSkipped verifies that
+// when a v2 backup issue already carries an "idempotency" label in its labels
+// slice AND has a non-empty idempotency_key field, the existing label wins and
+// the idempotency_key value is not written (skip-on-conflict policy).
+func TestBoundary_BackupRestore_V2IdempotencyKeyCollisionSkipped(t *testing.T) {
+	// Given — a v2 backup issue that has both an "idempotency" label row
+	// already present in its labels array and a non-empty idempotency_key field.
+	// This is an edge case that could arise from partial migrations or manual
+	// label additions.
+	const v2Backup = `{"prefix":"COL","timestamp":"2026-01-01T00:00:00Z","version":2}
+{"issue_id":"COL-aaaaa","role":"task","title":"Collision test","state":"open","priority":"P2","created_at":"2026-01-01T00:00:00Z","idempotency_key":"old-value","labels":[{"key":"idempotency","value":"pre-existing"}],"comments":[],"relationships":[],"claims":[],"history":[]}
+`
+	env := newBoundaryEnv(t, "TEMP")
+	backupPath := writeGZIPBackup(t, env.tmpDir, v2Backup)
+
+	// When — restore the v2 backup.
+	env.doRestore(t, backupPath)
+
+	// Then — the pre-existing "idempotency" label wins; only one idempotency
+	// label is present with the pre-existing value.
+	show, err := env.svc.ShowIssue(env.ctx, "COL-aaaaa")
+	if err != nil {
+		t.Fatalf("ShowIssue COL-aaaaa after restore: %v", err)
+	}
+
+	// Labels is map[string]string so uniqueness per key is guaranteed.
+	idempotencyValue, hasIdempotency := show.Labels["idempotency"]
+	if !hasIdempotency {
+		t.Errorf("COL-aaaaa missing idempotency label; labels: %v", show.Labels)
+	} else if idempotencyValue != "pre-existing" {
+		t.Errorf("idempotency label value = %q, want %q", idempotencyValue, "pre-existing")
+	}
+}
+
+// TestBoundary_BackupRestore_V2IdempotencyKeyInvalidValueSkipped verifies that
+// a v2 backup whose idempotency_key value fails domain.NewLabel validation (for
+// example, a value containing whitespace) does not block restore; the invalid
+// value is silently dropped and the issue is restored without the label.
+func TestBoundary_BackupRestore_V2IdempotencyKeyInvalidValueSkipped(t *testing.T) {
+	// Given — a v2 backup issue with an idempotency_key value that contains a
+	// space, which fails label value validation.
+	const v2Backup = `{"prefix":"INV","timestamp":"2026-01-01T00:00:00Z","version":2}
+{"issue_id":"INV-aaaaa","role":"task","title":"Invalid idempotency key","state":"open","priority":"P2","created_at":"2026-01-01T00:00:00Z","idempotency_key":"has a space","labels":[],"comments":[],"relationships":[],"claims":[],"history":[]}
+`
+	env := newBoundaryEnv(t, "TEMP")
+	backupPath := writeGZIPBackup(t, env.tmpDir, v2Backup)
+
+	// When — restore the v2 backup.
+	env.doRestore(t, backupPath)
+
+	// Then — restore succeeds and the issue has no "idempotency" label (the
+	// invalid value was skipped silently).
+	show, err := env.svc.ShowIssue(env.ctx, "INV-aaaaa")
+	if err != nil {
+		t.Fatalf("ShowIssue INV-aaaaa after restore: %v", err)
+	}
+	if show.Title != "Invalid idempotency key" {
+		t.Errorf("title after restore = %q, want %q", show.Title, "Invalid idempotency key")
+	}
+	if v, ok := show.Labels["idempotency"]; ok {
+		t.Errorf("INV-aaaaa unexpectedly has an idempotency label: %q=%q (invalid value should have been skipped)", "idempotency", v)
+	}
+}
+
+// TestBoundary_BackupRestore_V3RoundTrip verifies that a v3 backup (the current
+// format) round-trips cleanly through write and restore without any
+// idempotency_key field drift.
+func TestBoundary_BackupRestore_V3RoundTrip(t *testing.T) {
+	// Given — a database with a task that has an "idempotency" label.
+	env := newBoundaryEnv(t, "VTHREE")
+	taskID := env.createTask(t, "V3 round-trip task", func(in *driving.CreateIssueInput) {
+		in.Labels = []driving.LabelInput{{Key: "idempotency", Value: "jira:PROJ-456"}}
+	})
+
+	backupPath, _ := env.doBackup(t)
+
+	// When — restore to a fresh database.
+	env2 := newBoundaryEnv(t, "TMP")
+	env2.doRestore(t, backupPath)
+
+	// Then — the idempotency label is preserved after the round-trip.
+	show, err := env2.svc.ShowIssue(env2.ctx, taskID.String())
+	if err != nil {
+		t.Fatalf("ShowIssue after v3 restore: %v", err)
+	}
+
+	idempotencyValue, ok := show.Labels["idempotency"]
+	if !ok {
+		t.Errorf("idempotency label missing after v3 round-trip; labels: %v", show.Labels)
+	} else if idempotencyValue != "jira:PROJ-456" {
+		t.Errorf("idempotency label value after v3 round-trip = %q, want %q", idempotencyValue, "jira:PROJ-456")
+	}
+}
+
 // writeGZIPBackup writes raw JSONL content to a gzip-compressed file and
 // returns the file path.
 func writeGZIPBackup(t *testing.T, tmpDir, content string) string {
@@ -764,7 +907,6 @@ type issueSnapshot struct {
 	priority           string
 	state              string
 	parentID           string
-	idempotencyKey     string
 	labels             map[string]string
 	commentCount       int
 	commentBodies      []string
@@ -877,9 +1019,6 @@ func compareStates(t *testing.T, expected, actual databaseState) {
 		}
 		if exp.parentID != act.parentID {
 			t.Errorf("issue %s parent_id: expected %q, got %q", id, exp.parentID, act.parentID)
-		}
-		if exp.idempotencyKey != act.idempotencyKey {
-			t.Errorf("issue %s idempotency_key: expected %q, got %q", id, exp.idempotencyKey, act.idempotencyKey)
 		}
 		if exp.commentCount != act.commentCount {
 			t.Errorf("issue %s comment count: expected %d, got %d", id, exp.commentCount, act.commentCount)

@@ -258,26 +258,45 @@ func (r *Repository) IssueIDExists(_ context.Context, id domain.ID) (bool, error
 	return exists, nil
 }
 
-func (r *Repository) ListDistinctLabels(_ context.Context) ([]domain.Label, error) {
+// ListLabelCounts counts occurrences of each key-value label pair across all
+// non-deleted issues (including closed and deferred). Hard-deleted issues are
+// excluded; soft state (closed, deferred) is intentionally included so that
+// the popularity signal reflects historical usage across the full issue
+// lifecycle.
+func (r *Repository) ListLabelCounts(_ context.Context) ([]domain.LabelCount, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	seen := make(map[string]bool)
-	var lbls []domain.Label
+	// Count occurrences of each key:value pair.
+	counts := make(map[string]int)
+	// Preserve a canonical (key, value) pair per composite key so we can
+	// construct the LabelCount values after counting.
+	type pair struct{ key, value string }
+	pairs := make(map[string]pair)
+
 	for _, t := range r.issues {
 		if t.IsDeleted() {
 			continue
 		}
 		for k, v := range t.Labels().All() {
-			key := k + ":" + v
-			if !seen[key] {
-				seen[key] = true
-				lbl, _ := domain.NewLabel(k, v)
-				lbls = append(lbls, lbl)
-			}
+			composite := k + ":" + v
+			counts[composite]++
+			pairs[composite] = pair{key: k, value: v}
 		}
 	}
-	return lbls, nil
+
+	result := make([]domain.LabelCount, 0, len(counts))
+	for composite, cnt := range counts {
+		p := pairs[composite]
+		lc, err := domain.NewLabelCount(p.key, p.value, cnt)
+		if err != nil {
+			// NewLabelCount validates key/value; if these were stored they were
+			// already valid, so this branch is unreachable in practice.
+			return nil, err
+		}
+		result = append(result, lc)
+	}
+	return result, nil
 }
 
 func (r *Repository) GetIssueSummary(_ context.Context) (driven.IssueSummary, error) {

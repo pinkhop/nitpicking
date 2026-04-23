@@ -1,5 +1,6 @@
 # Verify that 'np label list-all --json' produces valid JSON with snake_case
-# keys, a labels array with key/value strings, correct count, and no is_deleted.
+# keys, a labels array with key/popular_values fields, correct count reflecting
+# distinct keys (not pairs), and no is_deleted field.
 
 np-init LA
 stdin input1.json
@@ -8,14 +9,18 @@ stdin input2.json
 exec np json create --author listall-audit
 
 exec np label list-all --json
+# Two distinct keys: "kind" and "area".
 np-json-array-len labels 2
+# count reflects distinct keys, not pairs.
 np-json-has count 2
 np-json-no-field is_deleted
 
 stdout '"key"'
-stdout '"value"'
+stdout '"popular_values"'
+stdout '"kind"'
+stdout '"area"'
 
 -- input1.json --
-{"role":"task","title":"Bug task","labels":["kind:bug"]}
+{"role":"task","title":"Bug task","labels":["kind:bug","area:cli"]}
 -- input2.json --
 {"role":"task","title":"Feature task","labels":["kind:feature"]}

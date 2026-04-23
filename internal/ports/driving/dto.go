@@ -43,6 +43,18 @@ type LabelOutput struct {
 	Value string
 }
 
+// LabelKeyOutput is a service-layer DTO for returning a label key with its
+// most popular values aggregated across all non-deleted issues. It is the
+// element type returned by ListLabelPopularity.
+type LabelKeyOutput struct {
+	// Key is the label key (e.g., "kind", "area").
+	Key string
+	// PopularValues holds the 1–3 most frequently used values for this key,
+	// ordered by descending usage count with an alphabetical tiebreaker.
+	// It is never nil and always contains at least one entry.
+	PopularValues []string
+}
+
 // --- Issue List Item DTO ---
 
 // IssueListItemDTO is a flat projection of a driven.IssueListItem with all

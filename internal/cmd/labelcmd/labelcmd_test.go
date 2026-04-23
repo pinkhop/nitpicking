@@ -92,10 +92,11 @@ func TestLabelList_EmptyLabels(t *testing.T) {
 	}
 }
 
-func TestListDistinctLabels_ReturnsLabelsFromNonDeletedIssues(t *testing.T) {
+func TestListLabelPopularity_ReturnsKeysWithPopularValuesForNonDeletedIssues(t *testing.T) {
 	t.Parallel()
 
-	// Given: two tasks with labels.
+	// Given: two tasks with labels — one with kind:bug and area:auth, one with
+	// kind:feature. This yields two distinct keys: "area" and "kind".
 	svc := setupService(t)
 	ctx := t.Context()
 	author := mustAuthor(t, "test-agent")
@@ -121,23 +122,24 @@ func TestListDistinctLabels_ReturnsLabelsFromNonDeletedIssues(t *testing.T) {
 	}
 
 	// When
-	labels, err := svc.ListDistinctLabels(ctx)
-	// Then
+	keys, err := svc.ListLabelPopularity(ctx)
+	// Then — two key entries (area and kind), alphabetically ordered.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(labels) != 3 {
-		t.Fatalf("label count: got %d, want 3", len(labels))
+	if len(keys) != 2 {
+		t.Fatalf("key count: got %d, want 2", len(keys))
 	}
 
-	// Verify all three distinct key-value pairs are present.
-	found := make(map[string]bool)
-	for _, l := range labels {
-		found[l.Key+":"+l.Value] = true
+	// Verify each key appears with at least one popular value.
+	found := make(map[string][]string)
+	for _, k := range keys {
+		found[k.Key] = k.PopularValues
 	}
-	for _, expected := range []string{"kind:bug", "area:auth", "kind:feature"} {
-		if !found[expected] {
-			t.Errorf("missing label %q", expected)
-		}
+	if _, ok := found["kind"]; !ok {
+		t.Errorf("missing key %q", "kind")
+	}
+	if _, ok := found["area"]; !ok {
+		t.Errorf("missing key %q", "area")
 	}
 }

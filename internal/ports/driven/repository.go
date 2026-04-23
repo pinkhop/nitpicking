@@ -278,9 +278,13 @@ type IssueRepository interface {
 	// collision detection during ID generation).
 	IssueIDExists(ctx context.Context, id domain.ID) (bool, error)
 
-	// ListDistinctLabels returns all unique label key-value pairs
-	// across non-deleted issues.
-	ListDistinctLabels(ctx context.Context) ([]domain.Label, error)
+	// ListLabelCounts returns all unique label key-value pairs across
+	// non-deleted issues (including closed and deferred), together with the
+	// number of issues that carry each pair. The results are used by the
+	// service layer to compute per-key popularity rankings. Hard-deleted
+	// issues are excluded; soft state (closed, deferred) is included so that
+	// the popularity signal reflects historical usage.
+	ListLabelCounts(ctx context.Context) ([]domain.LabelCount, error)
 
 	// GetIssueSummary returns aggregate issue counts by primary state and
 	// computed readiness/blocked status. Excludes soft-deleted issues. Ready

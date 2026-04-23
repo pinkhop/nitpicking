@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/urfave/cli/v3"
 
@@ -290,20 +289,21 @@ operation had the expected effect.`,
 	}
 }
 
-// newListAllCmd constructs "label list-all" which shows all unique
-// label key-value pairs across all issues.
+// newListAllCmd constructs "label list-all" which shows the most popular label
+// values per key across all non-deleted issues (including closed and deferred).
 func newListAllCmd(f *cmdutil.Factory) *cli.Command {
 	var jsonOutput bool
 
 	return &cli.Command{
 		Name:  "list-all",
-		Usage: "List all unique labels across all issues",
-		Description: `Shows every distinct label key-value pair that exists across all issues in the
-tracker, grouped by key. This gives a bird's-eye view of the labeling
-taxonomy without requiring you to inspect issues one at a time.
+		Usage: "List all label keys with their most popular values across all issues",
+		Description: `Shows every label key in use across the tracker, together with its three
+most frequently used values (by number of issues carrying the key:value pair).
+Closed and deferred issues are included so that the popularity signal
+reflects historical usage — not just current open work.
 
 Use this command to discover what label keys and values are in use — for
-example, to check whether a "kind:refactor" label exists before using it,
+example, to check the most common "kind" values before tagging a new issue,
 or to audit labeling consistency across the project. The output is read-only
 and does not require a claim.`,
 		Flags: []cli.Flag{
@@ -320,46 +320,42 @@ and does not require a claim.`,
 				return err
 			}
 
-			labels, err := svc.ListDistinctLabels(ctx)
+			keys, err := svc.ListLabelPopularity(ctx)
 			if err != nil {
 				return fmt.Errorf("listing labels: %w", err)
 			}
 
 			if jsonOutput {
-				type labelJSON struct {
-					Key   string `json:"key"`
-					Value string `json:"value"`
+				type keyJSON struct {
+					Key           string   `json:"key"`
+					PopularValues []string `json:"popular_values"`
 				}
-				out := make([]labelJSON, 0, len(labels))
-				for _, l := range labels {
-					out = append(out, labelJSON{Key: l.Key, Value: l.Value})
+				out := make([]keyJSON, 0, len(keys))
+				for _, k := range keys {
+					out = append(out, keyJSON{
+						Key:           k.Key,
+						PopularValues: k.PopularValues,
+					})
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, map[string]any{
 					"labels": out,
-					"count":  len(labels),
+					"count":  len(keys),
 				})
 			}
 
 			w := f.IOStreams.Out
-			if len(labels) == 0 {
+			if len(keys) == 0 {
 				_, _ = fmt.Fprintln(w, "No labels found.")
 				return nil
 			}
 
-			// Group by key for readability.
-			groups := make(map[string][]string)
-			var keys []string
-			for _, l := range labels {
-				if _, exists := groups[l.Key]; !exists {
-					keys = append(keys, l.Key)
-				}
-				groups[l.Key] = append(groups[l.Key], l.Value)
-			}
-
-			tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+			tw := cmdutil.NewTableWriter(w, 2)
+			tw.AddRow("KEY", "POPULAR VALUES")
 			for _, k := range keys {
-				_, _ = fmt.Fprintf(tw, "%s\t%s\n", k, strings.Join(groups[k], ", "))
+				tw.AddRow(k.Key, strings.Join(k.PopularValues, ", "))
 			}
+			// Flush error is best-effort — output is going to stdout and we
+			// cannot meaningfully recover from a write failure at this point.
 			_ = tw.Flush()
 
 			return nil

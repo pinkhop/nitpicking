@@ -1847,14 +1847,14 @@ func TestIssueIDExists_False(t *testing.T) {
 	}
 }
 
-// --- ListDistinctLabels ---
+// --- ListLabelCounts ---
 
-func TestListDistinctLabels_ReturnsUniqueLabels(t *testing.T) {
+func TestListLabelCounts_ReturnsCountsForNonDeletedIssues(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repo := memory.NewRepository()
 
-	// Given — two issues sharing one label, one with an extra label
+	// Given — two issues sharing "kind:bug", one extra "area:api".
 	now := time.Now()
 	id1 := mustIssueID(t)
 	id2 := mustIssueID(t)
@@ -1874,28 +1874,42 @@ func TestListDistinctLabels_ReturnsUniqueLabels(t *testing.T) {
 	}
 
 	// When
-	labels, err := repo.ListDistinctLabels(ctx)
+	counts, err := repo.ListLabelCounts(ctx)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(labels) != 2 {
-		t.Errorf("expected 2 distinct labels, got %d", len(labels))
+	// Two distinct key:value pairs: kind:bug and area:api.
+	if len(counts) != 2 {
+		t.Errorf("expected 2 label counts, got %d", len(counts))
+	}
+	// Verify that "kind:bug" has count 2.
+	for _, lc := range counts {
+		if lc.Key() == "kind" && lc.Value() == "bug" {
+			if lc.Count() != 2 {
+				t.Errorf("kind:bug count: got %d, want 2", lc.Count())
+			}
+		}
+		if lc.Key() == "area" && lc.Value() == "api" {
+			if lc.Count() != 1 {
+				t.Errorf("area:api count: got %d, want 1", lc.Count())
+			}
+		}
 	}
 }
 
-func TestListDistinctLabels_ExcludesDeletedIssues(t *testing.T) {
+func TestListLabelCounts_ExcludesDeletedIssues(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repo := memory.NewRepository()
 
-	// Given — one alive issue with a label, one deleted issue with a unique label
+	// Given — one alive issue with a label, one deleted issue with a unique label.
 	now := time.Now()
 	aliveID := mustIssueID(t)
 	deletedID := mustIssueID(t)
 
 	commonLabel := mustLabel(t, "kind", "bug")
-	uniqueLabel := mustLabel(t, "area", "deleted")
+	uniqueLabel := mustLabel(t, "area", "deleted-only")
 
 	alive := mustTask(t, aliveID, "Alive", now).
 		WithLabels(domain.NewLabelSet().Set(commonLabel))
@@ -1909,13 +1923,57 @@ func TestListDistinctLabels_ExcludesDeletedIssues(t *testing.T) {
 	}
 
 	// When
-	labels, err := repo.ListDistinctLabels(ctx)
+	counts, err := repo.ListLabelCounts(ctx)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(labels) != 1 {
-		t.Errorf("expected 1 label (excluding deleted issue's labels), got %d", len(labels))
+	// Only the alive issue's label is counted.
+	if len(counts) != 1 {
+		t.Errorf("expected 1 label count (excluding deleted issue), got %d", len(counts))
+	}
+	if len(counts) == 1 {
+		if counts[0].Key() != "kind" || counts[0].Value() != "bug" {
+			t.Errorf("unexpected label: got %s:%s, want kind:bug", counts[0].Key(), counts[0].Value())
+		}
+	}
+}
+
+func TestListLabelCounts_IncludesClosedAndDeferredIssues(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — one open issue, one with a closed state, and one deferred — each
+	// with the same label. Closed/deferred issues should contribute to counts.
+	now := time.Now()
+	openID := mustIssueID(t)
+	closedID := mustIssueID(t)
+	deferredID := mustIssueID(t)
+
+	lbl := mustLabel(t, "kind", "bug")
+
+	open := mustTask(t, openID, "Open", now).WithLabels(domain.NewLabelSet().Set(lbl))
+	closed := mustTask(t, closedID, "Closed", now).WithLabels(domain.NewLabelSet().Set(lbl)).WithState(domain.StateClosed)
+	deferred := mustTask(t, deferredID, "Deferred", now).WithLabels(domain.NewLabelSet().Set(lbl)).WithState(domain.StateDeferred)
+
+	for _, iss := range []domain.Issue{open, closed, deferred} {
+		if err := repo.CreateIssue(ctx, iss); err != nil {
+			t.Fatalf("precondition: %v", err)
+		}
+	}
+
+	// When
+	counts, err := repo.ListLabelCounts(ctx)
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(counts) != 1 {
+		t.Fatalf("expected 1 label count entry, got %d", len(counts))
+	}
+	if counts[0].Count() != 3 {
+		t.Errorf("kind:bug count: got %d, want 3 (open + closed + deferred)", counts[0].Count())
 	}
 }
 

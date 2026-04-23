@@ -1174,20 +1174,90 @@ func (s *serviceImpl) GetIssueSummary(ctx context.Context) (driving.IssueSummary
 
 // --- Label Operations ---
 
-func (s *serviceImpl) ListDistinctLabels(ctx context.Context) ([]driving.LabelOutput, error) {
-	var out []driving.LabelOutput
+// ListLabelPopularity returns label keys with their top-3 most popular values
+// aggregated across all non-deleted issues. The aggregation is performed in
+// the service layer rather than the repository to keep SQL queries simple and
+// to allow the in-memory adapter to use the same ranking logic.
+func (s *serviceImpl) ListLabelPopularity(ctx context.Context) ([]driving.LabelKeyOutput, error) {
+	var out []driving.LabelKeyOutput
 	err := s.tx.WithReadTransaction(ctx, func(uow driven.UnitOfWork) error {
-		domainLabels, queryErr := uow.Issues().ListDistinctLabels(ctx)
+		counts, queryErr := uow.Issues().ListLabelCounts(ctx)
 		if queryErr != nil {
 			return queryErr
 		}
-		out = make([]driving.LabelOutput, len(domainLabels))
-		for i, l := range domainLabels {
-			out[i] = driving.LabelOutput{Key: l.Key(), Value: l.Value()}
-		}
+		out = aggregateLabelPopularity(counts)
 		return nil
 	})
 	return out, err
+}
+
+// aggregateLabelPopularity converts a flat list of per-(key,value) usage
+// counts into per-key summaries with up to three most popular values.
+//
+// Ordering within each key's PopularValues slice: descending by count, then
+// alphabetical on value for deterministic output when counts are equal.
+// The outer slice of LabelKeyOutput is ordered alphabetically by key.
+func aggregateLabelPopularity(counts []domain.LabelCount) []driving.LabelKeyOutput {
+	if len(counts) == 0 {
+		return nil
+	}
+
+	// Accumulate value counts per key.
+	type valCount struct {
+		value string
+		count int
+	}
+	groups := make(map[string][]valCount)
+	var keyOrder []string
+	for _, lc := range counts {
+		if _, exists := groups[lc.Key()]; !exists {
+			keyOrder = append(keyOrder, lc.Key())
+		}
+		groups[lc.Key()] = append(groups[lc.Key()], valCount{value: lc.Value(), count: lc.Count()})
+	}
+
+	// Sort keys alphabetically for stable output.
+	slices.Sort(keyOrder)
+
+	out := make([]driving.LabelKeyOutput, 0, len(keyOrder))
+	for _, key := range keyOrder {
+		vals := groups[key]
+
+		// Sort: descending count, then ascending value as tiebreaker.
+		slices.SortFunc(vals, func(a, b valCount) int {
+			if a.count != b.count {
+				// Descending count: higher count sorts first.
+				if a.count > b.count {
+					return -1
+				}
+				return 1
+			}
+			// Ascending value tiebreaker: lexicographically earlier value first.
+			if a.value < b.value {
+				return -1
+			}
+			if a.value > b.value {
+				return 1
+			}
+			return 0
+		})
+
+		// Keep at most 3 values.
+		top := vals
+		if len(top) > 3 {
+			top = top[:3]
+		}
+		popular := make([]string, len(top))
+		for i, v := range top {
+			popular[i] = v.value
+		}
+
+		out = append(out, driving.LabelKeyOutput{
+			Key:           key,
+			PopularValues: popular,
+		})
+	}
+	return out
 }
 
 // --- Label Propagation ---

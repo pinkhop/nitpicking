@@ -4071,9 +4071,9 @@ func TestLookupClaimAuthor_UnknownClaim_ReturnsNotFound(t *testing.T) {
 	}
 }
 
-// --- ListDistinctLabels ---
+// --- ListLabelPopularity ---
 
-func TestListDistinctLabels_NoLabels_ReturnsEmptySlice(t *testing.T) {
+func TestListLabelPopularity_NoLabels_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	// Given — a task with no labels.
@@ -4089,17 +4089,17 @@ func TestListDistinctLabels_NoLabels_ReturnsEmptySlice(t *testing.T) {
 	}
 
 	// When
-	labels, err := svc.ListDistinctLabels(ctx)
+	keys, err := svc.ListLabelPopularity(ctx)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(labels) != 0 {
-		t.Errorf("expected 0 labels, got %d", len(labels))
+	if len(keys) != 0 {
+		t.Errorf("expected 0 key entries, got %d", len(keys))
 	}
 }
 
-func TestListDistinctLabels_OneLabel_ReturnsSingleLabel(t *testing.T) {
+func TestListLabelPopularity_SingleLabel_ReturnsSingleKeyWithOneValue(t *testing.T) {
 	t.Parallel()
 
 	// Given — a task with one label.
@@ -4107,77 +4107,240 @@ func TestListDistinctLabels_OneLabel_ReturnsSingleLabel(t *testing.T) {
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "label-agent")
 
-	kindBug := driving.LabelInput{Key: "kind", Value: "bug"}
 	_, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
 		Role: domain.RoleTask, Title: "Bug fix", Author: author,
-		Labels: []driving.LabelInput{kindBug},
+		Labels: []driving.LabelInput{{Key: "kind", Value: "bug"}},
 	})
 	if err != nil {
 		t.Fatalf("precondition: create issue: %v", err)
 	}
 
 	// When
-	labels, err := svc.ListDistinctLabels(ctx)
-	// Then
+	keys, err := svc.ListLabelPopularity(ctx)
+	// Then — one key entry for "kind" with "bug" as its only popular value.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(labels) != 1 {
-		t.Fatalf("expected 1 label, got %d", len(labels))
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 key entry, got %d", len(keys))
 	}
-	if labels[0].Key != "kind" || labels[0].Value != "bug" {
-		t.Errorf("label: got %s:%s, want kind:bug", labels[0].Key, labels[0].Value)
+	if keys[0].Key != "kind" {
+		t.Errorf("key: got %q, want %q", keys[0].Key, "kind")
+	}
+	if len(keys[0].PopularValues) != 1 || keys[0].PopularValues[0] != "bug" {
+		t.Errorf("popular values: got %v, want [bug]", keys[0].PopularValues)
 	}
 }
 
-func TestListDistinctLabels_MultipleIssues_ReturnsDistinctLabels(t *testing.T) {
+func TestListLabelPopularity_MultipleValues_GroupsByKeyAndOrdersByCount(t *testing.T) {
 	t.Parallel()
 
-	// Given — two tasks sharing one label key with different values,
-	// plus a unique label on each.
+	// Given — three tasks with "kind" labels (two "bug", one "feature") and
+	// a single task with "area:auth". The popularity for "kind" should be
+	// [bug, feature] (count-descending), and "area" should have [auth].
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "label-agent")
+
+	for range 2 {
+		_, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+			Role: domain.RoleTask, Title: "Bug task", Author: author,
+			Labels: []driving.LabelInput{{Key: "kind", Value: "bug"}},
+		})
+		if err != nil {
+			t.Fatalf("precondition: create bug task: %v", err)
+		}
+	}
+	_, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Feature task", Author: author,
+		Labels: []driving.LabelInput{{Key: "kind", Value: "feature"}, {Key: "area", Value: "auth"}},
+	})
+	if err != nil {
+		t.Fatalf("precondition: create feature task: %v", err)
+	}
+
+	// When
+	keys, err := svc.ListLabelPopularity(ctx)
+	// Then — two key entries, alphabetically ordered: "area" before "kind".
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(keys) != 2 {
+		t.Fatalf("expected 2 key entries, got %d: %+v", len(keys), keys)
+	}
+
+	// "area" comes first alphabetically.
+	if keys[0].Key != "area" {
+		t.Errorf("keys[0].Key: got %q, want %q", keys[0].Key, "area")
+	}
+	if len(keys[0].PopularValues) != 1 || keys[0].PopularValues[0] != "auth" {
+		t.Errorf("area popular values: got %v, want [auth]", keys[0].PopularValues)
+	}
+
+	// "kind" with bug (count=2) before feature (count=1).
+	if keys[1].Key != "kind" {
+		t.Errorf("keys[1].Key: got %q, want %q", keys[1].Key, "kind")
+	}
+	if len(keys[1].PopularValues) < 2 {
+		t.Fatalf("kind popular values: got %v, want at least [bug, feature]", keys[1].PopularValues)
+	}
+	if keys[1].PopularValues[0] != "bug" {
+		t.Errorf("kind popular values[0]: got %q, want %q", keys[1].PopularValues[0], "bug")
+	}
+	if keys[1].PopularValues[1] != "feature" {
+		t.Errorf("kind popular values[1]: got %q, want %q", keys[1].PopularValues[1], "feature")
+	}
+}
+
+func TestListLabelPopularity_MoreThanThreeValues_TruncatesToThree(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task for each of four distinct "kind" values.
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "label-agent")
+
+	for _, val := range []string{"bug", "feature", "refactor", "docs"} {
+		_, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+			Role: domain.RoleTask, Title: "Task " + val, Author: author,
+			Labels: []driving.LabelInput{{Key: "kind", Value: val}},
+		})
+		if err != nil {
+			t.Fatalf("precondition: create task %q: %v", val, err)
+		}
+	}
+
+	// When
+	keys, err := svc.ListLabelPopularity(ctx)
+	// Then — one key entry for "kind" with at most 3 popular values.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 key entry, got %d", len(keys))
+	}
+	if len(keys[0].PopularValues) != 3 {
+		t.Errorf("popular values count: got %d, want 3", len(keys[0].PopularValues))
+	}
+}
+
+func TestListLabelPopularity_TiebreakAlphabetical_OrdersValuesDeterministically(t *testing.T) {
+	t.Parallel()
+
+	// Given — three tasks each with a distinct "kind" value at count=1.
+	// With equal counts, values should be sorted alphabetically.
+	ctx := t.Context()
+	svc, _ := setupService(t)
+	author := mustAuthor(t, "label-agent")
+
+	for _, val := range []string{"zebra", "alpha", "middle"} {
+		_, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+			Role: domain.RoleTask, Title: "Task " + val, Author: author,
+			Labels: []driving.LabelInput{{Key: "kind", Value: val}},
+		})
+		if err != nil {
+			t.Fatalf("precondition: create task %q: %v", val, err)
+		}
+	}
+
+	// When
+	keys, err := svc.ListLabelPopularity(ctx)
+	// Then — values ordered alphabetically because all counts are equal.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 key entry, got %d", len(keys))
+	}
+	want := []string{"alpha", "middle", "zebra"}
+	if len(keys[0].PopularValues) != len(want) {
+		t.Fatalf("popular values: got %v, want %v", keys[0].PopularValues, want)
+	}
+	for i, v := range want {
+		if keys[0].PopularValues[i] != v {
+			t.Errorf("popular values[%d]: got %q, want %q", i, keys[0].PopularValues[i], v)
+		}
+	}
+}
+
+func TestListLabelPopularity_ClosedAndDeferredIssues_ContributeToCount(t *testing.T) {
+	t.Parallel()
+
+	// Given — one open, one closed, and one deferred issue each with
+	// "kind:bug". All three should contribute to the count, yielding the
+	// only popularity entry being "kind" → ["bug"].
 	ctx := t.Context()
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "label-agent")
 
 	kindBug := driving.LabelInput{Key: "kind", Value: "bug"}
-	areaAuth := driving.LabelInput{Key: "area", Value: "auth"}
-	kindFeature := driving.LabelInput{Key: "kind", Value: "feature"}
-	areaAPI := driving.LabelInput{Key: "area", Value: "api"}
-
-	_, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role: domain.RoleTask, Title: "Bug in auth", Author: author,
-		Labels: []driving.LabelInput{kindBug, areaAuth},
+	openOut, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Open bug", Author: author,
+		Labels: []driving.LabelInput{kindBug},
 	})
 	if err != nil {
-		t.Fatalf("precondition: create issue 1: %v", err)
+		t.Fatalf("precondition: create open issue: %v", err)
 	}
-	_, err = svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role: domain.RoleTask, Title: "New API feature", Author: author,
-		Labels: []driving.LabelInput{kindFeature, areaAPI},
+
+	// Claim and close one issue.
+	claimOut, err := svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID: openOut.Issue.ID().String(), Author: author,
 	})
 	if err != nil {
-		t.Fatalf("precondition: create issue 2: %v", err)
+		t.Fatalf("precondition: claim open issue: %v", err)
+	}
+	if err := svc.CloseWithReason(ctx, driving.CloseWithReasonInput{
+		IssueID: openOut.Issue.ID().String(),
+		ClaimID: claimOut.ClaimID,
+		Reason:  "done",
+	}); err != nil {
+		t.Fatalf("precondition: close issue: %v", err)
+	}
+
+	// Create and defer a second issue.
+	deferredOut, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Deferred bug", Author: author,
+		Labels: []driving.LabelInput{kindBug},
+	})
+	if err != nil {
+		t.Fatalf("precondition: create deferred issue: %v", err)
+	}
+	deferClaimOut, err := svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID: deferredOut.Issue.ID().String(), Author: author,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim deferred issue: %v", err)
+	}
+	if err := svc.DeferIssue(ctx, driving.DeferIssueInput{
+		IssueID: deferredOut.Issue.ID().String(),
+		ClaimID: deferClaimOut.ClaimID,
+	}); err != nil {
+		t.Fatalf("precondition: defer issue: %v", err)
+	}
+
+	// Create a third open issue with the same label.
+	_, err = svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role: domain.RoleTask, Title: "Another open bug", Author: author,
+		Labels: []driving.LabelInput{kindBug},
+	})
+	if err != nil {
+		t.Fatalf("precondition: create third issue: %v", err)
 	}
 
 	// When
-	labels, err := svc.ListDistinctLabels(ctx)
-	// Then — four distinct key:value pairs.
+	keys, err := svc.ListLabelPopularity(ctx)
+	// Then — "kind" with "bug" appearing in all three (closed, deferred, open).
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(labels) != 4 {
-		t.Fatalf("expected 4 distinct labels, got %d", len(labels))
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 key entry, got %d", len(keys))
 	}
-
-	// Verify all expected labels are present.
-	found := make(map[string]bool)
-	for _, l := range labels {
-		found[l.Key+":"+l.Value] = true
+	if keys[0].Key != "kind" {
+		t.Errorf("key: got %q, want %q", keys[0].Key, "kind")
 	}
-	for _, want := range []string{"kind:bug", "kind:feature", "area:auth", "area:api"} {
-		if !found[want] {
-			t.Errorf("expected label %q not found in results", want)
-		}
+	if len(keys[0].PopularValues) != 1 || keys[0].PopularValues[0] != "bug" {
+		t.Errorf("popular values: got %v, want [bug]", keys[0].PopularValues)
 	}
 }
 

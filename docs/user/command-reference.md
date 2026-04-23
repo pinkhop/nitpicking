@@ -256,7 +256,7 @@ np list [options]
 
 | Flag | Description |
 |------|-------------|
-| `--state`, `-s` | Filter by state: `open`, `claimed`, `closed`, `deferred`. Repeatable. |
+| `--state`, `-s` | Filter by state: `open`, `closed`, `deferred`. Repeatable. |
 | `--role`, `-r` | Filter by role: `task` or `epic`. Repeatable. |
 | `--label` | Filter by label in `key:value` format. Repeatable. |
 | `--parent` | Filter by parent epic ID. Repeatable. |
@@ -1288,7 +1288,11 @@ np rel issue [options] <ISSUE-ID>
 
 ### rel tree
 
-Show the hierarchy tree starting from an issue. Alias for `rel parent tree`.
+Show the ancestry and descendant hierarchy for an issue.
+
+Renders a columnar table that begins at the root ancestor of the specified issue, traces the ancestry path down to the specified issue, fully expands the issue's descendant subtree, and inserts sibling summary rows (`and N siblings`) at each ancestor tier for branches not on the ancestry path. Use `--full` to expand the entire tree from the root ancestor with no sibling summaries.
+
+The specified issue's row is bold on TTY output. Priority, role, and state columns use the same coloration as `np list`.
 
 **Synopsis:**
 
@@ -1300,7 +1304,46 @@ np rel tree [options] <ISSUE-ID>
 
 | Flag | Description |
 |------|-------------|
+| `--full` | Expand the entire tree from the root ancestor with no sibling summaries. |
 | `--json` | Output machine-readable JSON. |
+
+**Examples:**
+
+Given epic `MYAPP-10000` with children `MYAPP-11000` (an epic with two tasks) and `MYAPP-12000` (a task):
+
+```
+$ np rel tree MYAPP-10000
+TREE             P   ROLE  STATE          TITLE
+MYAPP-10000      P2  epic  open (active)  Root epic
+  MYAPP-11000    P2  epic  open (active)  Child epic
+    MYAPP-11100  P2  task  open (ready)   Task A
+    MYAPP-11200  P2  task  open (ready)   Task B
+  MYAPP-12000    P2  task  open (ready)   Standalone child
+```
+
+Running on a child shows the ancestry path plus sibling summaries:
+
+```
+$ np rel tree MYAPP-11000
+TREE             P   ROLE  STATE          TITLE
+MYAPP-10000      P2  epic  open (active)  Root epic
+  MYAPP-11000    P2  epic  open (active)  Child epic
+    MYAPP-11100  P2  task  open (ready)   Task A
+    MYAPP-11200  P2  task  open (ready)   Task B
+  and 1 sibling
+```
+
+Use `--full` to see the complete tree regardless of which issue you specify:
+
+```
+$ np rel tree MYAPP-11000 --full
+TREE             P   ROLE  STATE          TITLE
+MYAPP-10000      P2  epic  open (active)  Root epic
+  MYAPP-11000    P2  epic  open (active)  Child epic
+    MYAPP-11100  P2  task  open (ready)   Task A
+    MYAPP-11200  P2  task  open (ready)   Task B
+  MYAPP-12000    P2  task  open (ready)   Standalone child
+```
 
 **Exit codes:**
 
@@ -1455,7 +1498,16 @@ np label list <ISSUE-ID> [options]
 
 ### label list-all
 
-List all unique labels across all issues in the database.
+List all label keys in use across the database, together with each key's three
+most popular values. Closed and deferred issues are included so that the
+popularity signal reflects historical usage, not just open work.
+
+**Breaking change (pre-1.0):** The `--json` output shape changed in the release
+that introduced popularity aggregation. Each element in the `labels` array now
+has a `popular_values` array (up to three strings, ordered by descending usage
+count with an alphabetical tiebreaker) instead of a single `value` string. The
+envelope `count` now reflects the number of distinct keys, not the number of
+distinct key-value pairs.
 
 **Synopsis:**
 
@@ -1469,6 +1521,28 @@ np label list-all [options]
 |------|-------------|
 | `--json` | Output machine-readable JSON. |
 
+**JSON output shape:**
+
+```json
+{
+  "count": 2,
+  "labels": [
+    { "key": "area",  "popular_values": ["cli", "domain"] },
+    { "key": "kind",  "popular_values": ["bug", "feature", "refactor"] }
+  ]
+}
+```
+
+`popular_values` is always a non-null array containing 1–3 entries ordered by
+descending usage count with an alphabetical tiebreaker on the value string.
+`count` reflects the number of distinct keys returned.
+
+**Human-readable output:**
+
+The text output uses a two-column table with headers (`KEY` and `POPULAR VALUES`).
+Popular values are comma-joined in the second column. Column alignment is
+ANSI-color-safe.
+
 **Exit codes:**
 
 | Code | Meaning |
@@ -1478,6 +1552,9 @@ np label list-all [options]
 **Notes:**
 
 - Useful for discovering which label keys and values are in use across the project.
+- All non-deleted issues (open, closed, and deferred) contribute to popularity counts.
+- With more than three distinct values for a key, only the three most frequently
+  used values are shown.
 
 ---
 
@@ -1890,6 +1967,7 @@ np agent name [options]
 | Flag | Description |
 |------|-------------|
 | `--json` | Output machine-readable JSON. |
+| `--seed VALUE` | Derive the name deterministically from `VALUE`; the same seed always yields the same name. |
 
 **Examples:**
 
@@ -1905,6 +1983,16 @@ $ np agent name --json
 }
 ```
 
+Agents should use `--seed=$PPID` to produce a stable identity tied to their process ID. The same seed always yields the same name:
+
+```
+$ np agent name --seed=$PPID
+calm-spruce-spray
+
+$ np agent name --seed=$PPID
+calm-spruce-spray
+```
+
 **Exit codes:**
 
 | Code | Meaning |
@@ -1913,7 +2001,9 @@ $ np agent name --json
 
 **Notes:**
 
-- Names are generated randomly using an adjective-noun-verb pattern. They are not guaranteed to be unique, but collisions are rare.
+- Without `--seed`, each call produces a fresh random name using an adjective-noun-verb pattern. Names are not guaranteed to be unique, but collisions are rare.
+- With `--seed=<value>`, the name is derived deterministically from the seed string — the same seed always yields the same generated name. Providing an empty seed is an error.
+- Agents should use `--seed=$PPID` so that resuming a session with the same process ID produces the same author identity.
 - Humans can use any stable identifier; this command is primarily for agents.
 
 ---

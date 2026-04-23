@@ -13,6 +13,7 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/core"
+	"github.com/pinkhop/nitpicking/internal/iostreams"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
@@ -72,9 +73,164 @@ type checkOutput struct {
 
 // doctorOutput is the JSON representation of the doctor command result.
 type doctorOutput struct {
+	// Prefix is the database's issue ID prefix (e.g. "PKHP"). Omitted when the
+	// prefix cannot be determined (e.g., database not yet initialised or schema
+	// migration pending).
+	Prefix   string          `json:"prefix,omitempty"`
 	Findings []findingOutput `json:"findings"`
 	Checks   []checkOutput   `json:"checks,omitzero"`
 	Healthy  bool            `json:"healthy"`
+}
+
+// runInput holds the parameters for the doctor command's core logic, decoupled
+// from CLI flag parsing so it can be tested directly.
+type runInput struct {
+	// GetPrefixFunc retrieves the database's issue ID prefix. When nil or when
+	// the function returns an error, the prefix is treated as unavailable and
+	// silently omitted from the output — the command still succeeds.
+	GetPrefixFunc func(context.Context) (string, error)
+
+	// DoctorFunc runs the diagnostic checks. In production this wraps
+	// svc.Doctor; tests provide a stub.
+	DoctorFunc func(context.Context, driving.DoctorInput) (driving.DoctorOutput, error)
+
+	// AdditionalFindings are findings from filesystem-level checks that run
+	// outside the service layer. They are merged with service-generated
+	// findings before classification.
+	AdditionalFindings []driving.DoctorFinding
+
+	// MinSeverity is the minimum severity threshold for findings.
+	MinSeverity driving.DoctorSeverity
+
+	// JSON enables machine-readable JSON output.
+	JSON bool
+
+	// Verbose shows per-check pass/fail status for every diagnostic.
+	Verbose bool
+
+	// IOStreams provides the output writer and color scheme.
+	IOStreams *iostreams.IOStreams
+}
+
+// run executes the doctor diagnostic workflow: resolves the prefix, runs all
+// checks, and renders the results. When the prefix is unavailable it is silently
+// omitted from the output but the command still succeeds.
+func run(ctx context.Context, input runInput) error {
+	// Resolve the prefix. An unavailable prefix is not a fatal condition —
+	// the diagnostic command should still run and report on database health.
+	var prefix string
+	if input.GetPrefixFunc != nil {
+		p, prefixErr := input.GetPrefixFunc(ctx)
+		if prefixErr == nil {
+			prefix = p
+		}
+		// Silently ignore prefixErr: e.g., the database has not yet been
+		// initialised or a schema migration is pending. The command succeeds
+		// and simply omits the prefix.
+	}
+
+	result, err := input.DoctorFunc(ctx, driving.DoctorInput{
+		MinSeverity:        input.MinSeverity,
+		AdditionalFindings: input.AdditionalFindings,
+	})
+	if err != nil {
+		return fmt.Errorf("running diagnostics: %w", err)
+	}
+
+	if input.JSON {
+		out := doctorOutput{
+			Prefix:   prefix,
+			Healthy:  result.Healthy,
+			Findings: make([]findingOutput, 0, len(result.Findings)),
+		}
+		for _, finding := range result.Findings {
+			fo := findingOutput{
+				Category: finding.Category,
+				Severity: finding.Severity,
+				Message:  finding.Message,
+				IssueIDs: finding.IssueIDs,
+			}
+			if finding.Action != nil {
+				fo.Action = &actionHintOutput{
+					Kind:     string(finding.Action.Kind),
+					IssueID:  finding.Action.IssueID,
+					SourceID: finding.Action.SourceID,
+					TargetID: finding.Action.TargetID,
+					SQL:      finding.Action.SQL,
+				}
+			}
+			out.Findings = append(out.Findings, fo)
+		}
+		if input.Verbose {
+			out.Checks = make([]checkOutput, 0, len(result.Checks))
+			for _, c := range result.Checks {
+				out.Checks = append(out.Checks, checkOutput{
+					Name:   c.Name,
+					Status: c.Status,
+					Detail: c.Detail,
+				})
+			}
+		}
+		return cmdutil.WriteJSON(input.IOStreams.Out, out)
+	}
+
+	cs := input.IOStreams.ColorScheme()
+	w := input.IOStreams.Out
+
+	// Emit the prefix line when it is known, before any check or finding output.
+	if prefix != "" {
+		_, _ = fmt.Fprintf(w, "Prefix: %s\n", prefix)
+	}
+
+	if input.Verbose {
+		skippedCount := core.CountSkippedChecks(result.Checks)
+		for _, c := range result.Checks {
+			// Omit skipped checks in text mode.
+			if c.Status == "skipped" {
+				continue
+			}
+			icon := cs.SuccessIcon()
+			if c.Status == "fail" {
+				icon = cs.ErrorIcon()
+			}
+			_, _ = fmt.Fprintf(w, "%s %s — %s\n", icon, c.Name, c.Detail)
+		}
+		if skippedCount > 0 {
+			label := core.SeverityBelow(input.MinSeverity)
+			_, _ = fmt.Fprintf(w, "%s\n",
+				cs.Dim(fmt.Sprintf("%d %s checks skipped (use --severity %s to include)",
+					skippedCount, label, label)))
+		}
+		if !result.Healthy {
+			_, _ = fmt.Fprintln(w)
+		}
+	}
+
+	if result.Healthy {
+		if !input.Verbose {
+			_, err := fmt.Fprintf(w, "%s No issues found.\n", cs.SuccessIcon())
+			return err
+		}
+		return nil
+	}
+
+	for _, finding := range result.Findings {
+		icon := cs.WarningIcon()
+		if finding.Severity == "error" {
+			icon = cs.ErrorIcon()
+		}
+
+		_, _ = fmt.Fprintf(w, "%s [%s] %s\n", icon, finding.Category, finding.Message)
+		if len(finding.IssueIDs) > 0 {
+			_, _ = fmt.Fprintf(w, "  Affected issues: %s\n",
+				strings.Join(finding.IssueIDs, ", "))
+		}
+		if suggestion := renderAction(finding.Action); suggestion != "" {
+			_, _ = fmt.Fprintf(w, "  Suggestion: %s\n", suggestion)
+		}
+	}
+
+	return nil
 }
 
 // NewCmd constructs the "doctor" command, which runs diagnostics on the
@@ -143,102 +299,15 @@ and act on programmatically.`,
 			additionalFindings = append(additionalFindings, checkNpInstructionsPresent(cwd)...)
 			additionalFindings = append(additionalFindings, checkNpGitIgnored(cwd, gitCheckIgnore)...)
 
-			result, err := svc.Doctor(ctx, driving.DoctorInput{
-				MinSeverity:        minSeverity,
+			return run(ctx, runInput{
+				GetPrefixFunc:      svc.GetPrefix,
+				DoctorFunc:         svc.Doctor,
 				AdditionalFindings: additionalFindings,
+				MinSeverity:        minSeverity,
+				JSON:               jsonOutput,
+				Verbose:            verbose,
+				IOStreams:          f.IOStreams,
 			})
-			if err != nil {
-				return fmt.Errorf("running diagnostics: %w", err)
-			}
-
-			if jsonOutput {
-				out := doctorOutput{
-					Healthy:  result.Healthy,
-					Findings: make([]findingOutput, 0, len(result.Findings)),
-				}
-				for _, finding := range result.Findings {
-					fo := findingOutput{
-						Category: finding.Category,
-						Severity: finding.Severity,
-						Message:  finding.Message,
-						IssueIDs: finding.IssueIDs,
-					}
-					if finding.Action != nil {
-						fo.Action = &actionHintOutput{
-							Kind:     string(finding.Action.Kind),
-							IssueID:  finding.Action.IssueID,
-							SourceID: finding.Action.SourceID,
-							TargetID: finding.Action.TargetID,
-							SQL:      finding.Action.SQL,
-						}
-					}
-					out.Findings = append(out.Findings, fo)
-				}
-				if verbose {
-					out.Checks = make([]checkOutput, 0, len(result.Checks))
-					for _, c := range result.Checks {
-						out.Checks = append(out.Checks, checkOutput{
-							Name:   c.Name,
-							Status: c.Status,
-							Detail: c.Detail,
-						})
-					}
-				}
-				return cmdutil.WriteJSON(f.IOStreams.Out, out)
-			}
-
-			cs := f.IOStreams.ColorScheme()
-			w := f.IOStreams.Out
-
-			if verbose {
-				skippedCount := core.CountSkippedChecks(result.Checks)
-				for _, c := range result.Checks {
-					// Omit skipped checks in text mode.
-					if c.Status == "skipped" {
-						continue
-					}
-					icon := cs.SuccessIcon()
-					if c.Status == "fail" {
-						icon = cs.ErrorIcon()
-					}
-					_, _ = fmt.Fprintf(w, "%s %s — %s\n", icon, c.Name, c.Detail)
-				}
-				if skippedCount > 0 {
-					label := core.SeverityBelow(minSeverity)
-					_, _ = fmt.Fprintf(w, "%s\n",
-						cs.Dim(fmt.Sprintf("%d %s checks skipped (use --severity %s to include)",
-							skippedCount, label, label)))
-				}
-				if !result.Healthy {
-					_, _ = fmt.Fprintln(w)
-				}
-			}
-
-			if result.Healthy {
-				if !verbose {
-					_, err := fmt.Fprintf(w, "%s No issues found.\n", cs.SuccessIcon())
-					return err
-				}
-				return nil
-			}
-
-			for _, finding := range result.Findings {
-				icon := cs.WarningIcon()
-				if finding.Severity == "error" {
-					icon = cs.ErrorIcon()
-				}
-
-				_, _ = fmt.Fprintf(w, "%s [%s] %s\n", icon, finding.Category, finding.Message)
-				if len(finding.IssueIDs) > 0 {
-					_, _ = fmt.Fprintf(w, "  Affected issues: %s\n",
-						strings.Join(finding.IssueIDs, ", "))
-				}
-				if suggestion := renderAction(finding.Action); suggestion != "" {
-					_, _ = fmt.Fprintf(w, "  Suggestion: %s\n", suggestion)
-				}
-			}
-
-			return nil
 		},
 	}
 }

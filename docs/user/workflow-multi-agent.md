@@ -14,14 +14,14 @@ An agent must claim an issue before it can update fields or transition state. On
 
 ## Each Agent Gets a Name
 
-At session start, each agent generates a unique author name:
+At session start, each agent generates a stable author name using `--seed=$PPID`. The seed ties the name to the agent's process ID, so the same process always produces the same identity:
 
 ```
-$ np agent name
+$ np agent name --seed=$PPID
 blue-seal-echo
 ```
 
-This name appears in history entries and comments, making it clear who did what. Agents should reuse the same name for the duration of their session.
+This name appears in history entries and comments, making it clear who did what. Agents should reuse the same name for the duration of their session. The `--seed=$PPID` form is recommended because it is deterministic and reproducible without requiring the agent to persist state between commands.
 
 ---
 

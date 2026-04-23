@@ -2,6 +2,7 @@ package root
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/signal"
@@ -29,6 +30,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/show"
 	"github.com/pinkhop/nitpicking/internal/cmd/version"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
+	"github.com/pinkhop/nitpicking/internal/domain"
 )
 
 // categoryOrder defines the workflow-first ordering of command groups in
@@ -58,16 +60,44 @@ func init() {
 }
 
 // schemaCheckExemptArgs identifies the two-part command paths that must operate
-// on pre-migration (v1) databases and are therefore exempt from the startup
-// schema version check. All other commands that find an existing database have
-// the schema version verified before proceeding.
+// on pre-migration (v1 or v2) databases and are therefore exempt from the
+// startup schema version check. All other commands that find an existing
+// database have the schema version verified before proceeding.
 //
-// "admin upgrade" performs the migration itself; it must accept v1 databases.
+// "admin upgrade" performs the migration itself; it must accept v1 and v2
+// databases.
 // "admin doctor" diagnoses workspace health; it explicitly reports the
-// schema_migration_required finding and must operate on v1 databases to do so.
+// schema_migration_required finding and must operate on pre-migration databases
+// to do so.
+// "admin where" reports the database path on disk; it does not read or write
+// issue data, so its result is independent of schema version. Exempting it lets
+// users locate their database (e.g., before backing it up) without first
+// running "np admin upgrade".
 var schemaCheckExemptArgs = map[[2]string]bool{
 	{"admin", "upgrade"}: true,
 	{"admin", "doctor"}:  true,
+	{"admin", "where"}:   true,
+}
+
+// schemaCheckExemptSingleArgs identifies single-word command names that are
+// exempt from the startup schema version check. These are commands that
+// either create or manage the database itself, or do not require a database
+// at all, and therefore cannot be gated on a pre-existing, fully-migrated
+// schema.
+//
+// "init" creates the database file explicitly before opening it, so the
+// schema check would find either no database (skipped automatically via the
+// DatabasePath guard) or the freshly created file (no schema_version row,
+// which CheckSchemaVersion would misread as a v1 database requiring
+// migration). Exempting init avoids that false-positive block.
+//
+// "agent" covers the entire agent subcommand group (agent name, agent prime).
+// These utilities are explicitly documented as not requiring an initialized
+// workspace — they operate on pure domain logic (PRNG, static text) without
+// any storage access, so the schema version is irrelevant.
+var schemaCheckExemptSingleArgs = map[string]bool{
+	"init":  true,
+	"agent": true,
 }
 
 // isSchemaCheckExempt reports whether the command described by args is exempt
@@ -76,9 +106,11 @@ var schemaCheckExemptArgs = map[[2]string]bool{
 // cmd.Args().Slice() in the root Before hook.
 //
 // It extracts the first two non-flag positional arguments to identify the
-// two-part command path and checks them against schemaCheckExemptArgs. Flags
-// (arguments starting with '-') are skipped so that interleaved flags such as
-// "np admin --json doctor" resolve correctly.
+// command path and checks them against both schemaCheckExemptSingleArgs (for
+// single-word commands like "init") and schemaCheckExemptArgs (for two-part
+// commands like "admin upgrade"). Flags (arguments starting with '-') are
+// skipped so that interleaved flags such as "np admin --json doctor" resolve
+// correctly.
 func isSchemaCheckExempt(args []string) bool {
 	// Collect the first two non-flag positional arguments to identify the
 	// command path (e.g., ["admin", "upgrade"] for "np admin upgrade").
@@ -95,9 +127,18 @@ func isSchemaCheckExempt(args []string) bool {
 		}
 	}
 
+	if n == 0 {
+		return false
+	}
+
+	// Check single-word exemptions first (e.g., "init").
+	if schemaCheckExemptSingleArgs[parts[0]] {
+		return true
+	}
+
 	if n < 2 {
-		// Single-part or no-arg invocation: "np admin" shows help; neither
-		// sub-path is exempt so always run the check for any real command.
+		// Single-part invocation that is not in the single-word exempt list —
+		// e.g., "np admin" showing help. Run the check.
 		return false
 	}
 
@@ -123,6 +164,13 @@ func checkSchemaVersion(ctx context.Context, f *cmdutil.Factory) error {
 	// command's Action return the same connection).
 	store, err := f.Store()
 	if err != nil {
+		// .np/ exists but the database file is absent: the workspace has not
+		// been initialized yet. Skip the check — np init will create the file,
+		// and any other command that needs a database will surface its own
+		// "run np init" error when it calls f.Store() in its Action.
+		if errors.Is(err, domain.ErrDatabaseNotInitialized) {
+			return nil
+		}
 		return fmt.Errorf("opening database for schema check: %w", err)
 	}
 

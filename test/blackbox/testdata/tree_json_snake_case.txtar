@@ -1,25 +1,35 @@
-# Verify that 'rel tree --json' uses snake_case keys (items, has_more)
-# matching the JSON shape of 'np list --json'. Regression test for
-# NP-7smy0: rel tree was serializing driving.ListIssuesOutput directly,
-# producing PascalCase keys (Items, HasMore).
+# Verify that 'rel tree --json' emits a nested tree whose root is the root
+# ancestor. Each expanded node carries the expected snake_case fields plus a
+# children array. Collapsed siblings appear as placeholder objects with only
+# the id field.
 
 np-init TJ
 np-seed epic 'Tree root' tree-agent EPIC
 np-seed task 'Tree child' tree-agent CHILD --parent $EPIC
 
 exec np rel tree $EPIC --json
-np-json-array-len items 1
-! np-json-no-field has_more
 
-# Items contain expected snake_case fields.
+# Top-level object carries the expected snake_case issue fields.
 stdout '"id"'
 stdout '"role"'
 stdout '"state"'
+stdout '"display_status"'
 stdout '"priority"'
+stdout '"title"'
 stdout '"created_at"'
 
-# No PascalCase leaks.
+# Children array is present (even for leaf nodes it is emitted as []).
+stdout '"children"'
+
+# The root node is the top-level object (no wrapping items/has_more envelope).
+! stdout '"items"'
+! stdout '"has_more"'
+
+# No PascalCase leaks from internal Go types.
 ! stdout '"Items"'
 ! stdout '"HasMore"'
 ! stdout '"ID"'
 ! stdout '"Role"'
+
+# The child appears as an expanded entry inside the children array.
+stdout $CHILD

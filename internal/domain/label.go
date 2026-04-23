@@ -40,6 +40,34 @@ func (f Label) Value() string { return f.value }
 // String returns the canonical "key:value" representation of the label.
 func (f Label) String() string { return f.key + ":" + f.value }
 
+// LabelCount pairs a label key-value combination with the number of non-deleted
+// issues that carry it. It is used by the repository layer to communicate
+// label usage frequency to the service layer so the service can compute
+// per-key popularity rankings without embedding that logic in the storage layer.
+type LabelCount struct {
+	label Label
+	count int
+}
+
+// NewLabelCount creates a LabelCount. The count must be positive; values of
+// zero or below indicate a data inconsistency in the storage layer.
+func NewLabelCount(key, value string, count int) (LabelCount, error) {
+	lbl, err := NewLabel(key, value)
+	if err != nil {
+		return LabelCount{}, err
+	}
+	return LabelCount{label: lbl, count: count}, nil
+}
+
+// Key returns the label key.
+func (lc LabelCount) Key() string { return lc.label.Key() }
+
+// Value returns the label value.
+func (lc LabelCount) Value() string { return lc.label.Value() }
+
+// Count returns the number of non-deleted issues carrying this key-value pair.
+func (lc LabelCount) Count() int { return lc.count }
+
 // LabelSet is an ordered collection of labels with unique keys. Setting an
 // existing key overwrites the previous value. LabelSet is immutable — all
 // mutation methods return a new LabelSet.

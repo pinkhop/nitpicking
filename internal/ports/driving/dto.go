@@ -8,6 +8,19 @@ import (
 	"github.com/pinkhop/nitpicking/internal/ports/driven"
 )
 
+// --- AgentName DTOs ---
+
+// AgentNameInput carries the inputs for the AgentName use case. Seed is
+// optional; when empty, the service generates a fresh random name via the
+// unseeded domain generator. When non-empty, the service delegates to the
+// seeded domain generator so the same seed always produces the same name.
+type AgentNameInput struct {
+	// Seed is an optional string whose content is used to derive a
+	// deterministic PCG seed via SHA-256. When Seed is empty, a random name
+	// is generated instead.
+	Seed string
+}
+
 // --- Label DTOs ---
 
 // LabelInput is a service-layer DTO for specifying a label key-value pair.
@@ -28,6 +41,18 @@ type LabelOutput struct {
 	Key string
 	// Value is the label value.
 	Value string
+}
+
+// LabelKeyOutput is a service-layer DTO for returning a label key with its
+// most popular values aggregated across all non-deleted issues. It is the
+// element type returned by ListLabelPopularity.
+type LabelKeyOutput struct {
+	// Key is the label key (e.g., "kind", "area").
+	Key string
+	// PopularValues holds the 1–3 most frequently used values for this key,
+	// ordered by descending usage count with an alphabetical tiebreaker.
+	// It is never nil and always contains at least one entry.
+	PopularValues []string
 }
 
 // --- Issue List Item DTO ---

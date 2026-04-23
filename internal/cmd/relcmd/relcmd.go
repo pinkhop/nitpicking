@@ -118,23 +118,42 @@ the rest of the tracker. For type-specific views, use the "rel blocks list",
 }
 
 // newTreeCmd constructs "rel tree <ID>" which shows the parent-child hierarchy
-// from a given root domain.
+// rooted at the given issue's root ancestor. The specified issue is the
+// "focus": its full subtree is expanded, its ancestry path from the root is
+// shown, and unexpanded siblings at each ancestor tier are summarized as
+// "and N siblings". Use --full to expand the entire tree from the root ancestor
+// with no sibling summaries.
 func newTreeCmd(f *cmdutil.Factory) *cli.Command {
-	var jsonOutput bool
+	var (
+		jsonOutput bool
+		full       bool
+	)
 
 	return &cli.Command{
 		Name:  "tree",
-		Usage: "Show the hierarchy tree starting from an issue",
-		Description: `Renders the parent-child hierarchy rooted at the given issue as a flat list
-of descendants. Each descendant is shown with its ID, role, state, and title.
-This is a convenience shortcut that is equivalent to listing all issues with
-a "descendants_of" filter.
+		Usage: "Show the ancestry and descendant hierarchy for an issue",
+		Description: `Renders the parent-child hierarchy for the given issue as a columnar table.
+The output includes the full ancestry path from the root ancestor down to the
+specified issue, the issue's complete descendant subtree, and sibling summary
+rows ("and N siblings") for unexpanded branches at each ancestor tier.
 
-Use this when you want to see the full scope of work beneath an epic or any
-issue that has children. For a structured tree view with indentation and
-connectors, use "rel parent tree" instead.`,
+The specified issue's row is highlighted bold on TTY output. Column coloration
+matches np list: priority in yellow, role dimmed, state using the standard
+state-color palette.
+
+Use --full to expand the entire tree from the root ancestor with no sibling
+summaries — equivalent to running "rel tree <root-id>" on the root ancestor.
+
+Use this when you want to understand where an issue sits in the broader
+hierarchy and what work lies beneath it.`,
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:        "full",
+				Usage:       "Expand the entire tree from the root ancestor with no sibling summaries",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &full,
+			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Usage:       "Output machine-readable JSON instead of human-readable text",
@@ -159,52 +178,22 @@ connectors, use "rel parent tree" instead.`,
 				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
 			}
 
-			result, err := svc.ListIssues(ctx, driving.ListIssuesInput{
-				Filter:  driving.IssueFilterInput{DescendantsOf: issueID.String()},
-				OrderBy: driving.OrderByPriority,
-				Limit:   -1, // Always return the full hierarchy; truncating a tree is misleading.
-			})
-			if err != nil {
-				return fmt.Errorf("listing descendants: %w", err)
-			}
-
 			if jsonOutput {
-				out := cmdutil.ListOutput{
-					Items:   cmdutil.ConvertListItems(result.Items),
-					HasMore: result.HasMore,
-				}
-				return cmdutil.WriteJSON(f.IOStreams.Out, out)
+				// JSON output: emit a nested tree whose root is the root
+				// ancestor. Each expanded node carries a children array
+				// containing full issue objects or minimal placeholder entries
+				// ({"id": "<sibling-id>"}) for unexpanded siblings. Placeholders
+				// appear at their sorted position within the children array.
+				return RenderTreeJSON(ctx, f.IOStreams.Out, svc, issueID.String(), full)
 			}
 
-			cs := f.IOStreams.ColorScheme()
-			w := f.IOStreams.Out
-
-			// Show the root issue first.
-			root, err := svc.ShowIssue(ctx, issueID.String())
+			// Build the rendering-agnostic tree model for text output.
+			nodes, err := BuildTreeModel(ctx, svc, issueID.String(), full)
 			if err != nil {
-				return fmt.Errorf("looking up root issue: %w", err)
-			}
-			_, _ = fmt.Fprintf(w, "%s %s (%s)\n",
-				cs.Bold(issueID.String()),
-				root.Title,
-				cmdutil.ColorState(cs, root.State))
-
-			if len(result.Items) == 0 {
-				_, _ = fmt.Fprintln(w, "  (no descendants)")
-				return nil
+				return fmt.Errorf("building tree model: %w", err)
 			}
 
-			tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-			for _, item := range result.Items {
-				_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n",
-					cs.Bold(item.ID),
-					cs.Dim(item.Role.String()),
-					cmdutil.FormatState(cs, item.State, item.SecondaryState),
-					item.Title)
-			}
-			_ = tw.Flush()
-
-			return nil
+			return RenderTreeText(f.IOStreams, nodes)
 		},
 	}
 }

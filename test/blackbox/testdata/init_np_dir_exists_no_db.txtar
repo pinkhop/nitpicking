@@ -1,0 +1,7 @@
+# Verify that np init succeeds when .np/ already exists but contains no
+# database file. The pre-existing empty directory should be treated as an
+# equivalent starting state to .np/ not existing at all.
+
+mkdir .np
+exec np init FOO
+stdout 'FOO'

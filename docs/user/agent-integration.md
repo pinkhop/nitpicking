@@ -53,13 +53,13 @@ Re-provide whenever context is compacted or cleared — the instructions do not 
 
 ### Agent Name
 
-Generate an agent name at session start:
+Generate a stable agent name at session start using `--seed=$PPID` so that resuming the same process yields the same identity:
 
 ```
-np agent name
+np agent name --seed=$PPID
 ```
 
-Use this name consistently for all `--author` flags throughout the session.
+Use this name consistently for all `--author` flags throughout the session. The `--seed=$PPID` form is preferred for agents because the same process ID always produces the same name, making the author identity reproducible if the session is restarted under the same PID. Omit `--seed` only when you intentionally want a fresh random name.
 
 ---
 
@@ -69,7 +69,7 @@ Add `np` instructions to your Codex agent configuration or system prompt. The sa
 
 1. Add a brief mention of `np` to your agent's static instructions.
 2. Provide `np agent prime` output at session start.
-3. Generate an agent name with `np agent name`.
+3. Generate an agent name with `np agent name --seed=$PPID`.
 
 ---
 
@@ -163,7 +163,7 @@ task management — do not use any other task-tracking mechanism.
 
 ### Setup
 
-1. Generate your agent name: `np agent name`
+1. Generate your agent name: `np agent name --seed=$PPID`
 2. Use this name for all --author flags in this session.
 
 ### Workflow

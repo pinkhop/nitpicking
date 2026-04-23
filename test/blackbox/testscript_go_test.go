@@ -257,11 +257,15 @@ func showIssue(t *testing.T, dir, issueID string) map[string]any {
 // ---------------------------------------------------------------------------
 
 // TestBlackbox_RelTree_ShowsAllDescendantsBeyondDefaultLimit verifies that
-// "rel tree" lists every descendant when the count exceeds the default
-// repository page size of 20. This is a regression test: the command
-// previously passed Limit: 0 (the zero value) to ListIssues, which
+// "rel tree" on the root ancestor expands all descendants even when their count
+// exceeds the default repository page size of 20. This is a regression test:
+// the command previously passed Limit: 0 (the zero value) to ListIssues, which
 // NormalizeLimit silently promoted to DefaultLimit (20), silently truncating
 // any epic with more than 20 children.
+//
+// When rel tree is called on the root, the new ancestry-aware behavior still
+// fully expands all descendants (there are no unexpanded sibling branches at
+// the root tier), so the row count is unchanged from the original regression.
 func TestBlackbox_RelTree_ShowsAllDescendantsBeyondDefaultLimit(t *testing.T) {
 	t.Parallel()
 
@@ -291,14 +295,14 @@ func TestBlackbox_RelTree_ShowsAllDescendantsBeyondDefaultLimit(t *testing.T) {
 		}
 	}
 
-	// When — rel tree is called on the epic without --json.
+	// When — rel tree is called on the root epic without --json.
 	stdout, stderr, code := runNP(t, dir, "rel", "tree", epicID)
 	if code != 0 {
 		t.Fatalf("rel tree failed (exit %d): %s", code, stderr)
 	}
 
-	// Then — the output contains one line for the root and one line per child,
-	// for a total of 1 + childCount non-empty lines.
+	// Then — the output contains one header row, one root row, and one row per
+	// child, for a total of 2 + childCount non-empty lines.
 	lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
 	var nonEmpty int
 	for _, line := range lines {
@@ -306,11 +310,158 @@ func TestBlackbox_RelTree_ShowsAllDescendantsBeyondDefaultLimit(t *testing.T) {
 			nonEmpty++
 		}
 	}
-	// Subtract 1 for the root epic line; the remainder must equal childCount.
-	descendantLines := nonEmpty - 1
+	// Subtract 2: one for the header row (TREE, P, ROLE, STATE, TITLE) and one
+	// for the root epic row; the remainder must equal childCount.
+	descendantLines := nonEmpty - 2
 	if descendantLines != childCount {
 		t.Errorf("rel tree listed %d descendants, want %d\noutput:\n%s",
 			descendantLines, childCount, stdout)
+	}
+}
+
+// TestBlackbox_RelTree_DefaultShowsSiblingSummaries verifies that the default
+// (non-root, non-full) "rel tree" output includes the ancestry path and a
+// sibling summary row for unexpanded siblings, rather than listing every node
+// in the tree.
+func TestBlackbox_RelTree_DefaultShowsSiblingSummaries(t *testing.T) {
+	t.Parallel()
+
+	// Given — a root epic with two child tasks; focus on the first child.
+	dir := initDB(t, "TRSS")
+	author := "tree-agent"
+
+	epicStdout, epicStderr, code := runNPWithStdin(t, dir,
+		`{"role":"epic","title":"Root epic"}`,
+		"json", "create", "--author", author,
+	)
+	if code != 0 {
+		t.Fatalf("create epic failed (exit %d): %s", code, epicStderr)
+	}
+	epicResult := parseJSON(t, epicStdout)
+	epicID, ok := epicResult["id"].(string)
+	if !ok || epicID == "" {
+		t.Fatalf("create epic: missing id in response: %s", epicStdout)
+	}
+
+	child1Stdout, child1Stderr, code := runNPWithStdin(t, dir,
+		fmt.Sprintf(`{"role":"task","title":"Child one","parent":%q}`, epicID),
+		"json", "create", "--author", author,
+	)
+	if code != 0 {
+		t.Fatalf("create child 1 failed (exit %d): %s", code, child1Stderr)
+	}
+	child1Result := parseJSON(t, child1Stdout)
+	child1ID, ok := child1Result["id"].(string)
+	if !ok || child1ID == "" {
+		t.Fatalf("create child 1: missing id in response: %s", child1Stdout)
+	}
+
+	_, child2Stderr, code := runNPWithStdin(t, dir,
+		fmt.Sprintf(`{"role":"task","title":"Child two","parent":%q}`, epicID),
+		"json", "create", "--author", author,
+	)
+	if code != 0 {
+		t.Fatalf("create child 2 failed (exit %d): %s", code, child2Stderr)
+	}
+
+	// When — rel tree is called on the first child (not the root).
+	stdout, stderr, code := runNP(t, dir, "rel", "tree", child1ID)
+	if code != 0 {
+		t.Fatalf("rel tree failed (exit %d): %s", code, stderr)
+	}
+
+	// Then — the output contains the root epic row, the focus child row, and
+	// a sibling summary row for the unexpanded sibling. The second child's title
+	// must not appear — it is collapsed into the summary.
+	if !strings.Contains(stdout, epicID) {
+		t.Errorf("output missing root epic ID %q\noutput:\n%s", epicID, stdout)
+	}
+	if !strings.Contains(stdout, child1ID) {
+		t.Errorf("output missing focus child ID %q\noutput:\n%s", child1ID, stdout)
+	}
+	if !strings.Contains(stdout, "and 1 sibling") {
+		t.Errorf("output missing sibling summary row\noutput:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "Child two") {
+		t.Errorf("output should not contain collapsed sibling title 'Child two'\noutput:\n%s", stdout)
+	}
+}
+
+// TestBlackbox_RelTree_FullFlagExpandsEntireTree verifies that --full produces
+// the same output as calling rel tree on the root ancestor: every node is
+// expanded and no sibling summary rows appear.
+func TestBlackbox_RelTree_FullFlagExpandsEntireTree(t *testing.T) {
+	t.Parallel()
+
+	// Given — a root epic with two child tasks.
+	dir := initDB(t, "TREF")
+	author := "tree-agent"
+
+	epicStdout, epicStderr, code := runNPWithStdin(t, dir,
+		`{"role":"epic","title":"Root epic"}`,
+		"json", "create", "--author", author,
+	)
+	if code != 0 {
+		t.Fatalf("create epic failed (exit %d): %s", code, epicStderr)
+	}
+	epicResult := parseJSON(t, epicStdout)
+	epicID, ok := epicResult["id"].(string)
+	if !ok || epicID == "" {
+		t.Fatalf("create epic: missing id in response: %s", epicStdout)
+	}
+
+	child1Stdout, child1Stderr, code := runNPWithStdin(t, dir,
+		fmt.Sprintf(`{"role":"task","title":"First child","parent":%q}`, epicID),
+		"json", "create", "--author", author,
+	)
+	if code != 0 {
+		t.Fatalf("create child 1 failed (exit %d): %s", code, child1Stderr)
+	}
+	child1Result := parseJSON(t, child1Stdout)
+	child1ID, ok := child1Result["id"].(string)
+	if !ok || child1ID == "" {
+		t.Fatalf("create child 1: missing id in response: %s", child1Stdout)
+	}
+
+	child2Stdout, child2Stderr, code := runNPWithStdin(t, dir,
+		fmt.Sprintf(`{"role":"task","title":"Second child","parent":%q}`, epicID),
+		"json", "create", "--author", author,
+	)
+	if code != 0 {
+		t.Fatalf("create child 2 failed (exit %d): %s", code, child2Stderr)
+	}
+	child2Result := parseJSON(t, child2Stdout)
+	child2ID, ok := child2Result["id"].(string)
+	if !ok || child2ID == "" {
+		t.Fatalf("create child 2: missing id in response: %s", child2Stdout)
+	}
+
+	// Given (reference output) — rel tree on the root ancestor, which serves
+	// as the expected byte-for-byte output that --full must match. This is a
+	// precondition observation, not the behavior under test.
+	stdoutRoot, stderrRoot, code := runNP(t, dir, "rel", "tree", epicID)
+	if code != 0 {
+		t.Fatalf("precondition failed: rel tree on root (exit %d): %s", code, stderrRoot)
+	}
+
+	// When — rel tree --full is called on a non-root child.
+	stdoutFull, stderrFull, code := runNP(t, dir, "rel", "tree", "--full", child1ID)
+	if code != 0 {
+		t.Fatalf("rel tree --full failed (exit %d): %s", code, stderrFull)
+	}
+
+	// Then — the --full output contains all three issue IDs, no sibling summary,
+	// and matches the reference root output byte-for-byte.
+	for _, id := range []string{epicID, child1ID, child2ID} {
+		if !strings.Contains(stdoutFull, id) {
+			t.Errorf("--full output missing %q\noutput:\n%s", id, stdoutFull)
+		}
+	}
+	if strings.Contains(stdoutFull, "sibling") {
+		t.Errorf("--full output must not contain sibling summary rows\noutput:\n%s", stdoutFull)
+	}
+	if stdoutFull != stdoutRoot {
+		t.Errorf("--full output does not match root output:\n--full:\n%s\nroot:\n%s", stdoutFull, stdoutRoot)
 	}
 }
 

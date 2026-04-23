@@ -207,6 +207,40 @@ func TestIsSchemaCheckExempt_ClaimReady_ReturnsFalse(t *testing.T) {
 	}
 }
 
+func TestIsSchemaCheckExempt_AdminWhere_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — args for "np admin where". The "where" command reports the database
+	// path on disk and must not be blocked by a schema version check — its purpose
+	// is independent of schema state and it is the command a user would run before
+	// upgrading to find out where their database lives.
+	args := []string{"admin", "where"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for admin where")
+	}
+}
+
+func TestIsSchemaCheckExempt_AdminWhereWithLeadingFlag_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — "np admin --json where": a flag interleaved before the subcommand
+	// name must not prevent the exemption from being recognised.
+	args := []string{"admin", "--json", "where"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for admin --json where")
+	}
+}
+
 func TestIsSchemaCheckExempt_AdminBackup_ReturnsFalse(t *testing.T) {
 	t.Parallel()
 
@@ -246,10 +280,110 @@ func TestIsSchemaCheckExempt_SingleArg_ReturnsFalse(t *testing.T) {
 	// When
 	got := isSchemaCheckExempt(args)
 
-	// Then — single-arg invocations have fewer than two non-flag positional
-	// args and are never exempt.
+	// Then — single-arg invocations that are not in the single-word exempt
+	// list (schemaCheckExemptSingleArgs) are never exempt.
 	if got {
 		t.Error("expected isSchemaCheckExempt to return false for single-arg invocation")
+	}
+}
+
+func TestIsSchemaCheckExempt_Init_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — args remaining after root flag parsing for "np init FOO".
+	// The init command creates a fresh database from scratch and must never be
+	// gated by a schema version check — before init runs, the schema has not
+	// been created yet.
+	args := []string{"init", "FOO"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for init")
+	}
+}
+
+func TestIsSchemaCheckExempt_InitWithFlag_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — "np init --json FOO": a flag interleaved before the prefix arg
+	// must not prevent the single-word exemption from being recognised.
+	args := []string{"init", "--json", "FOO"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for init --json FOO")
+	}
+}
+
+func TestIsSchemaCheckExempt_InitNoPrefix_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — "np init" with no prefix argument. The command will fail with a
+	// usage error, but the schema check must still be skipped so the error
+	// message comes from init's own validation, not from a spurious schema check.
+	args := []string{"init"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for bare init")
+	}
+}
+
+func TestIsSchemaCheckExempt_AgentName_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — args for "np agent name". The agent subcommands are explicitly
+	// documented as not requiring a database; they use pure domain logic and
+	// must work in any directory, even one without an np workspace.
+	args := []string{"agent", "name"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for agent name")
+	}
+}
+
+func TestIsSchemaCheckExempt_AgentPrime_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — args for "np agent prime". Like agent name, this subcommand
+	// returns static text and never accesses the database.
+	args := []string{"agent", "prime"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for agent prime")
+	}
+}
+
+func TestIsSchemaCheckExempt_AgentNameWithSeedFlag_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	// Given — args for "np agent name --seed=foo". The flag must not prevent
+	// the single-word exemption from being recognised.
+	args := []string{"agent", "--seed=foo", "name"}
+
+	// When
+	got := isSchemaCheckExempt(args)
+
+	// Then
+	if !got {
+		t.Error("expected isSchemaCheckExempt to return true for agent --seed=foo name")
 	}
 }
 
@@ -313,6 +447,39 @@ func TestCheckSchemaVersion_StoreOpenFails_ReturnsError(t *testing.T) {
 // Root Before schema gating
 // ---------------------------------------------------------------------------
 
+func TestNewRootCmd_AdminWhere_SucceedsWhenSchemaMigrationRequired(t *testing.T) {
+	t.Parallel()
+
+	// Given — a factory whose DatabasePath succeeds but whose Store returns an
+	// error simulating a pre-migration (v1 or v2) database. Because "admin where"
+	// is exempt from the schema version check, the command must succeed regardless
+	// of schema state. "admin where" may attempt to open the store to read the
+	// issue prefix, but it must absorb any store failure and omit the prefix
+	// rather than surfacing it as a command error.
+	ios, _, stdout, _ := iostreams.Test()
+	f := &cmdutil.Factory{
+		IOStreams:    ios,
+		DatabasePath: func() (string, error) { return "/project/.np/nitpicking.db", nil },
+		Store: func() (*sqlite.Store, error) {
+			return nil, errors.New("pre-migration database: schema upgrade required")
+		},
+	}
+	cmd := NewRootCmd(f)
+
+	// When — run "np admin where".
+	err := cmd.Run(t.Context(), []string{"np", "admin", "where"})
+	// Then — the command succeeds even though the store is unavailable: the
+	// schema check is skipped, the .np/ directory path is printed, and the
+	// prefix is simply omitted (store failure is absorbed).
+	if err != nil {
+		t.Fatalf("expected np admin where to succeed on pre-migration database, got: %v", err)
+	}
+	output := strings.TrimSpace(stdout.String())
+	if output != "/project/.np" {
+		t.Errorf("expected output %q, got %q", "/project/.np", output)
+	}
+}
+
 func TestNewRootCmd_NoDatabase_SkipsSchemaCheck(t *testing.T) {
 	t.Parallel()
 
@@ -337,6 +504,70 @@ func TestNewRootCmd_NoDatabase_SkipsSchemaCheck(t *testing.T) {
 	// Then — the Store was not opened for the schema check.
 	if storeCalled {
 		t.Error("expected Store not to be called when no database is found during schema check")
+	}
+}
+
+func TestNewRootCmd_Init_SchemaCheckSkipped_EvenWhenDatabasePathSucceeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — a factory where DatabasePath succeeds (simulating a .np/ directory
+	// that exists) but CheckSchemaVersion would fail if called (e.g., because the
+	// database file has no schema). If the Before hook called checkSchemaVersion
+	// for init, it would open the Store, call CheckSchemaVersion, and return an
+	// error that does not originate from the init action itself. We verify that
+	// the error returned from "np init" is NOT a schema-version error.
+	ios, _, _, _ := iostreams.Test()
+	schemaCheckErr := errors.New("sentinel: schema check must not be called for init")
+	f := &cmdutil.Factory{
+		IOStreams: ios,
+		// DatabasePath succeeds as if .np/ already exists.
+		DatabasePath: func() (string, error) { return "/project/.np/nitpicking.db", nil },
+		// Store returns a specific sentinel error so we can tell if it was the
+		// Before hook calling it (via checkSchemaVersion) rather than the init action.
+		Store: func() (*sqlite.Store, error) {
+			return nil, schemaCheckErr
+		},
+	}
+	cmd := NewRootCmd(f)
+
+	// When — run "np init FOO".
+	err := cmd.Run(t.Context(), []string{"np", "init", "FOO"})
+
+	// Then — the error is from the init action's store call (or the already-
+	// initialised guard), NOT from the Before hook's schema check. Specifically,
+	// the error must not be an "opening database for schema check" error, which
+	// would indicate that checkSchemaVersion was called before init's own logic.
+	if err != nil && strings.Contains(err.Error(), "opening database for schema check") {
+		t.Errorf("schema check must be skipped for np init, but got schema-check error: %v", err)
+	}
+}
+
+func TestNewRootCmd_AgentName_SchemaCheckSkipped_EvenWhenDatabasePathSucceeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — a factory where DatabasePath succeeds (simulating a .np/ directory
+	// with a pre-migration database). If the Before hook called checkSchemaVersion
+	// for agent name, it would open the Store, call CheckSchemaVersion, and return
+	// a schema-version error. We verify that "np agent name" is exempt.
+	ios, _, _, _ := iostreams.Test()
+	schemaCheckErr := errors.New("sentinel: schema check must not be called for agent name")
+	f := &cmdutil.Factory{
+		IOStreams:    ios,
+		DatabasePath: func() (string, error) { return "/project/.np/nitpicking.db", nil },
+		// Store returns a sentinel error so we can detect if checkSchemaVersion
+		// called it via the Before hook.
+		Store: func() (*sqlite.Store, error) {
+			return nil, schemaCheckErr
+		},
+	}
+	cmd := NewRootCmd(f)
+
+	// When — run "np agent name".
+	err := cmd.Run(t.Context(), []string{"np", "agent", "name"})
+
+	// Then — any error must not originate from the schema check in the Before hook.
+	if err != nil && strings.Contains(err.Error(), "opening database for schema check") {
+		t.Errorf("schema check must be skipped for np agent name, but got schema-check error: %v", err)
 	}
 }
 

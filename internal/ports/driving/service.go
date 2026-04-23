@@ -14,8 +14,12 @@ type Service interface {
 	// Init creates a new database with the given prefix.
 	Init(ctx context.Context, prefix string) error
 
-	// AgentName generates a random agent name.
-	AgentName(ctx context.Context) (string, error)
+	// AgentName generates an agent name. When input.Seed is empty, the
+	// returned name is randomly generated on each call. When input.Seed is
+	// non-empty, the same seed value always produces the same name, allowing
+	// callers to derive a stable identity from a process-level value such as
+	// $PPID.
+	AgentName(ctx context.Context, input AgentNameInput) (string, error)
 
 	// GetPrefix returns the database's configured issue ID prefix.
 	GetPrefix(ctx context.Context) (string, error)
@@ -102,9 +106,14 @@ type Service interface {
 
 	// --- Label Operations ---
 
-	// ListDistinctLabels returns all unique label key-value pairs
-	// across non-deleted issues, projected as service-layer DTOs.
-	ListDistinctLabels(ctx context.Context) ([]LabelOutput, error)
+	// ListLabelPopularity returns label keys together with their three most
+	// frequently used values across all non-deleted issues (open, closed, and
+	// deferred). Results are grouped by key; within each entry the
+	// PopularValues slice is ordered by descending usage count with an
+	// alphabetical tiebreaker, and contains between one and three entries.
+	// The count in any envelope built from this output should reflect the
+	// number of distinct keys, not the number of distinct key-value pairs.
+	ListLabelPopularity(ctx context.Context) ([]LabelKeyOutput, error)
 
 	// --- Relationship Operations ---
 

@@ -183,7 +183,10 @@ func (r *dbRepo) GetPrefix(_ context.Context) (string, error) {
 
 // GetSchemaVersion returns the schema version from the metadata table. When the
 // schema_version key is absent (v1 database), it returns 0. When present with
-// value "2", it returns 2.
+// value "2", it returns 2. When the metadata table itself does not exist — which
+// indicates a corrupt or completely empty database file — it returns an error
+// wrapping domain.ErrCorruptDatabase so callers can surface a user-friendly
+// diagnostic rather than a raw SQL error.
 func (r *dbRepo) GetSchemaVersion(_ context.Context) (int, error) {
 	var version int
 	var found bool
@@ -196,6 +199,19 @@ func (r *dbRepo) GetSchemaVersion(_ context.Context) (int, error) {
 		},
 	})
 	if err != nil {
+		// A "no such table" error means the database file exists but has no
+		// schema — it is either empty (zero-byte file that SQLite opened) or
+		// corrupt. Surface this as ErrCorruptDatabase so the root startup hook
+		// can direct the user to a useful remediation step instead of showing
+		// a raw SQL prepare error.
+		if strings.Contains(err.Error(), "no such table") {
+			return 0, &domain.DatabaseError{
+				Op: "get schema version",
+				Err: fmt.Errorf("%w: the database file exists but has no schema — "+
+					"remove or replace the file and run 'np init' again, or run 'np admin doctor' for diagnostics",
+					domain.ErrCorruptDatabase),
+			}
+		}
 		return 0, &domain.DatabaseError{Op: "get schema version", Err: err}
 	}
 
@@ -1144,28 +1160,37 @@ func (r *issueRepo) IssueIDExists(_ context.Context, id domain.ID) (bool, error)
 	return count > 0, nil
 }
 
-func (r *issueRepo) ListDistinctLabels(_ context.Context) ([]domain.Label, error) {
-	var lbls []domain.Label
+// ListLabelCounts returns the count of non-deleted issues carrying each
+// key-value label pair. Hard-deleted issues (deleted = 1) are excluded;
+// soft state (closed, deferred) is included so that the popularity signal
+// reflects historical usage across the full issue lifecycle.
+func (r *issueRepo) ListLabelCounts(_ context.Context) ([]domain.LabelCount, error) {
+	var counts []domain.LabelCount
 	err := sqlitex.Execute(r.conn,
-		`SELECT DISTINCT d.key, d.value FROM labels d
+		`SELECT d.key, d.value, COUNT(*) AS cnt
+		 FROM labels d
 		 JOIN issues t ON d.issue_id = t.issue_id
 		 WHERE t.deleted = 0
-		 ORDER BY d.key, d.value`,
+		 GROUP BY d.key, d.value`,
 		&sqlitex.ExecOptions{
 			ResultFunc: func(stmt *sqlite.Stmt) error {
-				lbl, err := domain.NewLabel(stmt.ColumnText(0), stmt.ColumnText(1))
-				if err != nil {
-					return err
+				lc, lcErr := domain.NewLabelCount(
+					stmt.ColumnText(0),
+					stmt.ColumnText(1),
+					stmt.ColumnInt(2),
+				)
+				if lcErr != nil {
+					return lcErr
 				}
-				lbls = append(lbls, lbl)
+				counts = append(counts, lc)
 				return nil
 			},
 		})
 	if err != nil {
-		return nil, &domain.DatabaseError{Op: "list distinct labels", Err: err}
+		return nil, &domain.DatabaseError{Op: "list label counts", Err: err}
 	}
 
-	return lbls, nil
+	return counts, nil
 }
 
 // GetIssueSummary returns aggregate issue counts by state and computed

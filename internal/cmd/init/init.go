@@ -87,19 +87,71 @@ the project. The prefix is permanent for the lifetime of the workspace.`,
 			// Check whether the current directory is already inside an
 			// np-tracked tree. Creating a nested .np/ would shadow the
 			// ancestor and confuse database discovery.
+			//
+			// The guard operates at the database file level rather than the
+			// .np/ directory level:
+			//
+			//   - .np/ absent → fresh workspace; init creates both the
+			//     directory and the database via f.Store()'s auto-create path.
+			//
+			//   - .np/ present, no nitpicking.db → partially created workspace
+			//     (e.g. user created the dir manually); init creates the
+			//     database file explicitly before wiring the service.
+			//
+			//   - .np/nitpicking.db present and non-empty → workspace is
+			//     already initialised; return the "already initialized" error.
+			//
+			//   - .np/nitpicking.db present but empty (size == 0) → the file
+			//     is corrupt or the result of a partial/interrupted init;
+			//     return a user-friendly error directing the user to remove
+			//     the file or run np admin doctor.
 			cwd, err := os.Getwd()
 			if err != nil {
 				return fmt.Errorf("getting working directory: %w", err)
 			}
 			existingDB, discoverErr := sqlite.DiscoverDatabase(cwd)
 			if discoverErr == nil {
-				npDir := filepath.Dir(existingDB)
-				return cmdutil.FlagErrorf(
-					"an existing np database was found at %s — "+
-						"run commands from that directory or a subdirectory instead of initializing a new one",
-					npDir)
+				// DiscoverDatabase found a .np/ directory. Check whether
+				// the database file itself exists and has content.
+				info, statErr := os.Stat(existingDB)
+				if statErr == nil {
+					// Database file is present and accessible.
+					if info.Size() == 0 {
+						// File exists but is empty — it is either the result of
+						// a partial previous init or was created manually. This
+						// is not a valid database; direct the user to remediate.
+						return cmdutil.FlagErrorf(
+							"database file exists at %s but is empty or corrupt — "+
+								"remove the file and run 'np init' again, or run 'np admin doctor' for diagnostics",
+							existingDB)
+					}
+					npDir := filepath.Dir(existingDB)
+					return cmdutil.FlagErrorf(
+						"an existing np database was found at %s — "+
+							"run commands from that directory or a subdirectory instead of initializing a new one",
+						npDir)
+				}
+				if !os.IsNotExist(statErr) {
+					// Stat returned an error other than "not found" —
+					// treat this as a potential access problem.
+					return fmt.Errorf("checking existing database: %w", statErr)
+				}
+
+				// .np/ exists but no database file. f.Store() returns
+				// ErrDatabaseNotInitialized for this state, so create the
+				// schema here before NewTracker opens the file.
+				created, createErr := sqlite.Create(existingDB)
+				if createErr != nil {
+					return fmt.Errorf("creating database: %w", createErr)
+				}
+				if closeErr := created.Close(); closeErr != nil {
+					return fmt.Errorf("closing initial database connection: %w", closeErr)
+				}
 			}
 
+			// For the "no .np/ directory" case f.Store() auto-creates both the
+			// directory and the database, so NewTracker works without additional
+			// setup here.
 			svc, err := cmdutil.NewTracker(f)
 			if err != nil {
 				return err

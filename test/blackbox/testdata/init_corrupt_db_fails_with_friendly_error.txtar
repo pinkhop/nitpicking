@@ -1,0 +1,10 @@
+# Verify that np init fails with a clear, user-facing error when
+# .np/nitpicking.db exists but is empty (uninitialized). The error should
+# mention 'np admin doctor' or suggest remediation, not expose a raw SQL
+# "no such table" error.
+
+! exec np init FOO
+stderr 'corrupt|uninitialized|admin doctor'
+! stderr 'no such table'
+
+-- .np/nitpicking.db --

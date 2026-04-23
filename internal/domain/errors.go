@@ -42,6 +42,17 @@ var (
 	// version (v1) and must be upgraded before most commands can operate. The
 	// caller should instruct the user to run 'np admin upgrade'.
 	ErrSchemaMigrationRequired = errors.New("database schema migration required")
+
+	// ErrCorruptDatabase indicates the database file exists but does not contain
+	// the expected schema. This occurs when the file is empty, truncated, or
+	// otherwise corrupt. The caller should direct the user to remove or replace
+	// the file and re-run 'np init', or run 'np admin doctor' for diagnostics.
+	ErrCorruptDatabase = errors.New("database is corrupt or uninitialized")
+
+	// ErrDatabaseNotInitialized indicates that the .np/ directory exists but
+	// the database file has not been created yet. The caller should direct the
+	// user to run 'np init' to initialize the workspace.
+	ErrDatabaseNotInitialized = errors.New("workspace not initialized")
 )
 
 // ValidationError carries structured detail about which fields failed

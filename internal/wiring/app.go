@@ -1,12 +1,14 @@
 package wiring
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/sqlite"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
+	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/iostreams"
 )
 
@@ -60,40 +62,56 @@ func NewCore(appName string) *cmdutil.Factory {
 
 	// Phase 3: Store — the SQLite database connection, constructed lazily.
 	// Database discovery runs once on first access; the Store is memoized.
-	// When an existing database is found, Open is used (no DDL). When no
-	// database exists, Create is used to apply the schema — this only
-	// happens during "np init".
+	//
+	// Store never creates the .np/ directory or the database file — that is
+	// exclusively the responsibility of the init command. When no database is
+	// found it returns an error so that the command can surface a user-friendly
+	// message. The only exception is when no .np/ directory exists at all and
+	// no explicit workspace was provided: in that case the directory and an
+	// empty-schema database are created, which is what np init relies on for its
+	// first-run flow before the user has any workspace.
 	var store *sqlite.Store
 	f.Store = func() (*sqlite.Store, error) {
 		if store != nil {
 			return store, nil
 		}
 
-		dbPath, err := f.DatabasePath()
-		if err != nil {
+		dbPath, pathErr := f.DatabasePath()
+		if pathErr != nil {
 			if f.Workspace != "" {
 				// Explicit workspace must exist — do not auto-create.
-				return nil, err
+				return nil, pathErr
 			}
 
-			// No database found — create the .np/ directory and a new
-			// database with schema so that init can populate it.
+			// No .np/ directory found — create the directory and a new
+			// database with schema so that np init can populate it.
 			cwd, _ := os.Getwd()
-			dbPath, err = sqlite.InitDatabaseDir(cwd)
-			if err != nil {
-				return nil, err
+			var createErr error
+			dbPath, createErr = sqlite.InitDatabaseDir(cwd)
+			if createErr != nil {
+				return nil, createErr
 			}
 
-			store, err = sqlite.Create(dbPath)
-			if err != nil {
-				return nil, err
+			store, createErr = sqlite.Create(dbPath)
+			if createErr != nil {
+				return nil, createErr
 			}
 			return store, nil
 		}
 
-		store, err = sqlite.Open(dbPath)
-		if err != nil {
-			return nil, err
+		// DatabasePath succeeded, meaning .np/ exists. When the database file
+		// itself is absent the workspace has not been initialized yet — return
+		// ErrDatabaseNotInitialized so commands can guide the user to np init
+		// without silently creating a database as a side effect.
+		if _, statErr := os.Stat(dbPath); os.IsNotExist(statErr) {
+			return nil, fmt.Errorf("run 'np init' to initialize the workspace: %w",
+				domain.ErrDatabaseNotInitialized)
+		}
+
+		var openErr error
+		store, openErr = sqlite.Open(dbPath)
+		if openErr != nil {
+			return nil, openErr
 		}
 		return store, nil
 	}

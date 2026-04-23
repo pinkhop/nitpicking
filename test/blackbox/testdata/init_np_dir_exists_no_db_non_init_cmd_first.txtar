@@ -1,0 +1,10 @@
+# Verify that running a command other than np init when .np/ exists but
+# contains no database file does not corrupt the workspace. The non-init
+# command must fail without creating a database file so that np init can
+# subsequently succeed.
+
+mkdir .np
+! exec np list
+stderr 'np init'
+exec np init FOO
+stdout 'FOO'

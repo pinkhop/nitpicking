@@ -160,9 +160,11 @@ np json comment --author "$AUTHOR" <ISSUE-ID>
 To bootstrap an agent session, use:
 
 ```bash
-np agent name
+np agent name --seed=$PPID
 np agent prime
 ```
+
+The `--seed=$PPID` flag ties the generated name to the agent's process ID, so the same process always produces the same author identity. Omit `--seed` only when you want a fresh random name each time.
 
 Claude Code example:
 

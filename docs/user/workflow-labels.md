@@ -87,17 +87,19 @@ This is the core of label-driven selection — an agent configured to only work 
 
 ## Discovering Labels
 
-List all unique labels across the database:
+List all label keys in use across the database, together with each key's most
+popular values:
 
 ```
 $ np label list-all
-area:api
-area:auth
-kind:bug
-kind:docs
-kind:feature
-scope:claim
+KEY    POPULAR VALUES
+area   api, auth
+kind   bug, feature, docs
+scope  claim
 ```
+
+Closed and deferred issues are included in the popularity count, so the output
+reflects historical usage across the full issue lifecycle.
 
 List labels for a specific issue:
 
@@ -127,7 +129,7 @@ An AI agent configured to work only on bugs runs this loop:
 
 ```
 # At session start:
-AUTHOR=$(np agent name)
+AUTHOR=$(np agent name --seed=$PPID)
 
 # Work loop:
 while true; do

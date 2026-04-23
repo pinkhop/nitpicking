@@ -29,7 +29,7 @@ $ np agent name
 bold-river-stride
 ```
 
-Use the author name consistently across your session. Agents should generate a name at session start with `np agent name`; humans should pick a stable identifier such as `alice`, `david`, or `david-laptop`.
+Use the author name consistently across your session. Agents should generate a name at session start with `np agent name --seed=$PPID` — the `--seed` flag ties the name to the process ID, so the same agent process always produces the same identity. Humans should pick a stable identifier such as `alice`, `david`, or `david-laptop`.
 
 ### Solo-Human Habits
 

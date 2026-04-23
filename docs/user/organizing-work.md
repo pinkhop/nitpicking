@@ -92,6 +92,18 @@ MYAPP-h5mqp  epic  open  P1  Authentication overhaul
 └── MYAPP-a3bxr  task  open (ready)  P2  Add user login endpoint
 ```
 
+To understand where an issue sits within the broader hierarchy — including its full ancestry path from the root and its siblings at each tier — use `np rel tree` instead:
+
+```
+$ np rel tree MYAPP-a3bxr
+TREE           P   ROLE  STATE          TITLE
+MYAPP-h5mqp    P1  epic  open (active)  Authentication overhaul
+  MYAPP-a3bxr  P2  task  open (ready)   Add user login endpoint
+  and 2 siblings
+```
+
+Use `--full` to expand every branch from the root ancestor with no sibling summaries.
+
 For a cross-cutting view of all issues and their relationships, use `np rel graph`:
 
 ```

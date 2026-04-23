@@ -433,12 +433,13 @@ Labels are free-form, but a few conventions are useful:
 - **`area:`** — scope by system area: `area:api`, `area:auth`, `area:frontend`
 - **Cross-system references** — correlate with external trackers: `jira:FOO-312`, `gh:42`
 
-To see all labels currently in use:
+To see all label keys in use, together with their most popular values:
 
 ```
 $ np label list-all
-area:api
-kind:bug
+KEY   POPULAR VALUES
+area  api
+kind  bug
 ```
 
 ---

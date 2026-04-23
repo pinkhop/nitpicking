@@ -11,9 +11,17 @@ func AgentInstructions() string {
 
 ` + "`np`" + ` is the **exclusive** tool for task management in this workspace. Do not use your platform's built-in task tracking (TodoWrite, TaskCreate, markdown checklists, etc.).
 
+## Initialization
+
+**Do not run ` + "`np init`" + ` or create a ` + "`.np/`" + ` directory unless the user has explicitly asked you to set up nitpicking in their repository.**
+
+When ` + "`np`" + ` fails to find a ` + "`.np/`" + ` directory while walking up from the current working directory, that is a signal to ask the user — not to auto-initialize. Bootstrapping a tracker in a repository is a project-level decision that belongs to the user, not to the agent.
+
+Initializing without being asked pollutes the repository and implies a commitment the user never made. If you encounter a missing database, stop and ask whether the user wants to initialize nitpicking before proceeding.
+
 ## Choosing an Author Name
 
-Every mutation requires an ` + "`--author`" + ` flag identifying who is acting. If you do not already have a name, generate one with ` + "`np agent name`" + `. Pick a stable name and reuse it for your entire session.
+Every mutation requires an ` + "`--author`" + ` flag identifying who is acting. If you do not already have a name, generate one with ` + "`np agent name --seed=$PPID`" + `. Seeding with ` + "`$PPID`" + ` ties the generated name to your shell's parent PID, so the same agent shell produces the same name on every restart — giving you a stable identity without manual coordination. Pick a name and reuse it for your entire session.
 
 ## Issue Types
 
@@ -177,6 +185,16 @@ JSONEND
 ` + "```" + `
 3. If the incidental blocks your current work, add a relationship:
    ` + "`np rel add <YOUR-ISSUE> blocked_by <BLOCKER-ID> --author <your-name>`" + `
+
+## Claim ID Durability
+
+**Claim IDs are critical state and must not be lost.** Every mutation on a claimed issue — ` + "`np json update`" + `, ` + "`np close`" + `, ` + "`np issue release`" + `, ` + "`np issue defer`" + ` — requires the claim ID that ` + "`np claim`" + ` returned. If you lose the claim ID, you cannot act on the issue.
+
+**Conversation compaction can silently erase the claim ID** from working memory. Preserve it in whatever memory your agent harness keeps across compactions (a scratchpad, a session memory file, persistent notes). Do not rely on conversation history alone.
+
+**Never record a claim ID in a comment, commit message, log, or any other shared or readable location.** The claim ID is a bearer credential — anyone who reads it can act on your claim, which defeats the entire purpose of claiming. Keep it private to the claiming agent.
+
+**There is no recovery if the claim ID is lost.** If compaction (or any other failure) erases it, the claim is effectively abandoned. It will eventually go stale and another agent will pick up the issue. Treat claim ID durability as a hard requirement, not a best-effort habit.
 
 ## Stale Claims
 

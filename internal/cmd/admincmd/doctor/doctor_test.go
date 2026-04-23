@@ -1,7 +1,15 @@
 package doctor
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
+
+	"github.com/pinkhop/nitpicking/internal/iostreams"
+	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
 // --- checkNpGitIgnored tests ---
@@ -56,5 +64,143 @@ func TestCheckNpGitIgnored_NotGitRepo_ReturnsNoFindings(t *testing.T) {
 	// Then — no findings (check is skipped when not in a git repo).
 	if len(findings) != 0 {
 		t.Errorf("expected 0 findings when not in git repo, got %d", len(findings))
+	}
+}
+
+// --- run tests: prefix ---
+
+// stubDoctorOutput is a minimal DoctorOutput used across prefix-related tests.
+var stubDoctorOutput = driving.DoctorOutput{
+	Healthy:  true,
+	Findings: []driving.DoctorFinding{},
+	Checks:   []driving.DoctorCheckResult{},
+}
+
+// stubDoctorFunc is a DoctorFunc stub that always returns a healthy result.
+func stubDoctorFunc(_ context.Context, _ driving.DoctorInput) (driving.DoctorOutput, error) {
+	return stubDoctorOutput, nil
+}
+
+// newTestStreams constructs IOStreams and returns the stdout buffer for assertions.
+func newTestStreams() (*iostreams.IOStreams, *bytes.Buffer) {
+	ios, _, stdout, _ := iostreams.Test()
+	return ios, stdout
+}
+
+func TestRun_WithPrefix_TextOutput_IncludesPrefix(t *testing.T) {
+	t.Parallel()
+
+	// Given — a prefix function that returns a known prefix.
+	getPrefix := func(_ context.Context) (string, error) {
+		return "PROJ", nil
+	}
+	ios, stdout := newTestStreams()
+
+	input := runInput{
+		GetPrefixFunc: getPrefix,
+		DoctorFunc:    stubDoctorFunc,
+		MinSeverity:   driving.SeverityInfo,
+		IOStreams:     ios,
+	}
+
+	// When
+	err := run(t.Context(), input)
+	// Then — no error and prefix appears in the text output.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "PROJ") {
+		t.Errorf("expected prefix %q in output, got: %q", "PROJ", output)
+	}
+}
+
+func TestRun_PrefixUnavailable_TextOutput_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// Given — a prefix function that returns an error (e.g., uninitialized DB).
+	getPrefix := func(_ context.Context) (string, error) {
+		return "", errors.New("database not initialized")
+	}
+	ios, _ := newTestStreams()
+
+	input := runInput{
+		GetPrefixFunc: getPrefix,
+		DoctorFunc:    stubDoctorFunc,
+		MinSeverity:   driving.SeverityInfo,
+		IOStreams:     ios,
+	}
+
+	// When
+	err := run(t.Context(), input)
+	// Then — command still succeeds even though the prefix is unavailable.
+	if err != nil {
+		t.Fatalf("unexpected error when prefix unavailable: %v", err)
+	}
+}
+
+func TestRun_WithPrefix_JSONOutput_IncludesPrefixField(t *testing.T) {
+	t.Parallel()
+
+	// Given — a prefix function that returns a known prefix.
+	getPrefix := func(_ context.Context) (string, error) {
+		return "PROJ", nil
+	}
+	ios, stdout := newTestStreams()
+
+	input := runInput{
+		GetPrefixFunc: getPrefix,
+		DoctorFunc:    stubDoctorFunc,
+		MinSeverity:   driving.SeverityInfo,
+		JSON:          true,
+		IOStreams:     ios,
+	}
+
+	// When
+	err := run(t.Context(), input)
+	// Then — the JSON output contains the prefix field.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var result map[string]any
+	if jsonErr := json.Unmarshal(stdout.Bytes(), &result); jsonErr != nil {
+		t.Fatalf("invalid JSON output: %v\nraw: %s", jsonErr, stdout.String())
+	}
+	if result["prefix"] != "PROJ" {
+		t.Errorf("prefix: got %v, want %q", result["prefix"], "PROJ")
+	}
+}
+
+func TestRun_PrefixUnavailable_JSONOutput_OmitsPrefixField(t *testing.T) {
+	t.Parallel()
+
+	// Given — a prefix function that returns an error.
+	getPrefix := func(_ context.Context) (string, error) {
+		return "", errors.New("database not initialized")
+	}
+	ios, stdout := newTestStreams()
+
+	input := runInput{
+		GetPrefixFunc: getPrefix,
+		DoctorFunc:    stubDoctorFunc,
+		MinSeverity:   driving.SeverityInfo,
+		JSON:          true,
+		IOStreams:     ios,
+	}
+
+	// When
+	err := run(t.Context(), input)
+	// Then — command succeeds and the JSON does not include a prefix key.
+	if err != nil {
+		t.Fatalf("unexpected error when prefix unavailable: %v", err)
+	}
+
+	var result map[string]any
+	if jsonErr := json.Unmarshal(stdout.Bytes(), &result); jsonErr != nil {
+		t.Fatalf("invalid JSON output: %v\nraw: %s", jsonErr, stdout.String())
+	}
+	if _, ok := result["prefix"]; ok {
+		t.Errorf("expected prefix to be absent from JSON when unavailable, but found key: %v", result)
 	}
 }

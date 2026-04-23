@@ -58,7 +58,7 @@ func (s *upgradeServiceStub) Init(_ context.Context, _ string) error {
 	panic("upgradeServiceStub: Init not expected during upgrade")
 }
 
-func (s *upgradeServiceStub) AgentName(_ context.Context) (string, error) {
+func (s *upgradeServiceStub) AgentName(_ context.Context, _ driving.AgentNameInput) (string, error) {
 	panic("upgradeServiceStub: AgentName not expected during upgrade")
 }
 
@@ -142,8 +142,10 @@ func (s *upgradeServiceStub) CloseCompletedEpics(_ context.Context, _ driving.Cl
 	panic("upgradeServiceStub: CloseCompletedEpics not expected during upgrade")
 }
 
-func (s *upgradeServiceStub) ListDistinctLabels(_ context.Context) ([]driving.LabelOutput, error) {
-	panic("upgradeServiceStub: ListDistinctLabels not expected during upgrade")
+// ListLabelPopularity implements driving.Service. It panics because this
+// operation is not expected to be called during an upgrade workflow.
+func (s *upgradeServiceStub) ListLabelPopularity(_ context.Context) ([]driving.LabelKeyOutput, error) {
+	panic("upgradeServiceStub: ListLabelPopularity not expected during upgrade")
 }
 
 func (s *upgradeServiceStub) AddRelationship(_ context.Context, _ string, _ driving.RelationshipInput, _ string) error {

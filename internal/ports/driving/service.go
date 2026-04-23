@@ -14,8 +14,12 @@ type Service interface {
 	// Init creates a new database with the given prefix.
 	Init(ctx context.Context, prefix string) error
 
-	// AgentName generates a random agent name.
-	AgentName(ctx context.Context) (string, error)
+	// AgentName generates an agent name. When input.Seed is empty, the
+	// returned name is randomly generated on each call. When input.Seed is
+	// non-empty, the same seed value always produces the same name, allowing
+	// callers to derive a stable identity from a process-level value such as
+	// $PPID.
+	AgentName(ctx context.Context, input AgentNameInput) (string, error)
 
 	// GetPrefix returns the database's configured issue ID prefix.
 	GetPrefix(ctx context.Context) (string, error)

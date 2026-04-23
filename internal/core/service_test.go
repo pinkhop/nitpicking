@@ -82,13 +82,39 @@ func TestAgentName_ReturnsNonEmpty(t *testing.T) {
 	svc, _ := setupService(t)
 
 	// When
-	name, err := svc.AgentName(t.Context())
+	name, err := svc.AgentName(t.Context(), driving.AgentNameInput{})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if name == "" {
 		t.Error("expected non-empty name")
+	}
+}
+
+func TestAgentName_WithSeed_IsDeterministic(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	svc, _ := setupService(t)
+	input := driving.AgentNameInput{Seed: "test-seed-42"}
+
+	// When
+	first, err := svc.AgentName(t.Context(), input)
+	if err != nil {
+		t.Fatalf("first call: unexpected error: %v", err)
+	}
+	second, err := svc.AgentName(t.Context(), input)
+	if err != nil {
+		t.Fatalf("second call: unexpected error: %v", err)
+	}
+
+	// Then — same seed must produce the same name on each call.
+	if first == "" {
+		t.Error("expected non-empty name on first call")
+	}
+	if first != second {
+		t.Errorf("expected deterministic name: got %q on first call and %q on second", first, second)
 	}
 }
 

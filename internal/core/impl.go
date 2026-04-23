@@ -56,8 +56,19 @@ func (s *serviceImpl) Init(ctx context.Context, prefix string) error {
 	})
 }
 
-func (s *serviceImpl) AgentName(_ context.Context) (string, error) {
-	return domain.GenerateAgentName(), nil
+// AgentName generates an agent name. When input.Seed is empty the unseeded
+// domain generator is used, producing a fresh random name each call. When
+// input.Seed is non-empty the seeded generator is used so the same seed
+// reproducibly yields the same name.
+func (s *serviceImpl) AgentName(_ context.Context, input driving.AgentNameInput) (string, error) {
+	if input.Seed == "" {
+		return domain.GenerateAgentName(), nil
+	}
+	name, err := domain.GenerateAgentNameFromSeed(input.Seed)
+	if err != nil {
+		return "", fmt.Errorf("generating agent name from seed: %w", err)
+	}
+	return name, nil
 }
 
 func (s *serviceImpl) GetPrefix(ctx context.Context) (string, error) {

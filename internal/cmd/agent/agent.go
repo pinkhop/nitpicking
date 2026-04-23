@@ -7,12 +7,13 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
+	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
 // --- JSON output types ---
 
 type agentService interface {
-	AgentName(ctx context.Context) (string, error)
+	AgentName(ctx context.Context, input driving.AgentNameInput) (string, error)
 }
 
 var newAgentService = func(f *cmdutil.Factory) (agentService, error) {
@@ -52,18 +53,24 @@ typically the first commands an agent runs at the start of a session.`,
 	}
 }
 
-// newNameCmd constructs the "name" subcommand, which generates a random agent
-// name suitable for use as an author identity.
+// newNameCmd constructs the "name" subcommand, which generates a random or
+// deterministic agent name suitable for use as an author identity.
 func newNameCmd(f *cmdutil.Factory) *cli.Command {
 	var jsonOutput bool
+	var seed string
 
 	return &cli.Command{
 		Name:  "name",
 		Usage: "Generate a random agent name",
-		Description: `Generates a random three-word agent name (e.g., "keen-flint-trace") suitable
-for use as the --author identity on every np mutation command. The name is
-deterministic per invocation but not reproducible — each call produces a
-fresh name.
+		Description: `Generates a three-word agent name (e.g., "keen-flint-trace") suitable for
+use as the --author identity on every np mutation command.
+
+Without --seed, each call produces a fresh random name.
+
+With --seed=<value>, the name is derived deterministically from the seed
+string — the same seed always yields the same generated name. This is
+useful when an agent wants a stable identity tied to a known value, such as
+its process ID (--seed=$PPID).
 
 Run this once at the start of an agent session and reuse the returned name
 for all subsequent commands. The generated name is designed to be memorable
@@ -76,13 +83,32 @@ workspace.`,
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &jsonOutput,
 			},
+			&cli.StringFlag{
+				Name:        "seed",
+				Usage:       "Derive the name deterministically from `VALUE`; the same seed always yields the same name",
+				Category:    cmdutil.FlagCategorySupplemental,
+				Destination: &seed,
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			// Reject --seed when the flag is explicitly set but its
+			// value is empty after urfave/cli normalisation. The CLI
+			// framework strips trailing whitespace from string flags,
+			// so whitespace-only seeds (e.g. --seed="   " or --seed=$UNSET)
+			// arrive here as seed=="" with IsSet returning true.
+			// Such seeds are semantically equivalent to omitting the flag
+			// but would silently fall through to the unseeded random path,
+			// masking misconfigured shell variables. Callers should omit
+			// the flag entirely when they want random generation.
+			if cmd.IsSet("seed") && seed == "" {
+				return cmdutil.FlagErrorf("--seed must not be blank; use a non-whitespace value or omit the flag entirely")
+			}
+
 			svc, err := newAgentService(f)
 			if err != nil {
 				return err
 			}
-			name, err := svc.AgentName(ctx)
+			name, err := svc.AgentName(ctx, driving.AgentNameInput{Seed: seed})
 			if err != nil {
 				return fmt.Errorf("generating agent name: %w", err)
 			}

@@ -1,5 +1,43 @@
-# Verify that 'np agent name' produces a three-part hyphenated name
-# without requiring a database.
+# Verify that 'np agent name' produces a three-part hyphenated name without
+# requiring a database (unseeded mode).
 
 exec np agent name
 stdout '^[a-z]+-[a-z]+-[a-z]+$'
+
+# Verify that '--seed=<value>' produces identical output on repeated calls.
+# Two invocations with the same seed must emit the same name.
+
+exec np agent name --seed=hello
+cp stdout first_name.txt
+
+exec np agent name --seed=hello
+cp stdout second_name.txt
+
+cmp first_name.txt second_name.txt
+
+# Verify that the seeded output still matches the three-word hyphenated shape.
+
+exec np agent name --seed=hello
+stdout '^[a-z]+-[a-z]+-[a-z]+$'
+
+# Verify that a different seed produces a different name.
+# The two seeds are chosen empirically: 'hello' -> 'sharp-spark-chase',
+# 'world' -> 'grand-glacier-trace'.
+
+exec np agent name --seed=hello
+stdout '^sharp-spark-chase$'
+
+exec np agent name --seed=world
+stdout '^grand-glacier-trace$'
+
+# Verify that whitespace-only seeds are rejected with a non-zero exit code.
+# urfave/cli strips trailing whitespace from string flags, so a seed of only
+# spaces arrives with IsSet("seed")==true and seed=="" — the same condition as
+# an explicit --seed="" — and must be rejected rather than silently falling
+# through to the unseeded random path.
+
+! exec np agent name --seed=
+stderr '--seed must not be blank'
+
+! exec np agent name '--seed=   '
+stderr '--seed must not be blank'

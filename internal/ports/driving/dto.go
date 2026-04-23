@@ -8,6 +8,19 @@ import (
 	"github.com/pinkhop/nitpicking/internal/ports/driven"
 )
 
+// --- AgentName DTOs ---
+
+// AgentNameInput carries the inputs for the AgentName use case. Seed is
+// optional; when empty, the service generates a fresh random name via the
+// unseeded domain generator. When non-empty, the service delegates to the
+// seeded domain generator so the same seed always produces the same name.
+type AgentNameInput struct {
+	// Seed is an optional string whose content is used to derive a
+	// deterministic PCG seed via SHA-256. When Seed is empty, a random name
+	// is generated instead.
+	Seed string
+}
+
 // --- Label DTOs ---
 
 // LabelInput is a service-layer DTO for specifying a label key-value pair.

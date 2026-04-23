@@ -9,14 +9,20 @@ import (
 
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/iostreams"
+	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
 type stubAgentService struct {
-	name    string
-	nameErr error
+	name         string
+	nameErr      error
+	capturedSeed string
 }
 
-func (s stubAgentService) AgentName(context.Context) (string, error) {
+// AgentName satisfies the agentService interface. It records the seed from the
+// input so tests can assert that the flag was forwarded to the service, then
+// returns the preconfigured name and error.
+func (s *stubAgentService) AgentName(_ context.Context, input driving.AgentNameInput) (string, error) {
+	s.capturedSeed = input.Seed
 	return s.name, s.nameErr
 }
 
@@ -26,7 +32,7 @@ func TestNewNameCmd_TextOutput(t *testing.T) {
 	f := &cmdutil.Factory{IOStreams: ios}
 	original := newAgentService
 	newAgentService = func(_ *cmdutil.Factory) (agentService, error) {
-		return stubAgentService{name: "blue-seal-echo"}, nil
+		return &stubAgentService{name: "blue-seal-echo"}, nil
 	}
 	t.Cleanup(func() { newAgentService = original })
 
@@ -47,7 +53,7 @@ func TestNewNameCmd_JSONOutput(t *testing.T) {
 	f := &cmdutil.Factory{IOStreams: ios}
 	original := newAgentService
 	newAgentService = func(_ *cmdutil.Factory) (agentService, error) {
-		return stubAgentService{name: "blue-seal-echo"}, nil
+		return &stubAgentService{name: "blue-seal-echo"}, nil
 	}
 	t.Cleanup(func() { newAgentService = original })
 
@@ -73,7 +79,7 @@ func TestNewNameCmd_WrapsServiceErrors(t *testing.T) {
 	wantErr := errors.New("service boom")
 	original := newAgentService
 	newAgentService = func(_ *cmdutil.Factory) (agentService, error) {
-		return stubAgentService{nameErr: wantErr}, nil
+		return &stubAgentService{nameErr: wantErr}, nil
 	}
 	t.Cleanup(func() { newAgentService = original })
 
@@ -89,6 +95,73 @@ func TestNewNameCmd_WrapsServiceErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "generating agent name") {
 		t.Fatalf("expected wrapped context, got %v", err)
+	}
+}
+
+func TestNewNameCmd_SeedFlag_ForwardsSeedToService(t *testing.T) {
+	// Given
+	ios, _, stdout, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+	stub := &stubAgentService{name: "seeded-name-result"}
+	original := newAgentService
+	newAgentService = func(_ *cmdutil.Factory) (agentService, error) {
+		return stub, nil
+	}
+	t.Cleanup(func() { newAgentService = original })
+
+	// When
+	err := newNameCmd(f).Run(t.Context(), []string{"name", "--seed=my-stable-seed"})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stub.capturedSeed != "my-stable-seed" {
+		t.Fatalf("seed forwarded to service: got %q, want %q", stub.capturedSeed, "my-stable-seed")
+	}
+	if stdout.String() != "seeded-name-result\n" {
+		t.Fatalf("unexpected output: %q", stdout.String())
+	}
+}
+
+// TestNewNameCmd_BlankSeed_IsRejected verifies that --seed values that are
+// empty or contain only whitespace are rejected with a FlagError. urfave/cli
+// strips trailing whitespace from string flags, so whitespace-only seeds arrive
+// with seed=="" and IsSet("seed")==true — the same condition as an explicit
+// --seed="" — and must be caught identically.
+func TestNewNameCmd_BlankSeed_IsRejected(t *testing.T) {
+	cases := []struct {
+		name string
+		seed string
+	}{
+		{"empty string", "--seed="},
+		{"spaces only", "--seed=   "},
+		{"tab only", "--seed=\t"},
+		{"mixed whitespace", "--seed=\t\n "},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Validation fires before the service is constructed, so no
+			// newAgentService swap is needed. Do not call t.Parallel() here
+			// because the sibling tests that do swap newAgentService are
+			// also not parallel — mixing the two would introduce races.
+
+			// Given
+			ios, _, _, _ := iostreams.Test()
+			f := &cmdutil.Factory{IOStreams: ios}
+
+			// When
+			err := newNameCmd(f).Run(t.Context(), []string{"name", tc.seed})
+
+			// Then
+			if err == nil {
+				t.Fatal("expected validation error for blank seed, got nil")
+			}
+			var flagErr *cmdutil.FlagError
+			if !errors.As(err, &flagErr) {
+				t.Fatalf("expected *cmdutil.FlagError, got %T: %v", err, err)
+			}
+		})
 	}
 }
 

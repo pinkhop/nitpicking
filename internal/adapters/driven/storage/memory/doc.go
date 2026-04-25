@@ -7,8 +7,8 @@
 // behaviorally correct implementation of the driven port contract. Its
 // existence keeps the port abstraction honest: every driven port method must
 // be implementable without importing adapter-specific types (SQLite handles,
-// query builders, etc.). See docs/developer/architecture.md §7 for the full
-// rationale.
+// query builders, etc.). See docs/developer/architecture/architecture.md for
+// the full rationale.
 //
 // Primary uses:
 //   - Unit-testing the core without database I/O.

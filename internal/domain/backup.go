@@ -14,7 +14,7 @@ import "time"
 //	    backups that contain a non-empty idempotency_key value are accepted by
 //	    the restore path, which carries the value forward as an ordinary label
 //	    under the key "idempotency" (the migration-key scheme documented in
-//	    docs/developer/adr/idempotency-key-migration.md).
+//	    docs/developer/decisions/idempotency-key-migration.md).
 const BackupAlgorithmVersion = 3
 
 // BackupHeader is the first record in a backup file. It contains metadata

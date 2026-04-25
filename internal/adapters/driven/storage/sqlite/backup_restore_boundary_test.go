@@ -734,7 +734,7 @@ func TestBoundary_BackupRestore_LegacyCitesRelTypeTranslatedToRefs(t *testing.T)
 // results in the restored issue carrying an ordinary label "idempotency:<value>".
 //
 // This tests the migration path defined in
-// docs/developer/adr/idempotency-key-migration.md: v2 backups that predate the
+// docs/developer/decisions/idempotency-key-migration.md: v2 backups that predate the
 // v3 format change may carry idempotency_key values that must not be silently
 // dropped on restore.
 func TestBoundary_BackupRestore_V2IdempotencyKeyCarriedForwardAsLabel(t *testing.T) {

@@ -43,7 +43,7 @@ make ci                 # Full pipeline: build → lint → sec → test-units
 
 ## Architecture
 
-The project follows **Hexagonal (Ports & Adapters) Architecture**. The authoritative reference for architectural layering, dependency rules, package placement, and anti-patterns is [`docs/developer/architecture.md`](docs/developer/architecture.md). When this section and that document conflict, the architecture document governs.
+The project follows **Hexagonal (Ports & Adapters) Architecture**. The authoritative reference for architectural layering, dependency rules, package placement, and anti-patterns is [`docs/developer/architecture/architecture.md`](docs/developer/architecture/architecture.md). When this section and that document conflict, the architecture document governs.
 
 **Key points** (see the architecture doc for full detail):
 

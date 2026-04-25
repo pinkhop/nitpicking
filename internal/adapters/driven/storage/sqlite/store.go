@@ -362,7 +362,7 @@ func (s *Store) MigrateV1ToV2(ctx context.Context) (driven.MigrationResult, erro
 // a v3 database — CheckSchemaVersion should be called first so that callers
 // can report "up to date" without executing the migration body.
 //
-// See docs/developer/adr/idempotency-key-migration.md for the migration-key
+// See docs/developer/decisions/idempotency-key-migration.md for the migration-key
 // naming rationale, collision-handling policy, and label-value validation rule.
 //
 // The migration performs three steps within one IMMEDIATE transaction:

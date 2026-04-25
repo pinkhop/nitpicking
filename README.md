@@ -26,10 +26,25 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project, 
 ## Why It Is Different
 
 - Local-only by design. Issues live in a SQLite database inside `.np/`; there is no remote service, account, or network dependency.
-- Claims gate mutations. Updating, deferring, deleting, or closing an issue requires its claim ID, which gives humans and agents an explicit coordination primitive.
+- Claims gate mutations. Updating, deferring, deleting, or closing an issue requires its claim ID. Claims primarily exist for multi-agent coordination, but they also give solo humans a visible "work is in progress" marker.
 - Readiness is built in. `np claim ready`, `np ready`, and `np blocked` help the tool choose work based on blockers and state instead of forcing everything through manual assignment.
 - Humans and agents share the same CLI. Interactive forms exist for people, while JSON commands and `agent` utilities support non-interactive workflows without a separate API.
 - It stays out of the way. No git hooks, no daemons, no server process, and no hidden state outside your workspace.
+
+---
+
+## The Basic Loop
+
+For day-to-day use, start with one habit:
+
+```bash
+np ready
+np claim ready --author "$USER"
+# do the work
+np close --claim <CLAIM-ID> --reason "Done."
+```
+
+That is enough to use `np` without adopting labels, epics, or agent setup on day one. When the backlog needs light structure, keep the workflow flat and add labels such as `kind:bug`, `area:auth`, or `task-group:auth-overhaul`.
 
 ---
 
@@ -37,10 +52,10 @@ Inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project, 
 
 ### Download a release binary
 
-Prebuilt static binaries are available on the [Releases page](https://github.com/pinkhop/nitpicking/releases). Set `VERSION` to the release you want to install, then follow the instructions for your platform.
+Prebuilt static binaries are available on the [Releases page](https://github.com/pinkhop/nitpicking/releases). Set `VERSION` to the release version (without the leading `v`) you want to install; for example:
 
 ```bash
-VERSION=0.1.1
+VERSION=0.2.0
 ```
 
 **macOS (Apple Silicon):**
@@ -48,8 +63,8 @@ VERSION=0.1.1
 ```bash
 curl -fsSL "https://github.com/pinkhop/nitpicking/releases/download/v${VERSION}/nitpicking_${VERSION}_darwin_arm64.tar.gz" -o np.tar.gz
 tar xzf np.tar.gz np
-xattr -d com.apple.quarantine np
-sudo mv np /usr/local/bin/
+xattr -d com.apple.quarantine np   # IMPORTANT: remove quarantine attribute
+mv np ~/.local/bin/                # or:  sudo mv np /usr/local/bin/
 rm np.tar.gz
 ```
 
@@ -58,12 +73,10 @@ rm np.tar.gz
 ```bash
 curl -fsSL "https://github.com/pinkhop/nitpicking/releases/download/v${VERSION}/nitpicking_${VERSION}_darwin_amd64.tar.gz" -o np.tar.gz
 tar xzf np.tar.gz np
-xattr -d com.apple.quarantine np
-sudo mv np /usr/local/bin/
+xattr -d com.apple.quarantine np   # IMPORTANT: remove quarantine attribute
+mv np ~/.local/bin/                # or:  sudo mv np /usr/local/bin/
 rm np.tar.gz
 ```
-
-Remove the quarantine attribute that macOS GateKeeper applies to downloaded files by running `xattr -d com.apple.quarantine /usr/local/bin/np` after moving the binary into place. Without this step, macOS will block `np` with an "unidentified developer" warning. The commands above already include this step before the `mv`; if you move the binary to a different location, run `xattr -d com.apple.quarantine /path/to/np` against the final path.
 
 **Linux (x86_64):**
 
@@ -98,8 +111,8 @@ make build
 
 This produces a static binary at `dist/np`. You can invoke it directly with `./dist/np` or copy/symlink it somewhere on your `PATH`.
 
-- Users: start with the [Getting Started guide](./docs/user/getting-started.md).
-- Contributors: see [Developer Setup](./docs/developer/developer-setup.md) for build, lint, test, and release-related commands.
+- Users: start with the [Quickstart guide](./docs/user/quickstart.md).
+- Contributors: start with [Developer Onboarding](./docs/developer/getting-started/onboarding.md) for the shortest path from clone to first safe change.
 
 ---
 
@@ -115,18 +128,13 @@ This is the shortest useful end-to-end flow:
 
 ```bash
 # In your workspace directory
-np init PKHP
+np init FOO
 
-# Pipe JSON into create, or run `np create` with a TTY for the interactive form
-np create --author "$USER" <<'JSONEND'
-{
-  "role": "task",
-  "title": "My first task"
-}
-JSONEND
+# Create an issue in the interactive form
+np create
 
 # See what is available
-np list
+np ready
 
 # Claim the next ready issue and note the returned claim ID
 np claim ready --author "$USER"
@@ -137,21 +145,37 @@ np close \
   --reason "Done."
 ```
 
+`np close --reason` records the reason as a comment and closes the issue in one atomic step.
+
 `np` discovers the workspace by walking up from the current directory, so after `np init` you can run commands from the repo root or any subdirectory below it. If you need to bypass parent traversal, use the global `--workspace` flag or `NP_WORKSPACE`.
 
-### For Agents
+### Human And Agent Paths
 
-Agents should prefer machine-readable output:
+Humans and agents use the same CLI, but they typically use it differently:
+
+| Action | Human | Agent |
+|---|---|---|
+| Create an issue | `np create` in a terminal launches the interactive form | `np json create --author "$AUTHOR"` reads JSON from stdin |
+| Inspect work | `np list`, `np show <ISSUE-ID>`, `np ready` | Add `--json` for machine-readable output |
+| Claim work | `np claim ready --author "$USER"` | `np claim ready --author "$AUTHOR" --json` |
+| Update a claimed issue | `np form update --claim <CLAIM-ID>` | `np json update --claim <CLAIM-ID>` |
+| Comment on an issue | `np form comment --author "$USER" <ISSUE-ID>` | `np json comment --author "$AUTHOR" <ISSUE-ID>` |
+
+For humans, the TTY-driven commands are the default path:
+
+```bash
+np create
+np list
+np claim ready --author "$USER"
+np show <ISSUE-ID>
+```
+
+For agents and scripts, prefer machine-readable output and the stdin-driven JSON commands:
 
 ```bash
 np claim ready --author "$AUTHOR" --json
 np show <ISSUE-ID> --json
 np list --ready --json
-```
-
-For stdin-driven workflows, `np` also ships explicit JSON subcommands:
-
-```bash
 np json create --author "$AUTHOR"
 np json update --claim <CLAIM-ID>
 np json comment --author "$AUTHOR" <ISSUE-ID>
@@ -166,23 +190,17 @@ np agent prime
 
 The `--seed=$PPID` flag ties the generated name to the agent's process ID, so the same process always produces the same author identity. Omit `--seed` only when you want a fresh random name each time.
 
-Claude Code example:
-
-```bash
-mkdir -p .claude/rules/
-np agent prime > .claude/rules/issue-tracking.md
-```
-
 ---
 
 ## How It Works
 
 - Each workspace gets its own `.np/` directory with the embedded SQLite database and related metadata.
-- Issues are either `task` or `epic`. Use labels for further categorization such as bug, feature, or area.
+- Start with flat `task` issues. Use labels for grouping, routing, and metadata such as `kind:bug`, `area:auth`, or `task-group:auth-overhaul`.
+- Epics are optional. Add them only when flat tasks plus labels are not enough and you need explicit hierarchy, progress tracking, or grouped closure.
 - Claiming is the concurrency gate. Comments and most non-hierarchical relationships can be added without a claim, but field updates and state transitions require one.
-- Readiness is computed. A task is ready only when it is open and unblocked; an empty epic can be ready when it needs decomposition.
+- Readiness is computed. In the default flat workflow, a task is ready when it is open and unblocked.
 - `np create` auto-detects its mode: piped stdin reads JSON, while a TTY launches the interactive form UI.
-- Backup and restore are built in, and `np import jsonl` supports bulk creation from structured JSONL input.
+- Backup and restore are built in for moving or recovering a local workspace.
 
 ---
 
@@ -194,29 +212,31 @@ The root CLI is organized into these workflow-first categories:
 - `Core Workflow`: `create`, `claim`, `close`, `show`, `list`, `ready`, `blocked`
 - `Issues`: `issue`, `epic`, `rel`, `label`, `comment`, `form`
 - `Agent Toolkit`: `json`, `agent`
-- `Admin`: `admin`, `import`
+- `Admin`: `admin`
 - `Info`: `version`
 
-Within `admin`, the most important maintenance commands are `admin where`, `admin doctor`, `admin backup`, `admin restore`, `admin gc`, `admin completion`, `admin tally`, and `admin reset`.
-
 Run `np --help` for the current command tree.
+
+Within `admin`, the most important maintenance commands are `admin doctor`, `admin backup`, and `admin restore`.
 
 ---
 
 ## Documentation Map
 
-Start with the [Getting Started Guide](./docs/user/getting-started.md).
+Start with the [Quickstart Guide](./docs/user/quickstart.md).
 
 From there, the main user entry points are:
 
-- **[User Documentation Index](./docs/user/README.md)** — Overview of all user-focused guides
-- **[Key Concepts](./docs/user/key-concepts.md)** — Claims, readiness, issue roles, relationships, and priorities
-- **[Daily Use Guide](./docs/user/daily-use.md)** — The commands you will repeat most often once the tracker becomes part of your workflow
-- **[Workflow Guides](./docs/user/workflow-simple.md)** — Task-only, epic-driven, label-driven, and multi-agent workflows
-- **[Agent Integration Guide](./docs/user/agent-integration.md)** — How to configure coding agents to use `np`
-- **[Command Reference](./docs/user/command-reference.md)** — Full CLI reference
-- **[Troubleshooting](./docs/user/troubleshooting.md)** — Diagnostics and recovery steps
-- **[FAQ](./docs/user/faq.md)** — Common questions and operational tradeoffs
+- **[Quickstart](./docs/user/quickstart.md)** — The smallest useful task-first workflow
+- **[Agent Setup](./docs/user/agents/setup.md)** — How to configure coding agents to use `np`
+- **[Daily Work](./docs/user/daily-work.md)** — The flat task workflow humans and agents repeat once the tracker becomes part of daily work
+- **[Core Concepts](./docs/user/reference/core-concepts.md)** — Claims, readiness, issue roles, relationships, and priorities
+- **[Labels Guide](./docs/user/labels.md)** — Label naming, flat grouping, filtering, routing, and day-to-day usage
+- **[Epics](./docs/user/epics.md)** — Optional hierarchy when flat tasks and labels are not enough
+- **[Multi-Agent Operations](./docs/user/agents/multi-agent.md)** — Coordinating multiple agents in one workspace
+- **[Command Reference](./docs/user/reference/command-reference.md)** — Full CLI reference
+- **[Troubleshooting](./docs/user/reference/troubleshooting.md)** — Diagnostics and recovery steps
+- **[FAQ](./docs/user/reference/faq.md)** — Common questions and operational tradeoffs
 
 See the broader [docs index](./docs/README.md) for the full documentation map.
 
@@ -226,10 +246,10 @@ See the broader [docs index](./docs/README.md) for the full documentation map.
 
 Contributor and implementation material is available, but it is secondary to the user onboarding path above:
 
-- **[Developer Setup](./docs/developer/developer-setup.md)** — Build tooling, Make targets, and local setup
-- **[Architecture](./docs/developer/architecture.md)** — The authoritative layering and dependency rules
-- **[Design Guide](./docs/developer/design-guide.md)** — Code patterns and implementation conventions
-- **[Launch Process](./docs/developer/launch-process.md)** — How `main()` dispatches to commands
+- **[Developer Onboarding](./docs/developer/getting-started/onboarding.md)** — First-day reading order and the shortest contribution path
+- **[Developer Setup](./docs/developer/getting-started/developer-setup.md)** — Build tooling, Make targets, and local setup
+- **[Architecture](./docs/developer/architecture/architecture.md)** — The authoritative layering and dependency rules
+- **[CLI Implementation Guide](./docs/developer/architecture/cli-implementation.md)** — Command, wiring, and testing conventions
 
 ---
 

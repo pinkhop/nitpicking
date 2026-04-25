@@ -1,27 +1,40 @@
 # Developer Documentation
 
-Architecture, build tooling, and internals for contributors to `np`.
+Developer docs for contributors to `np`.
 
----
+Start with [Onboarding](getting-started/onboarding.md) if you are new to the
+repo. It gives you the shortest path from clone to first safe change.
 
-## Setup
+The docs are organized by contributor job:
 
-- **[Developer Setup](developer-setup.md)** — Build tooling, Make targets, Go tools, container image, and adding commands.
+## Getting Started
+
+- [Onboarding](getting-started/onboarding.md) - first-day reading order and the
+  repo mental model
+- [Developer Setup](getting-started/developer-setup.md) - build, test, lint,
+  security, and container commands
+- [First Change](getting-started/first-change.md) - the shortest path to a safe
+  contribution
 
 ## Architecture
 
-- **[Architecture](architecture.md)** — Authoritative layering, dependency rules, package map, and anti-patterns.
-- **[Design Guide](design-guide.md)** — Repo-specific code conventions, command structure, and testing guidance.
-- **[Launch Process](launch-process.md)** — How the `np` binary starts up, from `main()` through command dispatch.
+- [Architecture](architecture/architecture.md) - authoritative layering,
+  dependency rules, and common mistakes to avoid
+- [Package Layout](architecture/package-layout.md) - package map and "what goes
+  where" decision guide
+- [CLI Implementation Guide](architecture/cli-implementation.md) - practical
+  command, wiring, help, and testing conventions
 
-## Formats
+## Reference
 
-- **[JSONL Import Format](jsonl-import-format.md)** — Line schema, field details, reference resolution rules, and worked examples for `np import jsonl`.
+- [JSONL Import Format](reference/jsonl-import-format.md) - file format and
+  design rationale for `np import jsonl`
+- [Claim ID Security Model](reference/claim-security.md) - threat model and
+  rationale for claim token generation, storage, and output handling
 
-## Security
+## Historical Record
 
-- **[Claim ID Security Model](claim-security.md)** — Threat model for claim IDs, randomness and hashing rationale, and output redaction policy.
-
-## Investigations
-
-The `investigations/` directory contains research notes on specific technical topics explored during development.
+- [Design Decisions](decisions/README.md) - accepted records for decisions that
+  need durable rationale
+- [Investigations](investigations/README.md) - exploratory notes that informed
+  implementation but are not normative guidance

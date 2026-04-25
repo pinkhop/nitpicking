@@ -1,49 +1,55 @@
-# np — User Documentation
+# np User Documentation
 
-`np` is a local-only, single-machine CLI issue tracker designed for AI agent workflows and solo development. No network, no remote sync, no background daemons — just a SQLite database in your workspace directory. Start with [Getting Started](getting-started.md) for the basic workflow and [Key Concepts](key-concepts.md) for fit, tradeoffs, and mental model.
+`np` is a local-only, single-machine CLI issue tracker for solo development and AI agent workflows. The docs below are organized as an adoption ladder: start with the flat task loop, wire in agents, learn the daily workflow, then add labels when you need filtering, routing, or lightweight grouping.
 
-Pick the path that matches where you are.
+## Start Here
 
----
+If you are new to `np`, read these in order:
 
-## New to np?
+1. [Quickstart](quickstart.md) - install `np`, initialize a workspace, create a task, claim it, comment on it, and close it.
+2. [Agent Setup](agents/setup.md) - configure coding agents to use the same tracker and workflow as the human developer.
+3. [Daily Work](daily-work.md) - the commands humans and agents repeat most often once the tracker becomes part of the workflow.
+4. [Core Concepts](reference/core-concepts.md) - claims, readiness, issue roles, relationships, and priorities.
 
-Start here to understand what `np` is, set it up, and complete your first task.
+## Add Structure Later
 
-1. **[Getting Started](getting-started.md)** — Build from source, initialize a workspace, create an issue, and close it.
-2. **[Key Concepts](key-concepts.md)** — The mental model: issue roles, state machines, claiming, readiness, relationships, labels, and priorities.
+Only read these when the simple task loop stops being enough:
 
----
+- [Labels](labels.md) - when you need better filtering, routing, backlog hygiene, or flat grouping such as `task-group:<name>`.
+- [Epics](epics.md) - when flat tasks plus labels are not enough and you need explicit hierarchy, progress tracking, or grouped closure.
 
-## Daily use
+## Agents
 
-- **[Daily Use Guide](daily-use.md)** — The everyday commands you will repeat most often: finding work, updating issues, closing, deferring, unblocking, and diagnosing stuck work.
+Use these when AI assistants are part of the workflow:
 
-### Choosing a workflow
+- [Multi-Agent Operations](agents/multi-agent.md) - how concurrent agents share one workspace safely.
 
-Start simple and add structure as your project grows. The workflows below build on each other — you do not have to pick one forever.
+## Reference
 
-| Workflow | Best for | Signs you need it |
-|----------|----------|-------------------|
-| [Simple Task-Only](workflow-simple.md) | Small projects, focused sprints, solo work. | You have a flat list of things to do and no need for grouping. |
-| [Epic-Driven](workflow-epics.md) | Features that decompose into multiple tasks. | You find yourself wanting "this set of tasks must all be done before the feature is complete." |
-| [Label-Driven](workflow-labels.md) | Categorized work selection (bug vs. feature, area tags). | You want `np claim ready` to pick a specific *kind* of work, not just the next by priority. |
-| [Multi-Agent](workflow-multi-agent.md) | Multiple AI agents or developers on one machine. | More than one agent is running and you need claim-based mutual exclusion. |
+Use reference material when you need a rule, edge case, or exact command shape:
 
-**When to switch:** If you started with simple tasks and now have 10+ issues that logically group into features, add epics. If agents are stepping on each other's claims, move to the multi-agent workflow. Labels can be layered onto any of the above at any time.
+- [Command Reference](reference/command-reference.md) - every command, flag, exit code, and example.
+- [Troubleshooting](reference/troubleshooting.md) - symptom-driven diagnosis and recovery steps.
+- [FAQ](reference/faq.md) - common questions and short answers.
 
----
+## Recommended Reading Paths
 
-## Integrating np with AI agents
+### Solo human, small project
 
-If you are configuring an AI coding assistant (Claude Code, Codex, Cursor, or similar) to use `np` as its issue tracker:
+`Quickstart` -> `Daily Work` -> `Core Concepts`
 
-- **[Agent Integration Guide](agent-integration.md)** — Setup instructions, workflow patterns, and CLAUDE.md configuration.
+### Solo human or one agent, growing project
 
----
+`Quickstart` -> `Agent Setup` -> `Daily Work` -> `Core Concepts` -> `Labels`
 
-## Reference and troubleshooting
+### Agent-heavy project
 
-- **[Command Reference](command-reference.md)** — Every `np` command: synopsis, flags, examples, exit codes, and notes.
-- **[FAQ](faq.md)** — Common questions and answers.
-- **[Troubleshooting](troubleshooting.md)** — Problems organized by symptom, with diagnostics and recovery steps.
+`Quickstart` -> `Agent Setup` -> `Daily Work` -> `Core Concepts` -> `Multi-Agent Operations`
+
+### Considering hierarchy
+
+`Quickstart` -> `Daily Work` -> `Labels` -> `Epics`
+
+### Unsure whether `np` fits
+
+Start with [Quickstart](quickstart.md), then skim the design constraints in [Core Concepts](reference/core-concepts.md).

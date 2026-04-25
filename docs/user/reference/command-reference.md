@@ -9,6 +9,14 @@ Commands are grouped by the categories shown in `np help`.
 > - `[OPTIONAL]` — an optional argument or flag.
 > - Default values are shown in parentheses after the flag description.
 
+## Terminology
+
+- **Ready queue** — the set of issues that can be picked up now.
+- **Stale time** — the moment an active claim stops counting as active.
+- **Claim conflict** — exit code `3`, meaning the issue still has an active claim and the claim you supplied does not authorize the mutation.
+- **Example IDs** — examples use the `FOO-xxxxx` issue ID shape consistently.
+- **Example times** — example timestamps use UTC and cluster around `2026-04-01`.
+
 ---
 
 ## Table of Contents
@@ -98,7 +106,7 @@ np init [options] <PREFIX>
 
 | Argument | Description |
 |----------|-------------|
-| `PREFIX` | Project prefix for issue IDs. Convention is 2–4 uppercase letters (e.g., `NP`, `MYAPP`). Every issue ID will start with this prefix followed by a hyphen and a random suffix. |
+| `PREFIX` | Project prefix for issue IDs. Convention is 2–4 uppercase letters (e.g., `FOO`, `APP`). Every issue ID will start with this prefix followed by a hyphen and a random suffix. |
 
 **Flags:**
 
@@ -108,15 +116,15 @@ np init [options] <PREFIX>
 
 **Examples:**
 
-```
-$ np init MYAPP
-[ok] Initialized database with prefix MYAPP
+```text
+$ np init FOO
+[ok] Initialized database with prefix FOO
 ```
 
-```
-$ np init MYAPP --json
+```json
+$ np init FOO --json
 {
-  "prefix": "MYAPP"
+  "prefix": "FOO"
 }
 ```
 
@@ -214,18 +222,18 @@ np show [options] <ISSUE-ID>
 
 **Examples:**
 
-```
-$ np show MYAPP-g6ff8
-MYAPP-g6ff8  Add user login endpoint
+```text
+$ np show FOO-a3bxr
+FOO-a3bxr  Add user login endpoint
 Role: task  |  State: open  |  Priority: P2
 Revision: 1  |  Author: alice
 ```
 
-```
-$ np show MYAPP-g6ff8 --json | jq '.state, .claim_author, .claim_stale_at'
+```json
+$ np show FOO-a3bxr --json | jq '.state, .claim_author, .claim_stale_at'
 "claimed"
 "alice"
-"2026-03-24T02:41:40.000Z"
+"2026-04-01T11:30:00.000Z"
 ```
 
 **Exit codes:**
@@ -270,18 +278,20 @@ np list [options]
 
 **Examples:**
 
-```
+```text
 $ np list --ready
-MYAPP-g6ff8  P2  task  Add user login endpoint
-MYAPP-k2m9p  P2  task  Write tests
+FOO-a3bxr  P2  task  Add user login endpoint
+FOO-b7mqd  P2  task  Write tests
 ```
 
-```
+```json
 $ np list --state closed --json
+[ ... closed issues as JSON ... ]
 ```
 
-```
+```text
 $ np list --label kind:bug --ready
+[ ... ready issues labeled kind:bug ... ]
 ```
 
 **Exit codes:**
@@ -322,54 +332,54 @@ np claim [options] <ISSUE-ID | ready>
 | `--author`, `-a` | Author name for the claim. Required. Env: `NP_AUTHOR`. |
 | `--label` | Label filter in `key:value` or `key:*` format. Repeatable, AND semantics. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
 | `--role` | Filter by role: `task` or `epic`. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
-| `--duration` | Duration after which the claim becomes stale (e.g., `30m`, `1h`, `4h`). Default: `2h`. Mutually exclusive with `--stale-at`. |
-| `--stale-at` | RFC3339 UTC timestamp when the claim becomes stale (e.g., `2026-04-02T14:00:00Z`). Must be in the future and within 24h. Mutually exclusive with `--duration`. |
+| `--duration` | Claim duration before the claim becomes stale (e.g., `30m`, `1h`, `4h`). Default: `2h`. Mutually exclusive with `--stale-at`. |
+| `--stale-at` | RFC3339 UTC stale time for the claim (e.g., `2026-04-02T14:00:00Z`). Must be in the future and within 24h. Mutually exclusive with `--duration`. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**
 
 Claim by ID:
 
-```
-$ np claim MYAPP-g6ff8 --author alice
-[ok] Claimed MYAPP-g6ff8
-  Claim ID: a4dace30e46eb1ec14019c79a59c6b27
+```text
+$ np claim FOO-a3bxr --author alice
+[ok] Claimed FOO-a3bxr
+  Claim ID: 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5
   Author: alice
-  Stale at: 2026-03-28 10:30:00
+  Stale at: 2026-04-01 11:30:00
 ```
 
-```
-$ np claim MYAPP-g6ff8 --author alice --json
+```json
+$ np claim FOO-a3bxr --author alice --json
 {
-  "issue_id": "MYAPP-g6ff8",
-  "claim_id": "a4dace30e46eb1ec14019c79a59c6b27",
+  "issue_id": "FOO-a3bxr",
+  "claim_id": "7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5",
   "author": "alice",
-  "created_at": "2026-03-28T09:30:00Z",
-  "stale_at": "2026-03-28T10:30:00Z",
+  "created_at": "2026-04-01T09:30:00Z",
+  "stale_at": "2026-04-01T11:30:00Z"
 }
 ```
 
-Claim next ready issue (also overwrites a stale claim if one exists on the chosen issue):
+Claim the next issue from the ready queue:
 
 
-```
+```text
 $ np claim ready --author alice
-[ok] Claimed MYAPP-g6ff8
-  Claim ID: a4dace30e46eb1ec14019c79a59c6b27
+[ok] Claimed FOO-a3bxr
+  Claim ID: 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5
   Author: alice
-  Stale at: 2026-03-28 10:30:00
+  Stale at: 2026-04-01 11:30:00
 ```
 
-Claim next ready issue with filters:
+Claim from the ready queue with filters:
 
-```
+```json
 $ np claim ready --author alice --role task --label kind:bug --json
 {
-  "issue_id": "MYAPP-x9y8z",
-  "claim_id": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8",
+  "issue_id": "FOO-d4kzs",
+  "claim_id": "9c4d7e2f1a6b5c8d3e0f4a7b2c1d6e9f",
   "author": "alice",
-  "created_at": "2026-03-28T09:30:00Z",
-  "stale_at": "2026-03-28T10:30:00Z"
+  "created_at": "2026-04-01T09:45:00Z",
+  "stale_at": "2026-04-01T11:45:00Z"
 }
 ```
 
@@ -385,10 +395,10 @@ $ np claim ready --author alice --role task --label kind:bug --json
 **Notes:**
 
 - The claim ID is a bearer token. Anyone with the claim ID can use it — there is no per-author verification on subsequent operations. Guard it accordingly.
-- Claiming an issue that has a stale claim succeeds automatically — the stale claim is overwritten. No special flag is required.
-- Attempting to claim an issue with an active (non-stale) claim held by another author returns exit code 3. The correct response is to wait until the claim expires or to claim a different issue with `np claim ready`.
-- The `--duration` flag sets the duration after which the claim expires. Pass a longer value for long-running work.
-- An issue is "ready" when it is `open`, has no active non-stale claim, has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred`. For epics, readiness additionally requires having no children — a childless epic signals a planning gap that needs decomposition.
+- Claiming an issue with a stale claim succeeds automatically. No special flag is required.
+- Attempting to claim an issue with another active claim returns a claim conflict. Wait for the stale time to pass or claim a different issue from the ready queue.
+- Use `--duration` or `--stale-at` to set the stale time.
+- See [Terminology](#terminology) and [`ready`](#ready) for the exact readiness rule.
 
 ---
 
@@ -412,9 +422,9 @@ np close [options]
 
 **Examples:**
 
-```
-$ np close --claim a4dace30 --reason "Login endpoint complete with JWT auth."
-Closed MYAPP-g6ff8
+```text
+$ np close --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5 --reason "Login endpoint complete with JWT auth."
+Closed FOO-a3bxr
 ```
 
 **Exit codes:**
@@ -455,22 +465,17 @@ np ready [options]
 
 ```
 $ np ready
+[ ... issues in the ready queue ... ]
 ```
 
 ```
 $ np ready --role task
+[ ... ready tasks ... ]
 ```
 
 ```
 $ np ready --label kind:bug
-```
-
-```
-$ np ready --parent NP-abc12
-```
-
-```
-$ np ready --role task --label kind:bug
+[ ... ready issues labeled kind:bug ... ]
 ```
 
 **Exit codes:**
@@ -481,8 +486,8 @@ $ np ready --role task --label kind:bug
 
 **Notes:**
 
-- An issue is ready when it is `open`, has no unresolved `blocked_by` relationships, and no ancestor epic is `deferred`. For epics, readiness additionally requires having no children — a childless epic signals a planning gap that needs decomposition.
-- Filter flags combine with AND semantics: `--role task --label kind:bug --parent NP-abc12` returns only ready tasks labeled `kind:bug` whose parent is `NP-abc12`.
+- An issue is in the ready queue when it is `open`, has no unresolved `blocked_by` relationships, and no deferred ancestor epic. Epics must also have no children.
+- Filter flags combine with AND semantics.
 - The default sort order is priority ascending (P0 first), which differs from `np list` whose default is ID ascending.
 
 ---
@@ -557,13 +562,14 @@ np issue search [options] <QUERY>
 
 **Examples:**
 
-```
+```text
 $ np issue search "login timeout"
-MYAPP-g6ff8  P2  task  Add user login endpoint
+FOO-a3bxr  P2  task  Add user login endpoint
 ```
 
-```
+```json
 $ np issue search "JWT" --search-comments --json
+[ ... matching issues as JSON ... ]
 ```
 
 **Exit codes:**
@@ -594,15 +600,15 @@ np issue release [options]
 **Examples:**
 
 ```
-$ np issue release --claim a4dace30
-Released MYAPP-g6ff8
+$ np issue release --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5
+Released FOO-a3bxr
 ```
 
 ```
-$ np issue release --claim a4dace30 --json
+$ np issue release --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5 --json
 {
   "action": "release",
-  "issue_id": "MYAPP-g6ff8"
+  "issue_id": "FOO-a3bxr"
 }
 ```
 
@@ -615,7 +621,7 @@ $ np issue release --claim a4dace30 --json
 
 **Notes:**
 
-- Use this when you need to stop working on an issue without closing it — e.g., when you are blocked or need to hand off to another agent.
+- Use this when you need to stop working on an issue without closing it. Releasing puts it back in the ready queue if it is otherwise ready.
 
 ---
 
@@ -645,7 +651,7 @@ np issue reopen [options] <ISSUE-ID> [ISSUE-ID...]
 **Examples:**
 
 ```
-$ np issue reopen MYAPP-g6ff8 --author alice
+$ np issue reopen FOO-a3bxr --author alice
 ```
 
 **Exit codes:**
@@ -689,7 +695,7 @@ np issue undefer [options] <ISSUE-ID> [ISSUE-ID...]
 **Examples:**
 
 ```
-$ np issue undefer MYAPP-g6ff8 --author alice
+$ np issue undefer FOO-a3bxr --author alice
 ```
 
 **Exit codes:**
@@ -709,7 +715,7 @@ $ np issue undefer MYAPP-g6ff8 --author alice
 
 ### issue defer
 
-Defer a claimed issue for later. Deferred issues are excluded from readiness calculations, and any descendant issues under a deferred ancestor are also not ready.
+Defer a claimed issue for later. Deferred issues are excluded from the ready queue, and descendants under a deferred ancestor are excluded too.
 
 **Synopsis:**
 
@@ -727,7 +733,7 @@ np issue defer [options]
 **Examples:**
 
 ```
-$ np issue defer --claim a4dace30
+$ np issue defer --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5
 ```
 
 **Exit codes:**
@@ -739,7 +745,7 @@ $ np issue defer --claim a4dace30
 
 **Notes:**
 
-- Deferring an epic effectively defers all its descendants — they will not appear in `np ready` until the epic is undeferred.
+- Deferring an epic effectively defers all its descendants. They will not re-enter the ready queue until the epic is undeferred.
 
 ---
 
@@ -764,7 +770,7 @@ np issue delete [options]
 **Examples:**
 
 ```
-$ np issue delete --claim a4dace30 --confirm
+$ np issue delete --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5 --confirm
 ```
 
 **Exit codes:**
@@ -809,11 +815,11 @@ np issue history [options] <ISSUE-ID>
 **Examples:**
 
 ```
-$ np issue history MYAPP-g6ff8
+$ np issue history FOO-a3bxr
 ```
 
 ```
-$ np issue history MYAPP-g6ff8 --json --no-limit
+$ np issue history FOO-a3bxr --json --no-limit
 ```
 
 **Exit codes:**
@@ -862,7 +868,7 @@ np issue orphans [options]
 
 ### epic status
 
-Show completion status for open epics. Displays the number of children in each state (open, claimed, closed, deferred) and whether the epic is completed.
+Show completion status for open epics. Displays child counts by state and whether the epic is completed.
 
 **Synopsis:**
 
@@ -885,16 +891,18 @@ np epic status [options] [EPIC-ID]
 
 **Examples:**
 
-```
+```text
 $ np epic status
 ```
 
-```
-$ np epic status MYAPP-a3bxr --json
+```json
+$ np epic status FOO-c4npt --json
+[ ... epic status as JSON ... ]
 ```
 
-```
+```text
 $ np epic status --completed-only
+[ ... completed epics ... ]
 ```
 
 **Exit codes:**
@@ -927,19 +935,20 @@ np epic close-completed [options]
 
 **Examples:**
 
-```
+```json
 $ np epic close-completed --author alice --json
 {
   "closed": 2,
   "results": [
-    { "id": "MYAPP-a3bxr", "title": "Authentication overhaul", "closed": true },
-    { "id": "MYAPP-b4c5d", "title": "Database migration", "closed": true }
+    { "id": "FOO-c4npt", "title": "Authentication overhaul", "closed": true },
+    { "id": "FOO-e8vqm", "title": "Database migration", "closed": true }
   ]
 }
 ```
 
-```
+```text
 $ np epic close-completed --dry-run --author alice
+[ ... epics that would be closed ... ]
 ```
 
 **Exit codes:**
@@ -982,12 +991,13 @@ np epic children [options] <EPIC-ID>
 
 **Examples:**
 
-```
-$ np epic children MYAPP-a3bxr
+```text
+$ np epic children FOO-c4npt
 ```
 
-```
-$ np epic children MYAPP-a3bxr --json
+```json
+$ np epic children FOO-c4npt --json
+[ ... direct children as JSON ... ]
 ```
 
 **Exit codes:**
@@ -1032,19 +1042,19 @@ np rel add [options] <A> <rel> <B>
 **Examples:**
 
 ```
-$ np rel add MYAPP-g6ff8 blocked_by MYAPP-k2m9p --author alice
+$ np rel add FOO-a3bxr blocked_by FOO-b7mqd --author alice
 ```
 
 ```
-$ np rel add MYAPP-a3bxr parent_of MYAPP-g6ff8 --claim a4dace30 --author alice
+$ np rel add FOO-c4npt parent_of FOO-a3bxr --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5 --author alice
 ```
 
 ```
-$ np rel add MYAPP-g6ff8 refs MYAPP-x9y8z --author alice --json
+$ np rel add FOO-a3bxr refs FOO-d4kzs --author alice --json
 {
   "action": "added",
-  "source": "MYAPP-g6ff8",
-  "target": "MYAPP-x9y8z",
+  "source": "FOO-a3bxr",
+  "target": "FOO-d4kzs",
   "type": "refs"
 }
 ```
@@ -1110,7 +1120,7 @@ np rel blocks unblock [options] <A> <B>
 **Examples:**
 
 ```
-$ np rel blocks unblock MYAPP-g6ff8 MYAPP-k2m9p --author alice
+$ np rel blocks unblock FOO-a3bxr FOO-b7mqd --author alice
 ```
 
 **Exit codes:**
@@ -1217,10 +1227,10 @@ np rel parent tree [options] <ISSUE-ID>
 **Examples:**
 
 ```
-$ np rel parent tree MYAPP-a3bxr
-MYAPP-a3bxr  Authentication overhaul
-  MYAPP-g6ff8  Add user login endpoint
-  MYAPP-k2m9p  Write tests
+$ np rel parent tree FOO-c4npt
+FOO-c4npt  Authentication overhaul
+  FOO-a3bxr  Add user login endpoint
+  FOO-b7mqd  Write tests
 ```
 
 **Exit codes:**
@@ -1309,40 +1319,40 @@ np rel tree [options] <ISSUE-ID>
 
 **Examples:**
 
-Given epic `MYAPP-10000` with children `MYAPP-11000` (an epic with two tasks) and `MYAPP-12000` (a task):
+Given epic `FOO-c4npt` with children `FOO-d6rsk` (an epic with two tasks) and `FOO-g3wbn` (a task):
 
 ```
-$ np rel tree MYAPP-10000
+$ np rel tree FOO-c4npt
 TREE             P   ROLE  STATE          TITLE
-MYAPP-10000      P2  epic  open (active)  Root epic
-  MYAPP-11000    P2  epic  open (active)  Child epic
-    MYAPP-11100  P2  task  open (ready)   Task A
-    MYAPP-11200  P2  task  open (ready)   Task B
-  MYAPP-12000    P2  task  open (ready)   Standalone child
+FOO-c4npt        P2  epic  open (active)  Root epic
+  FOO-d6rsk      P2  epic  open (active)  Child epic
+    FOO-e2mvh    P2  task  open (ready)   Task A
+    FOO-f7qxl    P2  task  open (ready)   Task B
+  FOO-g3wbn      P2  task  open (ready)   Standalone child
 ```
 
 Running on a child shows the ancestry path plus sibling summaries:
 
 ```
-$ np rel tree MYAPP-11000
+$ np rel tree FOO-d6rsk
 TREE             P   ROLE  STATE          TITLE
-MYAPP-10000      P2  epic  open (active)  Root epic
-  MYAPP-11000    P2  epic  open (active)  Child epic
-    MYAPP-11100  P2  task  open (ready)   Task A
-    MYAPP-11200  P2  task  open (ready)   Task B
+FOO-c4npt        P2  epic  open (active)  Root epic
+  FOO-d6rsk      P2  epic  open (active)  Child epic
+    FOO-e2mvh    P2  task  open (ready)   Task A
+    FOO-f7qxl    P2  task  open (ready)   Task B
   and 1 sibling
 ```
 
 Use `--full` to see the complete tree regardless of which issue you specify:
 
 ```
-$ np rel tree MYAPP-11000 --full
+$ np rel tree FOO-d6rsk --full
 TREE             P   ROLE  STATE          TITLE
-MYAPP-10000      P2  epic  open (active)  Root epic
-  MYAPP-11000    P2  epic  open (active)  Child epic
-    MYAPP-11100  P2  task  open (ready)   Task A
-    MYAPP-11200  P2  task  open (ready)   Task B
-  MYAPP-12000    P2  task  open (ready)   Standalone child
+FOO-c4npt        P2  epic  open (active)  Root epic
+  FOO-d6rsk      P2  epic  open (active)  Child epic
+    FOO-e2mvh    P2  task  open (ready)   Task A
+    FOO-f7qxl    P2  task  open (ready)   Task B
+  FOO-g3wbn      P2  task  open (ready)   Standalone child
 ```
 
 **Exit codes:**
@@ -1423,7 +1433,7 @@ np label add [options] <key:value>
 **Examples:**
 
 ```
-$ np label add kind:bug --claim a4dace30
+$ np label add kind:bug --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5
 ```
 
 **Exit codes:**
@@ -1436,7 +1446,7 @@ $ np label add kind:bug --claim a4dace30
 
 **Notes:**
 
-- Common label conventions: `kind:` (bug, feature, docs), `docs:` (area tags), `scope:` (component names).
+- Common label conventions: `kind:` (bug, feature, docs), `area:` (auth, api, cli), `scope:` (component names).
 
 ---
 
@@ -1585,7 +1595,7 @@ np label propagate [options] <key>
 **Examples:**
 
 ```
-$ np label propagate kind --issue MYAPP-a3bxr --author alice
+$ np label propagate kind --issue FOO-c4npt --author alice
 ```
 
 **Exit codes:**
@@ -1623,12 +1633,13 @@ np comment list <ISSUE-ID> [options]
 
 **Examples:**
 
-```
-$ np comment list MYAPP-g6ff8
+```text
+$ np comment list FOO-a3bxr
 ```
 
-```
-$ np comment list MYAPP-g6ff8 --json
+```json
+$ np comment list FOO-a3bxr --json
+[ ... comments as JSON ... ]
 ```
 
 **Exit codes:**
@@ -1672,12 +1683,13 @@ np comment search [options] <QUERY>
 
 **Examples:**
 
-```
+```text
 $ np comment search "root cause"
 ```
 
-```
-$ np comment search "auth" --issue MYAPP-g6ff8 --json
+```json
+$ np comment search "auth" --issue FOO-a3bxr --json
+[ ... matching comments as JSON ... ]
 ```
 
 **Exit codes:**
@@ -1802,7 +1814,7 @@ JSONEND
 
 **Examples:**
 
-```
+```json
 $ np json create --author alice <<'JSONEND'
 {
   "role": "task",
@@ -1811,12 +1823,12 @@ $ np json create --author alice <<'JSONEND'
 }
 JSONEND
 {
-  "id": "MYAPP-g6ff8",
+  "id": "FOO-a3bxr",
   "role": "task",
   "title": "Fix auth bug",
   "priority": "P1",
   "state": "open",
-  "created_at": "2026-03-25T12:00:00.000Z"
+  "created_at": "2026-04-01T12:00:00.000Z"
 }
 ```
 
@@ -1867,8 +1879,8 @@ JSONEND
 
 **Examples:**
 
-```
-$ np json update --claim a4dace30 <<'JSONEND'
+```json
+$ np json update --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5 <<'JSONEND'
 {
   "title": "Revised title",
   "priority": "P0"
@@ -1886,7 +1898,6 @@ JSONEND
 
 **Notes:**
 
-- All fields are optional; only the fields you include are updated. Omitted fields are left unchanged.
 - `json update` follows PATCH semantics: omitted fields mean no change, and explicit `null` clears supported scalar fields.
 
 ---
@@ -1925,15 +1936,15 @@ JSONEND
 
 **Examples:**
 
-```
-$ np json comment MYAPP-g6ff8 --author alice <<'JSONEND'
+```json
+$ np json comment FOO-a3bxr --author alice <<'JSONEND'
 {
   "body": "Found the root cause in auth.go:142"
 }
 JSONEND
 {
   "comment_id": "comment-1",
-  "issue_id": "MYAPP-g6ff8",
+  "issue_id": "FOO-a3bxr",
   "author": "alice"
 }
 ```
@@ -1971,21 +1982,21 @@ np agent name [options]
 
 **Examples:**
 
-```
-$ np agent name
-blue-seal-echo
-```
-
-```
+```json
 $ np agent name --json
 {
   "name": "kind-comet-quest"
 }
 ```
 
+```text
+$ np agent name
+blue-seal-echo
+```
+
 Agents should use `--seed=$PPID` to produce a stable identity tied to their process ID. The same seed always yields the same name:
 
-```
+```text
 $ np agent name --seed=$PPID
 calm-spruce-spray
 
@@ -2063,7 +2074,7 @@ np admin backup [options]
 
 | Flag | Description |
 |------|-------------|
-| `--output`, `-o` | Destination file or directory for the backup. If a directory, the default filename is used inside it. Default: `.np/backup-<prefix>.<timestamp>.jsonl.gz`. |
+| `--output`, `-o` | Destination file or directory for the backup. If a directory, the default filename is used inside it. Default: `.np/backup-<prefix-lowercase>.<timestamp>.jsonl.gz`. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**
@@ -2166,7 +2177,7 @@ $ np admin doctor --severity warning
 
 **Notes:**
 
-- Checks include: stale claims, issues with no ready path, cycles, orphaned issues, and more.
+- Checks include stale claims, issues with no ready path, cycles, orphaned issues, and more.
 - Use `--severity error` to skip informational and warning checks — useful for CI integration.
 
 ---
@@ -2277,8 +2288,8 @@ np admin restore [options] <backup-file>
 
 **Examples:**
 
-```
-$ np admin restore .np/backup-np.20260401T120000Z.jsonl.gz
+```text
+$ np admin restore .np/backup-foo.20260401T120000Z.jsonl.gz
 ```
 
 **Exit codes:**
@@ -2447,7 +2458,7 @@ $ np import jsonl migration.jsonl --author alice --force-author --json
 
 **Notes:**
 
-- The JSONL format is documented in `docs/developer/jsonl-import-format.md`.
+- The JSONL format is documented in `docs/developer/reference/jsonl-import-format.md`.
 - Import is idempotent: each line carries a required `idempotency_label` (a `key:value` string), and re-importing a file skips lines whose `idempotency_label` is already present as a label on a non-deleted issue.
 - Validation runs before any database mutations. If any line fails validation, no issues are created.
 - Per-line `author` fields override the `--author` default unless `--force-author` is set.
@@ -2490,7 +2501,7 @@ np version 1.0.0 darwin/arm64
 $ np version --verbose
 np version 1.0.0 darwin/arm64
 commit: b2d4d375ce13
-built:  2026-03-25T16:35:38Z
+built:  2026-04-01T16:35:38Z
 ```
 
 ```
@@ -2502,7 +2513,7 @@ $ np version --json
   "arch": "arm64",
   "commit": "b2d4d375ce13",
   "dirty": false,
-  "built": "2026-03-25T16:35:38.000Z"
+  "built": "2026-04-01T16:35:38.000Z"
 }
 ```
 

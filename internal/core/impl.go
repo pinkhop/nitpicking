@@ -2710,7 +2710,7 @@ func (s *serviceImpl) Restore(ctx context.Context, input driving.RestoreInput) e
 		// reads records through a compatibility shim that captures the legacy
 		// field, then carries any non-empty value forward as an ordinary label
 		// under the key "idempotency" (skip-on-conflict; invalid values are
-		// skipped silently). See docs/developer/adr/idempotency-key-migration.md.
+		// skipped silently). See docs/developer/decisions/idempotency-key-migration.md.
 		return s.restoreV2(ctx, header, input.Reader)
 	case 3:
 		// v3 backups omit idempotency_key entirely; restore is straightforward.
@@ -2795,13 +2795,13 @@ type backupIssueRecordV2 struct {
 	// IdempotencyKey holds the legacy idempotency_key JSON field present in
 	// v2 backups. Any non-empty value is migrated to an "idempotency:<value>"
 	// label on the restored issue. See
-	// docs/developer/adr/idempotency-key-migration.md.
+	// docs/developer/decisions/idempotency-key-migration.md.
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
 // migrateIdempotencyKeyToLabel carries a non-empty idempotency key forward as
 // an ordinary label on the record. The migration key is "idempotency", per the
-// scheme documented in docs/developer/adr/idempotency-key-migration.md.
+// scheme documented in docs/developer/decisions/idempotency-key-migration.md.
 //
 // If the record already carries an "idempotency" label (skip-on-conflict
 // policy) or the value fails domain.NewLabel validation, the key is silently

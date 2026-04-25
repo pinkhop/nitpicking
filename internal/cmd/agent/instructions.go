@@ -47,7 +47,7 @@ np list --ready                       # equivalent to np ready (longer form)
 ` + "```" + `
 np ready --role task                        # only ready tasks
 np ready --label kind:bug                   # only ready bugs
-np ready --parent NP-abc12                  # only ready children of NP-abc12
+np ready --parent FOO-abc12                 # only ready children of FOO-abc12
 np ready --role task --label kind:bug       # combine filters (AND semantics)
 ` + "```" + `
 

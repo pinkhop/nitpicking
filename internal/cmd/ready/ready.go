@@ -127,8 +127,8 @@ useful when you want to browse the queue without committing to anything.
 It is equivalent to "list --ready" but shorter to type and easier to
 remember.
 
-Filters combine with AND semantics: --role task --label kind:bug --parent NP-abc12
-returns only ready tasks labeled kind:bug whose parent is NP-abc12.`,
+Filters combine with AND semantics: --role task --label kind:bug --parent FOO-abc12
+returns only ready tasks labeled kind:bug whose parent is FOO-abc12.`,
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
 				Name:     "role",

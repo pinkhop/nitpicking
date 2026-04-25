@@ -287,7 +287,7 @@ Use `!` before `exec` to assert that a command exits with a non-zero status:
 Use `exists` and `! exists` to check whether files or directories were created:
 
 ```
-! exec np show NP-00000
+! exec np show FOO-00000
 ! exists .np                            # show must not create .np/
 ```
 

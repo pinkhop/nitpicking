@@ -2366,7 +2366,7 @@ func TestAddRelationship_NonExistentTarget_Fails(t *testing.T) {
 		t.Fatalf("precondition: create A: %v", err)
 	}
 
-	fakeTarget, err := domain.ParseID("NP-zzzzz")
+	fakeTarget, err := domain.ParseID("FOO-zzzzz")
 	if err != nil {
 		t.Fatalf("precondition: parse ID: %v", err)
 	}
@@ -3122,7 +3122,7 @@ func TestCreateIssue_NonExistentParent_Fails(t *testing.T) {
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "parent-agent")
 
-	fakeParent, err := domain.ParseID("NP-zzzzz")
+	fakeParent, err := domain.ParseID("FOO-zzzzz")
 	if err != nil {
 		t.Fatalf("precondition: parse ID: %v", err)
 	}

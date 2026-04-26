@@ -46,7 +46,7 @@ func TestRenderGraphJSON_SingleRootTask_HasAllFields(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	id := mustParseGraphID(t, "NP-abc12")
+	id := mustParseGraphID(t, "FOO-abc12")
 	nodes := []graphcmd.GraphNode{
 		{ID: id, Role: domain.RoleTask, State: domain.StateOpen, Title: "My task"},
 	}
@@ -64,8 +64,8 @@ func TestRenderGraphJSON_SingleRootTask_HasAllFields(t *testing.T) {
 	}
 
 	got := issues[0]
-	if got.ID != "NP-abc12" {
-		t.Errorf("id: got %q, want %q", got.ID, "NP-abc12")
+	if got.ID != "FOO-abc12" {
+		t.Errorf("id: got %q, want %q", got.ID, "FOO-abc12")
 	}
 	if got.Role != "task" {
 		t.Errorf("role: got %q, want %q", got.Role, "task")
@@ -88,9 +88,9 @@ func TestRenderGraphJSON_ParentChild_ChildrenNested(t *testing.T) {
 	t.Parallel()
 
 	// Given — an epic with two child tasks.
-	epicID := mustParseGraphID(t, "NP-epic1")
-	child1 := mustParseGraphID(t, "NP-tsk01")
-	child2 := mustParseGraphID(t, "NP-tsk02")
+	epicID := mustParseGraphID(t, "FOO-epic1")
+	child1 := mustParseGraphID(t, "FOO-tsk01")
+	child2 := mustParseGraphID(t, "FOO-tsk02")
 
 	nodes := []graphcmd.GraphNode{
 		{ID: epicID, Role: domain.RoleEpic, State: domain.StateOpen, Title: "My Epic"},
@@ -118,9 +118,9 @@ func TestRenderGraphJSON_Relationships_BlockedByAndRefs(t *testing.T) {
 	t.Parallel()
 
 	// Given — A is blocked_by B, and A refs C.
-	idA := mustParseGraphID(t, "NP-aaaaa")
-	idB := mustParseGraphID(t, "NP-bbbbb")
-	idC := mustParseGraphID(t, "NP-ccccc")
+	idA := mustParseGraphID(t, "FOO-aaaaa")
+	idB := mustParseGraphID(t, "FOO-bbbbb")
+	idC := mustParseGraphID(t, "FOO-ccccc")
 
 	nodes := []graphcmd.GraphNode{
 		{ID: idA, Role: domain.RoleTask, State: domain.StateOpen, Title: "A"},
@@ -147,22 +147,22 @@ func TestRenderGraphJSON_Relationships_BlockedByAndRefs(t *testing.T) {
 		issueMap[iss.ID] = iss
 	}
 
-	a := issueMap["NP-aaaaa"]
-	if len(a.Relationships.BlockedBy) != 1 || a.Relationships.BlockedBy[0] != "NP-bbbbb" {
-		t.Errorf("A.blocked_by: got %v, want [NP-bbbbb]", a.Relationships.BlockedBy)
+	a := issueMap["FOO-aaaaa"]
+	if len(a.Relationships.BlockedBy) != 1 || a.Relationships.BlockedBy[0] != "FOO-bbbbb" {
+		t.Errorf("A.blocked_by: got %v, want [FOO-bbbbb]", a.Relationships.BlockedBy)
 	}
-	if len(a.Relationships.Refs) != 1 || a.Relationships.Refs[0] != "NP-ccccc" {
-		t.Errorf("A.refs: got %v, want [NP-ccccc]", a.Relationships.Refs)
-	}
-
-	b := issueMap["NP-bbbbb"]
-	if len(b.Relationships.Blocks) != 1 || b.Relationships.Blocks[0] != "NP-aaaaa" {
-		t.Errorf("B.blocks: got %v, want [NP-aaaaa]", b.Relationships.Blocks)
+	if len(a.Relationships.Refs) != 1 || a.Relationships.Refs[0] != "FOO-ccccc" {
+		t.Errorf("A.refs: got %v, want [FOO-ccccc]", a.Relationships.Refs)
 	}
 
-	c := issueMap["NP-ccccc"]
-	if len(c.Relationships.Refs) != 1 || c.Relationships.Refs[0] != "NP-aaaaa" {
-		t.Errorf("C.refs: got %v, want [NP-aaaaa]", c.Relationships.Refs)
+	b := issueMap["FOO-bbbbb"]
+	if len(b.Relationships.Blocks) != 1 || b.Relationships.Blocks[0] != "FOO-aaaaa" {
+		t.Errorf("B.blocks: got %v, want [FOO-aaaaa]", b.Relationships.Blocks)
+	}
+
+	c := issueMap["FOO-ccccc"]
+	if len(c.Relationships.Refs) != 1 || c.Relationships.Refs[0] != "FOO-aaaaa" {
+		t.Errorf("C.refs: got %v, want [FOO-aaaaa]", c.Relationships.Refs)
 	}
 }
 
@@ -170,9 +170,9 @@ func TestRenderGraphJSON_DeepNesting_EpicContainingSubEpic(t *testing.T) {
 	t.Parallel()
 
 	// Given — epic → sub-epic → task.
-	epicID := mustParseGraphID(t, "NP-epic1")
-	subID := mustParseGraphID(t, "NP-epic2")
-	taskID := mustParseGraphID(t, "NP-tsk01")
+	epicID := mustParseGraphID(t, "FOO-epic1")
+	subID := mustParseGraphID(t, "FOO-epic2")
+	taskID := mustParseGraphID(t, "FOO-tsk01")
 
 	nodes := []graphcmd.GraphNode{
 		{ID: epicID, Role: domain.RoleEpic, State: domain.StateOpen, Title: "Root epic"},
@@ -197,7 +197,7 @@ func TestRenderGraphJSON_DeepNesting_EpicContainingSubEpic(t *testing.T) {
 	if len(issues[0].Children[0].Children) != 1 {
 		t.Fatalf("expected 1 child of sub-epic, got %d", len(issues[0].Children[0].Children))
 	}
-	if issues[0].Children[0].Children[0].ID != "NP-tsk01" {
-		t.Errorf("leaf task id: got %q, want %q", issues[0].Children[0].Children[0].ID, "NP-tsk01")
+	if issues[0].Children[0].Children[0].ID != "FOO-tsk01" {
+		t.Errorf("leaf task id: got %q, want %q", issues[0].Children[0].Children[0].ID, "FOO-tsk01")
 	}
 }

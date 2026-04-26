@@ -318,7 +318,7 @@ func TestRestoreCommentRaw_ReturnsNil(t *testing.T) {
 	repo := memory.NewRepository()
 
 	// When
-	err := repo.RestoreCommentRaw(ctx, "NP-test1", domain.BackupCommentRecord{})
+	err := repo.RestoreCommentRaw(ctx, "FOO-test1", domain.BackupCommentRecord{})
 	// Then
 	if err != nil {
 		t.Fatalf("expected nil, got %v", err)
@@ -331,7 +331,7 @@ func TestRestoreClaimRaw_ReturnsNil(t *testing.T) {
 	repo := memory.NewRepository()
 
 	// When
-	err := repo.RestoreClaimRaw(ctx, "NP-test1", domain.BackupClaimRecord{})
+	err := repo.RestoreClaimRaw(ctx, "FOO-test1", domain.BackupClaimRecord{})
 	// Then
 	if err != nil {
 		t.Fatalf("expected nil, got %v", err)
@@ -344,7 +344,7 @@ func TestRestoreRelationshipRaw_ReturnsNil(t *testing.T) {
 	repo := memory.NewRepository()
 
 	// When
-	err := repo.RestoreRelationshipRaw(ctx, "NP-test1", domain.BackupRelationshipRecord{})
+	err := repo.RestoreRelationshipRaw(ctx, "FOO-test1", domain.BackupRelationshipRecord{})
 	// Then
 	if err != nil {
 		t.Fatalf("expected nil, got %v", err)
@@ -357,7 +357,7 @@ func TestRestoreHistoryRaw_ReturnsNil(t *testing.T) {
 	repo := memory.NewRepository()
 
 	// When
-	err := repo.RestoreHistoryRaw(ctx, "NP-test1", domain.BackupHistoryRecord{})
+	err := repo.RestoreHistoryRaw(ctx, "FOO-test1", domain.BackupHistoryRecord{})
 	// Then
 	if err != nil {
 		t.Fatalf("expected nil, got %v", err)
@@ -370,7 +370,7 @@ func TestRestoreLabelRaw_ReturnsNil(t *testing.T) {
 	repo := memory.NewRepository()
 
 	// When
-	err := repo.RestoreLabelRaw(ctx, "NP-test1", domain.BackupLabelRecord{})
+	err := repo.RestoreLabelRaw(ctx, "FOO-test1", domain.BackupLabelRecord{})
 	// Then
 	if err != nil {
 		t.Fatalf("expected nil, got %v", err)

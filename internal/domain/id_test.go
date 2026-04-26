@@ -12,7 +12,7 @@ func TestParseID_ValidID_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	raw := "NP-a3bxr"
+	raw := "FOO-a3bxr"
 
 	// When
 	id, err := domain.ParseID(raw)
@@ -20,11 +20,11 @@ func TestParseID_ValidID_Succeeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if id.String() != "NP-a3bxr" {
-		t.Errorf("expected NP-a3bxr, got %s", id.String())
+	if id.String() != "FOO-a3bxr" {
+		t.Errorf("expected FOO-a3bxr, got %s", id.String())
 	}
-	if id.Prefix() != "NP" {
-		t.Errorf("expected prefix NP, got %s", id.Prefix())
+	if id.Prefix() != "FOO" {
+		t.Errorf("expected prefix FOO, got %s", id.Prefix())
 	}
 	if id.Random() != "a3bxr" {
 		t.Errorf("expected random a3bxr, got %s", id.Random())
@@ -78,9 +78,9 @@ func TestParseID_InvalidRandom_Fails(t *testing.T) {
 		name  string
 		input string
 	}{
-		{"too short", "NP-a3bx"},
-		{"too long", "NP-a3bxrr"},
-		{"contains u", "NP-u3bxr"},
+		{"too short", "FOO-a3bx"},
+		{"too long", "FOO-a3bxrr"},
+		{"contains u", "FOO-u3bxr"},
 	}
 
 	for _, tc := range cases {
@@ -102,13 +102,13 @@ func TestGenerateID_ProducesValidID(t *testing.T) {
 	t.Parallel()
 
 	// When
-	id, err := domain.GenerateID("NP", nil)
+	id, err := domain.GenerateID("FOO", nil)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.HasPrefix(id.String(), "NP-") {
-		t.Errorf("expected NP- prefix, got %s", id.String())
+	if !strings.HasPrefix(id.String(), "FOO-") {
+		t.Errorf("expected FOO- prefix, got %s", id.String())
 	}
 	if len(id.Random()) != 5 {
 		t.Errorf("expected 5-char random, got %d", len(id.Random()))
@@ -147,7 +147,7 @@ func TestGenerateID_CollisionRetry_Succeeds(t *testing.T) {
 	}
 
 	// When
-	id, err := domain.GenerateID("NP", collisionCheck)
+	id, err := domain.GenerateID("FOO", collisionCheck)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -170,7 +170,7 @@ func TestGenerateID_CollisionCheckError_PropagatesError(t *testing.T) {
 	}
 
 	// When
-	_, err := domain.GenerateID("NP", collisionCheck)
+	_, err := domain.GenerateID("FOO", collisionCheck)
 
 	// Then
 	if err == nil {
@@ -190,7 +190,7 @@ func TestGenerateID_AllCollisions_Fails(t *testing.T) {
 	}
 
 	// When
-	_, err := domain.GenerateID("NP", collisionCheck)
+	_, err := domain.GenerateID("FOO", collisionCheck)
 
 	// Then
 	if err == nil {
@@ -214,13 +214,13 @@ func TestResolveID_FullID_ReturnsParsedID(t *testing.T) {
 	t.Parallel()
 
 	// When
-	id, err := domain.ResolveID("NP-a3bxr", "NP")
+	id, err := domain.ResolveID("FOO-a3bxr", "FOO")
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if id.String() != "NP-a3bxr" {
-		t.Errorf("expected NP-a3bxr, got %s", id.String())
+	if id.String() != "FOO-a3bxr" {
+		t.Errorf("expected FOO-a3bxr, got %s", id.String())
 	}
 }
 
@@ -228,13 +228,13 @@ func TestResolveID_BareRandom_PrependsPrefix(t *testing.T) {
 	t.Parallel()
 
 	// When
-	id, err := domain.ResolveID("a3bxr", "NP")
+	id, err := domain.ResolveID("a3bxr", "FOO")
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if id.String() != "NP-a3bxr" {
-		t.Errorf("expected NP-a3bxr, got %s", id.String())
+	if id.String() != "FOO-a3bxr" {
+		t.Errorf("expected FOO-a3bxr, got %s", id.String())
 	}
 }
 
@@ -242,7 +242,7 @@ func TestResolveID_InvalidBareRandom_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// When: a string that isn't a valid full ID or a valid random part.
-	_, err := domain.ResolveID("not-valid", "NP")
+	_, err := domain.ResolveID("not-valid", "FOO")
 
 	// Then
 	if err == nil {
@@ -254,7 +254,7 @@ func TestResolveID_BareRandomWithExcludedChars_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// When: bare random with excluded Crockford chars (i, l, o, u).
-	_, err := domain.ResolveID("il0ou", "NP")
+	_, err := domain.ResolveID("il0ou", "FOO")
 
 	// Then
 	if err == nil {

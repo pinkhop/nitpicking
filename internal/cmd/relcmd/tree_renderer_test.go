@@ -363,12 +363,12 @@ func TestRenderTreeText_SiblingPlaceholderIndentation(t *testing.T) {
 }
 
 // TestRenderTreeText_WorkedExampleFoo10000DefaultFocus verifies the full worked
-// example from NP-ffw57 acceptance criteria: np rel tree FOO-10000 (focus is
+// example from FOO-ffw57 acceptance criteria: np rel tree FOO-10000 (focus is
 // root) produces all children and grandchildren fully expanded, no summaries.
 func TestRenderTreeText_WorkedExampleRootFocusFullExpansion(t *testing.T) {
 	t.Parallel()
 
-	// Given: the exact tree structure from NP-ffw57:
+	// Given: the exact tree structure from FOO-ffw57:
 	//   root (FOO-10000 analogue) has 5 children:
 	//     epic11000: 2 children (task11100, task11200)
 	//     task12000: leaf
@@ -409,7 +409,7 @@ func TestRenderTreeText_WorkedExampleRootFocusFullExpansion(t *testing.T) {
 	}
 }
 
-// TestRenderTreeText_WorkedExampleFocusMidTree verifies the NP-ffw57 worked
+// TestRenderTreeText_WorkedExampleFocusMidTree verifies the FOO-ffw57 worked
 // example for a focus mid-tree (analogous to np rel tree FOO-14200), which
 // should show ancestors from root, the focus's full subtree, and sibling
 // summaries for collapsed siblings at each ancestor tier.

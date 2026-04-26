@@ -139,7 +139,7 @@ func TestEpicProgress_SingleEpicNotFound_ReturnsError(t *testing.T) {
 	// Given — a service with no matching epic.
 	svc, _ := setupService(t)
 
-	bogusID, err := domain.ParseID("NP-zzzzz")
+	bogusID, err := domain.ParseID("FOO-zzzzz")
 	if err != nil {
 		t.Fatalf("parse id: %v", err)
 	}

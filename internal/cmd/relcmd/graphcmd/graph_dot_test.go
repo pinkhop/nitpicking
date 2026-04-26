@@ -39,14 +39,14 @@ func TestRenderGraphDOT_SingleNode_RendersWithColorAndLabel(t *testing.T) {
 
 	// Given
 	nodes := []graphcmd.GraphNode{
-		{ID: mustParseGraphID(t, "NP-a3bxr"), Role: domain.RoleTask, State: domain.StateOpen, Title: "Fix login bug"},
+		{ID: mustParseGraphID(t, "FOO-a3bxr"), Role: domain.RoleTask, State: domain.StateOpen, Title: "Fix login bug"},
 	}
 
 	// When
 	result := graphcmd.RenderGraphDOT(nodes, nil)
 
 	// Then
-	if !strings.Contains(result, `"NP-a3bxr"`) {
+	if !strings.Contains(result, `"FOO-a3bxr"`) {
 		t.Error("expected node ID in output")
 	}
 	if !strings.Contains(result, "Fix login bug") {
@@ -62,7 +62,7 @@ func TestRenderGraphDOT_NodeLabel_UsesBackslashNForLineBreaks(t *testing.T) {
 
 	// Given
 	nodes := []graphcmd.GraphNode{
-		{ID: mustParseGraphID(t, "NP-a3bxr"), Role: domain.RoleTask, State: domain.StateOpen, Title: "Fix login bug"},
+		{ID: mustParseGraphID(t, "FOO-a3bxr"), Role: domain.RoleTask, State: domain.StateOpen, Title: "Fix login bug"},
 	}
 
 	// When
@@ -97,7 +97,7 @@ func TestRenderGraphDOT_StateColors_MatchExpected(t *testing.T) {
 			t.Parallel()
 
 			nodes := []graphcmd.GraphNode{
-				{ID: mustParseGraphID(t, "NP-a3bxr"), Role: domain.RoleTask, State: tc.state, Title: "Test"},
+				{ID: mustParseGraphID(t, "FOO-a3bxr"), Role: domain.RoleTask, State: tc.state, Title: "Test"},
 			}
 
 			// When
@@ -115,8 +115,8 @@ func TestRenderGraphDOT_ParentChild_CreatesClusterAndEdge(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	epicID := mustParseGraphID(t, "NP-ep1c0")
-	taskID := mustParseGraphID(t, "NP-ta5k0")
+	epicID := mustParseGraphID(t, "FOO-ep1c0")
+	taskID := mustParseGraphID(t, "FOO-ta5k0")
 
 	nodes := []graphcmd.GraphNode{
 		{ID: epicID, Role: domain.RoleEpic, State: domain.StateOpen, Title: "Auth epic"},
@@ -131,7 +131,7 @@ func TestRenderGraphDOT_ParentChild_CreatesClusterAndEdge(t *testing.T) {
 		t.Error("expected subgraph cluster for epic")
 	}
 	// Parent-child edge.
-	if !strings.Contains(result, `"NP-ep1c0" -> "NP-ta5k0"`) {
+	if !strings.Contains(result, `"FOO-ep1c0" -> "FOO-ta5k0"`) {
 		t.Error("expected parent-child edge")
 	}
 	if !strings.Contains(result, "style=solid") {
@@ -143,8 +143,8 @@ func TestRenderGraphDOT_BlockedByEdge_DashedRed(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	id1 := mustParseGraphID(t, "NP-a3bxr")
-	id2 := mustParseGraphID(t, "NP-b4cys")
+	id1 := mustParseGraphID(t, "FOO-a3bxr")
+	id2 := mustParseGraphID(t, "FOO-b4cys")
 
 	nodes := []graphcmd.GraphNode{
 		{ID: id1, Role: domain.RoleTask, State: domain.StateOpen, Title: "Task A"},
@@ -158,7 +158,7 @@ func TestRenderGraphDOT_BlockedByEdge_DashedRed(t *testing.T) {
 	result := graphcmd.RenderGraphDOT(nodes, edges)
 
 	// Then
-	if !strings.Contains(result, `"NP-a3bxr" -> "NP-b4cys"`) {
+	if !strings.Contains(result, `"FOO-a3bxr" -> "FOO-b4cys"`) {
 		t.Error("expected blocked_by edge")
 	}
 	if !strings.Contains(result, "style=dashed") {
@@ -173,8 +173,8 @@ func TestRenderGraphDOT_RefsEdge_DottedGray(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	id1 := mustParseGraphID(t, "NP-a3bxr")
-	id2 := mustParseGraphID(t, "NP-b4cys")
+	id1 := mustParseGraphID(t, "FOO-a3bxr")
+	id2 := mustParseGraphID(t, "FOO-b4cys")
 
 	nodes := []graphcmd.GraphNode{
 		{ID: id1, Role: domain.RoleTask, State: domain.StateOpen, Title: "Task A"},
@@ -188,7 +188,7 @@ func TestRenderGraphDOT_RefsEdge_DottedGray(t *testing.T) {
 	result := graphcmd.RenderGraphDOT(nodes, edges)
 
 	// Then
-	if !strings.Contains(result, `"NP-a3bxr" -> "NP-b4cys"`) {
+	if !strings.Contains(result, `"FOO-a3bxr" -> "FOO-b4cys"`) {
 		t.Error("expected refs edge")
 	}
 	if !strings.Contains(result, "style=dotted") {
@@ -203,8 +203,8 @@ func TestRenderGraphDOT_OrphanNode_RenderedOutsideCluster(t *testing.T) {
 	t.Parallel()
 
 	// Given — a node whose ParentID references an ID not in the graph
-	orphanParentID := mustParseGraphID(t, "NP-m1ss0")
-	orphanID := mustParseGraphID(t, "NP-0rph0")
+	orphanParentID := mustParseGraphID(t, "FOO-m1ss0")
+	orphanID := mustParseGraphID(t, "FOO-0rph0")
 
 	nodes := []graphcmd.GraphNode{
 		{ID: orphanID, Role: domain.RoleTask, State: domain.StateOpen, Title: "Orphan task", ParentID: orphanParentID},
@@ -214,7 +214,7 @@ func TestRenderGraphDOT_OrphanNode_RenderedOutsideCluster(t *testing.T) {
 	result := graphcmd.RenderGraphDOT(nodes, nil)
 
 	// Then — orphan should be rendered (not lost)
-	if !strings.Contains(result, `"NP-0rph0"`) {
+	if !strings.Contains(result, `"FOO-0rph0"`) {
 		t.Errorf("expected orphan node to be rendered, got:\n%s", result)
 	}
 	// Should not be in a cluster since parent is not in the graph
@@ -227,8 +227,8 @@ func TestRenderGraphDOT_EdgeWithMissingEndpoint_StillRendered(t *testing.T) {
 	t.Parallel()
 
 	// Given — an edge references a node ID not in the nodes list
-	existingID := mustParseGraphID(t, "NP-a3bxr")
-	missingID := mustParseGraphID(t, "NP-m1ss0")
+	existingID := mustParseGraphID(t, "FOO-a3bxr")
+	missingID := mustParseGraphID(t, "FOO-m1ss0")
 
 	nodes := []graphcmd.GraphNode{
 		{ID: existingID, Role: domain.RoleTask, State: domain.StateOpen, Title: "Existing"},
@@ -241,7 +241,7 @@ func TestRenderGraphDOT_EdgeWithMissingEndpoint_StillRendered(t *testing.T) {
 	result := graphcmd.RenderGraphDOT(nodes, edges)
 
 	// Then — edge should still appear in output (DOT allows dangling references)
-	if !strings.Contains(result, `"NP-a3bxr" -> "NP-m1ss0"`) {
+	if !strings.Contains(result, `"FOO-a3bxr" -> "FOO-m1ss0"`) {
 		t.Errorf("expected edge with missing endpoint to render, got:\n%s", result)
 	}
 }
@@ -264,7 +264,7 @@ func TestRenderGraphDOT_SpecialCharactersInTitle_Escaped(t *testing.T) {
 
 			// Given
 			nodes := []graphcmd.GraphNode{
-				{ID: mustParseGraphID(t, "NP-a3bxr"), Role: domain.RoleTask, State: domain.StateOpen, Title: tc.title},
+				{ID: mustParseGraphID(t, "FOO-a3bxr"), Role: domain.RoleTask, State: domain.StateOpen, Title: tc.title},
 			}
 
 			// When
@@ -272,7 +272,7 @@ func TestRenderGraphDOT_SpecialCharactersInTitle_Escaped(t *testing.T) {
 
 			// Then — output should be valid DOT (no unescaped special chars)
 			// The %q formatting escapes quotes and backslashes automatically.
-			if !strings.Contains(result, `"NP-a3bxr"`) {
+			if !strings.Contains(result, `"FOO-a3bxr"`) {
 				t.Errorf("expected node to render for title %q, got:\n%s", tc.title, result)
 			}
 			// Raw unescaped double quotes inside a DOT string would break parsing.
@@ -289,7 +289,7 @@ func TestRenderGraphDOT_ShortTitle_RenderedFully(t *testing.T) {
 
 	// Given
 	nodes := []graphcmd.GraphNode{
-		{ID: mustParseGraphID(t, "NP-a3bxr"), Role: domain.RoleTask, State: domain.StateOpen, Title: "X"},
+		{ID: mustParseGraphID(t, "FOO-a3bxr"), Role: domain.RoleTask, State: domain.StateOpen, Title: "X"},
 	}
 
 	// When
@@ -310,7 +310,7 @@ func TestRenderGraphDOT_LongTitle_Truncated(t *testing.T) {
 	// Given
 	longTitle := "This is a very long title that should be truncated for readability in the graph"
 	nodes := []graphcmd.GraphNode{
-		{ID: mustParseGraphID(t, "NP-a3bxr"), Role: domain.RoleTask, State: domain.StateOpen, Title: longTitle},
+		{ID: mustParseGraphID(t, "FOO-a3bxr"), Role: domain.RoleTask, State: domain.StateOpen, Title: longTitle},
 	}
 
 	// When

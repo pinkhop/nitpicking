@@ -87,7 +87,7 @@ func TestClaimConflictError_IncludesStructuredContext(t *testing.T) {
 	// Given
 	staleAt := time.Date(2026, 3, 23, 14, 0, 0, 0, time.UTC)
 	err := &domain.ClaimConflictError{
-		IssueID:       "NP-abc12",
+		IssueID:       "FOO-abc12",
 		CurrentHolder: "alice",
 		StaleAt:       staleAt,
 	}
@@ -96,7 +96,7 @@ func TestClaimConflictError_IncludesStructuredContext(t *testing.T) {
 	msg := err.Error()
 
 	// Then
-	if !strings.Contains(msg, "NP-abc12") {
+	if !strings.Contains(msg, "FOO-abc12") {
 		t.Errorf("expected issue ID in message, got %q", msg)
 	}
 	if !strings.Contains(msg, "alice") {
@@ -112,7 +112,7 @@ func TestClaimConflictError_Is_MatchesClaimConflictError(t *testing.T) {
 
 	// Given
 	err := &domain.ClaimConflictError{
-		IssueID:       "NP-abc12",
+		IssueID:       "FOO-abc12",
 		CurrentHolder: "bob",
 		StaleAt:       time.Now(),
 	}
@@ -133,7 +133,7 @@ func TestClaimConflictError_AsType_ExtractsContext(t *testing.T) {
 	// Given
 	staleAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	err := &domain.ClaimConflictError{
-		IssueID:       "NP-xyz99",
+		IssueID:       "FOO-xyz99",
 		CurrentHolder: "agent-7",
 		StaleAt:       staleAt,
 	}
@@ -146,8 +146,8 @@ func TestClaimConflictError_AsType_ExtractsContext(t *testing.T) {
 	if !ok {
 		t.Fatal("expected errors.AsType to succeed")
 	}
-	if ce.IssueID != "NP-xyz99" {
-		t.Errorf("expected IssueID NP-xyz99, got %s", ce.IssueID)
+	if ce.IssueID != "FOO-xyz99" {
+		t.Errorf("expected IssueID FOO-xyz99, got %s", ce.IssueID)
 	}
 	if ce.CurrentHolder != "agent-7" {
 		t.Errorf("expected CurrentHolder agent-7, got %s", ce.CurrentHolder)

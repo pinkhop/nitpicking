@@ -14,9 +14,9 @@ func TestFilterRelationships_BlockedBy_ReturnsOnlyBlockingRels(t *testing.T) {
 
 	// Given: a mixed set of relationship DTOs.
 	rels := []driving.RelationshipDTO{
-		{SourceID: "NP-aaaaa", TargetID: "NP-bbbbb", Type: "blocked_by"},
-		{SourceID: "NP-bbbbb", TargetID: "NP-aaaaa", Type: "blocks"},
-		{SourceID: "NP-aaaaa", TargetID: "NP-ccccc", Type: "refs"},
+		{SourceID: "FOO-aaaaa", TargetID: "FOO-bbbbb", Type: "blocked_by"},
+		{SourceID: "FOO-bbbbb", TargetID: "FOO-aaaaa", Type: "blocks"},
+		{SourceID: "FOO-aaaaa", TargetID: "FOO-ccccc", Type: "refs"},
 	}
 
 	// When: filtering for blocked_by and blocks.
@@ -38,8 +38,8 @@ func TestFilterRelationships_Refs_ReturnsOnlyRefsRels(t *testing.T) {
 
 	// Given: a mixed set of relationship DTOs.
 	rels := []driving.RelationshipDTO{
-		{SourceID: "NP-aaaaa", TargetID: "NP-bbbbb", Type: "blocked_by"},
-		{SourceID: "NP-aaaaa", TargetID: "NP-ccccc", Type: "refs"},
+		{SourceID: "FOO-aaaaa", TargetID: "FOO-bbbbb", Type: "blocked_by"},
+		{SourceID: "FOO-aaaaa", TargetID: "FOO-ccccc", Type: "refs"},
 	}
 
 	// When: filtering for refs.

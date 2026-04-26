@@ -78,7 +78,7 @@ func TestCreateComment_AssignsSequentialIDs(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc01")
+	issueID := mustParseID(t, "FOO-abc01")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "alice")
 
@@ -117,7 +117,7 @@ func TestCreateComment_PreservesFields(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc02")
+	issueID := mustParseID(t, "FOO-abc02")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "bob")
 	createdAt := time.Date(2026, 3, 15, 10, 30, 0, 0, time.UTC)
@@ -164,7 +164,7 @@ func TestGetComment_Exists_ReturnsComment(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc03")
+	issueID := mustParseID(t, "FOO-abc03")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "alice")
 
@@ -210,8 +210,8 @@ func TestListComments_ReturnsCommentsForIssue(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueA := mustParseID(t, "NP-abc04")
-	issueB := mustParseID(t, "NP-abc05")
+	issueA := mustParseID(t, "FOO-abc04")
+	issueB := mustParseID(t, "FOO-abc05")
 	seedTask(t, ctx, repo, issueA, "Issue A")
 	seedTask(t, ctx, repo, issueB, "Issue B")
 	author := mustAuthor(t, "alice")
@@ -244,7 +244,7 @@ func TestListComments_EmptyIssue_ReturnsEmptySlice(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc06")
+	issueID := mustParseID(t, "FOO-abc06")
 	seedTask(t, ctx, repo, issueID, "Empty issue")
 
 	// When
@@ -271,7 +271,7 @@ func TestListComments_LimitExceeded_ReturnsHasMore(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc07")
+	issueID := mustParseID(t, "FOO-abc07")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "alice")
 
@@ -300,7 +300,7 @@ func TestListComments_ZeroLimit_UsesDefault(t *testing.T) {
 	// Given — create exactly DefaultLimit+1 comments
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc08")
+	issueID := mustParseID(t, "FOO-abc08")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "alice")
 
@@ -333,7 +333,7 @@ func TestListComments_FilterAuthor_ReturnsMatchingOnly(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc09")
+	issueID := mustParseID(t, "FOO-abc09")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	alice := mustAuthor(t, "alice")
 	bob := mustAuthor(t, "bob")
@@ -365,7 +365,7 @@ func TestListComments_FilterAuthors_ReturnsAnyMatch(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc10")
+	issueID := mustParseID(t, "FOO-abc10")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	alice := mustAuthor(t, "alice")
 	bob := mustAuthor(t, "bob")
@@ -398,7 +398,7 @@ func TestListComments_FilterCreatedAfter_ExcludesOlderComments(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc11")
+	issueID := mustParseID(t, "FOO-abc11")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "alice")
 
@@ -430,7 +430,7 @@ func TestListComments_FilterAfterCommentID_ExcludesEarlierIDs(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc12")
+	issueID := mustParseID(t, "FOO-abc12")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "alice")
 
@@ -464,7 +464,7 @@ func TestSearchComments_MatchesBodyText(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc13")
+	issueID := mustParseID(t, "FOO-abc13")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "alice")
 
@@ -491,7 +491,7 @@ func TestSearchComments_CaseInsensitive(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc14")
+	issueID := mustParseID(t, "FOO-abc14")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "alice")
 
@@ -514,7 +514,7 @@ func TestSearchComments_NoMatch_ReturnsEmpty(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc15")
+	issueID := mustParseID(t, "FOO-abc15")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "alice")
 
@@ -541,8 +541,8 @@ func TestSearchComments_FilterIssueID_ScopesToOneIssue(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueA := mustParseID(t, "NP-abc16")
-	issueB := mustParseID(t, "NP-abc17")
+	issueA := mustParseID(t, "FOO-abc16")
+	issueB := mustParseID(t, "FOO-abc17")
 	seedTask(t, ctx, repo, issueA, "Issue A")
 	seedTask(t, ctx, repo, issueB, "Issue B")
 	author := mustAuthor(t, "alice")
@@ -574,9 +574,9 @@ func TestSearchComments_FilterIssueIDs_ScopesToMultipleIssues(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueA := mustParseID(t, "NP-abc18")
-	issueB := mustParseID(t, "NP-abc19")
-	issueC := mustParseID(t, "NP-abc20")
+	issueA := mustParseID(t, "FOO-abc18")
+	issueB := mustParseID(t, "FOO-abc19")
+	issueC := mustParseID(t, "FOO-abc20")
 	seedTask(t, ctx, repo, issueA, "Issue A")
 	seedTask(t, ctx, repo, issueB, "Issue B")
 	seedTask(t, ctx, repo, issueC, "Issue C")
@@ -609,9 +609,9 @@ func TestSearchComments_FilterParentIDs_ScopesToChildrenAndParent(t *testing.T) 
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	epicID := mustParseID(t, "NP-abc21")
-	childID := mustParseID(t, "NP-abc22")
-	unrelatedID := mustParseID(t, "NP-abc23")
+	epicID := mustParseID(t, "FOO-abc21")
+	childID := mustParseID(t, "FOO-abc22")
+	unrelatedID := mustParseID(t, "FOO-abc23")
 	author := mustAuthor(t, "alice")
 
 	// Create an epic, a child of that epic, and an unrelated task.
@@ -660,10 +660,10 @@ func TestSearchComments_FilterTreeIDs_ScopesToEntireSubtree(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	rootID := mustParseID(t, "NP-abc24")
-	childID := mustParseID(t, "NP-abc25")
-	grandchildID := mustParseID(t, "NP-abc26")
-	unrelatedID := mustParseID(t, "NP-abc27")
+	rootID := mustParseID(t, "FOO-abc24")
+	childID := mustParseID(t, "FOO-abc25")
+	grandchildID := mustParseID(t, "FOO-abc26")
+	unrelatedID := mustParseID(t, "FOO-abc27")
 	author := mustAuthor(t, "alice")
 
 	rootIssue, err := domain.NewEpic(domain.NewEpicParams{ID: rootID, Title: "Root"})
@@ -720,8 +720,8 @@ func TestSearchComments_FilterLabelFilters_ScopesToLabeledIssues(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	bugID := mustParseID(t, "NP-abc28")
-	featID := mustParseID(t, "NP-abc29")
+	bugID := mustParseID(t, "FOO-abc28")
+	featID := mustParseID(t, "FOO-abc29")
 	author := mustAuthor(t, "alice")
 
 	bugLabel, err := domain.NewLabel("kind", "bug")
@@ -785,9 +785,9 @@ func TestSearchComments_FilterFollowRefs_IncludesReferencedIssues(t *testing.T) 
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	sourceID := mustParseID(t, "NP-abc30")
-	targetID := mustParseID(t, "NP-abc31")
-	unrelatedID := mustParseID(t, "NP-abc32")
+	sourceID := mustParseID(t, "FOO-abc30")
+	targetID := mustParseID(t, "FOO-abc31")
+	unrelatedID := mustParseID(t, "FOO-abc32")
 	author := mustAuthor(t, "alice")
 
 	seedTask(t, ctx, repo, sourceID, "Source issue")
@@ -831,7 +831,7 @@ func TestSearchComments_Pagination_LimitAndHasMore(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueID := mustParseID(t, "NP-abc33")
+	issueID := mustParseID(t, "FOO-abc33")
 	seedTask(t, ctx, repo, issueID, "Test issue")
 	author := mustAuthor(t, "alice")
 
@@ -864,8 +864,8 @@ func TestSearchComments_CombinedAuthorAndIssueID(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	repo := memory.NewRepository()
-	issueA := mustParseID(t, "NP-abc34")
-	issueB := mustParseID(t, "NP-abc35")
+	issueA := mustParseID(t, "FOO-abc34")
+	issueB := mustParseID(t, "FOO-abc35")
 	seedTask(t, ctx, repo, issueA, "Issue A")
 	seedTask(t, ctx, repo, issueB, "Issue B")
 	alice := mustAuthor(t, "alice")

@@ -13,7 +13,7 @@ func TestTranslateLegacyRelType_Cites_TranslatesToRefs(t *testing.T) {
 
 	// Given — a v0.2.0 "cites" relationship record.
 	input := domain.BackupRelationshipRecord{
-		TargetID: "NP-abc12",
+		TargetID: "FOO-abc12",
 		RelType:  "cites",
 	}
 
@@ -37,7 +37,7 @@ func TestTranslateLegacyRelType_CitedBy_IsDropped(t *testing.T) {
 
 	// Given — a v0.2.0 "cited_by" relationship record.
 	input := domain.BackupRelationshipRecord{
-		TargetID: "NP-abc12",
+		TargetID: "FOO-abc12",
 		RelType:  "cited_by",
 	}
 
@@ -68,7 +68,7 @@ func TestTranslateLegacyRelType_ModernTypes_PassThrough(t *testing.T) {
 
 			// Given — a modern v0.3.0 relationship record.
 			input := domain.BackupRelationshipRecord{
-				TargetID: "NP-abc12",
+				TargetID: "FOO-abc12",
 				RelType:  tc.relType,
 			}
 

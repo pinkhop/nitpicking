@@ -7,7 +7,7 @@ stdout '"created": 1'
 
 # The imported issue should exist.
 exec np issue search "Commented import" --json
-! np-json-array-len items 0
+! np-json-array-len issues 0
 
 -- testdata/with_comment.jsonl --
 {"idempotency_label":"tracker:comment-1","role":"task","title":"Commented import","comment":"Migrated from external tracker."}

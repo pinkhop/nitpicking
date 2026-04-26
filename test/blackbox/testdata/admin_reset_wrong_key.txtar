@@ -10,4 +10,4 @@ exec np admin reset --json
 
 # Data is still present.
 exec np list --json
-np-json-array-len items 1
+np-json-array-len issues 1

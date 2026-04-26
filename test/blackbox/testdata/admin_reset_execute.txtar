@@ -14,7 +14,7 @@ np-capture BACKUP backup_path
 
 # Database is cleared.
 exec np list --json
-np-json-array-len items 0
+np-json-array-len issues 0
 
 # .np/ directory still exists.
 exists .np

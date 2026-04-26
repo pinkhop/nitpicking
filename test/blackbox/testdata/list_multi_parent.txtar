@@ -9,4 +9,4 @@ np-seed task 'Child of B' parent-agent CHILD_B --parent $EPIC_B
 np-seed task 'Orphan task' parent-agent ORPHAN
 
 exec np list --parent $EPIC_A --parent $EPIC_B --json
-np-json-array-len items 2
+np-json-array-len issues 2

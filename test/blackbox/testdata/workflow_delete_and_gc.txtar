@@ -8,7 +8,7 @@ exec np issue delete --claim $TASK_CLAIM --confirm --json
 
 # The deleted issue should not appear in list.
 exec np list --json
-np-json-array-len items 0
+np-json-array-len issues 0
 
 # GC should succeed.
 exec np admin gc --confirm --json

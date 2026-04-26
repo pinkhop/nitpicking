@@ -9,8 +9,8 @@ exec np close --claim $TASK_CLOSED_CLAIM --reason done
 
 # Default: only open.
 exec np list --json
-np-json-array-len items 1
+np-json-array-len issues 1
 
 # With --all: both.
 exec np list --all --json
-np-json-array-len items 2
+np-json-array-len issues 2

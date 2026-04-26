@@ -110,11 +110,11 @@ func TestRun_BlockedFilter_OnlyReturnsBlockedIssues(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) != 1 {
-		t.Fatalf("items: got %d, want 1", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Issues))
 	}
-	if result.Items[0].ID != blockedID.String() {
-		t.Errorf("item ID: got %q, want %q", result.Items[0].ID, blockedID.String())
+	if result.Issues[0].ID != blockedID.String() {
+		t.Errorf("item ID: got %q, want %q", result.Issues[0].ID, blockedID.String())
 	}
 }
 
@@ -154,8 +154,8 @@ func TestRun_ExcludesClosed_BlockedButClosedNotReturned(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 0 {
-		t.Errorf("items: got %d, want 0 (closed blocked issues should be excluded)", len(result.Items))
+	if len(result.Issues) != 0 {
+		t.Errorf("items: got %d, want 0 (closed blocked issues should be excluded)", len(result.Issues))
 	}
 }
 
@@ -193,8 +193,8 @@ func TestRun_JSONOutput_ContainsExpectedFields(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if _, ok := result["items"]; !ok {
-		t.Error("expected 'items' field in JSON output")
+	if _, ok := result["issues"]; !ok {
+		t.Error("expected 'issues' field in JSON output")
 	}
 	if _, ok := result["has_more"]; !ok {
 		t.Error("expected 'has_more' field in JSON output")
@@ -240,8 +240,8 @@ func TestRun_LimitRestricts_ResultCount(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) != 2 {
-		t.Errorf("items: got %d, want 2", len(result.Items))
+	if len(result.Issues) != 2 {
+		t.Errorf("items: got %d, want 2", len(result.Issues))
 	}
 	if !result.HasMore {
 		t.Error("has_more: got false, want true")
@@ -287,8 +287,8 @@ func TestRun_UnlimitedReturnsAll(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) != 3 {
-		t.Errorf("items: got %d, want 3", len(result.Items))
+	if len(result.Issues) != 3 {
+		t.Errorf("items: got %d, want 3", len(result.Issues))
 	}
 	if result.HasMore {
 		t.Error("has_more: got true, want false")
@@ -330,8 +330,8 @@ func TestRun_ZeroLimit_UsesDefault(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) != 1 {
-		t.Errorf("items: got %d, want 1", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Errorf("items: got %d, want 1", len(result.Issues))
 	}
 }
 
@@ -571,22 +571,22 @@ func TestRun_JSONOutput_IncludesBlockerIDs(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var raw struct {
-		Items []struct {
+		Issues []struct {
 			ID         string   `json:"id"`
 			BlockerIDs []string `json:"blocker_ids"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &raw); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(raw.Items) != 1 {
-		t.Fatalf("items: got %d, want 1", len(raw.Items))
+	if len(raw.Issues) != 1 {
+		t.Fatalf("items: got %d, want 1", len(raw.Issues))
 	}
-	if len(raw.Items[0].BlockerIDs) != 2 {
-		t.Fatalf("blocker_ids: got %d, want 2", len(raw.Items[0].BlockerIDs))
+	if len(raw.Issues[0].BlockerIDs) != 2 {
+		t.Fatalf("blocker_ids: got %d, want 2", len(raw.Issues[0].BlockerIDs))
 	}
 	blockerIDSet := make(map[string]bool)
-	for _, id := range raw.Items[0].BlockerIDs {
+	for _, id := range raw.Issues[0].BlockerIDs {
 		blockerIDSet[id] = true
 	}
 	if !blockerIDSet[blocker1.String()] {
@@ -691,11 +691,11 @@ func TestRun_OrdersByPriority_HigherPriorityFirst(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 2 {
-		t.Fatalf("items: got %d, want 2", len(result.Items))
+	if len(result.Issues) != 2 {
+		t.Fatalf("items: got %d, want 2", len(result.Issues))
 	}
-	if result.Items[0].ID != highOut.Issue.ID().String() {
+	if result.Issues[0].ID != highOut.Issue.ID().String() {
 		t.Errorf("first item should be high priority, got ID %q, want %q",
-			result.Items[0].ID, highOut.Issue.ID().String())
+			result.Issues[0].ID, highOut.Issue.ID().String())
 	}
 }

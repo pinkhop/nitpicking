@@ -1,12 +1,12 @@
 # Verify that 'np list --json' with default flags produces valid JSON with
-# items array, has_more boolean, snake_case keys, and correct item fields.
+# issues array, has_more boolean, snake_case keys, and correct item fields.
 
 np-init LJ
 np-seed task 'List audit task' audit-agent TASK
 np-seed epic 'List audit epic' audit-agent EPIC
 
 exec np list --json
-np-json-array-len items 2
+np-json-array-len issues 2
 ! np-json-no-field has_more
 
 # Items contain expected snake_case fields.

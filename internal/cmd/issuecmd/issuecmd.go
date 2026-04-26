@@ -382,15 +382,15 @@ by priority and exclude closed issues.`,
 					Title         string `json:"title"`
 				}
 				type orphanOutput struct {
-					Items   []orphanItem `json:"items"`
+					Issues  []orphanItem `json:"issues"`
 					HasMore bool         `json:"has_more"`
 				}
 				out := orphanOutput{
 					HasMore: result.HasMore,
-					Items:   make([]orphanItem, 0, len(result.Items)),
+					Issues:  make([]orphanItem, 0, len(result.Items)),
 				}
 				for _, item := range result.Items {
-					out.Items = append(out.Items, orphanItem{
+					out.Issues = append(out.Issues, orphanItem{
 						ID:            item.ID,
 						Role:          item.Role.String(),
 						State:         item.State.String(),

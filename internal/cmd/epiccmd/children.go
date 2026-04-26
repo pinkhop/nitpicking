@@ -26,7 +26,7 @@ type childOutput struct {
 
 // childrenOutput is the JSON representation of the children list.
 type childrenOutput struct {
-	Items   []childOutput `json:"items"`
+	Issues  []childOutput `json:"issues"`
 	HasMore bool          `json:"has_more"`
 }
 
@@ -133,10 +133,10 @@ about to claim. Results are sorted by priority.`,
 			if jsonOutput {
 				out := childrenOutput{
 					HasMore: result.HasMore,
-					Items:   make([]childOutput, 0, len(result.Items)),
+					Issues:  make([]childOutput, 0, len(result.Items)),
 				}
 				for _, item := range result.Items {
-					out.Items = append(out.Items, childOutput{
+					out.Issues = append(out.Issues, childOutput{
 						ID:              item.ID,
 						Role:            item.Role.String(),
 						State:           item.State.String(),

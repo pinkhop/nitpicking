@@ -7,7 +7,7 @@ np-seed task 'Blocked task' audit-agent TASK_B
 np-seed-rel TASK_B blocked_by TASK_A audit-agent
 
 exec np blocked --json
-np-json-array-len items 1
+np-json-array-len issues 1
 stdout 'Blocked task'
 stdout '"display_status": "open \(blocked\)"'
 stdout '"secondary_state": "blocked"'

@@ -15,7 +15,7 @@ stdout '"skipped": 1'
 
 # There should still be only one issue matching the title.
 exec np list --json
-np-json-array-len items 1
+np-json-array-len issues 1
 
 -- testdata/rerun.jsonl --
 {"idempotency_label":"tracker:idempotent-1","role":"task","title":"Idempotent task"}

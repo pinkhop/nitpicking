@@ -25,7 +25,7 @@ type ListItemOutput struct {
 
 // ListOutput is the JSON representation of a list command result.
 type ListOutput struct {
-	Items   []ListItemOutput `json:"items"`
+	Issues  []ListItemOutput `json:"issues"`
 	HasMore bool             `json:"has_more"`
 }
 

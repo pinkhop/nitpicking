@@ -113,7 +113,7 @@ grandchildren and beyond, use "rel parent tree" instead.`,
 			if jsonOutput {
 				out := cmdutil.ListOutput{
 					HasMore: result.HasMore,
-					Items:   cmdutil.ConvertListItems(result.Items),
+					Issues:  cmdutil.ConvertListItems(result.Items),
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)
 			}
@@ -210,7 +210,7 @@ children only, use "rel parent children" instead.`,
 			if jsonOutput {
 				out := cmdutil.ListOutput{
 					HasMore: result.HasMore,
-					Items:   cmdutil.ConvertListItems(result.Items),
+					Issues:  cmdutil.ConvertListItems(result.Items),
 				}
 				return cmdutil.WriteJSON(f.IOStreams.Out, out)
 			}

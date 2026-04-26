@@ -110,18 +110,18 @@ func TestRun_MatchingQuery_ReturnsResults(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			Title string `json:"title"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) == 0 {
+	if len(result.Issues) == 0 {
 		t.Fatal("expected at least one search result")
 	}
-	if !strings.Contains(result.Items[0].Title, "authentication") {
-		t.Errorf("expected matching title, got %q", result.Items[0].Title)
+	if !strings.Contains(result.Issues[0].Title, "authentication") {
+		t.Errorf("expected matching title, got %q", result.Issues[0].Title)
 	}
 }
 
@@ -175,14 +175,14 @@ func TestRun_RoleFilter_ReturnsOnlyMatchingRole(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			Role string `json:"role"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	for _, item := range result.Items {
+	for _, item := range result.Issues {
 		if item.Role != "task" {
 			t.Errorf("expected only tasks, got role=%q", item.Role)
 		}
@@ -211,22 +211,22 @@ func TestRun_JSONOutput_HasExpectedStructure(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			ID       string `json:"id"`
 			Role     string `json:"role"`
 			State    string `json:"state"`
 			Priority string `json:"priority"`
 			Title    string `json:"title"`
-		} `json:"items"`
+		} `json:"issues"`
 		HasMore bool `json:"has_more"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(result.Issues))
 	}
-	item := result.Items[0]
+	item := result.Issues[0]
 	if item.ID == "" {
 		t.Error("expected non-empty ID")
 	}

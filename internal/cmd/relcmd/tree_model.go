@@ -21,6 +21,13 @@ const (
 	// Placeholder nodes always appear after the expanded path element at their
 	// tier.
 	NodeKindPlaceholder
+
+	// NodeKindBackRef marks an issue that has already been rendered at an
+	// earlier position in the output. Used by the blocking section to deduplicate
+	// issues reached via multiple paths in the dependency DAG. The IssueID field
+	// holds the deduplicated issue's ID; BackRefParentID holds the parent node ID
+	// at the issue's first appearance ("" when it first appeared as a root).
+	NodeKindBackRef
 )
 
 // TreeNode is a single entry in the in-memory tree model produced by
@@ -54,6 +61,11 @@ type TreeNode struct {
 	// Count is the number of collapsed siblings this placeholder represents.
 	// Zero when Kind == NodeKindIssue.
 	Count int
+
+	// BackRefParentID is the ID of the node that was the parent of this issue at
+	// its first appearance in the output. Empty when the issue first appeared as a
+	// root (depth 0). Only meaningful when Kind == NodeKindBackRef.
+	BackRefParentID string
 }
 
 // treeService is the minimal subset of driving.Service consumed by

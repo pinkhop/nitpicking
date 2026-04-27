@@ -204,3 +204,87 @@ func TestRun_PrefixUnavailable_JSONOutput_OmitsPrefixField(t *testing.T) {
 		t.Errorf("expected prefix to be absent from JSON when unavailable, but found key: %v", result)
 	}
 }
+
+// --- renderAction tests ---
+
+func TestRenderAction_AllBranches(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		hint *driving.ActionHint
+		want string
+	}{
+		{
+			name: "nil input returns empty string",
+			hint: nil,
+			want: "",
+		},
+		{
+			name: "ActionKindRunGC returns gc command",
+			hint: &driving.ActionHint{Kind: driving.ActionKindRunGC},
+			want: "Run 'np admin gc --confirm' to remove deleted issues.",
+		},
+		{
+			name: "ActionKindUndefer returns undefer command with issue ID",
+			hint: &driving.ActionHint{Kind: driving.ActionKindUndefer, IssueID: "FOO-abc12"},
+			want: "Run 'np issue undefer FOO-abc12 --author <name>' to restore it.",
+		},
+		{
+			// The stored row is (source, blocked_by, target); "blocks" inverts
+			// source/target and silently no-ops because it targets a non-existent
+			// row. The command must use "blocked_by", not "blocks".
+			name: "ActionKindUnblockRelationship returns rel remove blocked_by command",
+			hint: &driving.ActionHint{
+				Kind:     driving.ActionKindUnblockRelationship,
+				SourceID: "FOO-abc12",
+				TargetID: "FOO-xyz99",
+			},
+			want: "Run 'np rel remove FOO-abc12 blocked_by FOO-xyz99 --author <name>' to remove the stale relationship.",
+		},
+		{
+			name: "ActionKindCloseCompleted returns close-completed command",
+			hint: &driving.ActionHint{Kind: driving.ActionKindCloseCompleted},
+			want: "Run 'np epic close-completed --author <name>' to batch-close fully resolved epics.",
+		},
+		{
+			name: "ActionKindInvestigateCorruption returns backup instruction",
+			hint: &driving.ActionHint{Kind: driving.ActionKindInvestigateCorruption},
+			want: "Back up .np/ immediately and investigate corruption.",
+		},
+		{
+			name: "ActionKindExecSQL returns delete stray rows with SQL",
+			hint: &driving.ActionHint{
+				Kind: driving.ActionKindExecSQL,
+				SQL:  "DELETE FROM issues WHERE id = 99",
+			},
+			want: "Delete the stray rows: DELETE FROM issues WHERE id = 99",
+		},
+		{
+			name: "ActionKindAddToGitignore returns gitignore instruction",
+			hint: &driving.ActionHint{Kind: driving.ActionKindAddToGitignore},
+			want: "Add .np/ to .gitignore",
+		},
+		{
+			// Exercises the default branch; uses a sentinel string that cannot
+			// collide with any real ActionKind constant.
+			name: "unknown ActionKind returns empty string",
+			hint: &driving.ActionHint{Kind: "__unknown_for_testing_default_branch__"},
+			want: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// When
+			got := renderAction(tc.hint)
+
+			// Then
+			if got != tc.want {
+				t.Errorf("renderAction: got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

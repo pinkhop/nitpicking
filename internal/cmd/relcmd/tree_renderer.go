@@ -81,6 +81,18 @@ func RenderTreeText(ios *iostreams.IOStreams, nodes []TreeNode) error {
 			// Placeholder rows have no meaningful P/ROLE/STATE/TITLE cells.
 			// The TREE column carries the summary text; other cells are empty.
 			tw.AddRow(label, "", "", "", "")
+
+		case NodeKindBackRef:
+			// Back-reference row for an issue already rendered earlier in the output.
+			// The TREE column shows the issue ID and where it appeared first.
+			indent := strings.Repeat("  ", node.Depth)
+			var label string
+			if node.BackRefParentID != "" {
+				label = fmt.Sprintf("%s↑ %s shown above under %s", indent, node.IssueID, node.BackRefParentID)
+			} else {
+				label = fmt.Sprintf("%s↑ %s shown above", indent, node.IssueID)
+			}
+			tw.AddRow(label, "", "", "", "")
 		}
 	}
 

@@ -1,0 +1,27 @@
+# Verify that 'np rel list' is registered under 'np rel', appears in help,
+# accepts all valid --rel values (canonical and aliases), and rejects unknown
+# --rel values with a non-zero exit code.
+
+np-init RL
+
+# Command appears in the parent rel --help output with its usage description.
+exec np rel --help
+stdout 'list\s.*across active issues'
+
+# Command runs without error with no filter.
+exec np rel list
+
+# Canonical --rel values are accepted.
+exec np rel list --rel blocking
+exec np rel list --rel refs
+exec np rel list --rel parent-child
+
+# Alias --rel values are accepted.
+exec np rel list --rel blocked_by
+exec np rel list --rel blocks
+exec np rel list --rel parent_of
+exec np rel list --rel child_of
+
+# An invalid --rel value exits non-zero with a message mentioning the value.
+! exec np rel list --rel invalid_rel_value
+stderr 'invalid_rel_value'

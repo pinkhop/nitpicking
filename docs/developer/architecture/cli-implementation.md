@@ -253,7 +253,6 @@ If you change any of those, update docs in the same change.
 When command names or flags change, also verify:
 
 - `np agent prime` still emits valid commands
-- `.claude/rules/issue-tracking.md` can be regenerated without manual fixes
 
 ## Related Documents
 

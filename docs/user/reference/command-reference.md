@@ -44,10 +44,8 @@ Commands are grouped by the categories shown in `np help`.
   - [epic close-completed](#epic-close-completed)
   - [epic children](#epic-children)
   - [rel add](#rel-add)
-  - [rel blocks list](#rel-blocks-list)
-  - [rel blocks unblock](#rel-blocks-unblock)
-  - [rel refs list](#rel-refs-list)
-  - [rel refs unref](#rel-refs-unref)
+  - [rel list](#rel-list)
+  - [rel remove](#rel-remove)
   - [rel parent children](#rel-parent-children)
   - [rel parent tree](#rel-parent-tree)
   - [rel parent detach](#rel-parent-detach)
@@ -1076,39 +1074,94 @@ $ np rel add FOO-a3bxr refs FOO-d4kzs --author alice --json
 
 ---
 
-### rel blocks list
+### rel list
 
-List all blocking relationships for an issue.
+List all relationships across active (non-closed) issues, organized into three sections: parent-child hierarchy, blocking dependencies, and contextual references. Use `--rel` to restrict output to a single section.
 
 **Synopsis:**
 
 ```
-np rel blocks list [options] <ISSUE-ID>
+np rel list [options]
 ```
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--json` | Output machine-readable JSON. |
+| `--rel string` | Filter to one section. Accepts canonical category names and `np rel add` aliases (see below). |
+
+**`--rel` values:**
+
+| Value | Section shown | Aliases accepted |
+|-------|---------------|-----------------|
+| `blocking` | Blocking dependency chains | `blocked_by`, `blocks` |
+| `refs` | Contextual reference clusters | _(none)_ |
+| `parent-child` | Parent-child hierarchy tree | `parent_of`, `child_of` |
+
+**Section formats:**
+
+- **Parent-child** — hierarchical tree rooted at top-level issues. Header reports root count and total issue count.
+- **Blocking** — dependency chain forest, roots-down. Header reports chain count, edge count, and cycle count.
+- **Refs** — undirected connected components, largest first. Header reports component count and total edge count. Each component lists edges as `LEFT-ID  Title  —  RIGHT-ID  Title`; the two endpoints within an edge are sorted lexicographically by ID for deterministic output.
+
+**Examples:**
+
+```
+$ np rel list
+Parent-child (1 roots, 3 issues)
+
+TREE       P   ROLE  STATE           TITLE
+FOO-abc12  P1  epic  open (active)   Build authentication system
+  FOO-def34  P2  task  open (claimed)  Implement login endpoint
+
+Blocking (1 chains, 1 edges, 0 cycles)
+
+TREE       P   ROLE  STATE           TITLE
+FOO-def34  P2  task  open (claimed)  Implement login endpoint
+  FOO-ghi56  P3  task  open (blocked)  Write integration tests
+
+Refs (1 components, 2 edges)
+
+Component 1 (3 issues, 2 edges)
+  FOO-abc12  Build authentication system  —  FOO-jkl78  Security audit notes
+  FOO-def34  Implement login endpoint  —  FOO-jkl78  Security audit notes
+```
+
+```
+$ np rel list --rel=blocking
+Blocking (1 chains, 1 edges, 0 cycles)
+
+TREE       P   ROLE  STATE           TITLE
+FOO-def34  P2  task  open (claimed)  Implement login endpoint
+  FOO-ghi56  P3  task  open (blocked)  Write integration tests
+```
 
 **Exit codes:**
 
 | Code | Meaning |
 |------|---------|
 | 0 | List displayed successfully. |
+| 4 | Invalid `--rel` value. |
 
 ---
 
-### rel blocks unblock
+### rel remove
 
-Remove blocking relationships between two issues. Direction-independent — removes the blocking relationship regardless of which direction it was added.
+Remove a relationship between two issues. The argument syntax mirrors `rel add` exactly: the same relationship types are accepted in the same positional order.
 
 **Synopsis:**
 
 ```
-np rel blocks unblock [options] <A> <B>
+np rel remove [options] <A> <rel> <B>
 ```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `A` | The source issue ID. |
+| `rel` | Relationship type: `blocked_by`, `blocks`, `refs`, `parent_of`, `child_of`. |
+| `B` | The target issue ID. |
 
 **Flags:**
 
@@ -1120,65 +1173,31 @@ np rel blocks unblock [options] <A> <B>
 **Examples:**
 
 ```
-$ np rel blocks unblock FOO-a3bxr FOO-b7mqd --author alice
+$ np rel remove FOO-a3bxr blocked_by FOO-b7mqd --author alice
+```
+
+```
+$ np rel remove FOO-a3bxr refs FOO-d4kzs --author alice --json
+{
+  "action": "removed",
+  "source": "FOO-a3bxr",
+  "target": "FOO-d4kzs",
+  "type": "refs"
+}
 ```
 
 **Exit codes:**
 
 | Code | Meaning |
 |------|---------|
-| 0 | Blocking relationship removed successfully. |
+| 0 | Relationship removed successfully. |
 | 2 | Relationship not found. |
 
----
+**Notes:**
 
-### rel refs list
-
-List all reference relationships for an issue.
-
-**Synopsis:**
-
-```
-np rel refs list [options] <ISSUE-ID>
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--json` | Output machine-readable JSON. |
-
-**Exit codes:**
-
-| Code | Meaning |
-|------|---------|
-| 0 | List displayed successfully. |
-
----
-
-### rel refs unref
-
-Remove a reference relationship between two issues.
-
-**Synopsis:**
-
-```
-np rel refs unref [options] <A> <B>
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--author`, `-a` | Author name. Required. Env: `NP_AUTHOR`. |
-| `--json` | Output machine-readable JSON. |
-
-**Exit codes:**
-
-| Code | Meaning |
-|------|---------|
-| 0 | Reference relationship removed successfully. |
-| 2 | Relationship not found. |
+- The `<rel>` token must match the direction used when the relationship was created. `np rel add A blocked_by B` is removed by `np rel remove A blocked_by B`; passing `blocks` instead will silently no-op.
+- `refs` is symmetric — either `np rel remove A refs B` or `np rel remove B refs A` removes the edge.
+- No claim is required for any relationship type.
 
 ---
 

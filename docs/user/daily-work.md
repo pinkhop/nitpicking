@@ -138,7 +138,7 @@ $ np rel add <A> blocked_by <B> --author <your-name>
 Remove a blocker:
 
 ```bash
-$ np rel blocks unblock <A> <B> --author <your-name>
+$ np rel remove <A> blocked_by <B> --author <your-name>
 ```
 
 When nothing is ready, ask the doctor:

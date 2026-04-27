@@ -159,6 +159,19 @@ np rel remove <ISSUE-A> blocks <ISSUE-B> --author <your-name>
 np rel remove <ISSUE-A> refs <ISSUE-B> --author <your-name>
 ```
 
+### Listing relationships
+
+Use `np rel list` to see all relationships across active (non-closed) issues at a glance. The output is organized into three sections: parent-child hierarchy, blocking dependency chains, and contextual reference clusters.
+
+```
+np rel list                      # all three sections
+np rel list --rel=blocking       # blocking chains only
+np rel list --rel=refs           # reference clusters only
+np rel list --rel=parent-child   # parent-child tree only
+```
+
+`--rel` also accepts the relationship-name aliases used by `np rel add`: `blocked_by` and `blocks` map to `blocking`; `parent_of` and `child_of` map to `parent-child`.
+
 ## Handling Incidentals
 
 If you discover something unrelated to your current issue (e.g., a failing test, a bug, a missing feature):

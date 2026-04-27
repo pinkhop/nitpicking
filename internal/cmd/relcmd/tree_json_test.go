@@ -316,12 +316,12 @@ func TestRenderTreeJSON_PlaceholdersInSortedPosition(t *testing.T) {
 }
 
 // TestRenderTreeJSON_WorkedExampleFocusMidTree verifies the worked example from
-// NP-ffw57: focus is FOO-14200 in a two-level tree. Root → [epic14000] (with
+// FOO-ffw57: focus is FOO-14200 in a two-level tree. Root → [epic14000] (with
 // 4 siblings); epic14000 → [focus, 2 siblings].
 func TestRenderTreeJSON_WorkedExampleFocusMidTree(t *testing.T) {
 	t.Parallel()
 
-	// Given: the tree from NP-ffw57:
+	// Given: the tree from FOO-ffw57:
 	//   root (FOO-10000 analogue) has 5 children:
 	//     epic11000: 2 children (task11100, task11200)
 	//     task12000: leaf

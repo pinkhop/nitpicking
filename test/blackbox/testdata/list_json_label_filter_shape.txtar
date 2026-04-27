@@ -8,7 +8,7 @@ stdin input2.json
 exec np json create --author audit-agent
 
 exec np list --label kind:bug --json
-np-json-array-len items 1
+np-json-array-len issues 1
 stdout 'Bug task'
 ! stdout 'Feature task'
 

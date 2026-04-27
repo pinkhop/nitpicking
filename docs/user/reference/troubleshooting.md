@@ -156,7 +156,7 @@ $ np issue undefer <ISSUE-ID> --author <name>
 Remove a bad blocking edge:
 
 ```bash
-$ np rel blocks unblock <A> <B> --author <name>
+$ np rel remove <A> blocked_by <B> --author <name>
 ```
 
 Detach the wrong parent:

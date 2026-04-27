@@ -90,11 +90,11 @@ func TestRun_ReadyFilter_OnlyReturnsReadyIssues(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) != 1 {
-		t.Fatalf("items: got %d, want 1", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Issues))
 	}
-	if result.Items[0].ID != readyID.String() {
-		t.Errorf("item ID: got %q, want %q", result.Items[0].ID, readyID.String())
+	if result.Issues[0].ID != readyID.String() {
+		t.Errorf("item ID: got %q, want %q", result.Issues[0].ID, readyID.String())
 	}
 }
 
@@ -142,12 +142,12 @@ func TestRun_OrdersByPriority(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) < 2 {
-		t.Fatalf("items: got %d, want at least 2", len(result.Items))
+	if len(result.Issues) < 2 {
+		t.Fatalf("items: got %d, want at least 2", len(result.Issues))
 	}
-	if result.Items[0].ID != highOut.Issue.ID().String() {
+	if result.Issues[0].ID != highOut.Issue.ID().String() {
 		t.Errorf("first item should be high priority, got ID %q, want %q",
-			result.Items[0].ID, highOut.Issue.ID().String())
+			result.Issues[0].ID, highOut.Issue.ID().String())
 	}
 }
 
@@ -202,8 +202,8 @@ func TestRun_JSONOutput_ContainsExpectedFields(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if _, ok := result["items"]; !ok {
-		t.Error("expected 'items' field in JSON output")
+	if _, ok := result["issues"]; !ok {
+		t.Error("expected 'issues' field in JSON output")
 	}
 	if _, ok := result["has_more"]; !ok {
 		t.Error("expected 'has_more' field in JSON output")
@@ -238,8 +238,8 @@ func TestRun_LimitRestricts_ResultCount(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) != 2 {
-		t.Errorf("items: got %d, want 2", len(result.Items))
+	if len(result.Issues) != 2 {
+		t.Errorf("items: got %d, want 2", len(result.Issues))
 	}
 	if !result.HasMore {
 		t.Error("has_more: got false, want true")
@@ -274,8 +274,8 @@ func TestRun_UnlimitedReturnsAll(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) != 3 {
-		t.Errorf("items: got %d, want 3", len(result.Items))
+	if len(result.Issues) != 3 {
+		t.Errorf("items: got %d, want 3", len(result.Issues))
 	}
 	if result.HasMore {
 		t.Error("has_more: got true, want false")
@@ -308,8 +308,8 @@ func TestRun_ZeroLimit_UsesDefault(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) != 1 {
-		t.Errorf("items: got %d, want 1", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Errorf("items: got %d, want 1", len(result.Issues))
 	}
 }
 
@@ -534,11 +534,11 @@ func TestRun_RoleFilterTask_ReturnsOnlyReadyTasks(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 1 {
-		t.Fatalf("items: got %d, want 1", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Issues))
 	}
-	if result.Items[0].ID != taskID.String() {
-		t.Errorf("item ID: got %q, want %q (task)", result.Items[0].ID, taskID.String())
+	if result.Issues[0].ID != taskID.String() {
+		t.Errorf("item ID: got %q, want %q (task)", result.Issues[0].ID, taskID.String())
 	}
 }
 
@@ -570,11 +570,11 @@ func TestRun_RoleFilterEpic_ReturnsOnlyReadyEpics(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 1 {
-		t.Fatalf("items: got %d, want 1", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Issues))
 	}
-	if result.Items[0].ID != epicID.String() {
-		t.Errorf("item ID: got %q, want %q (epic)", result.Items[0].ID, epicID.String())
+	if result.Issues[0].ID != epicID.String() {
+		t.Errorf("item ID: got %q, want %q (epic)", result.Issues[0].ID, epicID.String())
 	}
 }
 
@@ -606,11 +606,11 @@ func TestRun_StateFilter_Open_ReturnsOnlyOpenIssues(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 1 {
-		t.Fatalf("items: got %d, want 1", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Issues))
 	}
-	if result.Items[0].ID != taskID.String() {
-		t.Errorf("item ID: got %q, want %q", result.Items[0].ID, taskID.String())
+	if result.Issues[0].ID != taskID.String() {
+		t.Errorf("item ID: got %q, want %q", result.Issues[0].ID, taskID.String())
 	}
 }
 
@@ -644,11 +644,11 @@ func TestRun_LabelFilter_ReturnsOnlyMatchingLabel(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 1 {
-		t.Fatalf("items: got %d, want 1", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Issues))
 	}
-	if result.Items[0].ID != bugID.String() {
-		t.Errorf("item ID: got %q, want %q (bug task)", result.Items[0].ID, bugID.String())
+	if result.Issues[0].ID != bugID.String() {
+		t.Errorf("item ID: got %q, want %q (bug task)", result.Issues[0].ID, bugID.String())
 	}
 }
 
@@ -681,11 +681,11 @@ func TestRun_ParentFilter_ReturnsOnlyChildrenOfParent(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 1 {
-		t.Fatalf("items: got %d, want 1", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Fatalf("items: got %d, want 1", len(result.Issues))
 	}
-	if result.Items[0].ID != childID.String() {
-		t.Errorf("item ID: got %q, want %q (child task)", result.Items[0].ID, childID.String())
+	if result.Issues[0].ID != childID.String() {
+		t.Errorf("item ID: got %q, want %q (child task)", result.Issues[0].ID, childID.String())
 	}
 }
 
@@ -738,15 +738,15 @@ func TestRun_CombinedFilters_ANDSemantics(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 1 {
-		ids := make([]string, len(result.Items))
-		for i, it := range result.Items {
+	if len(result.Issues) != 1 {
+		ids := make([]string, len(result.Issues))
+		for i, it := range result.Issues {
 			ids[i] = it.ID
 		}
-		t.Fatalf("items: got %d (%v), want 1", len(result.Items), ids)
+		t.Fatalf("items: got %d (%v), want 1", len(result.Issues), ids)
 	}
-	if result.Items[0].ID != matchID.String() {
-		t.Errorf("item ID: got %q, want %q (labeled child task)", result.Items[0].ID, matchID.String())
+	if result.Issues[0].ID != matchID.String() {
+		t.Errorf("item ID: got %q, want %q (labeled child task)", result.Issues[0].ID, matchID.String())
 	}
 }
 

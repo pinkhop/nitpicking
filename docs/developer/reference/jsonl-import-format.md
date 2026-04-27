@@ -49,7 +49,7 @@ The `key:value` pair is stored as an ordinary label on the created issue; there 
 
 A reference string in `parent`, `blocked_by`, `blocks`, or `refs` is classified as either an **idempotency label value** or an **issue ID** based on its format:
 
-- **Issue ID format:** a string matching the database's issue prefix followed by a hyphen and exactly 5 lowercase Crockford Base32 characters (e.g., `"NP-a3bxr"`). The prefix is determined by the database being imported into. Strings matching this format are resolved directly as issue IDs against the database.
+- **Issue ID format:** a string matching the database's issue prefix followed by a hyphen and exactly 5 lowercase Crockford Base32 characters (e.g., `"FOO-a3bxr"`). The prefix is determined by the database being imported into. Strings matching this format are resolved directly as issue IDs against the database.
 - **Idempotency label value format:** any string that does not match the issue ID format is treated as an idempotency label value.
 
 Idempotency label value resolution proceeds in order:
@@ -100,7 +100,7 @@ An epic with two child tasks, each carrying labels. The children reference the p
 A file with blocking dependencies, blocks, and informational references, mixing intra-file idempotency label values with an existing np issue ID:
 
 ```jsonl
-{"idempotency_label": "import:design-schema", "role": "task", "title": "Design database schema for notifications", "priority": "P1", "refs": ["NP-adhmr"]}
+{"idempotency_label": "import:design-schema", "role": "task", "title": "Design database schema for notifications", "priority": "P1", "refs": ["FOO-adhmr"]}
 {"idempotency_label": "import:impl-storage", "role": "task", "title": "Implement notification storage adapter", "blocked_by": ["import:design-schema"], "priority": "P1"}
 {"idempotency_label": "import:impl-api", "role": "task", "title": "Implement notification API endpoints", "blocked_by": ["import:design-schema", "import:impl-storage"], "refs": ["import:impl-email"], "priority": "P1"}
 {"idempotency_label": "import:impl-email", "role": "task", "title": "Implement email notification sender", "blocked_by": ["import:impl-storage"], "blocks": ["import:impl-api"], "priority": "P2"}
@@ -109,7 +109,7 @@ A file with blocking dependencies, blocks, and informational references, mixing 
 **Result:** Four tasks created.
 - `import:impl-storage` is blocked by `import:design-schema` (intra-file reference).
 - `import:impl-api` is blocked by both `import:design-schema` and `import:impl-storage` (intra-file), and refs `import:impl-email` (intra-file).
-- `import:design-schema` refs `NP-adhmr` (existing issue ID — detected by matching the database prefix and Crockford Base32 format).
+- `import:design-schema` refs `FOO-adhmr` (existing issue ID — detected by matching the database prefix and Crockford Base32 format).
 - `import:impl-email` is blocked by `import:impl-storage` and blocks `import:impl-api`. The `blocks` relationship on `import:impl-email` and the `blocked_by` on `import:impl-api` referencing `import:impl-storage` are both valid ways to express the same dependency direction.
 
 ### Example 5: Migration with State, Comments, and Deferred Issues
@@ -147,7 +147,7 @@ The `np show --json` output includes fields that overlap with the import format:
 **Practical transformation:** To clone an existing issue via import, pipe `show --json` through `jq` to add an `idempotency_label` and strip server-assigned fields:
 
 ```bash
-np show NP-abc12 --json \
+np show FOO-abc12 --json \
   | jq '{idempotency_label: "clone:\(.id)", role, title, description, acceptance_criteria, priority, state, author, labels, parent: .parent_id}' \
   >> import.jsonl
 ```
@@ -178,4 +178,4 @@ The `parent` field rename (`parent_id` → `parent`) is deliberate: the import f
 
 **Why does `closed` not require a reason?** Closed issues in np may optionally carry a closing reason, but it is not a data integrity requirement. Mandating a reason on import would make migration from systems that do not track close reasons unnecessarily difficult. A `comment` can serve as the closing rationale when one is available.
 
-**How are issue IDs distinguished from idempotency label values?** A reference string is classified as an issue ID if it matches the database's prefix followed by a hyphen and exactly 5 lowercase Crockford Base32 characters (e.g., `"NP-a3bxr"`). All other strings are treated as idempotency label values. This format-based classification eliminates ambiguity — there is never a question of whether a string is an issue ID or an idempotency label value.
+**How are issue IDs distinguished from idempotency label values?** A reference string is classified as an issue ID if it matches the database's prefix followed by a hyphen and exactly 5 lowercase Crockford Base32 characters (e.g., `"FOO-a3bxr"`). All other strings are treated as idempotency label values. This format-based classification eliminates ambiguity — there is never a question of whether a string is an issue ID or an idempotency label value.

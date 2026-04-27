@@ -1,0 +1,32 @@
+# Doctor stale-relationship hint must use "np rel remove … blocked_by …".
+# This covers two distinct bugs:
+#   NP-mr6p1 — hint used the removed "np rel blocks unblock" command.
+#   NP-kthe6 — hint used "blocks" token which inverts source/target and
+#              silently no-ops (exit 0, reports "removed", row unchanged).
+#              The stored edge is (source, blocked_by, target), so the
+#              removal command must also use "blocked_by".
+#
+# The blocker_deleted finding only fires when the blocked issue still has at
+# least one open blocker (so IsBlocked stays true and the doctor loads its
+# relationships). ACTIVE_BLOCKER keeps BLOCKED in the Is_Blocked state;
+# STALE_BLOCKER is then closed, creating the stale edge.
+
+np-init DRREL
+np-seed task 'Active blocker (stays open)' doctor-hint-agent ACTIVE_BLOCKER
+np-seed task 'Stale blocker (will be closed)' doctor-hint-agent STALE_BLOCKER
+np-seed task 'Blocked task' doctor-hint-agent BLOCKED
+np-seed-rel BLOCKED blocked_by ACTIVE_BLOCKER doctor-hint-agent
+np-seed-rel BLOCKED blocked_by STALE_BLOCKER doctor-hint-agent
+
+# Close only the stale blocker so its blocked_by edge becomes stale.
+exec np claim $STALE_BLOCKER --author doctor-hint-agent --json
+np-capture STALE_CLAIM claim_id
+exec np close --claim $STALE_CLAIM --reason 'test: make relationship stale' --json
+
+# Doctor text output must suggest "np rel remove … blocked_by …":
+# - use the current "np rel remove" command (not the removed "np rel blocks unblock")
+# - use "blocked_by" as the relationship token (not "blocks", which silently no-ops)
+exec np admin doctor
+stdout 'np rel remove'
+stdout 'blocked_by'
+! stdout 'np rel blocks unblock'

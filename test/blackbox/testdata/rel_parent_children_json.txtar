@@ -6,7 +6,7 @@ np-seed epic 'Parent children audit' parent-agent EPIC
 np-seed task 'Child for children list' parent-agent CHILD --parent $EPIC
 
 exec np rel parent children $EPIC --json
-stdout '"items":'
+stdout '"issues":'
 stdout '"id":'
 stdout '"role": "task"'
 stdout '"state":'

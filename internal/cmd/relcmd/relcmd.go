@@ -1,13 +1,14 @@
 // Package relcmd provides the "rel" parent command, which groups relationship
-// management operations under a single namespace. Subcommands are organized by
-// relationship type (blocks, refs, parent) and include utilities for listing
-// and tree views.
+// management operations under a single namespace. Subcommands cover adding and
+// removing relationships, listing all relationships across active issues (rel
+// list, with --rel filter for blocking, refs, or parent-child), per-issue
+// relationship views (rel issue), parent-ancestry operations (rel parent), and
+// tree and graph rendering (rel tree, rel graph).
 package relcmd
 
 import (
 	"context"
 	"fmt"
-	"slices"
 	"text/tabwriter"
 
 	"github.com/urfave/cli/v3"
@@ -17,19 +18,6 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
-
-// FilterRelationships returns only the relationships whose type string matches
-// any of the given type strings. This is the shared filtering logic used by
-// blocks list and refs list.
-func FilterRelationships(rels []driving.RelationshipDTO, types ...string) []driving.RelationshipDTO {
-	var result []driving.RelationshipDTO
-	for _, r := range rels {
-		if slices.Contains(types, r.Type) {
-			result = append(result, r)
-		}
-	}
-	return result
-}
 
 // NewCmd constructs the "rel" parent command with subcommands for managing
 // issue relationships by type.
@@ -45,13 +33,12 @@ parent-child hierarchy (parent_of/child_of).
 
 Use "rel add" to create relationships, "rel remove" to delete them, and
 "rel issue" or "rel tree" to inspect all relationships from a given issue.
-Both commands accept the same <rel> argument values, making the surface
-predictable. To detect circular blocking dependencies, use "np admin doctor".`,
+Use "rel list" to view all relationships across active issues at once. To
+detect circular blocking dependencies, use "np admin doctor".`,
 		Commands: []*cli.Command{
 			newAddCmd(f),
 			newRemoveCmd(f),
-			newBlocksCmd(f),
-			newRefsCmd(f),
+			newListCmd(f),
 			newParentCmd(f),
 			newIssueCmd(f),
 			newTreeCmd(f),
@@ -61,9 +48,8 @@ predictable. To detect circular blocking dependencies, use "np admin doctor".`,
 }
 
 // newIssueCmd constructs "rel issue <ID>" which shows all relationships for a
-// single issue. The name "issue" distinguishes this per-issue view from the
-// forthcoming "rel list" command, which will enumerate relationships across all
-// active issues.
+// single issue. The name "issue" distinguishes this per-issue view from "rel
+// list", which enumerates relationships across all active issues at once.
 func newIssueCmd(f *cmdutil.Factory) *cli.Command {
 	var jsonOutput bool
 
@@ -77,8 +63,9 @@ includes both directions — for example, if issue A blocks issue B, running
 "blocked_by" edge.
 
 Use this command when you need a complete picture of how an issue connects to
-the rest of the tracker. For type-specific views, use the "rel blocks list",
-"rel refs list", or "rel parent children" subcommands instead.`,
+the rest of the tracker. For cross-issue views filtered by relationship type,
+use "rel list --rel blocking", "rel list --rel refs", or
+"rel list --rel parent-child".`,
 		ArgsUsage: "<ISSUE-ID>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
@@ -194,54 +181,6 @@ hierarchy and what work lies beneath it.`,
 			}
 
 			return RenderTreeText(f.IOStreams, nodes)
-		},
-	}
-}
-
-// newRelTypeListCmd constructs a "list <ID>" subcommand that shows
-// relationships filtered by the given type strings.
-func newRelTypeListCmd(f *cmdutil.Factory, typeName string, types ...string) *cli.Command {
-	var jsonOutput bool
-
-	return &cli.Command{
-		Name:  "list",
-		Usage: fmt.Sprintf("List %s relationships for an issue", typeName),
-		Description: fmt.Sprintf(`Shows only the %s relationships for the given issue, filtering out all
-other relationship types. This is a focused alternative to "rel issue" when you
-only care about one category of relationships.`, typeName),
-		ArgsUsage: "<ISSUE-ID>",
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "Output machine-readable JSON instead of human-readable text",
-				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &jsonOutput,
-			},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			rawID := cmd.Args().Get(0)
-			if rawID == "" {
-				return cmdutil.FlagErrorf("issue ID argument is required")
-			}
-
-			svc, err := cmdutil.NewTracker(f)
-			if err != nil {
-				return err
-			}
-			resolver := cmdutil.NewIDResolver(svc)
-
-			issueID, err := resolver.Resolve(ctx, rawID)
-			if err != nil {
-				return cmdutil.FlagErrorf("invalid issue ID: %s", err)
-			}
-
-			shown, err := svc.ShowIssue(ctx, issueID.String())
-			if err != nil {
-				return fmt.Errorf("looking up issue: %w", err)
-			}
-
-			filtered := FilterRelationships(shown.Relationships, types...)
-			return renderRelationships(f, filtered, issueID, jsonOutput)
 		},
 	}
 }

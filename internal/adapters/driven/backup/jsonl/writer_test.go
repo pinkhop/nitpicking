@@ -60,7 +60,7 @@ func TestWriter_WriteRecord_ProducesValidJSONLine(t *testing.T) {
 	w := jsonl.NewWriter(&nopWriteCloser{&buf})
 
 	record := domain.BackupIssueRecord{
-		IssueID:  "NP-a3bxr",
+		IssueID:  "FOO-a3bxr",
 		Role:     "task",
 		Title:    "Test issue",
 		Priority: "P2",
@@ -85,8 +85,8 @@ func TestWriter_WriteRecord_ProducesValidJSONLine(t *testing.T) {
 	if err := json.Unmarshal([]byte(line), &got); err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
-	if got.IssueID != "NP-a3bxr" {
-		t.Errorf("issue_id = %q, want %q", got.IssueID, "NP-a3bxr")
+	if got.IssueID != "FOO-a3bxr" {
+		t.Errorf("issue_id = %q, want %q", got.IssueID, "FOO-a3bxr")
 	}
 	if len(got.Labels) != 1 {
 		t.Errorf("labels count = %d, want 1", len(got.Labels))
@@ -104,7 +104,7 @@ func TestWriter_HTMLCharactersNotEscaped(t *testing.T) {
 	w := jsonl.NewWriter(&nopWriteCloser{&buf})
 
 	record := domain.BackupIssueRecord{
-		IssueID: "NP-html1",
+		IssueID: "FOO-html1",
 		Role:    "task",
 		Title:   "Fix <script> injection & XSS",
 		State:   "open",

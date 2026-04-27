@@ -243,7 +243,7 @@ func TestBuildTreeModel_FocusIsLeafUnderRoot_CollapseSiblings(t *testing.T) {
 }
 
 // TestBuildTreeModel_FocusMidTree_AncestryAndCollapsedSiblings verifies the
-// worked example from NP-ffw57: focus FOO-14200 under a two-level tree.
+// worked example from FOO-ffw57: focus FOO-14200 under a two-level tree.
 //
 // Tree structure:
 //

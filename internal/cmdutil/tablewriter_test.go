@@ -14,8 +14,8 @@ func TestTableWriter_PlainTextAlignment(t *testing.T) {
 	var buf bytes.Buffer
 	tw := cmdutil.NewTableWriter(&buf, 2)
 	tw.AddRow("ID", "STATE", "TITLE")
-	tw.AddRow("NP-abc", "closed", "Short title")
-	tw.AddRow("NP-longid", "open", "Another title")
+	tw.AddRow("FOO-abc", "closed", "Short title")
+	tw.AddRow("FOO-longid", "open", "Another title")
 
 	// When: the table is flushed.
 	err := tw.Flush()
@@ -25,9 +25,9 @@ func TestTableWriter_PlainTextAlignment(t *testing.T) {
 	}
 
 	expected := "" +
-		"ID         STATE   TITLE\n" +
-		"NP-abc     closed  Short title\n" +
-		"NP-longid  open    Another title\n"
+		"ID          STATE   TITLE\n" +
+		"FOO-abc     closed  Short title\n" +
+		"FOO-longid  open    Another title\n"
 
 	if buf.String() != expected {
 		t.Errorf("output mismatch:\ngot:\n%s\nwant:\n%s", buf.String(), expected)
@@ -45,11 +45,11 @@ func TestTableWriter_ANSIColoredCellsAlignWithPlainHeaders(t *testing.T) {
 
 	// Simulate Color256(246, "closed") + Color256(0, "")
 	coloredClosed := "\033[38;5;246mclosed\033[0m\033[38;5;000m\033[0m"
-	tw.AddRow("NP-abc", coloredClosed, "First issue")
+	tw.AddRow("FOO-abc", coloredClosed, "First issue")
 
 	// Simulate Color256(71, "open") + " (" + Color256(71, "ready") + ")"
 	coloredOpenReady := "\033[38;5;071mopen\033[0m (\033[38;5;071mready\033[0m)"
-	tw.AddRow("NP-def", coloredOpenReady, "Second issue")
+	tw.AddRow("FOO-def", coloredOpenReady, "Second issue")
 
 	// When: the table is flushed.
 	err := tw.Flush()
@@ -138,7 +138,7 @@ func TestTableWriter_MultipleANSICodesPerRow(t *testing.T) {
 	tw := cmdutil.NewTableWriter(&buf, 2)
 	tw.AddRow("ID", "ROLE", "STATE", "PRI")
 
-	boldID := "\033[1mNP-abc\033[0m"
+	boldID := "\033[1mFOO-abc\033[0m"
 	dimRole := "\033[2mtask\033[0m"
 	colorState := "\033[38;5;071mopen\033[0m (\033[38;5;071mready\033[0m)"
 	yellowPri := "\033[33mP4\033[0m"
@@ -177,7 +177,7 @@ func TestTableWriter_RaggedRow_FlushReturnsError(t *testing.T) {
 	var buf bytes.Buffer
 	tw := cmdutil.NewTableWriter(&buf, 2)
 	tw.AddRow("ID", "STATE", "TITLE")
-	tw.AddRow("NP-abc", "open") // missing TITLE cell
+	tw.AddRow("FOO-abc", "open") // missing TITLE cell
 
 	// When: the table is flushed.
 	err := tw.Flush()
@@ -195,7 +195,7 @@ func TestTableWriter_RaggedRow_TooManyColumns_FlushReturnsError(t *testing.T) {
 	var buf bytes.Buffer
 	tw := cmdutil.NewTableWriter(&buf, 2)
 	tw.AddRow("ID", "STATE")
-	tw.AddRow("NP-abc", "open", "extra cell") // extra cell beyond column count
+	tw.AddRow("FOO-abc", "open", "extra cell") // extra cell beyond column count
 
 	// When: the table is flushed.
 	err := tw.Flush()

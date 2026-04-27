@@ -50,8 +50,8 @@ func TestReader_NextRecord_IteratesAllRecords(t *testing.T) {
 
 	// Given
 	input := `{"prefix":"NP","timestamp":"2026-03-27T12:00:00Z","version":2}
-{"issue_id":"NP-aaaa1","role":"task","title":"First","state":"open","labels":[],"comments":[],"relationships":[],"claims":[],"history":[]}
-{"issue_id":"NP-bbbb2","role":"epic","title":"Second","state":"closed","labels":[],"comments":[],"relationships":[],"claims":[],"history":[]}
+{"issue_id":"FOO-aaaa1","role":"task","title":"First","state":"open","labels":[],"comments":[],"relationships":[],"claims":[],"history":[]}
+{"issue_id":"FOO-bbbb2","role":"epic","title":"Second","state":"closed","labels":[],"comments":[],"relationships":[],"claims":[],"history":[]}
 `
 	r := jsonl.NewReader(&nopReadCloser{strings.NewReader(input)})
 	defer func() {
@@ -80,11 +80,11 @@ func TestReader_NextRecord_IteratesAllRecords(t *testing.T) {
 	if len(records) != 2 {
 		t.Fatalf("got %d records, want 2", len(records))
 	}
-	if records[0].IssueID != "NP-aaaa1" {
-		t.Errorf("first record issue_id = %q, want %q", records[0].IssueID, "NP-aaaa1")
+	if records[0].IssueID != "FOO-aaaa1" {
+		t.Errorf("first record issue_id = %q, want %q", records[0].IssueID, "FOO-aaaa1")
 	}
-	if records[1].IssueID != "NP-bbbb2" {
-		t.Errorf("second record issue_id = %q, want %q", records[1].IssueID, "NP-bbbb2")
+	if records[1].IssueID != "FOO-bbbb2" {
+		t.Errorf("second record issue_id = %q, want %q", records[1].IssueID, "FOO-bbbb2")
 	}
 }
 

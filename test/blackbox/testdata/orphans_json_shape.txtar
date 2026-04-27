@@ -5,5 +5,5 @@ np-init OJ
 np-seed task 'Orphan JSON audit task' orphan-agent TASK
 
 exec np issue orphans --json
-np-json-array-len items 1
+np-json-array-len issues 1
 np-json-no-field is_deleted

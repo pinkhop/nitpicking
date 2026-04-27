@@ -152,7 +152,7 @@ func TestRunFormComment_InvalidIssueID_ReturnsError(t *testing.T) {
 
 	input := formcmd.RunFormCommentInput{
 		Service: svc,
-		IssueID: "NP-zzzzz",
+		IssueID: "FOO-zzzzz",
 		WriteTo: &stdout,
 		FormRunner: func(data *formcmd.CommentFormData) error {
 			data.Author = "alice"

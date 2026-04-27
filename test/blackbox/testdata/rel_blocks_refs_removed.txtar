@@ -1,0 +1,21 @@
+# Verify that 'np rel blocks' and 'np rel refs' command groups are removed.
+# np rel blocks list and np rel refs list should exit with an unknown command
+# error now that they are subsumed by np rel list --rel=blocking/refs.
+
+np-init RBR
+np-seed task 'Task A' rbr-agent TASK_A
+np-seed task 'Task B' rbr-agent TASK_B
+np-seed-rel TASK_A blocked_by TASK_B rbr-agent
+
+# np rel blocks is no longer registered; running it exits non-zero.
+! exec np rel blocks list $TASK_A
+stderr 'No help topic'
+
+# np rel refs is no longer registered; running it exits non-zero.
+! exec np rel refs list $TASK_A
+stderr 'No help topic'
+
+# np rel --help no longer mentions the removed groups.
+exec np rel --help
+! stdout 'blocks\s'
+! stdout '^\s*refs\s'

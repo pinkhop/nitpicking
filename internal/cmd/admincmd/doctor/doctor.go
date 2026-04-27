@@ -49,7 +49,9 @@ func renderAction(a *driving.ActionHint) string {
 	case driving.ActionKindUndefer:
 		return fmt.Sprintf("Run 'np issue undefer %s --author <name>' to restore it.", a.IssueID)
 	case driving.ActionKindUnblockRelationship:
-		return fmt.Sprintf("Run 'np rel blocks unblock %s %s --author <name>' to remove the stale relationship.", a.SourceID, a.TargetID)
+		// The stored row is (source, blocked_by, target); "blocks" inverts source
+		// and target in the remove command and silently no-ops. Use "blocked_by".
+		return fmt.Sprintf("Run 'np rel remove %s blocked_by %s --author <name>' to remove the stale relationship.", a.SourceID, a.TargetID)
 	case driving.ActionKindCloseCompleted:
 		return "Run 'np epic close-completed --author <name>' to batch-close fully resolved epics."
 	case driving.ActionKindInvestigateCorruption:

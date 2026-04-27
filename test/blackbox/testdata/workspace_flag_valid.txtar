@@ -4,4 +4,4 @@
 np-init WS
 
 exec np --workspace $WORK list --json
-np-json-array-len items 0
+np-json-array-len issues 0

@@ -6,7 +6,7 @@ np-seed epic 'Parent tree audit' tree-agent EPIC
 np-seed task 'Descendant for tree' tree-agent CHILD --parent $EPIC
 
 exec np rel parent tree $EPIC --json
-stdout '"items":'
+stdout '"issues":'
 stdout '"id":'
 stdout '"role":'
 stdout '"state":'

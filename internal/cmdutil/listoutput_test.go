@@ -162,12 +162,12 @@ func TestConvertListItems_WithParentCreatedAt_PopulatesField(t *testing.T) {
 	parentTime := time.Date(2026, 3, 15, 10, 30, 0, 0, time.UTC)
 	items := []driving.IssueListItemDTO{
 		{
-			ID:              "NP-abc12",
+			ID:              "FOO-abc12",
 			Role:            domain.RoleTask,
 			State:           domain.StateOpen,
 			Priority:        domain.P2,
 			Title:           "Child task",
-			ParentID:        "NP-par01",
+			ParentID:        "FOO-par01",
 			ParentCreatedAt: parentTime,
 			CreatedAt:       time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC),
 			DisplayStatus:   "open (ready)",
@@ -185,8 +185,8 @@ func TestConvertListItems_WithParentCreatedAt_PopulatesField(t *testing.T) {
 	if out[0].ParentCreatedAt != want {
 		t.Errorf("ParentCreatedAt = %q, want %q", out[0].ParentCreatedAt, want)
 	}
-	if out[0].ParentID != "NP-par01" {
-		t.Errorf("ParentID = %q, want %q", out[0].ParentID, "NP-par01")
+	if out[0].ParentID != "FOO-par01" {
+		t.Errorf("ParentID = %q, want %q", out[0].ParentID, "FOO-par01")
 	}
 }
 
@@ -196,7 +196,7 @@ func TestConvertListItems_WithoutParent_ParentCreatedAtEmpty(t *testing.T) {
 	// Given — an orphan issue with zero ParentCreatedAt.
 	items := []driving.IssueListItemDTO{
 		{
-			ID:            "NP-abc12",
+			ID:            "FOO-abc12",
 			Role:          domain.RoleTask,
 			State:         domain.StateOpen,
 			Priority:      domain.P2,

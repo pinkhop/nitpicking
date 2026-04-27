@@ -309,7 +309,7 @@ func TestFormatState_TabwriterAlignment_AllSecondaryStates(t *testing.T) {
 	tw := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
 	for _, r := range rows {
 		stateCol := cmdutil.FormatState(cs, r.primary, r.secondary)
-		_, _ = fmt.Fprintf(tw, "NP-12345\t%s\tP0\tSome title\n", stateCol)
+		_, _ = fmt.Fprintf(tw, "FOO-12345\t%s\tP0\tSome title\n", stateCol)
 	}
 	_ = tw.Flush()
 

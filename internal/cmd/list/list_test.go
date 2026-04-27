@@ -147,14 +147,14 @@ func TestRun_RoleFilterTask_ReturnsOnlyTasks(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			Role string `json:"role"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	for _, item := range result.Items {
+	for _, item := range result.Issues {
 		if item.Role != "task" {
 			t.Errorf("expected only tasks, got role=%q", item.Role)
 		}
@@ -184,14 +184,14 @@ func TestRun_RoleFilterEpic_ReturnsOnlyEpics(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			Role string `json:"role"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	for _, item := range result.Items {
+	for _, item := range result.Issues {
 		if item.Role != "epic" {
 			t.Errorf("expected only epics, got role=%q", item.Role)
 		}
@@ -221,18 +221,18 @@ func TestRun_MultipleRoleFilters_ReturnsBothRoles(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			Role string `json:"role"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 2 {
-		t.Fatalf("expected 2 items, got %d", len(result.Items))
+	if len(result.Issues) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(result.Issues))
 	}
 	roles := map[string]bool{}
-	for _, item := range result.Items {
+	for _, item := range result.Issues {
 		roles[item.Role] = true
 	}
 	if !roles["task"] {
@@ -267,18 +267,18 @@ func TestRun_StateFilter_ReturnsMatchingState(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			State string `json:"state"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 1 {
-		t.Fatalf("expected 1 closed issue, got %d", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Fatalf("expected 1 closed issue, got %d", len(result.Issues))
 	}
-	if result.Items[0].State != "closed" {
-		t.Errorf("expected closed state, got %q", result.Items[0].State)
+	if result.Issues[0].State != "closed" {
+		t.Errorf("expected closed state, got %q", result.Issues[0].State)
 	}
 }
 
@@ -306,14 +306,14 @@ func TestRun_ExcludeClosed_HidesClosedByDefault(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			State string `json:"state"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	for _, item := range result.Items {
+	for _, item := range result.Issues {
 		if item.State == "closed" {
 			t.Error("expected closed issues to be excluded")
 		}
@@ -344,15 +344,15 @@ func TestRun_IncludeClosed_ShowsClosedIssues(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			ID string `json:"id"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) < 2 {
-		t.Errorf("expected at least 2 issues (including closed), got %d", len(result.Items))
+	if len(result.Issues) < 2 {
+		t.Errorf("expected at least 2 issues (including closed), got %d", len(result.Issues))
 	}
 }
 
@@ -386,22 +386,22 @@ func TestRun_ReadyFilter_ExcludesClaimedIssues(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			ID string `json:"id"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	// The claimed task should not appear in ready results
-	for _, item := range result.Items {
+	for _, item := range result.Issues {
 		if item.ID == claimedID.String() {
 			t.Error("expected claimed issue to be excluded from ready results")
 		}
 	}
 	// The ready task should appear
 	found := false
-	for _, item := range result.Items {
+	for _, item := range result.Issues {
 		if item.ID == readyID.String() {
 			found = true
 			break
@@ -433,13 +433,13 @@ func TestRun_JSONOutput_ReturnsValidJSON(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items   []json.RawMessage `json:"items"`
+		Issues  []json.RawMessage `json:"issues"`
 		HasMore bool              `json:"has_more"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) == 0 {
+	if len(result.Issues) == 0 {
 		t.Error("expected at least one item in JSON output")
 	}
 }
@@ -468,14 +468,14 @@ func TestRun_Limit_RestrictsResults(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items   []json.RawMessage `json:"items"`
+		Issues  []json.RawMessage `json:"issues"`
 		HasMore bool              `json:"has_more"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result.Items) != 1 {
-		t.Errorf("expected 1 item with limit=1, got %d", len(result.Items))
+	if len(result.Issues) != 1 {
+		t.Errorf("expected 1 item with limit=1, got %d", len(result.Issues))
 	}
 	if !result.HasMore {
 		t.Error("expected has_more=true when limit restricts results")
@@ -538,17 +538,17 @@ func TestRun_JSONOutput_ClaimedIssue_StateIsOpenWithSecondary(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			ID             string `json:"id"`
 			State          string `json:"state"`
 			SecondaryState string `json:"secondary_state"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
 	var found bool
-	for _, item := range result.Items {
+	for _, item := range result.Issues {
 		if item.ID != issueID.String() {
 			continue
 		}
@@ -773,20 +773,20 @@ func TestRun_OrderByID_SortsByIDAscending(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var result struct {
-		Items []struct {
+		Issues []struct {
 			ID string `json:"id"`
-		} `json:"items"`
+		} `json:"issues"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	if len(result.Items) != 3 {
-		t.Fatalf("expected 3 items, got %d", len(result.Items))
+	if len(result.Issues) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(result.Issues))
 	}
 
 	// Collect IDs returned and verify they are in ascending order.
-	ids := make([]string, len(result.Items))
-	for i, item := range result.Items {
+	ids := make([]string, len(result.Issues))
+	for i, item := range result.Issues {
 		ids[i] = item.ID
 	}
 	for i := 1; i < len(ids); i++ {
@@ -797,7 +797,7 @@ func TestRun_OrderByID_SortsByIDAscending(t *testing.T) {
 
 	// Verify all three IDs are present (they may be in any position).
 	idSet := map[string]bool{id1.String(): false, id2.String(): false, id3.String(): false}
-	for _, item := range result.Items {
+	for _, item := range result.Issues {
 		idSet[item.ID] = true
 	}
 	for id, found := range idSet {

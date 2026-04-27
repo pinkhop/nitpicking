@@ -186,7 +186,7 @@ func DefaultFormRunner(data *CreateFormData) error {
 
 			huh.NewInput().
 				Title("Parent").
-				Placeholder("Optional parent issue ID (e.g., NP-abc12)").
+				Placeholder("Optional parent issue ID (e.g., FOO-abc12)").
 				Value(&data.Parent),
 
 			huh.NewInput().

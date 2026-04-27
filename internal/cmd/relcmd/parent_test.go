@@ -111,8 +111,8 @@ func TestChildren_LimitFlag_RespectsExplicitLimit(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &out); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, raw)
 	}
-	if len(out.Items) != 1 {
-		t.Errorf("items: got %d, want 1", len(out.Items))
+	if len(out.Issues) != 1 {
+		t.Errorf("items: got %d, want 1", len(out.Issues))
 	}
 	if !out.HasMore {
 		t.Error("expected has_more=true")
@@ -142,8 +142,8 @@ func TestChildren_NoLimitFlag_ReturnsAllChildren(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &out); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, raw)
 	}
-	if len(out.Items) != 2 {
-		t.Errorf("items: got %d, want 2", len(out.Items))
+	if len(out.Issues) != 2 {
+		t.Errorf("items: got %d, want 2", len(out.Issues))
 	}
 	if out.HasMore {
 		t.Error("expected has_more=false")
@@ -173,8 +173,8 @@ func TestChildren_DefaultLimit_MatchesDefaultLimit(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &out); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, raw)
 	}
-	if len(out.Items) != 2 {
-		t.Errorf("items: got %d, want 2", len(out.Items))
+	if len(out.Issues) != 2 {
+		t.Errorf("items: got %d, want 2", len(out.Issues))
 	}
 	if out.HasMore {
 		t.Error("expected has_more=false when count is under default limit")

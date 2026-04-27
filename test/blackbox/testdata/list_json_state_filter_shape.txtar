@@ -7,5 +7,5 @@ np-seed task 'Closed task' audit-agent TASK_CLOSED --claim
 exec np close --claim $TASK_CLOSED_CLAIM --reason done
 
 exec np list --state closed --json
-np-json-array-len items 1
+np-json-array-len issues 1
 stdout '"state": "closed"'

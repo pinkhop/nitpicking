@@ -11,4 +11,4 @@ np-capture CLOSE_CLAIM claim_id
 exec np close --claim $CLOSE_CLAIM --reason 'done' --json
 
 exec np list --state open --state closed --json
-np-json-array-len items 2
+np-json-array-len issues 2

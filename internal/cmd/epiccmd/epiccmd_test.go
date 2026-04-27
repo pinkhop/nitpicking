@@ -79,8 +79,8 @@ func TestChildren_JSONOutput_RespectsLimitAndHasMore(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &out); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, raw)
 	}
-	if len(out.Items) != 1 {
-		t.Fatalf("items: got %d, want 1", len(out.Items))
+	if len(out.Issues) != 1 {
+		t.Fatalf("items: got %d, want 1", len(out.Issues))
 	}
 	if !out.HasMore {
 		t.Fatal("expected has_more=true")

@@ -17,7 +17,7 @@ func TestValidate_MissingIdempotencyLabel_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -35,7 +35,7 @@ func TestValidate_MissingRole_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -53,7 +53,7 @@ func TestValidate_MissingTitle_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -73,7 +73,7 @@ func TestValidate_MinimalValidLine_Succeeds(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -95,7 +95,7 @@ func TestValidate_ValidLine_IdempotencyLabelParsedCorrectly(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -124,7 +124,7 @@ func TestValidate_IdempotencyLabelMissingColon_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -142,7 +142,7 @@ func TestValidate_IdempotencyLabelInvalidKey_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -162,7 +162,7 @@ func TestValidate_InvalidRole_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -180,7 +180,7 @@ func TestValidate_InvalidPriority_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -198,7 +198,7 @@ func TestValidate_ValidPriority_Succeeds(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -215,7 +215,7 @@ func TestValidate_InvalidState_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -233,7 +233,7 @@ func TestValidate_BlockedState_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -253,7 +253,7 @@ func TestValidate_ClaimTrueWithOpenState_Succeeds(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -273,7 +273,7 @@ func TestValidate_ClaimTrueWithExplicitOpenState_Succeeds(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -293,7 +293,7 @@ func TestValidate_ClaimTrueWithClosedState_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -311,7 +311,7 @@ func TestValidate_ClaimTrueWithDeferredState_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -343,7 +343,7 @@ func TestValidate_ValidStates_Succeeds(t *testing.T) {
 			}
 
 			// When
-			result := domain.Validate(lines, "NP")
+			result := domain.Validate(lines, "FOO")
 
 			// Then
 			if len(result.Errors) != 0 {
@@ -365,7 +365,7 @@ func TestValidate_DuplicateIdempotencyLabel_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -390,7 +390,7 @@ func TestValidate_IdempotencyLabelConflictsWithLabels_DifferentValue_ReturnsErro
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -413,7 +413,7 @@ func TestValidate_IdempotencyLabelMatchesLabels_SameValue_Succeeds(t *testing.T)
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -436,7 +436,7 @@ func TestValidate_IdempotencyLabelMatchingLabels_ProducesExactlyOneLabel(t *test
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then — validation succeeds and the labels slice contains jira:V1 exactly once.
 	if len(result.Errors) != 0 {
@@ -471,7 +471,7 @@ func TestValidate_IdempotencyLabelKeyNotInLabels_Succeeds(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -495,7 +495,7 @@ func TestValidate_FormerlyReservedIdempotencyKeyLabel_IsNowAllowed(t *testing.T)
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then — no error; "idempotency-key" is no longer a reserved key.
 	if len(result.Errors) != 0 {
@@ -517,7 +517,7 @@ func TestValidate_InvalidLabelKey_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -537,7 +537,7 @@ func TestValidate_InvalidAuthor_ReturnsError(t *testing.T) {
 	}
 
 	// When — empty author is allowed (defaults to command-line author).
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -557,7 +557,7 @@ func TestValidate_ParentRefToIntraFileLabel_Succeeds(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -575,7 +575,7 @@ func TestValidate_ParentRefToTaskRole_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -593,7 +593,7 @@ func TestValidate_UnresolvableRef_ReturnsError(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {
@@ -612,7 +612,7 @@ func TestValidate_BlockedByIntraFile_Succeeds(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -630,7 +630,7 @@ func TestValidate_BlocksIntraFile_Succeeds(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -648,7 +648,7 @@ func TestValidate_RefsIntraFile_Succeeds(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -663,11 +663,11 @@ func TestValidate_ParentRefToIssueID_Succeeds(t *testing.T) {
 
 	// Given — reference looks like an issue ID matching the prefix.
 	lines := []domain.RawLine{
-		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", Parent: "NP-a3bxr"},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", Parent: "FOO-a3bxr"},
 	}
 
 	// When — issue ID format refs are accepted without intra-file resolution.
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -680,11 +680,11 @@ func TestValidate_BlockedByIssueID_Succeeds(t *testing.T) {
 
 	// Given
 	lines := []domain.RawLine{
-		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", BlockedBy: []string{"NP-a3bxr"}},
+		{IdempotencyLabel: "jira:KEY-1", Role: "task", Title: "A task", BlockedBy: []string{"FOO-a3bxr"}},
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) != 0 {
@@ -703,7 +703,7 @@ func TestValidate_MultipleErrorsOnOneLine_ReportsAll(t *testing.T) {
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then — should report errors for idempotency_label, role, and title.
 	if len(result.Errors) < 3 {
@@ -723,7 +723,7 @@ func TestValidate_MixedValidAndInvalidLines_ReportsErrorsForInvalidOnly(t *testi
 	}
 
 	// When
-	result := domain.Validate(lines, "NP")
+	result := domain.Validate(lines, "FOO")
 
 	// Then
 	if len(result.Errors) == 0 {

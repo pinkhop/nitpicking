@@ -38,7 +38,7 @@ np list --ready                       # equivalent to np ready (longer form)
 ```
 np ready --role task                        # only ready tasks
 np ready --label kind:bug                   # only ready bugs
-np ready --parent NP-abc12                  # only ready children of NP-abc12
+np ready --parent FOO-abc12                 # only ready children of FOO-abc12
 np ready --role task --label kind:bug       # combine filters (AND semantics)
 ```
 
@@ -158,6 +158,19 @@ np rel remove <ISSUE-A> blocked_by <ISSUE-B> --author <your-name>
 np rel remove <ISSUE-A> blocks <ISSUE-B> --author <your-name>
 np rel remove <ISSUE-A> refs <ISSUE-B> --author <your-name>
 ```
+
+### Listing relationships
+
+Use `np rel list` to see all relationships across active (non-closed) issues at a glance. The output is organized into three sections: parent-child hierarchy, blocking dependency chains, and contextual reference clusters.
+
+```
+np rel list                      # all three sections
+np rel list --rel=blocking       # blocking chains only
+np rel list --rel=refs           # reference clusters only
+np rel list --rel=parent-child   # parent-child tree only
+```
+
+`--rel` also accepts the relationship-name aliases used by `np rel add`: `blocked_by` and `blocks` map to `blocking`; `parent_of` and `child_of` map to `parent-child`.
 
 ## Handling Incidentals
 

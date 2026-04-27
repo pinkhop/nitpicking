@@ -139,13 +139,13 @@ func TestParseID_UppercaseRandom_NormalizesToLowercase(t *testing.T) {
 	t.Parallel()
 
 	// When
-	id, err := domain.ParseID("NP-A3BXR")
+	id, err := domain.ParseID("FOO-A3BXR")
 	// Then — succeeds and normalizes to lowercase
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if id.String() != "NP-a3bxr" {
-		t.Errorf("expected %q, got %q", "NP-a3bxr", id.String())
+	if id.String() != "FOO-a3bxr" {
+		t.Errorf("expected %q, got %q", "FOO-a3bxr", id.String())
 	}
 }
 
@@ -153,7 +153,7 @@ func TestParseID_ConfusableI_NormalizesTo1(t *testing.T) {
 	t.Parallel()
 
 	// When — 'i' in random portion normalizes to '1'
-	id, err := domain.ParseID("NP-i3bxr")
+	id, err := domain.ParseID("FOO-i3bxr")
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -167,7 +167,7 @@ func TestParseID_ConfusableL_NormalizesTo1(t *testing.T) {
 	t.Parallel()
 
 	// When — 'l' in random portion normalizes to '1'
-	id, err := domain.ParseID("NP-l3bxr")
+	id, err := domain.ParseID("FOO-l3bxr")
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -181,7 +181,7 @@ func TestParseID_ConfusableO_NormalizesTo0(t *testing.T) {
 	t.Parallel()
 
 	// When — 'o' in random portion normalizes to '0'
-	id, err := domain.ParseID("NP-o3bxr")
+	id, err := domain.ParseID("FOO-o3bxr")
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -195,13 +195,13 @@ func TestParseID_MixedConfusables_NormalizesAll(t *testing.T) {
 	t.Parallel()
 
 	// When — multiple confusable chars: L→1, O→0, I→1, o→0, A→a
-	id, err := domain.ParseID("NP-LOIoA")
+	id, err := domain.ParseID("FOO-LOIoA")
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if id.String() != "NP-1010a" {
-		t.Errorf("expected %q, got %q", "NP-1010a", id.String())
+	if id.String() != "FOO-1010a" {
+		t.Errorf("expected %q, got %q", "FOO-1010a", id.String())
 	}
 }
 
@@ -209,7 +209,7 @@ func TestParseID_ExcludedU_StillFails(t *testing.T) {
 	t.Parallel()
 
 	// When — 'u' is excluded from Crockford and has no substitution
-	_, err := domain.ParseID("NP-u3bxr")
+	_, err := domain.ParseID("FOO-u3bxr")
 
 	// Then
 	if err == nil {
@@ -221,12 +221,12 @@ func TestResolveID_ConfusableBarePart_Normalizes(t *testing.T) {
 	t.Parallel()
 
 	// When — bare random part with confusable characters
-	id, err := domain.ResolveID("LOIoA", "NP")
+	id, err := domain.ResolveID("LOIoA", "FOO")
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if id.String() != "NP-1010a" {
-		t.Errorf("expected %q, got %q", "NP-1010a", id.String())
+	if id.String() != "FOO-1010a" {
+		t.Errorf("expected %q, got %q", "FOO-1010a", id.String())
 	}
 }

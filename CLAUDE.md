@@ -17,6 +17,8 @@ Nitpicking (`np`) is a local-only, non-invasive, single-machine, CLI-driven issu
 
 ## Commands
 
+`make` with no arguments prints help; the default goal lists every target.
+
 ```bash
 # Build
 make build              # Build static binary to dist/np (VERSION=x.y.z to set version)
@@ -45,6 +47,15 @@ make ci                 # Full pipeline: build → lint → sec → test-units
 
 The project follows **Hexagonal (Ports & Adapters) Architecture**. The authoritative reference for architectural layering, dependency rules, package placement, and anti-patterns is [`docs/developer/architecture/architecture.md`](docs/developer/architecture/architecture.md). When this section and that document conflict, the architecture document governs.
 
+**Top-level layout** (orientation only — see the architecture doc for the full picture):
+
+- `cmd/np/main.go` — binary entry point.
+- `internal/wiring/` — sole configurator; assembles the CLI tree and dependency graph.
+- `internal/cmd/<command>/` — one package per CLI subcommand (e.g. `agent`, `claim`, `epiccmd`, `relcmd`).
+- `internal/core/`, `internal/domain/`, `internal/ports/` — hexagonal core.
+- `internal/adapters/driven/` — storage and external-system adapters.
+- `docs/user/` — end-user documentation; `docs/developer/` — implementation documentation.
+
 **Key points** (see the architecture doc for full detail):
 
 - Seven conceptual layers: domain entities → driving ports → core → driven ports → driven adapters → driving adapters → configurator.
@@ -68,4 +79,4 @@ The project follows **Hexagonal (Ports & Adapters) Architecture**. The authorita
 - **Version injection via ldflags.** `make build` injects the version string into `internal/wiring.version`; pass `VERSION=x.y.z` to override the default `"dev"`.
 - **Hidden commands and hidden flags are forbidden.** Every functional command and flag must be visible in `--help` output. `--help` is the authoritative reference for the CLI surface; hiding elements breaks discoverability for AI agents. This prohibition may only be lifted by explicit direction from the project owner that specifically names the command or flag being hidden.
 - **ANSI escape sequences are invisible but not zero-width to naive code.** Any TTY layout — tables, aligned columns, padded fields, progress bars — that measures string width to compute padding will break if it counts ANSI SGR bytes as visible characters. Go's `text/tabwriter`, `fmt` width verbs, and `len()`/`utf8.RuneCountInString()` all make this mistake. Use `cmdutil.TableWriter` (which strips `\x1b\[[0-9;]*m` before measuring) for tabular output, and `utf8.RuneCountInString(cmdutil.StripANSI(s))` anywhere else alignment depends on display width. This has caused header-vs-data misalignment in list output twice; the symptom is columns that look correct without color but shift dramatically when ANSI colors are active.
-- **Agent prime must stay in sync with the CLI.** When changing the command tree (adding, removing, or renaming commands) or modifying flags, verify that every `np` invocation in `np agent prime` output is still valid — correct command path and correct flags. Issues that change the command tree or flags must include an acceptance criterion requiring this verification. The agent prime source is `internal/cmd/agent/instructions.go`; the rule file `.claude/rules/issue-tracking.md` must be regenerated from `np agent prime` after any change.
+- **Agent prime must stay in sync with the CLI.** When changing the command tree (adding, removing, or renaming commands) or modifying flags, verify that every `np` invocation in `np agent prime` output is still valid — correct command path and correct flags. Issues that change the command tree or flags must include an acceptance criterion requiring this verification. The agent prime source is `internal/cmd/agent/instructions.go`.

@@ -8,20 +8,33 @@ import (
 	"github.com/pinkhop/nitpicking/internal/domain"
 )
 
-func TestGenerateAgentName_ProducesThreePartName(t *testing.T) {
+func TestGenerateAgentName_HasAgentPrefix(t *testing.T) {
 	t.Parallel()
 
 	// When
 	name := domain.GenerateAgentName()
 
 	// Then
-	parts := strings.Split(name, "-")
+	if !strings.HasPrefix(name, "agent-") {
+		t.Errorf("expected name to start with %q, got %q", "agent-", name)
+	}
+}
+
+func TestGenerateAgentName_ProducesThreePartSuffix(t *testing.T) {
+	t.Parallel()
+
+	// When
+	name := domain.GenerateAgentName()
+
+	// Then — strip the "agent-" prefix and verify the suffix is adj-noun-mod
+	suffix := strings.TrimPrefix(name, "agent-")
+	parts := strings.Split(suffix, "-")
 	if len(parts) != 3 {
-		t.Errorf("expected 3 parts, got %d in %q", len(parts), name)
+		t.Errorf("expected 3-part suffix after \"agent-\", got %d parts in %q", len(parts), name)
 	}
 	for _, part := range parts {
 		if part == "" {
-			t.Errorf("expected non-empty parts in %q", name)
+			t.Errorf("expected non-empty suffix parts in %q", name)
 		}
 	}
 }
@@ -41,7 +54,7 @@ func TestGenerateAgentName_ProducesVariedNames(t *testing.T) {
 	}
 }
 
-func TestGenerateAgentNameFromSeed_ProducesThreePartName(t *testing.T) {
+func TestGenerateAgentNameFromSeed_HasAgentPrefix(t *testing.T) {
 	t.Parallel()
 
 	// When
@@ -50,13 +63,28 @@ func TestGenerateAgentNameFromSeed_ProducesThreePartName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	parts := strings.Split(name, "-")
+	if !strings.HasPrefix(name, "agent-") {
+		t.Errorf("expected name to start with %q, got %q", "agent-", name)
+	}
+}
+
+func TestGenerateAgentNameFromSeed_ProducesThreePartSuffix(t *testing.T) {
+	t.Parallel()
+
+	// When
+	name, err := domain.GenerateAgentNameFromSeed("test-seed")
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	suffix := strings.TrimPrefix(name, "agent-")
+	parts := strings.Split(suffix, "-")
 	if len(parts) != 3 {
-		t.Errorf("expected 3 parts, got %d in %q", len(parts), name)
+		t.Errorf("expected 3-part suffix after \"agent-\", got %d parts in %q", len(parts), name)
 	}
 	for _, part := range parts {
 		if part == "" {
-			t.Errorf("expected non-empty parts in %q", name)
+			t.Errorf("expected non-empty suffix parts in %q", name)
 		}
 	}
 }

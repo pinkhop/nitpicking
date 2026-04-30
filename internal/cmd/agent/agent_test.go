@@ -32,7 +32,7 @@ func TestNewNameCmd_TextOutput(t *testing.T) {
 	f := &cmdutil.Factory{IOStreams: ios}
 	original := newAgentService
 	newAgentService = func(_ *cmdutil.Factory) (agentService, error) {
-		return &stubAgentService{name: "blue-seal-echo"}, nil
+		return &stubAgentService{name: "agent-blue-seal-echo"}, nil
 	}
 	t.Cleanup(func() { newAgentService = original })
 
@@ -42,7 +42,7 @@ func TestNewNameCmd_TextOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if stdout.String() != "blue-seal-echo\n" {
+	if stdout.String() != "agent-blue-seal-echo\n" {
 		t.Fatalf("unexpected output: %q", stdout.String())
 	}
 }
@@ -53,7 +53,7 @@ func TestNewNameCmd_JSONOutput(t *testing.T) {
 	f := &cmdutil.Factory{IOStreams: ios}
 	original := newAgentService
 	newAgentService = func(_ *cmdutil.Factory) (agentService, error) {
-		return &stubAgentService{name: "blue-seal-echo"}, nil
+		return &stubAgentService{name: "agent-blue-seal-echo"}, nil
 	}
 	t.Cleanup(func() { newAgentService = original })
 
@@ -67,8 +67,8 @@ func TestNewNameCmd_JSONOutput(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
 		t.Fatalf("invalid JSON output: %v\nraw: %s", err, stdout.String())
 	}
-	if out.Name != "blue-seal-echo" {
-		t.Fatalf("name: got %q, want %q", out.Name, "blue-seal-echo")
+	if out.Name != "agent-blue-seal-echo" {
+		t.Fatalf("name: got %q, want %q", out.Name, "agent-blue-seal-echo")
 	}
 }
 

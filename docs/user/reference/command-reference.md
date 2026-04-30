@@ -2004,23 +2004,23 @@ np agent name [options]
 ```json
 $ np agent name --json
 {
-  "name": "kind-comet-quest"
+  "name": "agent-kind-comet-quest"
 }
 ```
 
 ```text
 $ np agent name
-blue-seal-echo
+agent-blue-seal-echo
 ```
 
 Agents should use `--seed=$PPID` to produce a stable identity tied to their process ID. The same seed always yields the same name:
 
 ```text
 $ np agent name --seed=$PPID
-calm-spruce-spray
+agent-calm-spruce-spray
 
 $ np agent name --seed=$PPID
-calm-spruce-spray
+agent-calm-spruce-spray
 ```
 
 **Exit codes:**
@@ -2031,7 +2031,7 @@ calm-spruce-spray
 
 **Notes:**
 
-- Without `--seed`, each call produces a fresh random name using an adjective-noun-verb pattern. Names are not guaranteed to be unique, but collisions are rare.
+- Without `--seed`, each call produces a fresh random name in the format `agent-adjective-noun-modifier` (e.g., `agent-bold-ember-flux`). Names are not guaranteed to be unique, but collisions are rare.
 - With `--seed=<value>`, the name is derived deterministically from the seed string — the same seed always yields the same generated name. Providing an empty seed is an error.
 - Agents should use `--seed=$PPID` so that resuming a session with the same process ID produces the same author identity.
 - Humans can use any stable identifier; this command is primarily for agents.

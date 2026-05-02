@@ -27,13 +27,6 @@ type parentChildForest struct {
 	totalIssues int
 }
 
-// treeBaseOverhead estimates the non-title character overhead for the tree
-// table at depth zero. The TREE column is a 10-char ID (12 with 2-char padding),
-// P is 2 chars (4 with padding), ROLE is 5 chars (7 with padding), and STATE
-// is 14 chars worst-case (16 with padding), summing to 39.
-// Depth-based indentation is added separately at 2 chars per depth level.
-const treeBaseOverhead = 39
-
 // buildParentChildForest loads all non-closed issues from svc and constructs
 // the forest data structures used by RenderParentChildSection. It makes a
 // single ListIssues call and processes the results in memory.
@@ -108,24 +101,40 @@ func countParentChildSubtree(id string, childrenOf map[string][]string) int {
 	return count
 }
 
+// maxDepthInSubtree returns the maximum depth of any node in the subtree rooted
+// at id, where the root itself is at the given startDepth. It traverses only
+// edges present in childrenOf, so closed issues (absent from childrenOf) do not
+// contribute. The caller is responsible for ensuring childrenOf describes a
+// forest (no cycles); a cycle would cause infinite recursion, identical to the
+// precondition already held by countParentChildSubtree above.
+func maxDepthInSubtree(id string, childrenOf map[string][]string, startDepth int) int {
+	deepest := startDepth
+	for _, childID := range childrenOf[id] {
+		if d := maxDepthInSubtree(childID, childrenOf, startDepth+1); d > deepest {
+			deepest = d
+		}
+	}
+	return deepest
+}
+
 // buildParentChildNodes constructs a flat []TreeNode slice for the subtree
 // rooted at id in full-expansion mode (no placeholders, no single focus).
-// Titles are pre-truncated based on termWidth and the per-depth overhead; a
-// zero termWidth signals non-TTY output and suppresses truncation via
-// AvailableTitleWidth returning 0.
+// Titles are pre-truncated using titleOverhead, which must be a uniform value
+// computed once for the entire table via cmdutil.UniformTreeOverhead. Passing a
+// uniform overhead ensures every row gets the same available title space,
+// matching the TableWriter's behaviour of padding the TREE column to its
+// maximum width across all rows. A zero termWidth signals non-TTY output and
+// suppresses truncation via AvailableTitleWidth returning 0.
 func buildParentChildNodes(
 	id string,
 	depth int,
 	byID map[string]driving.IssueListItemDTO,
 	childrenOf map[string][]string,
 	termWidth int,
+	titleOverhead int,
 ) []TreeNode {
 	item := byID[id]
-
-	// Overhead grows with depth because each level adds 2 spaces of indent
-	// in the TREE column.
-	overhead := treeBaseOverhead + depth*2
-	item.Title = cmdutil.TruncateTitle(item.Title, cmdutil.AvailableTitleWidth(termWidth, overhead))
+	item.Title = cmdutil.TruncateTitle(item.Title, cmdutil.AvailableTitleWidth(termWidth, titleOverhead))
 
 	nodes := []TreeNode{{
 		Kind:      NodeKindIssue,
@@ -135,7 +144,7 @@ func buildParentChildNodes(
 	}}
 
 	for _, childID := range childrenOf[id] {
-		nodes = append(nodes, buildParentChildNodes(childID, depth+1, byID, childrenOf, termWidth)...)
+		nodes = append(nodes, buildParentChildNodes(childID, depth+1, byID, childrenOf, termWidth, titleOverhead)...)
 	}
 
 	return nodes
@@ -170,11 +179,25 @@ func RenderParentChildSection(ctx context.Context, svc driving.Service, ios *ios
 
 	termWidth := ios.TerminalWidth()
 
+	// All roots are rendered into a single TableWriter call, so the TREE column
+	// width is the maximum across every row in the entire forest — including the
+	// deepest child at any root. Pre-truncating each row with its own per-depth
+	// overhead would give root rows (depth 0) more title space than child rows
+	// (depth 1+), even though the rendered table gives every row the same TREE
+	// column width. Use a single uniform overhead based on the global max depth.
+	maxDepth := 0
+	for _, rootID := range forest.roots {
+		if d := maxDepthInSubtree(rootID, forest.childrenOf, 0); d > maxDepth {
+			maxDepth = d
+		}
+	}
+	titleOverhead := cmdutil.UniformIssueTreeOverhead(maxDepth)
+
 	// Collect nodes from all roots into one slice so the entire forest
 	// renders as a single aligned table with one header row.
 	var allNodes []TreeNode
 	for _, rootID := range forest.roots {
-		allNodes = append(allNodes, buildParentChildNodes(rootID, 0, forest.byID, forest.childrenOf, termWidth)...)
+		allNodes = append(allNodes, buildParentChildNodes(rootID, 0, forest.byID, forest.childrenOf, termWidth, titleOverhead)...)
 	}
 
 	if err := RenderTreeText(ios, allNodes); err != nil {

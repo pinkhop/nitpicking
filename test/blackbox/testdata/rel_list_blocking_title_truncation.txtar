@@ -1,0 +1,31 @@
+# Smoke test: np rel list --rel blocking renders long-titled issues without
+# truncation in non-TTY (piped) mode. This exercises the blocking section
+# rendering path with a blocker→blocked chain where both titles exceed typical
+# terminal widths, verifying the command completes without error and emits full
+# titles when stdout is not a TTY.
+#
+# Note: the TTY-mode uniform truncation consistency fix (NP-jfhme) is covered
+# by the unit tests TestRenderBlockingSection_ChildTitleWidthEqualsRootTitleWidth
+# and TestRenderBlockingSection_DiamondGraph_TitleWidthUniformWithBackRef, which
+# control terminal width and TTY mode programmatically.
+
+np-init BLK
+
+np-seed task 'Blocker alpha task with a long title that exceeds typical terminal widths in most configurations' testuser BLOCKER
+np-seed task 'Blocked beta task with a long title that exceeds typical terminal widths in most configurations' testuser BLOCKED
+
+np-seed-rel BLOCKED blocked_by BLOCKER testuser
+
+# The blocking section renders without error.
+exec np rel list --rel blocking
+
+# Both issue IDs appear in the output.
+stdout $BLOCKER
+stdout $BLOCKED
+
+# Both full titles appear (non-TTY: no truncation should occur).
+stdout 'Blocker alpha task with a long title'
+stdout 'Blocked beta task with a long title'
+
+# The section header is present with 1 chain, 1 edge, and 0 cycles.
+stdout 'Blocking \(1 chains, 1 edges, 0 cycles\)'

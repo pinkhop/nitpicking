@@ -153,6 +153,96 @@ func TestAvailableTitleWidth_OverheadExceedsWidth_ReturnsMinimum(t *testing.T) {
 	}
 }
 
+// --- UniformTreeOverhead ---
+
+// TestUniformTreeOverhead_DepthZero verifies that a single root issue (maxCellWidth = 10)
+// produces an overhead equal to the base tree table overhead.
+func TestUniformTreeOverhead_DepthZero(t *testing.T) {
+	t.Parallel()
+
+	// Given — a root issue at depth 0; its TREE cell is just its 10-char ID
+	maxCellWidth := 10
+
+	// When
+	got := cmdutil.UniformTreeOverhead(maxCellWidth)
+
+	// Then — matches treeBaseOverhead (39)
+	if got != 39 {
+		t.Errorf("UniformTreeOverhead(%d) = %d, want 39", maxCellWidth, got)
+	}
+}
+
+// TestUniformTreeOverhead_DepthOne verifies that depth-1 indentation (2 extra chars)
+// increases the overhead by 2.
+func TestUniformTreeOverhead_DepthOne(t *testing.T) {
+	t.Parallel()
+
+	// Given — a child issue at depth 1; its TREE cell is 10-char ID + 2-char indent
+	maxCellWidth := 12
+
+	// When
+	got := cmdutil.UniformTreeOverhead(maxCellWidth)
+
+	// Then — treeBaseOverhead + 1*2 = 41
+	if got != 41 {
+		t.Errorf("UniformTreeOverhead(%d) = %d, want 41", maxCellWidth, got)
+	}
+}
+
+// TestUniformTreeOverhead_BackRefWider verifies that a wider back-reference row
+// (which carries two IDs plus prose) is handled correctly by taking the actual
+// maxCellWidth as the input rather than deriving from depth alone.
+func TestUniformTreeOverhead_BackRefWider(t *testing.T) {
+	t.Parallel()
+
+	// Given — a back-ref row at depth 1: 2 + 10 + len(" shown above under ") + 10 = 41
+	maxCellWidth := 41
+
+	// When
+	got := cmdutil.UniformTreeOverhead(maxCellWidth)
+
+	// Then — 41 + 29 = 70
+	if got != 70 {
+		t.Errorf("UniformTreeOverhead(%d) = %d, want 70", maxCellWidth, got)
+	}
+}
+
+// --- UniformIssueTreeOverhead ---
+
+// TestUniformIssueTreeOverhead_DepthZero verifies that a forest with only root issues
+// (maxDepth = 0) produces the same result as UniformTreeOverhead(10).
+func TestUniformIssueTreeOverhead_DepthZero(t *testing.T) {
+	t.Parallel()
+
+	// Given — pure-issue tree, max depth 0
+	maxDepth := 0
+
+	// When
+	got := cmdutil.UniformIssueTreeOverhead(maxDepth)
+
+	// Then — same as UniformTreeOverhead(10) = 39
+	if got != 39 {
+		t.Errorf("UniformIssueTreeOverhead(%d) = %d, want 39", maxDepth, got)
+	}
+}
+
+// TestUniformIssueTreeOverhead_DepthTwo verifies that depth-2 indentation (4 extra chars)
+// is accounted for correctly.
+func TestUniformIssueTreeOverhead_DepthTwo(t *testing.T) {
+	t.Parallel()
+
+	// Given — pure-issue tree, max depth 2
+	maxDepth := 2
+
+	// When
+	got := cmdutil.UniformIssueTreeOverhead(maxDepth)
+
+	// Then — UniformTreeOverhead(10 + 2*2) = UniformTreeOverhead(14) = 14+29 = 43
+	if got != 43 {
+		t.Errorf("UniformIssueTreeOverhead(%d) = %d, want 43", maxDepth, got)
+	}
+}
+
 // --- ConvertListItems: ParentCreatedAt ---
 
 func TestConvertListItems_WithParentCreatedAt_PopulatesField(t *testing.T) {

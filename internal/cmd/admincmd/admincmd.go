@@ -16,6 +16,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/backupcmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/completion"
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/doctor"
+	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/fix"
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/gc"
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/restorecmd"
 	"github.com/pinkhop/nitpicking/internal/cmd/admincmd/tally"
@@ -47,6 +48,7 @@ wipes all data after a two-step key verification.`,
 			backupcmd.NewCmd(f),
 			completion.NewCmd(f),
 			doctor.NewCmd(f),
+			fix.NewCmd(f),
 			gc.NewCmd(f),
 			newResetCmd(f),
 			restorecmd.NewCmd(f),

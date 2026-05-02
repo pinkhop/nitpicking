@@ -59,7 +59,7 @@ func renderAction(a *driving.ActionHint) string {
 	case driving.ActionKindExecSQL:
 		return "Delete the stray rows: " + a.SQL
 	case driving.ActionKindAddToGitignore:
-		return "Add .np/ to .gitignore"
+		return "Run 'np admin fix git-ignore' to add .np/ to .gitignore."
 	default:
 		return ""
 	}
@@ -401,7 +401,7 @@ func checkNpGitIgnored(cwd string, checker gitIgnoreChecker) []driving.DoctorFin
 	}
 
 	return []driving.DoctorFinding{{
-		Category: "gitignore",
+		Category: "git-ignore",
 		Severity: "warning",
 		Message:  "The .np/ directory is not ignored by git — it may be accidentally committed",
 		Action:   &driving.ActionHint{Kind: driving.ActionKindAddToGitignore},

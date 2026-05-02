@@ -232,6 +232,17 @@ np show <ID>       # full issue detail including readiness and relationships
 np issue history <ID> # audit trail of all changes
 ` + "```" + `
 
+## Automated Fixes
+
+` + "`np admin fix`" + ` applies automated remediations for conditions that ` + "`np admin doctor`" + ` detects. Every fix subcommand name matches the corresponding doctor check ` + "`category`" + ` slug. When a doctor finding's ` + "`category`" + ` matches an ` + "`np admin fix`" + ` subcommand, invoke that subcommand to apply the remediation:
+
+` + "```" + `
+np admin fix git-ignore                              # add .np/ to .gitignore
+np admin fix invalid-parent-reference --author <name>  # clear dangling parent references
+` + "```" + `
+
+Use ` + "`--dry-run`" + ` to preview any fix before applying it. Use ` + "`--json`" + ` for machine-readable output.
+
 ## JSON Agent API
 
 The ` + "`np json`" + ` command tree provides structured JSON input/output for all mutation operations. These commands read a JSON object from stdin and write JSON to stdout. Identity and context flags remain on the command line; the JSON object provides content fields only. All ` + "`json`" + ` subcommands output JSON unconditionally — there is no ` + "`--json`" + ` flag.

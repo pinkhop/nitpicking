@@ -38,12 +38,12 @@ func TestCheckNpGitIgnored_NotIgnored_ReturnsWarning(t *testing.T) {
 	// When
 	findings := checkNpGitIgnored("/some/dir", stub)
 
-	// Then — one warning finding about gitignore.
+	// Then — one warning finding about git-ignore.
 	if len(findings) != 1 {
 		t.Fatalf("expected 1 finding, got %d", len(findings))
 	}
-	if findings[0].Category != "gitignore" {
-		t.Errorf("category: got %q, want %q", findings[0].Category, "gitignore")
+	if findings[0].Category != "git-ignore" {
+		t.Errorf("category: got %q, want %q", findings[0].Category, "git-ignore")
 	}
 	if findings[0].Severity != "warning" {
 		t.Errorf("severity: got %q, want %q", findings[0].Severity, "warning")
@@ -261,9 +261,9 @@ func TestRenderAction_AllBranches(t *testing.T) {
 			want: "Delete the stray rows: DELETE FROM issues WHERE id = 99",
 		},
 		{
-			name: "ActionKindAddToGitignore returns gitignore instruction",
+			name: "ActionKindAddToGitignore returns fix command reference",
 			hint: &driving.ActionHint{Kind: driving.ActionKindAddToGitignore},
-			want: "Add .np/ to .gitignore",
+			want: "Run 'np admin fix git-ignore' to add .np/ to .gitignore.",
 		},
 		{
 			// Exercises the default branch; uses a sentinel string that cannot

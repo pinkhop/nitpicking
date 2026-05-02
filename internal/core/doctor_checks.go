@@ -77,9 +77,9 @@ var diagnosticChecks = []checkDefinition{
 		PassDetail: "Agent instruction files reference np",
 	},
 	{
-		Name:       "gitignore", // #nosec G101 -- not a credential; diagnostic check name
+		Name:       "git-ignore", // #nosec G101 -- not a credential; diagnostic check name
 		Severity:   driving.SeverityWarning,
-		Categories: []string{"gitignore"},
+		Categories: []string{"git-ignore"},
 		PassDetail: ".np/ directory is ignored by git",
 	},
 	// Info-level checks.

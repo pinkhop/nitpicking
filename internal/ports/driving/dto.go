@@ -874,6 +874,34 @@ type GraphDataOutput struct {
 	Relationships []RelationshipDTO
 }
 
+// RepairInvalidParentsInput carries the parameters for repairing dangling
+// parent references via the admin fix subcommand.
+type RepairInvalidParentsInput struct {
+	// Author is the name to record on audit comments for each repaired issue.
+	Author string
+	// DryRun, when true, identifies affected issues and returns them without
+	// performing any writes.
+	DryRun bool
+}
+
+// RepairedParentRecord describes a single issue whose dangling parent
+// reference was cleared (or would be cleared in dry-run mode).
+type RepairedParentRecord struct {
+	// IssueID is the string representation of the issue that was repaired.
+	IssueID string
+	// RemovedParentID is the string representation of the dangling parent
+	// that was removed from the issue.
+	RemovedParentID string
+}
+
+// RepairInvalidParentsOutput holds the result of a
+// RepairInvalidParentReferences operation.
+type RepairInvalidParentsOutput struct {
+	// Repaired lists each issue whose dangling parent reference was cleared.
+	// In dry-run mode this slice represents what would have been fixed.
+	Repaired []RepairedParentRecord
+}
+
 // GCInput holds the parameters for garbage collection.
 type GCInput struct {
 	IncludeClosed bool

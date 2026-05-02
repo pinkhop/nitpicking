@@ -124,6 +124,34 @@ Fix:
 - restore from backup if the database is damaged
 - use reset only when you really intend to wipe the database
 
+## Database Not in .gitignore
+
+Symptom:
+
+`np admin doctor` reports a `git-ignore` warning: ".np/ directory is not ignored by git".
+
+Fix:
+
+```bash
+$ np admin fix git-ignore
+```
+
+Use `--dry-run` to preview before applying. The fix is idempotent — re-running it is safe.
+
+## Invalid Parent References
+
+Symptom:
+
+`np admin doctor` reports an `invalid-parent-reference` finding, or issues behave unexpectedly because their parent issue no longer exists.
+
+Fix:
+
+```bash
+$ np admin fix invalid-parent-reference --author <name>
+```
+
+Use `--dry-run` to preview which issues would be affected before applying. Repaired issues become top-level issues; an audit comment is recorded on each one.
+
 ## Useful Diagnostics
 
 Doctor:

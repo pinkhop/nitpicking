@@ -1,0 +1,14 @@
+# admin fix invalid-parent-reference --dry-run --json produces the would_fix shape:
+# { "would_fix": [{"issue": "...", "missing_parent_id": "..."}], "count": 1 }
+# Keys differ from the non-dry-run shape to distinguish preview from mutation output.
+
+np-init DRYJ
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''DRYJ-aaaaa'', ''task'', ''Orphaned task'', ''open'', ''P2'', datetime(''now''), ''DRYJ-zzzzz'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''DRYJ-aaaaa'', ''Orphaned task'', '''', '''')'
+
+exec np admin fix invalid-parent-reference --author fix-agent --dry-run --json
+np-json-has count 1
+np-json-array-len would_fix 1
+stdout '"missing_parent_id"'
+stdout 'DRYJ-zzzzz'

@@ -1,0 +1,15 @@
+# admin fix invalid-parent-reference --dry-run previews without mutating the database.
+# Verified by re-running without --dry-run afterward and confirming it still
+# finds the same issue to fix (meaning no mutations occurred in the dry run).
+
+np-init DRYN
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''DRYN-aaaaa'', ''task'', ''Orphaned task'', ''open'', ''P2'', datetime(''now''), ''DRYN-zzzzz'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''DRYN-aaaaa'', ''Orphaned task'', '''', '''')'
+
+exec np admin fix invalid-parent-reference --author fix-agent --dry-run
+stdout 'Would clean DRYN-aaaaa'
+stdout 'Would fix 1 issue\.'
+
+exec np admin fix invalid-parent-reference --author fix-agent
+stdout '1 issue fixed\.'

@@ -1,0 +1,13 @@
+# admin fix invalid-parent-reference --json produces the spec JSON shape:
+# { "fixed": [{"issue": "...", "removed_parent_id": "..."}], "count": 1 }
+
+np-init FJSN
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''FJSN-aaaaa'', ''task'', ''Orphaned task'', ''open'', ''P2'', datetime(''now''), ''FJSN-zzzzz'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''FJSN-aaaaa'', ''Orphaned task'', '''', '''')'
+
+exec np admin fix invalid-parent-reference --author fix-agent --json
+np-json-has count 1
+np-json-array-len fixed 1
+stdout '"removed_parent_id"'
+stdout 'FJSN-zzzzz'

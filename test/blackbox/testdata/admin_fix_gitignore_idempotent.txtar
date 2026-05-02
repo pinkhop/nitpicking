@@ -1,0 +1,12 @@
+# admin fix git-ignore is idempotent: the second run reports already_ignored
+# without modifying the file again.
+
+mkdir .git
+np-init GITP
+
+exec np admin fix git-ignore
+stdout 'Created'
+
+exec np admin fix git-ignore
+stdout 'already ignored'
+! stdout 'Added'

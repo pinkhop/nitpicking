@@ -1,0 +1,10 @@
+# admin fix git-ignore creates a new .gitignore when only .git exists at the
+# repo root and no .gitignore is present anywhere in the walk path.
+
+mkdir .git
+np-init GCRT
+exec np admin fix git-ignore
+stdout 'Created'
+stdout '\.np/'
+exists .gitignore
+grep '\.np/' .gitignore

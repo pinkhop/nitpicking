@@ -172,16 +172,16 @@ func TestClassifyFindings_GitignoreFinding_FailsGitignoreCheck(t *testing.T) {
 
 	// Given — a gitignore finding.
 	findings := []driving.DoctorFinding{
-		{Category: "gitignore", Severity: "warning", Message: ".np/ not in gitignore"},
+		{Category: "git-ignore", Severity: "warning", Message: ".np/ not in gitignore"},
 	}
 
 	// When
 	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
 
 	// Then
-	c := checkByName(checks, "gitignore")
+	c := checkByName(checks, "git-ignore")
 	if c == nil {
-		t.Fatal("expected 'gitignore' check")
+		t.Fatal("expected 'git-ignore' check")
 	}
 	if c.Status != "fail" {
 		t.Errorf("expected status 'fail', got %q", c.Status)

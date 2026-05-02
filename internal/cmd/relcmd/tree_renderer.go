@@ -88,9 +88,9 @@ func RenderTreeText(ios *iostreams.IOStreams, nodes []TreeNode) error {
 			indent := strings.Repeat("  ", node.Depth)
 			var label string
 			if node.BackRefParentID != "" {
-				label = fmt.Sprintf("%s↑ %s shown above under %s", indent, node.IssueID, node.BackRefParentID)
+				label = fmt.Sprintf("%s%s shown above under %s", indent, node.IssueID, node.BackRefParentID)
 			} else {
-				label = fmt.Sprintf("%s↑ %s shown above", indent, node.IssueID)
+				label = fmt.Sprintf("%s%s shown above", indent, node.IssueID)
 			}
 			tw.AddRow(label, "", "", "", "")
 		}

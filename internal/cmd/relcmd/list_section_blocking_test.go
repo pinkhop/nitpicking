@@ -562,3 +562,42 @@ func TestRenderBlockingSection_RunList_DispatchedCorrectly(t *testing.T) {
 		t.Errorf("expected blocking section in output; got:\n%s", out.String())
 	}
 }
+
+// TestRenderBlockingSection_TriangleGraph_BackRefHasNoUpArrow verifies that
+// the triangle pattern (A→B, A→C, B→C) renders back-reference rows without
+// the "↑ " prefix. The arrow was confusing because it implied the row was
+// positioned at depth, whereas the plain-English "shown above under X" suffix
+// already conveys the redirect.
+func TestRenderBlockingSection_TriangleGraph_BackRefHasNoUpArrow(t *testing.T) {
+	t.Parallel()
+
+	// Given: A→B, A→C, B→C (triangle: A directly blocks B and C; B also blocks C).
+	svc := setupService(t)
+	a := createTask(t, svc, "A (root)")
+	b := createTask(t, svc, "B")
+	c := createTask(t, svc, "C (shared)")
+	addBlockedBy(t, svc, b.String(), a.String(), "test-agent") // B blocked_by A
+	addBlockedBy(t, svc, c.String(), a.String(), "test-agent") // C blocked_by A
+	addBlockedBy(t, svc, c.String(), b.String(), "test-agent") // C blocked_by B
+
+	// When: rendering the blocking section.
+	output := renderBlocking(t, svc, false)
+
+	// Then: C's ID appears exactly twice — once as the full row, once as a back-ref.
+	if count := strings.Count(output, c.String()); count != 2 {
+		t.Errorf("C %q should appear exactly 2 times (full + back-ref); got %d; output:\n%s",
+			c.String(), count, output)
+	}
+	// Then: the back-ref row names the parent where C was first rendered.
+	// C is a direct child of A, and A's other child B also blocks C, so C is
+	// rendered in full under A first and the back-ref appears under B.
+	// The back-ref reads "<C-id> shown above under <A-id>" (not under B).
+	backRef := c.String() + " shown above under " + a.String()
+	if !strings.Contains(output, backRef) {
+		t.Errorf("expected back-ref %q; output:\n%s", backRef, output)
+	}
+	// Then: no up-arrow prefix on any line.
+	if strings.Contains(output, "↑") {
+		t.Errorf("unexpected '↑' prefix in output; output:\n%s", output)
+	}
+}

@@ -5,4 +5,4 @@ np-init HDRT
 np-seed task 'Column header task' alice TASK_A
 
 exec np list --columns ID,PRIORITY,ROLE,STATE,CREATED,TITLE
-stdout '^ID\s+PRIORITY\s+ROLE\s+STATE\s+CREATED\s+TITLE'
+stdout '^ID\s+P\s+ROLE\s+STATE\s+CREATED\s+TITLE'

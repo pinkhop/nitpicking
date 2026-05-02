@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/memory"
 	"github.com/pinkhop/nitpicking/internal/cmd/list"
 	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/core"
 	"github.com/pinkhop/nitpicking/internal/domain"
+	"github.com/pinkhop/nitpicking/internal/iostreams"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
@@ -589,11 +591,18 @@ func TestRun_TextOutput_Header_PrintsDefaultColumnHeaders(t *testing.T) {
 	}
 	output := buf.String()
 	firstLine := strings.SplitN(output, "\n", 2)[0]
-	expectedHeaders := []string{"ID", "PRIORITY", "ROLE", "STATE", "TITLE"}
-	for _, hdr := range expectedHeaders {
-		if !strings.Contains(firstLine, hdr) {
-			t.Errorf("expected header row to contain %q, first line: %q", hdr, firstLine)
+	headerFields := strings.Fields(firstLine)
+	headerSet := make(map[string]bool, len(headerFields))
+	for _, f := range headerFields {
+		headerSet[f] = true
+	}
+	for _, hdr := range []string{"ID", "P", "ROLE", "STATE", "TITLE"} {
+		if !headerSet[hdr] {
+			t.Errorf("expected header row field %q, first line: %q", hdr, firstLine)
 		}
+	}
+	if headerSet["PRIORITY"] {
+		t.Errorf("PRIORITY header must be shortened to P, first line: %q", firstLine)
 	}
 }
 
@@ -671,9 +680,11 @@ func TestRun_TextOutput_CustomColumns_ShowsOnlySelectedColumns(t *testing.T) {
 	if !strings.Contains(firstLine, "STATE") {
 		t.Errorf("expected STATE in header, first line: %q", firstLine)
 	}
-	// PRIORITY should not appear since it was not selected.
-	if strings.Contains(firstLine, "PRIORITY") {
-		t.Errorf("PRIORITY should not appear in custom column set, first line: %q", firstLine)
+	// P (PRIORITY) should not appear since it was not selected.
+	for _, field := range strings.Fields(firstLine) {
+		if field == "P" {
+			t.Errorf("P (PRIORITY) should not appear in custom column set, first line: %q", firstLine)
+		}
 	}
 }
 
@@ -702,9 +713,14 @@ func TestRun_TextOutput_CustomColumns_EmptyColumns_UsesDefaults(t *testing.T) {
 	output := buf.String()
 	firstLine := strings.SplitN(output, "\n", 2)[0]
 	// All default headers must appear.
-	for _, hdr := range []string{"ID", "PRIORITY", "ROLE", "STATE", "TITLE"} {
-		if !strings.Contains(firstLine, hdr) {
-			t.Errorf("expected default header %q, first line: %q", hdr, firstLine)
+	headerFields := strings.Fields(firstLine)
+	headerSet := make(map[string]bool, len(headerFields))
+	for _, f := range headerFields {
+		headerSet[f] = true
+	}
+	for _, hdr := range []string{"ID", "P", "ROLE", "STATE", "TITLE"} {
+		if !headerSet[hdr] {
+			t.Errorf("expected default header field %q, first line: %q", hdr, firstLine)
 		}
 	}
 }
@@ -804,5 +820,82 @@ func TestRun_OrderByID_SortsByIDAscending(t *testing.T) {
 		if !found {
 			t.Errorf("expected issue %s in results", id)
 		}
+	}
+}
+
+// TestRun_TextOutput_PriorityHeaderWidth_TitleFitsWithinTerminalWidth is a
+// regression test for the PRIORITY header width bug. The old "PRIORITY" header
+// (8 chars) caused TableWriter to pad the column to 10 chars (8+2 padding) while
+// OverheadForColumns estimated only 4 chars (2 for "P2" + 2 padding), creating a
+// 6-char shortfall that caused titles to overflow the terminal width. The fix
+// shortens the header to "P" so the column is 4 chars wide, matching the estimate.
+//
+// The test uses ANSI-enabled colors so the STATE column carries escape codes,
+// exercising the full path where StripANSI is required for correct width
+// measurement. TableWriter already uses visibleLen (which calls StripANSI)
+// internally, so ANSI codes do not corrupt column alignment.
+func TestRun_TextOutput_PriorityHeaderWidth_TitleFitsWithinTerminalWidth(t *testing.T) {
+	t.Parallel()
+
+	// Given — a claimed task with a title longer than maxTitle so truncation
+	// must occur. State will be "open (claimed)" (14 visible chars), the
+	// worst-case STATE width, colored with ANSI escape codes.
+	svc := setupService(t)
+	longTitle := strings.Repeat("x", 80)
+	issueID := createTask(t, svc, longTitle)
+	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
+		IssueID: issueID.String(),
+		Author:  mustAuthor(t, "test-agent"),
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim failed: %v", err)
+	}
+
+	const termWidth = 90
+	cs := iostreams.NewColorScheme(true) // ANSI enabled — STATE column gets escape codes
+
+	var buf bytes.Buffer
+	input := list.RunInput{
+		Service:       svc,
+		JSON:          false,
+		WriteTo:       &buf,
+		TerminalWidth: termWidth,
+		ColorScheme:   cs,
+	}
+
+	// When
+	if err := list.Run(t.Context(), input); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	issueIDStr := issueID.String()
+
+	// Then — every non-blank line, measured after stripping ANSI escape codes,
+	// must fit within the terminal width.
+	for _, line := range strings.Split(output, "\n") {
+		if line == "" {
+			continue
+		}
+		visible := utf8.RuneCountInString(cmdutil.StripANSI(line))
+		if visible > termWidth {
+			t.Errorf("output line exceeds terminal width %d (visible len %d):\n%q", termWidth, visible, line)
+		}
+	}
+
+	// The title must be truncated with an ellipsis on the same line as the
+	// issue ID — not pushed to a second line due to overflow.
+	var dataLine string
+	for _, line := range strings.Split(output, "\n") {
+		if strings.Contains(cmdutil.StripANSI(line), issueIDStr) {
+			dataLine = line
+			break
+		}
+	}
+	if dataLine == "" {
+		t.Fatalf("could not find data line containing issue ID %s in output:\n%s", issueIDStr, output)
+	}
+	if !strings.Contains(dataLine, "…") {
+		t.Errorf("expected title to be truncated with ellipsis on same line as issue ID; data line:\n%q", dataLine)
 	}
 }

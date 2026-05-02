@@ -290,7 +290,7 @@ Commands that list issues (` + "`np list`" + `, ` + "`np ready`" + `, ` + "`np b
 
 ### Default columns
 
-The default column set is: **ID, PRIORITY, ROLE, STATE, TITLE**. These are the columns shown when no ` + "`--columns`" + ` flag is provided.
+The default column set is: **ID, PRIORITY, ROLE, STATE, TITLE**. These are the columns shown when no ` + "`--columns`" + ` flag is provided. In text output, the PRIORITY column header is abbreviated to **P** to save space; data values are P0–P4.
 
 ### Selecting columns with --columns
 

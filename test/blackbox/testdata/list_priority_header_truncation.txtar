@@ -1,0 +1,12 @@
+# Regression: PRIORITY column header must be "P", not "PRIORITY".
+# The full "PRIORITY" header (8 chars) inflated the column to 10 chars
+# (8+2 padding) while OverheadForColumns estimated only 4 chars (2 for "P2"
+# data + 2 padding), causing title overflow beyond the terminal boundary.
+# The fix shortens the header to "P" so estimated and actual overhead agree.
+
+np-init PRIH
+np-seed task 'Priority header regression task' alice TASK
+
+exec np list
+stdout '^ID\s+P\s+ROLE\s+STATE\s+TITLE'
+! stdout 'PRIORITY'

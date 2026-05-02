@@ -4,4 +4,4 @@ np-init RHDR
 np-seed task 'Ready header task' alice TASK_A
 
 exec np ready
-stdout '^ID\s+PRIORITY\s+ROLE\s+STATE\s+TITLE'
+stdout '^ID\s+P\s+ROLE\s+STATE\s+TITLE'

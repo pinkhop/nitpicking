@@ -1,0 +1,19 @@
+# git-ignore check: a git repository whose .gitignore does not include .np/
+# produces a warning. The .git/config file is embedded to make the work
+# directory look like a git repo root; the .gitignore omits .np/. Exits 1.
+
+np-init GITG
+
+! exec np admin doctor
+stdout 'Git ignore'
+stdout '.np/ directory is not ignored by git'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.
+-- .git/config --
+[core]
+	repositoryformatversion = 0
+	filemode = true
+-- .gitignore --
+node_modules/
+*.log

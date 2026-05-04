@@ -1,0 +1,24 @@
+# --severity error: when only warnings are present (no errors), applying
+# --severity error hides the warning findings from output but the exit code
+# remains 1 (the unfiltered results still have warnings). The trailing summary
+# must include "0 findings at or above severity error."
+#
+# Exit-code specificity: ! exec proves non-zero (not 2) because the summary
+# line "0 findings at or above severity error" is only emitted when errCount==0,
+# which is the exact condition that produces exit 1 (not exit 2). Asserting
+# that summary line is equivalent to asserting exit 1.
+
+np-init SEVR
+np-seed epic 'Parent epic' sevr-agent PARENT
+np-seed task 'Completed child' sevr-agent CHILD --parent $PARENT
+
+exec np claim $CHILD --author sevr-agent --json
+np-capture CHILD_CLAIM claim_id
+exec np close --claim $CHILD_CLAIM --reason 'test: make parent closable to trigger warning' --json
+
+! exec np admin doctor --severity error
+! stdout 'Closable parent issues'
+stdout '0 findings at or above severity error'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

@@ -1,0 +1,26 @@
+# blocker-cycles check: JSON output for a 3-issue cycle plus a self-loop.
+# Two cycles detected. The warnings array contains the finding with cycle arrays.
+# Exits 1.
+
+np-init BKCJ
+np-seed task 'Cycle node A' bkcj-agent A
+np-seed task 'Cycle node B' bkcj-agent B
+np-seed task 'Cycle node C' bkcj-agent C
+
+np-seed-rel A blocked_by B bkcj-agent
+np-seed-rel B blocked_by C bkcj-agent
+np-seed-rel C blocked_by A bkcj-agent
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''BKCJ-sssss'', ''task'', ''Self-looping task'', ''open'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''BKCJ-sssss'', ''Self-looping task'', '''', '''')'
+np-seed-sql 'INSERT INTO relationships (source_id, target_id, rel_type) VALUES (''BKCJ-sssss'', ''BKCJ-sssss'', ''blocked_by'')'
+
+! exec np admin doctor --json
+np-json-array-len errors 0
+np-json-array-len warnings 1
+stdout '"blocker-cycles"'
+stdout '"cycle"'
+stdout 'BKCJ-sssss'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

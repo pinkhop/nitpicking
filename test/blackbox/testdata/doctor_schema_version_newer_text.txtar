@@ -1,0 +1,19 @@
+# schema-version check (newer DB): setting the schema_version metadata to a
+# value higher than the binary's version triggers SkipsAll — all remaining
+# checks (including Environment) are skipped. Only dot-np-directory,
+# database-exists, storage-integrity, and schema-version run (4 of 16).
+# Exits 2.
+
+np-init SVNEW
+
+np-seed-sql 'UPDATE metadata SET value = ''99'' WHERE key = ''schema_version'''
+
+! exec np admin doctor
+stdout 'Schema version'
+stdout 'schema is at v99'
+stdout 'upgrade the np binary'
+stdout '4 of 16 checks ran'
+stdout '12 checks skipped \(cascade prerequisite failed\)'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

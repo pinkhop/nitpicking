@@ -1,0 +1,19 @@
+# closable-parent-issues check: an epic whose only child is closed can be
+# closed via np epic close-completed, triggering a warning. Exits 1.
+# Affected IDs appear only in verbose; default shows summary. Escape "(s)".
+
+np-init CLPA
+np-seed epic 'Closable epic' clpa-agent EPIC
+np-seed task 'Completed child' clpa-agent CHILD --parent $EPIC
+
+exec np claim $CHILD --author clpa-agent --json
+np-capture CHILD_CLAIM claim_id
+exec np close --claim $CHILD_CLAIM --reason 'test: complete the child' --json
+
+! exec np admin doctor
+stdout 'Closable parent issues'
+stdout '1 issue\(s\) eligible for close-completed'
+stdout 'np epic close-completed'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

@@ -12,6 +12,11 @@ import (
 // when the caller does not specify a limit.
 const DefaultLimit = 20
 
+// CurrentSchemaVersion is the database schema version that this binary
+// expects. The doctor's schema-version check compares the stored version
+// against this constant; the SQLite adapter writes it on initialisation.
+const CurrentSchemaVersion = 3
+
 // NormalizeLimit applies the default limit when the caller passes zero.
 // A zero limit is treated as "use the default", not "unlimited". To request
 // all results without truncation, pass a negative limit.
@@ -393,6 +398,20 @@ type DatabaseRepository interface {
 	// Returns the number of deleted issues removed and, when
 	// includeClosedIssues is true, the number of closed issues removed.
 	GC(ctx context.Context, includeClosedIssues bool) (deletedCount int, closedCount int, err error)
+
+	// ForeignKeyCheck runs PRAGMA foreign_key_check and returns the count of
+	// referential-integrity violations. Zero means the database is
+	// consistent; a positive count means one or more rows reference
+	// non-existent parent rows. Used by the storage-integrity doctor check.
+	ForeignKeyCheck(ctx context.Context) (int, error)
+
+	// ValidateColumnData checks all typed columns for parse errors:
+	// timestamp columns must hold values parseable by SQLite's datetime()
+	// function, state and priority enum columns must hold only their allowed
+	// values, and JSON-typed columns must hold well-formed JSON. Returns the
+	// total count of malformed values across all checked columns. Zero means
+	// all columns are clean. Used by the column-data-validity doctor check.
+	ValidateColumnData(ctx context.Context) (int, error)
 
 	// IntegrityCheck runs database-level integrity validation (e.g. SQLite
 	// PRAGMA integrity_check). Returns nil if the database is healthy.

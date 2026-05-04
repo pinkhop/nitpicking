@@ -1,441 +1,548 @@
 package core
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/pinkhop/nitpicking/internal/ports/driven"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
-// --- classifyFindings tests ---
+// --- Helpers ---
 
-func TestClassifyFindings_NoFindings_AllPass(t *testing.T) {
-	t.Parallel()
+// findingStubRun returns a Run function that emits a single finding with the
+// given summary. The orchestrator classifies the finding as error or warning
+// based on the registry entry's Severity, not on the stub itself — so this
+// helper is shared by both error-severity and warning-severity test scenarios.
+func findingStubRun(summary string) func(context.Context, *serviceImpl, driving.DoctorInput) (*doctorRunResult, error) {
+	return func(_ context.Context, _ *serviceImpl, _ driving.DoctorInput) (*doctorRunResult, error) {
+		return &doctorRunResult{Summary: summary}, nil
+	}
+}
 
-	// Given — no findings at all.
-	var findings []driving.DoctorFinding
+// newerDBStubRun returns a Run function that emits a schema-version finding
+// with a doctorSchemaNewerDBMarker, triggering the SkipsAll path.
+func newerDBStubRun() func(context.Context, *serviceImpl, driving.DoctorInput) (*doctorRunResult, error) {
+	return func(_ context.Context, _ *serviceImpl, _ driving.DoctorInput) (*doctorRunResult, error) {
+		return &doctorRunResult{
+			Summary:  "database version is newer than the binary version",
+			Affected: []any{doctorSchemaNewerDBMarker{}},
+		}, nil
+	}
+}
 
-	// When
-	checks, filtered, healthy := classifyFindings(findings, driving.SeverityInfo)
+// olderDBStubRun returns a Run function that emits a schema-version finding
+// WITHOUT a newer-DB marker, simulating the older-database case.
+func olderDBStubRun() func(context.Context, *serviceImpl, driving.DoctorInput) (*doctorRunResult, error) {
+	return func(_ context.Context, _ *serviceImpl, _ driving.DoctorInput) (*doctorRunResult, error) {
+		return &doctorRunResult{
+			Summary:  "database version is older than the binary version — run np admin upgrade",
+			Affected: nil,
+		}, nil
+	}
+}
 
-	// Then — every check should pass and output is healthy.
-	for _, c := range checks {
-		if c.Status != "pass" {
-			t.Errorf("check %q: expected status 'pass', got %q", c.Name, c.Status)
+// overrideRun returns a copy of the registry with the entry matching slug
+// having its Run replaced. Panics if slug is not found.
+func overrideRun(
+	registry []doctorCheckEntry,
+	slug string,
+	run func(context.Context, *serviceImpl, driving.DoctorInput) (*doctorRunResult, error),
+) []doctorCheckEntry {
+	result := make([]doctorCheckEntry, len(registry))
+	copy(result, registry)
+	for i, e := range result {
+		if e.Slug == slug {
+			result[i].Run = run
+			return result
 		}
 	}
-	if len(checks) == 0 {
-		t.Error("expected at least one check")
-	}
-	if len(filtered) != 0 {
-		t.Errorf("filtered findings: got %d, want 0", len(filtered))
-	}
-	if !healthy {
-		t.Error("expected healthy to be true")
-	}
+	panic("overrideRun: slug not found: " + slug)
 }
 
-func TestClassifyFindings_SchemaMigrationRequired_FailsSchemaMigrationCheck(t *testing.T) {
+// newTestSvc returns a serviceImpl with a nil transactor. Safe for doctor
+// tests because all stub Run functions and test-injected Run functions return
+// results without accessing svc.tx.
+func newTestSvc() *serviceImpl {
+	return &serviceImpl{tx: nil}
+}
+
+// doctorTestInput returns a DoctorInput pre-populated with a temporary
+// workspace that satisfies the real dot-np-directory, database-exists,
+// agent-instructions, and git-ignore check implementations. Tests that override
+// intermediate checks still need the pre-checks to pass so they can exercise
+// their target cascade trigger.
+func doctorTestInput(t *testing.T) driving.DoctorInput {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, ".np"), 0o750); err != nil {
+		t.Fatalf("precondition: create .np directory: %v", err)
+	}
+	dbPath := filepath.Join(dir, ".np", "nitpicking.db")
+	if err := os.WriteFile(dbPath, []byte("SQLite format 3\x00"), 0o600); err != nil {
+		t.Fatalf("precondition: create fake db file: %v", err)
+	}
+	// Provide a minimal git environment so git-ignore passes without relying on
+	// the project's own .git and .gitignore.
+	if err := os.Mkdir(filepath.Join(dir, ".git"), 0o750); err != nil {
+		t.Fatalf("precondition: create .git directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".np/\n"), 0o600); err != nil {
+		t.Fatalf("precondition: create .gitignore: %v", err)
+	}
+	// Provide a CLAUDE.md so agent-instructions passes.
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("Use np to track issues.\n"), 0o600); err != nil {
+		t.Fatalf("precondition: create CLAUDE.md: %v", err)
+	}
+	return driving.DoctorInput{WorkDir: dir, DBPath: dbPath}
+}
+
+// passedSlugs extracts the check slugs from a Passed list.
+func passedSlugs(passed []driving.DoctorPassedCheck) []string {
+	slugs := make([]string, len(passed))
+	for i, p := range passed {
+		slugs[i] = p.Check
+	}
+	return slugs
+}
+
+// skippedSlugs extracts the check slugs from a Skipped list.
+func skippedSlugs(skipped []driving.DoctorSkippedCheck) []string {
+	slugs := make([]string, len(skipped))
+	for i, s := range skipped {
+		slugs[i] = s.Check
+	}
+	return slugs
+}
+
+// errorSlugs extracts the check slugs from an Errors list.
+func errorSlugs(errors []driving.DoctorFinding) []string {
+	slugs := make([]string, len(errors))
+	for i, e := range errors {
+		slugs[i] = e.Check
+	}
+	return slugs
+}
+
+// --- Display order ---
+
+func TestDoctorDisplayOrder_ReturnsSpecMandated16Slugs(t *testing.T) {
 	t.Parallel()
 
-	// Given — a schema_migration_required finding, produced when the database
-	// is still at v1 schema and has not been upgraded.
-	findings := []driving.DoctorFinding{
-		{Category: "schema_migration_required", Severity: "error", Message: "Database is at v1 schema; run 'np admin upgrade'"},
-	}
+	// Given — the canonical display-order helper.
 
 	// When
-	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
+	order := doctorDisplayOrder()
 
-	// Then — the schema_migration_required check should fail.
-	c := checkByName(checks, "schema_migration_required")
-	if c == nil {
-		t.Fatal("expected 'schema_migration_required' check")
+	// Then — exactly the 16 spec-mandated slugs in the specified order.
+	want := []string{
+		// Database: cascade-five (prerequisite order, NOT alphabetical).
+		"dot-np-directory",
+		"database-exists",
+		"storage-integrity",
+		"schema-version",
+		"column-data-validity",
+		// Database: remaining (alphabetical by title).
+		"closed-parent-with-open-child",
+		"invalid-parent-reference",
+		// Environment (alphabetical by title).
+		"agent-instructions",
+		"git-ignore",
+		// Graph health (alphabetical by title).
+		"blocked-by-ancestor",
+		"blocked-by-closable-issue",
+		"blocked-by-deferred-issue",
+		"blocker-cycles",
+		"priority-inversions",
+		// Issue lifecycle (alphabetical by title).
+		"closable-parent-issues",
+		"long-deferrals",
 	}
-	if c.Status != "fail" {
-		t.Errorf("expected status 'fail', got %q", c.Status)
+	if !slices.Equal(order, want) {
+		t.Errorf("display order mismatch\ngot:  %v\nwant: %v", order, want)
 	}
 }
 
-func TestClassifyFindings_BlockerCycle_FailsBlockerHealthCheck(t *testing.T) {
+func TestDoctorDisplayOrder_DatabaseCascadeFiveFirst(t *testing.T) {
 	t.Parallel()
 
-	// Given — a blocker_cycle finding.
-	findings := []driving.DoctorFinding{
-		{Category: "blocker_cycle", Severity: "error", Message: "Cycle detected"},
-	}
+	// Given — the canonical display-order helper.
 
 	// When
-	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
+	order := doctorDisplayOrder()
 
-	// Then — the blocker_health check should fail.
-	c := checkByName(checks, "blocker_health")
-	if c == nil {
-		t.Fatal("expected 'blocker_health' check")
+	// Then — the first five slugs are the cascade prerequisites in order.
+	cascadeFive := []string{
+		"dot-np-directory",
+		"database-exists",
+		"storage-integrity",
+		"schema-version",
+		"column-data-validity",
 	}
-	if c.Status != "fail" {
-		t.Errorf("expected status 'fail', got %q", c.Status)
+	if len(order) < 5 {
+		t.Fatalf("display order has %d entries, need at least 5", len(order))
 	}
-}
-
-func TestClassifyFindings_BlockerDeferred_FailsBlockerHealthCheck(t *testing.T) {
-	t.Parallel()
-
-	// Given — a blocker_deferred finding.
-	findings := []driving.DoctorFinding{
-		{Category: "blocker_deferred", Severity: "error", Message: "Deferred and blocking"},
-	}
-
-	// When
-	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
-
-	// Then
-	c := checkByName(checks, "blocker_health")
-	if c == nil {
-		t.Fatal("expected 'blocker_health' check")
-	}
-	if c.Status != "fail" {
-		t.Errorf("expected status 'fail', got %q", c.Status)
-	}
-}
-
-func TestClassifyFindings_BlockerDeleted_FailsBlockerHealthCheck(t *testing.T) {
-	t.Parallel()
-
-	// Given — a blocker_deleted finding.
-	findings := []driving.DoctorFinding{
-		{Category: "blocker_deleted", Severity: "error", Message: "Blocked by deleted issue"},
-	}
-
-	// When
-	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
-
-	// Then
-	c := checkByName(checks, "blocker_health")
-	if c == nil {
-		t.Fatal("expected 'blocker_health' check")
-	}
-	if c.Status != "fail" {
-		t.Errorf("expected status 'fail', got %q", c.Status)
-	}
-}
-
-func TestClassifyFindings_InstructionsFinding_FailsInstructionsCheck(t *testing.T) {
-	t.Parallel()
-
-	// Given — an instructions finding.
-	findings := []driving.DoctorFinding{
-		{Category: "instructions", Severity: "warning", Message: "No instruction files"},
-	}
-
-	// When
-	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
-
-	// Then
-	c := checkByName(checks, "instructions")
-	if c == nil {
-		t.Fatal("expected 'instructions' check")
-	}
-	if c.Status != "fail" {
-		t.Errorf("expected status 'fail', got %q", c.Status)
-	}
-}
-
-func TestClassifyFindings_MultipleFindings_CorrectStatuses(t *testing.T) {
-	t.Parallel()
-
-	// Given — findings for schema migration and instructions, but not blocker health.
-	findings := []driving.DoctorFinding{
-		{Category: "schema_migration_required", Severity: "error", Message: "Database is at v1 schema"},
-		{Category: "instructions", Severity: "warning", Message: "No instruction files"},
-	}
-
-	// When
-	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
-
-	// Then — schema_migration_required and instructions fail; blocker_health passes.
-	schemaMigration := checkByName(checks, "schema_migration_required")
-	if schemaMigration == nil || schemaMigration.Status != "fail" {
-		t.Error("expected schema_migration_required to fail")
-	}
-	blockerHealth := checkByName(checks, "blocker_health")
-	if blockerHealth == nil || blockerHealth.Status != "pass" {
-		t.Error("expected blocker_health to pass")
-	}
-	instructions := checkByName(checks, "instructions")
-	if instructions == nil || instructions.Status != "fail" {
-		t.Error("expected instructions to fail")
-	}
-}
-
-func TestClassifyFindings_GitignoreFinding_FailsGitignoreCheck(t *testing.T) {
-	t.Parallel()
-
-	// Given — a gitignore finding.
-	findings := []driving.DoctorFinding{
-		{Category: "git-ignore", Severity: "warning", Message: ".np/ not in gitignore"},
-	}
-
-	// When
-	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
-
-	// Then
-	c := checkByName(checks, "git-ignore")
-	if c == nil {
-		t.Fatal("expected 'git-ignore' check")
-	}
-	if c.Status != "fail" {
-		t.Errorf("expected status 'fail', got %q", c.Status)
-	}
-}
-
-// --- Severity threshold tests ---
-
-func TestClassifyFindings_ErrorThreshold_SkipsWarningChecks(t *testing.T) {
-	t.Parallel()
-
-	// Given — a warning-level finding.
-	findings := []driving.DoctorFinding{
-		{Category: "instructions", Severity: "warning", Message: "No instruction files"},
-	}
-
-	// When — threshold is error, so warning checks should be skipped.
-	checks, filtered, healthy := classifyFindings(findings, driving.SeverityError)
-
-	// Then — warning-level checks should be skipped; error-level should pass.
-	instructions := checkByName(checks, "instructions")
-	if instructions == nil || instructions.Status != "skipped" {
-		t.Error("expected instructions to be skipped")
-	}
-	blockerHealth := checkByName(checks, "blocker_health")
-	if blockerHealth == nil || blockerHealth.Status != "pass" {
-		t.Error("expected blocker_health to pass (error-level, no findings)")
-	}
-	if len(filtered) != 0 {
-		t.Errorf("filtered findings should be empty when check is skipped, got %d", len(filtered))
-	}
-	if !healthy {
-		t.Error("expected healthy when all active checks pass")
-	}
-}
-
-func TestClassifyFindings_WarningThreshold_SkipsInfoButKeepsWarningAndError(t *testing.T) {
-	t.Parallel()
-
-	// Given — a warning-level finding.
-	findings := []driving.DoctorFinding{
-		{Category: "instructions", Severity: "warning", Message: "No instruction files"},
-	}
-
-	// When — threshold is warning.
-	checks, _, _ := classifyFindings(findings, driving.SeverityWarning)
-
-	// Then — warning-level checks should run; instructions should fail.
-	c := checkByName(checks, "instructions")
-	if c == nil {
-		t.Fatal("expected 'instructions' check")
-	}
-	if c.Status != "fail" {
-		t.Errorf("expected status 'fail', got %q", c.Status)
-	}
-}
-
-func TestClassifyFindings_ChecksOrderedBySeverity(t *testing.T) {
-	t.Parallel()
-
-	// Given — no findings.
-	var findings []driving.DoctorFinding
-
-	// When
-	checks, _, _ := classifyFindings(findings, driving.SeverityInfo)
-
-	// Then — error-level checks should come before warning-level checks.
-	if len(checks) < 2 {
-		t.Fatalf("expected at least 2 checks, got %d", len(checks))
-	}
-	if checks[0].Name != "storage_integrity" {
-		t.Errorf("first check should be 'storage_integrity' (error), got %q", checks[0].Name)
-	}
-}
-
-func TestClassifyFindings_FilterExcludesSkippedCheckCategories(t *testing.T) {
-	t.Parallel()
-
-	// Given — findings for warning-level checks.
-	findings := []driving.DoctorFinding{
-		{Category: "instructions", Severity: "warning", Message: "No instructions"},
-		{Category: "close_completed", Severity: "warning", Message: "Epic ready to close"},
-	}
-
-	// When — threshold is error, so warning categories should be excluded.
-	_, filtered, _ := classifyFindings(findings, driving.SeverityError)
-
-	// Then — only error-level check categories should pass; no warning findings.
-	if len(filtered) != 0 {
-		t.Errorf("filtered count: got %d, want 0", len(filtered))
-	}
-}
-
-func TestClassifyFindings_FilterIncludesActiveCheckCategories(t *testing.T) {
-	t.Parallel()
-
-	// Given — findings for warning-level checks.
-	findings := []driving.DoctorFinding{
-		{Category: "instructions", Severity: "warning", Message: "No instructions"},
-	}
-
-	// When — threshold is info (all checks active).
-	_, filtered, _ := classifyFindings(findings, driving.SeverityInfo)
-
-	// Then — the finding should be included.
-	if len(filtered) != 1 {
-		t.Errorf("filtered count: got %d, want 1", len(filtered))
-	}
-}
-
-func TestClassifyFindings_FilterIncludesErrorFindings(t *testing.T) {
-	t.Parallel()
-
-	// Given — findings for error and warning-level checks.
-	findings := []driving.DoctorFinding{
-		{Category: "blocker_cycle", Severity: "error", Message: "Cycle detected"},
-		{Category: "instructions", Severity: "warning", Message: "No instructions"},
-	}
-
-	// When — threshold is error.
-	_, filtered, _ := classifyFindings(findings, driving.SeverityError)
-
-	// Then — only error-level findings pass.
-	if len(filtered) != 1 {
-		t.Errorf("filtered count: got %d, want 1", len(filtered))
-	}
-	if filtered[0].Category != "blocker_cycle" {
-		t.Errorf("expected blocker_cycle, got %q", filtered[0].Category)
-	}
-}
-
-// --- CountSkippedChecks tests ---
-
-func TestCountSkippedChecks_ReturnsCorrectCount(t *testing.T) {
-	t.Parallel()
-
-	// Given — a mix of passed, failed, and skipped checks.
-	checks := []driving.DoctorCheckResult{
-		{Name: "a", Status: "pass"},
-		{Name: "b", Status: "skipped"},
-		{Name: "c", Status: "fail"},
-		{Name: "d", Status: "skipped"},
-	}
-
-	// When
-	count := CountSkippedChecks(checks)
-
-	// Then
-	if count != 2 {
-		t.Errorf("skipped count: got %d, want 2", count)
-	}
-}
-
-// --- driving.ParseDoctorSeverity tests ---
-
-func TestParseDoctorSeverity_ValidValues(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name  string
-		input string
-		want  driving.DoctorSeverity
-	}{
-		{name: "error", input: "error", want: driving.SeverityError},
-		{name: "warning", input: "warning", want: driving.SeverityWarning},
-		{name: "info", input: "info", want: driving.SeverityInfo},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// When
-			got, err := driving.ParseDoctorSeverity(tc.input)
-			// Then
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got != tc.want {
-				t.Errorf("driving.ParseDoctorSeverity(%q): got %v, want %v", tc.input, got, tc.want)
-			}
-		})
-	}
-}
-
-func TestParseDoctorSeverity_InvalidValue_ReturnsError(t *testing.T) {
-	t.Parallel()
-
-	// When
-	_, err := driving.ParseDoctorSeverity("critical")
-
-	// Then
-	if err == nil {
-		t.Fatal("expected error for invalid severity value")
-	}
-}
-
-func TestDoctorSeverityString_ReturnsLabel(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		severity driving.DoctorSeverity
-		want     string
-	}{
-		{severity: driving.SeverityError, want: "error"},
-		{severity: driving.SeverityWarning, want: "warning"},
-		{severity: driving.SeverityInfo, want: "info"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.want, func(t *testing.T) {
-			t.Parallel()
-
-			// When
-			got := tc.severity.String()
-			// Then
-			if got != tc.want {
-				t.Errorf("String(): got %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-// TestDiagnosticChecks_OverdueDeferralsNotRegistered verifies that the
-// overdue_deferrals check is not in the registry. The defer-until feature that
-// would have emitted overdue_deferral findings was removed; the stale check
-// definition causes admin doctor to report a permanently-passing check for a
-// feature that no longer exists.
-func TestDiagnosticChecks_OverdueDeferralsNotRegistered(t *testing.T) {
-	t.Parallel()
-
-	// Given — the diagnosticChecks registry.
-	// When — we scan it for the overdue_deferrals check.
-	var found bool
-	for _, def := range diagnosticChecks {
-		if def.Name == "overdue_deferrals" {
-			found = true
-			break
+	for i, want := range cascadeFive {
+		if order[i] != want {
+			t.Errorf("position %d: got %q, want %q", i, order[i], want)
 		}
 	}
+}
 
-	// Then — overdue_deferrals must not be registered; the feature that produced
-	// overdue_deferral findings no longer exists, so the check is permanently vacuous.
-	if found {
-		t.Error("diagnosticChecks must not contain 'overdue_deferrals': the defer-until feature was removed and no code emits 'overdue_deferral' findings")
+// --- All checks pass on a healthy workspace ---
+
+func TestDoctorChecks_AllChecksPass_AllSixteenPassed(t *testing.T) {
+	t.Parallel()
+
+	// Given — all 16 Run functions return nil against a minimal healthy workspace.
+	svc := newSvcWithDB(t, &checkFakeDBRepo{schemaVersion: driven.CurrentSchemaVersion})
+	registry := doctorRegistry()
+	input := doctorTestInput(t)
+
+	// When
+	out, err := runDoctorChecks(t.Context(), svc, registry, input)
+	// Then — zero errors/warnings/skipped, 16 passed.
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	if len(out.Errors) != 0 {
+		t.Errorf("errors: got %d, want 0: %v", len(out.Errors), errorSlugs(out.Errors))
+	}
+	if len(out.Warnings) != 0 {
+		t.Errorf("warnings: got %d, want 0", len(out.Warnings))
+	}
+	if len(out.Skipped) != 0 {
+		t.Errorf("skipped: got %d, want 0: %v", len(out.Skipped), skippedSlugs(out.Skipped))
+	}
+	if got := len(out.Passed); got != 16 {
+		t.Errorf("passed: got %d, want 16: %v", got, passedSlugs(out.Passed))
 	}
 }
 
-// checkByName returns the driving.DoctorCheckResult with the given name, or nil.
-func checkByName(checks []driving.DoctorCheckResult, name string) *driving.DoctorCheckResult {
-	for i := range checks {
-		if checks[i].Name == name {
-			return &checks[i]
+func TestDoctorChecks_AllChecksPass_PassedInDisplayOrder(t *testing.T) {
+	t.Parallel()
+
+	// Given — all Run functions return nil on a minimal healthy workspace.
+	svc := newSvcWithDB(t, &checkFakeDBRepo{schemaVersion: driven.CurrentSchemaVersion})
+	registry := doctorRegistry()
+	input := doctorTestInput(t)
+
+	// When
+	out, err := runDoctorChecks(t.Context(), svc, registry, input)
+	// Then — Passed list follows the canonical display order.
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	displayOrder := doctorDisplayOrder()
+	gotSlugs := passedSlugs(out.Passed)
+	if !slices.Equal(gotSlugs, displayOrder) {
+		t.Errorf("passed order mismatch\ngot:  %v\nwant: %v", gotSlugs, displayOrder)
+	}
+}
+
+// --- Cascade trigger 1: dot-np-directory ---
+
+func TestDoctorChecks_DotNpDirectoryFails_SkipsAllDbGraphLifecycle(t *testing.T) {
+	t.Parallel()
+
+	// Given — dot-np-directory returns an error finding.
+	svc := newTestSvc()
+	registry := overrideRun(doctorRegistry(), "dot-np-directory", findingStubRun("forced error"))
+	input := doctorTestInput(t)
+
+	// When
+	out, err := runDoctorChecks(t.Context(), svc, registry, input)
+	// Then — 13 checks skipped, 2 environment checks pass, 1 error.
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	if got := len(out.Errors); got != 1 {
+		t.Errorf("errors: got %d, want 1: %v", got, errorSlugs(out.Errors))
+	}
+	if out.Errors[0].Check != "dot-np-directory" {
+		t.Errorf("error check: got %q, want %q", out.Errors[0].Check, "dot-np-directory")
+	}
+	wantPassed := []string{"agent-instructions", "git-ignore"}
+	gotPassed := passedSlugs(out.Passed)
+	if !slices.Equal(gotPassed, wantPassed) {
+		t.Errorf("passed: got %v, want %v", gotPassed, wantPassed)
+	}
+	wantSkippedCount := 13
+	if got := len(out.Skipped); got != wantSkippedCount {
+		t.Errorf("skipped: got %d, want %d: %v", got, wantSkippedCount, skippedSlugs(out.Skipped))
+	}
+}
+
+func TestDoctorChecks_DotNpDirectoryFails_SkippedEntriesHaveCorrectPrereq(t *testing.T) {
+	t.Parallel()
+
+	// Given — dot-np-directory returns an error finding.
+	svc := newTestSvc()
+	registry := overrideRun(doctorRegistry(), "dot-np-directory", findingStubRun("forced error"))
+	input := doctorTestInput(t)
+
+	// When
+	out, err := runDoctorChecks(t.Context(), svc, registry, input)
+	// Then — every Skipped entry has Prerequisite = "dot-np-directory".
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	for _, s := range out.Skipped {
+		if s.Prerequisite != "dot-np-directory" {
+			t.Errorf("skipped %q: Prerequisite = %q, want %q", s.Check, s.Prerequisite, "dot-np-directory")
 		}
 	}
-	return nil
+}
+
+// --- Cascade trigger 2: database-exists ---
+
+func TestDoctorChecks_DatabaseExistsFails_SkipsRemainingDbGraphLifecycle(t *testing.T) {
+	t.Parallel()
+
+	// Given — database-exists returns an error finding.
+	svc := newTestSvc()
+	registry := overrideRun(doctorRegistry(), "database-exists", findingStubRun("forced error"))
+	input := doctorTestInput(t)
+
+	// When
+	out, err := runDoctorChecks(t.Context(), svc, registry, input)
+	// Then — 12 checks skipped; dot-np-directory + 2 environment checks pass.
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	if got := len(out.Errors); got != 1 {
+		t.Errorf("errors: got %d, want 1: %v", got, errorSlugs(out.Errors))
+	}
+	if out.Errors[0].Check != "database-exists" {
+		t.Errorf("error check: got %q, want %q", out.Errors[0].Check, "database-exists")
+	}
+	wantPassed := []string{"dot-np-directory", "agent-instructions", "git-ignore"}
+	gotPassed := passedSlugs(out.Passed)
+	if !slices.Equal(gotPassed, wantPassed) {
+		t.Errorf("passed: got %v, want %v", gotPassed, wantPassed)
+	}
+	if got := len(out.Skipped); got != 12 {
+		t.Errorf("skipped: got %d, want 12: %v", got, skippedSlugs(out.Skipped))
+	}
+	for _, s := range out.Skipped {
+		if s.Prerequisite != "database-exists" {
+			t.Errorf("skipped %q: Prerequisite = %q, want %q", s.Check, s.Prerequisite, "database-exists")
+		}
+	}
+}
+
+// --- Cascade trigger 3: storage-integrity ---
+
+func TestDoctorChecks_StorageIntegrityFails_SkipsRemainingDbGraphLifecycle(t *testing.T) {
+	t.Parallel()
+
+	// Given — storage-integrity returns an error finding; earlier checks pass
+	// on the minimal healthy workspace.
+	svc := newSvcWithDB(t, &checkFakeDBRepo{schemaVersion: driven.CurrentSchemaVersion})
+	registry := overrideRun(doctorRegistry(), "storage-integrity", findingStubRun("forced error"))
+	input := doctorTestInput(t)
+
+	// When
+	out, err := runDoctorChecks(t.Context(), svc, registry, input)
+	// Then — 11 checks skipped; dot-np-directory, database-exists, environment pass.
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	if got := len(out.Errors); got != 1 {
+		t.Errorf("errors: got %d, want 1", got)
+	}
+	if out.Errors[0].Check != "storage-integrity" {
+		t.Errorf("error check: got %q, want %q", out.Errors[0].Check, "storage-integrity")
+	}
+	wantPassed := []string{"dot-np-directory", "database-exists", "agent-instructions", "git-ignore"}
+	if !slices.Equal(passedSlugs(out.Passed), wantPassed) {
+		t.Errorf("passed: got %v, want %v", passedSlugs(out.Passed), wantPassed)
+	}
+	if got := len(out.Skipped); got != 11 {
+		t.Errorf("skipped: got %d, want 11: %v", got, skippedSlugs(out.Skipped))
+	}
+	for _, s := range out.Skipped {
+		if s.Prerequisite != "storage-integrity" {
+			t.Errorf("skipped %q: Prerequisite = %q, want %q", s.Check, s.Prerequisite, "storage-integrity")
+		}
+	}
+}
+
+// --- Cascade trigger 4a: schema-version (newer DB — skips everything) ---
+
+func TestDoctorChecks_SchemaVersionNewerDB_SkipsAllRemainingIncludingEnvironment(t *testing.T) {
+	t.Parallel()
+
+	// Given — schema-version returns a newer-DB finding (SkipsAll applies);
+	// earlier checks pass on the minimal healthy workspace.
+	svc := newSvcWithDB(t, &checkFakeDBRepo{schemaVersion: driven.CurrentSchemaVersion})
+	registry := overrideRun(doctorRegistry(), "schema-version", newerDBStubRun())
+	input := doctorTestInput(t)
+
+	// When
+	out, err := runDoctorChecks(t.Context(), svc, registry, input)
+	// Then — 12 checks skipped (everything after schema-version, including environment).
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	if got := len(out.Errors); got != 1 {
+		t.Errorf("errors: got %d, want 1", got)
+	}
+	if out.Errors[0].Check != "schema-version" {
+		t.Errorf("error check: got %q, want %q", out.Errors[0].Check, "schema-version")
+	}
+	// Only the 3 checks that ran before schema-version should be in Passed.
+	wantPassed := []string{"dot-np-directory", "database-exists", "storage-integrity"}
+	if !slices.Equal(passedSlugs(out.Passed), wantPassed) {
+		t.Errorf("passed: got %v, want %v", passedSlugs(out.Passed), wantPassed)
+	}
+	if got := len(out.Skipped); got != 12 {
+		t.Errorf("skipped: got %d, want 12: %v", got, skippedSlugs(out.Skipped))
+	}
+	for _, s := range out.Skipped {
+		if s.Prerequisite != "schema-version" {
+			t.Errorf("skipped %q: Prerequisite = %q, want %q", s.Check, s.Prerequisite, "schema-version")
+		}
+	}
+}
+
+// --- Cascade trigger 4b: schema-version (older DB — skips nothing) ---
+
+// TestDoctorChecks_SchemaVersionOlderDB_SkipsNothing verifies the spec's
+// asymmetry: an older-DB error skips nothing outright. All other 15 checks
+// still run and pass against the healthy fake database.
+func TestDoctorChecks_SchemaVersionOlderDB_SkipsNothing(t *testing.T) {
+	t.Parallel()
+
+	// Given — schema-version returns an older-DB error; earlier checks pass on
+	// the minimal healthy workspace; remaining stubs return nil.
+	svc := newSvcWithDB(t, &checkFakeDBRepo{schemaVersion: driven.CurrentSchemaVersion})
+	registry := overrideRun(doctorRegistry(), "schema-version", olderDBStubRun())
+	input := doctorTestInput(t)
+
+	// When
+	out, err := runDoctorChecks(t.Context(), svc, registry, input)
+	// Then — schema-version emits an error but all other 15 checks still pass.
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	if got := len(out.Errors); got != 1 {
+		t.Errorf("errors: got %d, want 1: %v", got, errorSlugs(out.Errors))
+	}
+	if out.Errors[0].Check != "schema-version" {
+		t.Errorf("error check: got %q, want %q", out.Errors[0].Check, "schema-version")
+	}
+	if got := len(out.Skipped); got != 0 {
+		t.Errorf("skipped: got %d, want 0: %v", got, skippedSlugs(out.Skipped))
+	}
+	if got := len(out.Passed); got != 15 {
+		t.Errorf("passed: got %d, want 15: %v", got, passedSlugs(out.Passed))
+	}
+}
+
+// --- Cascade trigger 5: column-data-validity ---
+
+func TestDoctorChecks_ColumnDataValidityFails_SkipsRemainingDbGraphLifecycle(t *testing.T) {
+	t.Parallel()
+
+	// Given — column-data-validity returns an error finding; earlier checks
+	// pass on the minimal healthy workspace.
+	svc := newSvcWithDB(t, &checkFakeDBRepo{schemaVersion: driven.CurrentSchemaVersion})
+	registry := overrideRun(doctorRegistry(), "column-data-validity", findingStubRun("forced error"))
+	input := doctorTestInput(t)
+
+	// When
+	out, err := runDoctorChecks(t.Context(), svc, registry, input)
+	// Then — 9 checks skipped; database + schema-version + environment pass.
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	if got := len(out.Errors); got != 1 {
+		t.Errorf("errors: got %d, want 1", got)
+	}
+	if out.Errors[0].Check != "column-data-validity" {
+		t.Errorf("error check: got %q, want %q", out.Errors[0].Check, "column-data-validity")
+	}
+	wantPassed := []string{
+		"dot-np-directory", "database-exists", "storage-integrity", "schema-version",
+		"agent-instructions", "git-ignore",
+	}
+	if !slices.Equal(passedSlugs(out.Passed), wantPassed) {
+		t.Errorf("passed: got %v, want %v", passedSlugs(out.Passed), wantPassed)
+	}
+	if got := len(out.Skipped); got != 9 {
+		t.Errorf("skipped: got %d, want 9: %v", got, skippedSlugs(out.Skipped))
+	}
+	for _, s := range out.Skipped {
+		if s.Prerequisite != "column-data-validity" {
+			t.Errorf("skipped %q: Prerequisite = %q, want %q", s.Check, s.Prerequisite, "column-data-validity")
+		}
+	}
+}
+
+// --- MinSeverity filtering ---
+
+// TestDoctorChecks_MinSeverityError_WarningStillInWarnings verifies that
+// MinSeverity filtering never affects Errors/Warnings population; findings
+// are always fully populated and filtering is left to the CLI renderer.
+func TestDoctorChecks_MinSeverityError_WarningFindingPreservedInWarnings(t *testing.T) {
+	t.Parallel()
+
+	// Given — a warning-severity check (agent-instructions) returns a finding;
+	// the cascade prereqs pass on the minimal healthy workspace.
+	svc := newSvcWithDB(t, &checkFakeDBRepo{schemaVersion: driven.CurrentSchemaVersion})
+	registry := overrideRun(doctorRegistry(), "agent-instructions", findingStubRun("no instruction file found"))
+	baseInput := doctorTestInput(t)
+
+	// When — MinSeverity = error (would filter warnings in the CLI).
+	baseInput.MinSeverity = driving.SeverityError
+	out, err := runDoctorChecks(t.Context(), svc, registry, baseInput)
+	// Then — warning finding is still in Warnings; check is not in Passed.
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	if got := len(out.Warnings); got != 1 {
+		t.Errorf("warnings: got %d, want 1", got)
+	}
+	if len(out.Warnings) > 0 && out.Warnings[0].Check != "agent-instructions" {
+		t.Errorf("warning check: got %q, want %q", out.Warnings[0].Check, "agent-instructions")
+	}
+	for _, p := range out.Passed {
+		if p.Check == "agent-instructions" {
+			t.Errorf("agent-instructions appeared in Passed but it had a warning finding")
+		}
+	}
+}
+
+// TestDoctorChecks_MinSeverityWarning_ErrorFindingPreservedInErrors verifies
+// that an error-severity finding is always in Errors regardless of MinSeverity.
+func TestDoctorChecks_MinSeverityWarning_ErrorFindingPreservedInErrors(t *testing.T) {
+	t.Parallel()
+
+	// Given — dot-np-directory (error severity) returns a finding.
+	svc := newTestSvc()
+	registry := overrideRun(doctorRegistry(), "dot-np-directory", findingStubRun("forced error"))
+	input := doctorTestInput(t)
+	input.MinSeverity = driving.SeverityWarning
+
+	// When — MinSeverity = warning (same as default; should not affect results).
+	out, err := runDoctorChecks(t.Context(), svc, registry, input)
+	// Then — error finding is in Errors; check is not in Passed.
+	if err != nil {
+		t.Fatalf("runDoctorChecks: %v", err)
+	}
+	if got := len(out.Errors); got != 1 {
+		t.Errorf("errors: got %d, want 1", got)
+	}
+	if len(out.Errors) > 0 && out.Errors[0].Check != "dot-np-directory" {
+		t.Errorf("error check: got %q, want %q", out.Errors[0].Check, "dot-np-directory")
+	}
+	for _, p := range out.Passed {
+		if p.Check == "dot-np-directory" {
+			t.Errorf("dot-np-directory appeared in Passed but it had an error finding")
+		}
+	}
 }

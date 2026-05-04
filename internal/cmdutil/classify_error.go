@@ -22,6 +22,19 @@ import (
 // Uses Go 1.26's errors.AsType for type-safe, generic error classification —
 // no need for a target variable declaration before the call.
 func ClassifyError(stderr io.Writer, err error, signalCancelIsError bool) ExitCode {
+	// ExitCodeError carries a caller-chosen exit code and has already written
+	// its output, so no message is printed here. Checked before ErrSilent
+	// so commands can signal codes other than 1.
+	//
+	// Note: np admin doctor uses exit code 2 for "errors present", which
+	// shares the numeric value with ExitNotFound (2). The two codes have
+	// different semantics and are returned by different paths — doctor via
+	// ExitCodeError, not-found via domain.ErrNotFound — so there is no
+	// ambiguity at the call site, but the collision is worth noting.
+	if ece, ok := errors.AsType[*ExitCodeError](err); ok {
+		return ece.Code
+	}
+
 	switch {
 	case errors.Is(err, ErrSilent):
 		// Error message already printed by the command.

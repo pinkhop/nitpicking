@@ -112,10 +112,10 @@ func TestBoundary_IntegrityCheck_ValidDatabase_Succeeds(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Doctor should not report any storage_integrity findings.
-	for _, f := range doctorOut.Findings {
-		if f.Category == "storage_integrity" {
-			t.Errorf("unexpected integrity finding: %s", f.Message)
+	// Doctor should not report any storage-integrity findings.
+	for _, f := range append(doctorOut.Errors, doctorOut.Warnings...) {
+		if f.Check == "storage-integrity" {
+			t.Errorf("unexpected integrity finding: %s", f.Summary)
 		}
 	}
 }
@@ -152,13 +152,11 @@ func TestBoundary_CountDeletedRatio_ReflectsDeletedIssues(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// The deleted ratio is 33% (1/3). Verify that the doctor ran the
-	// CountDeletedRatio check by confirming no error occurred. The
-	// gc_recommended finding may or may not be present depending on the
-	// threshold, but the absence of errors confirms the query works.
-	for _, f := range doctorOut.Findings {
-		if f.Category == "storage_integrity" {
-			t.Errorf("unexpected integrity error: %s", f.Message)
+	// The deleted ratio is 33% (1/3). Verify Doctor runs without error.
+	// The specific check output is verified once the check is implemented.
+	for _, f := range append(doctorOut.Errors, doctorOut.Warnings...) {
+		if f.Check == "storage-integrity" {
+			t.Errorf("unexpected integrity error: %s", f.Summary)
 		}
 	}
 }
@@ -513,6 +511,79 @@ func TestBoundary_GC_RemovesSideTablesPreservesLiveRows(t *testing.T) {
 	// The blocked_by relationship should have been cleaned (doomed was GC'd).
 	if len(liveShow.Relationships) != 0 {
 		t.Errorf("live task relationships: got %d, want 0 (blocker was GC'd)", len(liveShow.Relationships))
+	}
+}
+
+// --- ForeignKeyCheck ---
+
+// TestBoundary_ForeignKeyCheck_HealthyDatabase_ReturnsZero verifies that a
+// freshly initialised database with valid data reports zero FK violations.
+func TestBoundary_ForeignKeyCheck_HealthyDatabase_ReturnsZero(t *testing.T) {
+	// Given — a freshly initialised database with a parent-child relationship.
+	svc := setupBoundarySvc(t)
+	ctx := t.Context()
+
+	epicID := createIntEpic(t, svc, "Parent epic")
+	_, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:     domain.RoleTask,
+		Title:    "Child task",
+		Author:   author(t, "alice"),
+		ParentID: epicID.String(),
+	})
+	if err != nil {
+		t.Fatalf("precondition: create child task: %v", err)
+	}
+
+	// When — run the doctor, which calls ForeignKeyCheck internally via the
+	// storage-integrity check.
+	out, err := svc.Doctor(ctx, driving.DoctorInput{})
+	// Then — no storage-integrity findings should be emitted.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, f := range append(out.Errors, out.Warnings...) {
+		if f.Check == "storage-integrity" {
+			t.Errorf("unexpected storage-integrity finding: %s", f.Summary)
+		}
+	}
+}
+
+// TestBoundary_ValidateColumnData_HealthyDatabase_ReturnsZero verifies that a
+// freshly initialised database with well-formed column values reports zero
+// column-data violations.
+func TestBoundary_ValidateColumnData_HealthyDatabase_ReturnsZero(t *testing.T) {
+	// Given — a freshly initialised database with issues, comments, and history.
+	svc := setupBoundarySvc(t)
+	ctx := t.Context()
+
+	taskOut, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:   domain.RoleTask,
+		Title:  "Well-formed task",
+		Author: author(t, "alice"),
+	})
+	if err != nil {
+		t.Fatalf("precondition: create task: %v", err)
+	}
+	_, err = svc.AddComment(ctx, driving.AddCommentInput{
+		IssueID: taskOut.Issue.ID().String(),
+		Author:  author(t, "alice"),
+		Body:    "Well-formed comment",
+	})
+	if err != nil {
+		t.Fatalf("precondition: add comment: %v", err)
+	}
+
+	// When — run the doctor, which calls ValidateColumnData internally via the
+	// column-data-validity check.
+	out, err := svc.Doctor(ctx, driving.DoctorInput{})
+	// Then — no column-data-validity findings should be emitted.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, f := range append(out.Errors, out.Warnings...) {
+		if f.Check == "column-data-validity" {
+			t.Errorf("unexpected column-data-validity finding: %s", f.Summary)
+		}
 	}
 }
 

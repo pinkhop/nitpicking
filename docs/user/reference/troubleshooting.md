@@ -77,7 +77,6 @@ An issue is still claimed but the claimer is gone.
 Check:
 
 ```bash
-$ np admin doctor
 $ np show <ISSUE-ID> --json | jq '.claim_stale_at'
 ```
 
@@ -154,11 +153,14 @@ Use `--dry-run` to preview which issues would be affected before applying. Repai
 
 ## Useful Diagnostics
 
-Doctor:
+Doctor — runs 16 checks across four categories (database, environment, graph health, issue lifecycle):
 
 ```bash
 $ np admin doctor --verbose
+$ np admin doctor --json --verbose
 ```
+
+Exit codes: `0` = all passed, `1` = warnings present, `2` = errors present. See [Command Reference](command-reference.md#admin-doctor) for the full flag reference and JSON output shape.
 
 Relationship graph:
 

@@ -10,3 +10,6 @@ np-capture CLAIM claim_id
 # Doctor text output must not contain the claim ID.
 exec np admin doctor
 ! stdout $CLAIM@R
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

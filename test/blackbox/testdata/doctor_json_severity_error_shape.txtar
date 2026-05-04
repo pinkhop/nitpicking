@@ -6,9 +6,13 @@ np-seed task 'Healthy task' doctor-audit TASK
 
 exec np admin doctor --severity error --json
 
-# Top-level shape.
-! np-json-no-field healthy
-! np-json-no-field findings
+# Top-level shape: errors and warnings always present.
+! np-json-no-field errors
+! np-json-no-field warnings
+
+# Old shape fields must not leak.
+np-json-no-field healthy
+np-json-no-field findings
 
 # No is_deleted field leaks.
 np-json-no-field is_deleted
@@ -17,3 +21,6 @@ np-json-no-field is_deleted
 ! stdout '"Category"'
 ! stdout '"Severity"'
 ! stdout '"Message"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

@@ -149,9 +149,9 @@ func (u *connUnitOfWork) Database() driven.DatabaseRepository          { return 
 type dbRepo struct{ conn *sqlite.Conn }
 
 // currentSchemaVersion is the schema version written to the metadata table when
-// a new database is initialised. Existing databases without a schema_version
-// key are treated as v1 and must be upgraded with 'np admin upgrade'.
-const currentSchemaVersion = 3
+// a new database is initialised. Its value must equal driven.CurrentSchemaVersion;
+// the driven port constant is the single source of truth for the core layer.
+const currentSchemaVersion = driven.CurrentSchemaVersion
 
 func (r *dbRepo) InitDatabase(_ context.Context, prefix string) error {
 	// Insert the prefix.
@@ -567,6 +567,64 @@ func (r *dbRepo) IntegrityCheck(_ context.Context) error {
 		return fmt.Errorf("integrity check failed: %s", result)
 	}
 	return nil
+}
+
+// ForeignKeyCheck runs PRAGMA foreign_key_check and returns the count of
+// referential-integrity violations found in the database. Zero indicates a
+// consistent database; a positive count means at least one row references a
+// non-existent parent row. Called by the storage-integrity doctor check.
+func (r *dbRepo) ForeignKeyCheck(_ context.Context) (int, error) {
+	var count int
+	err := sqlitex.Execute(r.conn, `PRAGMA foreign_key_check`, &sqlitex.ExecOptions{
+		ResultFunc: func(_ *sqlite.Stmt) error {
+			count++
+			return nil
+		},
+	})
+	if err != nil {
+		return 0, &domain.DatabaseError{Op: "foreign key check", Err: err}
+	}
+	return count, nil
+}
+
+// ValidateColumnData counts malformed values in all typed columns. It checks
+// timestamp columns (issues.created_at, comments.created_at,
+// claims.last_activity, history.timestamp) for values parseable by SQLite's
+// datetime() function, issues.state and issues.priority for their allowed enum
+// values, and history.changes for well-formed JSON. Returns the total count of
+// violations across all checked columns. Used by the column-data-validity
+// doctor check.
+func (r *dbRepo) ValidateColumnData(_ context.Context) (int, error) {
+	const query = `
+SELECT COALESCE(SUM(cnt), 0) FROM (
+  -- Timestamp columns: SQLite's datetime() returns NULL for invalid formats.
+  SELECT COUNT(*) AS cnt FROM issues    WHERE datetime(created_at)    IS NULL
+  UNION ALL
+  SELECT COUNT(*) FROM comments         WHERE datetime(created_at)    IS NULL
+  UNION ALL
+  SELECT COUNT(*) FROM claims           WHERE datetime(last_activity)  IS NULL
+  UNION ALL
+  SELECT COUNT(*) FROM history          WHERE datetime(timestamp)      IS NULL
+  -- Enum columns: state and priority must be one of the allowed values.
+  UNION ALL
+  SELECT COUNT(*) FROM issues WHERE state    NOT IN ('open','closed','deferred')
+  UNION ALL
+  SELECT COUNT(*) FROM issues WHERE priority NOT IN ('P0','P1','P2','P3','P4')
+  -- JSON columns: history.changes must be a well-formed JSON value.
+  UNION ALL
+  SELECT COUNT(*) FROM history WHERE NOT json_valid(changes)
+)`
+	var total int
+	err := sqlitex.Execute(r.conn, query, &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			total = stmt.ColumnInt(0)
+			return nil
+		},
+	})
+	if err != nil {
+		return 0, &domain.DatabaseError{Op: "validate column data", Err: err}
+	}
+	return total, nil
 }
 
 func (r *dbRepo) CountDeletedRatio(_ context.Context) (total, deleted int, err error) {

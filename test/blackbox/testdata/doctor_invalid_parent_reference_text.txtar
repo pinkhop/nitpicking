@@ -1,0 +1,19 @@
+# invalid-parent-reference check: a soft-deleted parent triggers the finding
+# without causing FK violations in PRAGMA foreign_key_check (the parent row
+# still exists, just marked deleted=1). Exits 2. Affected IDs only appear in
+# verbose mode; default mode shows the summary. "(s)" in summary needs escaping.
+
+np-init INVP
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''INVP-ppppp'', ''task'', ''Parent'', ''open'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''INVP-ppppp'', ''Parent'', '''', '''')'
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''INVP-ccccc'', ''task'', ''Orphaned child'', ''open'', ''P2'', datetime(''now''), ''INVP-ppppp'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''INVP-ccccc'', ''Orphaned child'', '''', '''')'
+np-seed-sql 'UPDATE issues SET deleted = 1 WHERE issue_id = ''INVP-ppppp'''
+
+! exec np admin doctor
+stdout 'Invalid parent reference'
+stdout '1 issue\(s\) reference a parent that does not exist'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

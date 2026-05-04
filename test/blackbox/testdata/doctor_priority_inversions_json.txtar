@@ -1,0 +1,19 @@
+# priority-inversions check: JSON output for a priority inversion. The
+# warnings array contains the finding with child_priority and parent_priority
+# in the affected rows. Exits 1.
+
+np-init PRIJ
+np-seed epic 'Low-priority parent' prij-agent PARENT --priority P3
+np-seed task 'High-priority child' prij-agent CHILD --parent $PARENT --priority P0
+
+! exec np admin doctor --json
+np-json-array-len errors 0
+np-json-array-len warnings 1
+stdout '"priority-inversions"'
+stdout '"child_priority"'
+stdout '"P0"'
+stdout '"parent_priority"'
+stdout '"P3"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

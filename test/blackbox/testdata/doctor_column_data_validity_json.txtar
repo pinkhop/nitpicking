@@ -1,0 +1,15 @@
+# column-data-validity check: JSON output with a malformed timestamp. Exits 2.
+
+np-init CDVJ
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''CDVJ-aaaaa'', ''task'', ''Bad timestamp issue'', ''open'', ''P2'', ''not-a-valid-date'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''CDVJ-aaaaa'', ''Bad timestamp issue'', '''', '''')'
+
+! exec np admin doctor --json
+np-json-array-len errors 1
+np-json-array-len warnings 0
+stdout '"column-data-validity"'
+stdout 'malformed value'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

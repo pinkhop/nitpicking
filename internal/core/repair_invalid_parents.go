@@ -38,7 +38,7 @@ func (s *serviceImpl) RepairInvalidParentReferences(ctx context.Context, input d
 	if input.DryRun {
 		// Scan only — no writes. A read transaction is sufficient.
 		err := s.tx.WithReadTransaction(ctx, func(uow driven.UnitOfWork) error {
-			affected, err := scanDanglingParents(ctx, uow)
+			affected, err := scanInvalidParentReferences(ctx, uow)
 			if err != nil {
 				return err
 			}
@@ -56,7 +56,7 @@ func (s *serviceImpl) RepairInvalidParentReferences(ctx context.Context, input d
 	// Scan and repair within a single transaction so that a failure on any
 	// individual repair rolls back the entire batch.
 	err = s.tx.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
-		affected, scanErr := scanDanglingParents(ctx, uow)
+		affected, scanErr := scanInvalidParentReferences(ctx, uow)
 		if scanErr != nil {
 			return scanErr
 		}
@@ -84,15 +84,18 @@ type danglingParentRef struct {
 	parentID domain.ID
 }
 
-// scanDanglingParents lists all non-deleted issues and returns those whose
-// parent_id refers to a missing or soft-deleted parent.
+// scanInvalidParentReferences lists all non-deleted issues and returns those
+// whose parent_id refers to a missing or soft-deleted parent. It is the
+// shared scan helper used by both the invalid-parent-reference doctor check
+// and RepairInvalidParentReferences — both callers call this function to
+// avoid duplicating the detection logic.
 //
 // ListIssues with no state filter returns open, closed, and deferred issues
 // (all non-deleted). There is no repository method that filters by "has any
 // parent", so this is an O(N) in-memory scan over all issues. For an admin
 // repair operation invoked manually this cost is acceptable and avoids adding
 // a new driven-port method solely for this scan.
-func scanDanglingParents(ctx context.Context, uow driven.UnitOfWork) ([]danglingParentRef, error) {
+func scanInvalidParentReferences(ctx context.Context, uow driven.UnitOfWork) ([]danglingParentRef, error) {
 	items, _, err := uow.Issues().ListIssues(ctx, driven.IssueFilter{}, driven.OrderByID, driven.SortAscending, -1)
 	if err != nil {
 		return nil, fmt.Errorf("listing issues: %w", err)

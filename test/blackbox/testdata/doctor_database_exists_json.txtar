@@ -1,0 +1,14 @@
+# database-exists check: JSON output after truncating the database file.
+# The errors array contains the database-exists finding; exits 2.
+
+np-init DBEXJ
+
+exec sh -c 'cp /dev/null $WORK/.np/nitpicking.db'
+
+! exec np admin doctor --json
+np-json-array-len errors 1
+np-json-array-len warnings 0
+stdout '"database-exists"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

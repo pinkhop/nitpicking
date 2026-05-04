@@ -1,0 +1,16 @@
+# blocked-by-ancestor check: when a child task is blocked_by its own parent
+# (or any ancestor), a warning fires. Exits 1. Affected IDs appear only in
+# verbose mode; default mode shows only the summary. Escape "(s)".
+
+np-init BBAT
+np-seed epic 'Parent epic' bbat-agent PARENT
+np-seed task 'Child task' bbat-agent CHILD --parent $PARENT
+
+np-seed-rel CHILD blocked_by PARENT bbat-agent
+
+! exec np admin doctor
+stdout 'Blocked by ancestor'
+stdout '1 issue\(s\) blocked by an ancestor'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

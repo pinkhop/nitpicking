@@ -1,0 +1,16 @@
+# database-exists check: truncating the SQLite file to zero bytes triggers an
+# error and cascades 12 downstream checks. dot-np-directory passes; agent-
+# instructions passes; git-ignore is NotApplicable. Exits 2.
+
+np-init DBEX
+
+exec sh -c 'cp /dev/null $WORK/.np/nitpicking.db'
+
+! exec np admin doctor
+stdout 'Database exists'
+stdout 'zero bytes'
+stdout 'of 16 checks ran'
+stdout 'checks skipped \(cascade prerequisite failed\)'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

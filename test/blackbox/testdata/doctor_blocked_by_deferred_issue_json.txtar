@@ -1,0 +1,20 @@
+# blocked-by-deferred-issue check: JSON output. Uses "np issue defer". Exits 1.
+
+np-init BBDJ
+np-seed task 'Deferred blocker' bbdj-agent BLOCKER
+np-seed task 'Blocked task' bbdj-agent BLOCKED
+
+np-seed-rel BLOCKED blocked_by BLOCKER bbdj-agent
+
+exec np claim $BLOCKER --author bbdj-agent --json
+np-capture BLOCKER_CLAIM claim_id
+exec np issue defer --claim $BLOCKER_CLAIM --json
+
+! exec np admin doctor --json
+np-json-array-len errors 0
+np-json-array-len warnings 1
+stdout '"blocked-by-deferred-issue"'
+stdout '"blocker"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

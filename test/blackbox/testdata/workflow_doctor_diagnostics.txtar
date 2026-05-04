@@ -6,3 +6,6 @@ np-seed task 'Healthy task A' doctor-agent TASKA
 np-seed task 'Healthy task B' doctor-agent TASKB
 
 exec np admin doctor --json
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

@@ -377,6 +377,46 @@ func TestRestoreLabelRaw_ReturnsNil(t *testing.T) {
 	}
 }
 
+// --- ForeignKeyCheck ---
+
+func TestForeignKeyCheck_ReturnsZero(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — in-memory store always has referential integrity.
+
+	// When
+	count, err := repo.ForeignKeyCheck(ctx)
+	// Then
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected 0 FK violations, got %d", count)
+	}
+}
+
+// --- ValidateColumnData ---
+
+func TestValidateColumnData_ReturnsZero(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := memory.NewRepository()
+
+	// Given — in-memory store never contains malformed column data.
+
+	// When
+	count, err := repo.ValidateColumnData(ctx)
+	// Then
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected 0 invalid values, got %d", count)
+	}
+}
+
 // --- RebuildFTS ---
 
 func TestRebuildFTS_ReturnsNil(t *testing.T) {

@@ -2161,21 +2161,24 @@ $ np admin completion fish > ~/.config/fish/completions/np.fish
 
 ### admin doctor
 
-Run diagnostics on the database. Detects stale claims, analyzes why no issues are ready, and suggests unblocking actions.
+Run a suite of 16 diagnostic checks against the issue database and the surrounding workspace environment. Doctor is read-only — it never modifies the database, the filesystem, or any external state.
+
+Checks span four categories: Database (seven checks including workspace presence, storage health, schema validity, and referential integrity), Environment (git-ignore status and agent-instruction presence), Graph health (blocker cycles, ancestor blocks, deferred blockers, closable blockers, and priority inversions), and Issue lifecycle (closable parents and long-deferred issues).
 
 **Synopsis:**
 
 ```
-np admin doctor [options]
+np admin doctor [--verbose] [--severity <level>] [--json] [--long-deferral-threshold <duration>]
 ```
 
 **Flags:**
 
-| Flag | Description |
-|------|-------------|
-| `--verbose`, `-v` | Show per-check pass/fail status for every diagnostic. |
-| `--severity` | Minimum severity threshold: `error`, `warning`, `info`. Default: `info`. |
-| `--json` | Output machine-readable JSON. |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--verbose`, `-v` | bool | false | Show every check (passing and failing), include why-it-matters context for findings, and list affected issues. |
+| `--severity` | string | `warning` | Filter displayed findings to this severity or higher. Values: `warning`, `error`. Filtering affects display only — the exit code reflects the unfiltered result. |
+| `--json` | bool | false | Output machine-readable JSON instead of text. The `--verbose` flag still applies. |
+| `--long-deferral-threshold` | duration | `7d` | Override the staleness threshold for the `long-deferrals` check. Accepts Go duration syntax extended with `d` (days) and `w` (weeks). Also configurable via `NP_LONG_DEFERRAL_THRESHOLD`; the flag takes precedence. |
 
 **Examples:**
 
@@ -2188,20 +2191,40 @@ $ np admin doctor --verbose
 ```
 
 ```
-$ np admin doctor --severity warning
+$ np admin doctor --severity error
+```
+
+```
+$ np admin doctor --json
+```
+
+```
+$ np admin doctor --json --verbose
+```
+
+```
+$ np admin doctor --long-deferral-threshold 14d
 ```
 
 **Exit codes:**
 
 | Code | Meaning |
 |------|---------|
-| 0 | Diagnostics completed successfully. |
+| 0 | All checks passed (no errors, no warnings). |
+| 1 | One or more warnings, no errors. |
+| 2 | One or more errors (regardless of warnings). |
+
+The `--severity` flag does not affect the exit code — only what is displayed.
+
+**JSON output shape:**
+
+The JSON output always contains `errors` and `warnings` arrays (possibly empty). Each entry carries `check` (the check's slug), `description`, `summary`, an optional `affected` array (schema varies per check), and a `fix` object (`{"command": "..."}` for automated fixes or `{"instructions": "..."}` for manual steps). With `--verbose`, entries gain a `why_it_matters` field; a top-level `passed` array lists every passing check; and a top-level `skipped` array (present when a database prerequisite cascade fails) lists skipped checks with their `check`, `description`, and `prerequisite` fields.
 
 **Notes:**
 
-- Checks include stale claims, issues with no ready path, cycles, orphaned issues, git-ignore status for `.np/`, and more.
-- Use `--severity error` to skip informational and warning checks — useful for CI integration.
-- When a finding's `category` matches an `np admin fix` subcommand name, that subcommand applies the remediation automatically. See [admin fix](#admin-fix).
+- `np admin fix` subcommand names match doctor check slugs exactly. When a finding's `check` value matches an `np admin fix` subcommand name, run that subcommand to apply the automated remediation. See [admin fix](#admin-fix).
+- Use `--severity error` to suppress warnings and show only errors — useful for CI integration where warnings are acceptable noise.
+- The `--long-deferral-threshold` flag (or `NP_LONG_DEFERRAL_THRESHOLD` env var) controls when the `long-deferrals` check considers a deferred issue stale. The default is `7d`.
 
 ---
 

@@ -1,0 +1,14 @@
+# priority-inversions check: a P0 child under a P3 parent produces a warning.
+# Exits 1. Affected row IDs appear only in --verbose mode; default mode shows
+# only the summary. The summary contains "(s)" which must be escaped in regex.
+
+np-init PRIN
+np-seed epic 'Low-priority parent' prin-agent PARENT --priority P3
+np-seed task 'High-priority child' prin-agent CHILD --parent $PARENT --priority P0
+
+! exec np admin doctor
+stdout 'Priority inversions'
+stdout '1 priority inversion\(s\) detected'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

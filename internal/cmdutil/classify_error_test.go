@@ -137,6 +137,64 @@ func TestClassifyError_GenericError_ReturnsExitErrorAndPrintsMessage(t *testing.
 // ClassifyError — precedence: ErrSilent wrapping FlagError
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ClassifyError — ExitCodeError: caller-chosen exit code, no message printed
+// ---------------------------------------------------------------------------
+
+// TestClassifyError_ExitCodeError_ReturnsSpecifiedCode verifies that an
+// *ExitCodeError is mapped to its embedded Code without printing a message.
+// This is the path used by np admin doctor (exit 1 for warnings, exit 2 for
+// errors) where the command has already written all output.
+func TestClassifyError_ExitCodeError_ReturnsSpecifiedCode(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		code cmdutil.ExitCode
+	}{
+		{cmdutil.ExitOK},      // 0 — unusual but must not panic
+		{cmdutil.ExitError},   // 1
+		{cmdutil.ExitCode(2)}, // 2 — doctor "errors present"
+		{cmdutil.ExitCode(7)}, // arbitrary code
+	} {
+		var stderr bytes.Buffer
+		err := &cmdutil.ExitCodeError{Code: tt.code}
+
+		// When
+		got := cmdutil.ClassifyError(&stderr, err, false)
+
+		// Then
+		if got != tt.code {
+			t.Errorf("ExitCodeError{%d}: got %d, want %d", tt.code, got, tt.code)
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("ExitCodeError must not print a message; got %q", stderr.String())
+		}
+	}
+}
+
+// TestClassifyError_ExitCodeError_TakesPrecedenceOverErrSilent verifies that
+// the ExitCodeError branch fires before the ErrSilent branch, so a code other
+// than 1 (ExitError) can be signalled even when ErrSilent is in the chain.
+func TestClassifyError_ExitCodeError_TakesPrecedenceOverErrSilent(t *testing.T) {
+	t.Parallel()
+
+	// Given — ExitCodeError{Code:2}
+	var stderr bytes.Buffer
+	err := &cmdutil.ExitCodeError{Code: cmdutil.ExitCode(2)}
+
+	// When
+	code := cmdutil.ClassifyError(&stderr, err, false)
+
+	// Then — ExitCodeError wins; code is 2, not ExitError (1).
+	if code != cmdutil.ExitCode(2) {
+		t.Errorf("expected ExitCode 2, got %d", code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ClassifyError — precedence: ErrSilent wrapping FlagError
+// ---------------------------------------------------------------------------
+
 func TestClassifyError_SilentWrappingFlagError_PrefersErrSilent(t *testing.T) {
 	t.Parallel()
 

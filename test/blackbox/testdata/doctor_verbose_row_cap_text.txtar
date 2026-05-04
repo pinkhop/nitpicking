@@ -1,0 +1,40 @@
+# Verbose text mode caps the affected-row list at 3 with an overflow line.
+# Seeding 4 orphaned tasks (via soft-deleted parents — avoids FK violations
+# in PRAGMA foreign_key_check) produces 4 affected rows for invalid-parent-
+# reference; only 3 are shown with the overflow message.
+
+np-init ROWC
+
+# Insert 4 parent issues and 4 child issues pointing to them.
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''ROWC-p0001'', ''task'', ''Parent 1'', ''open'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''ROWC-p0001'', ''Parent 1'', '''', '''')'
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''ROWC-c0001'', ''task'', ''Child 1'', ''open'', ''P2'', datetime(''now''), ''ROWC-p0001'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''ROWC-c0001'', ''Child 1'', '''', '''')'
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''ROWC-p0002'', ''task'', ''Parent 2'', ''open'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''ROWC-p0002'', ''Parent 2'', '''', '''')'
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''ROWC-c0002'', ''task'', ''Child 2'', ''open'', ''P2'', datetime(''now''), ''ROWC-p0002'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''ROWC-c0002'', ''Child 2'', '''', '''')'
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''ROWC-p0003'', ''task'', ''Parent 3'', ''open'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''ROWC-p0003'', ''Parent 3'', '''', '''')'
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''ROWC-c0003'', ''task'', ''Child 3'', ''open'', ''P2'', datetime(''now''), ''ROWC-p0003'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''ROWC-c0003'', ''Child 3'', '''', '''')'
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''ROWC-p0004'', ''task'', ''Parent 4'', ''open'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''ROWC-p0004'', ''Parent 4'', '''', '''')'
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''ROWC-c0004'', ''task'', ''Child 4'', ''open'', ''P2'', datetime(''now''), ''ROWC-p0004'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''ROWC-c0004'', ''Child 4'', '''', '''')'
+
+# Soft-delete all 4 parents to create dangling references without FK violations.
+np-seed-sql 'UPDATE issues SET deleted = 1 WHERE issue_id IN (''ROWC-p0001'', ''ROWC-p0002'', ''ROWC-p0003'', ''ROWC-p0004'')'
+
+! exec np admin doctor --verbose
+stdout 'ROWC-c0001'
+stdout 'ROWC-c0002'
+stdout 'ROWC-c0003'
+! stdout 'ROWC-c0004'
+stdout '\(and 1 more — see --json output for the complete list\)'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

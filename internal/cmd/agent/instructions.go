@@ -211,9 +211,7 @@ JSONEND
 
 ## Stale Claims
 
-If no ready issues exist and there are stale claims, stale claims are automatically
-overwritten when you run the normal claim command. Run ` + "`np admin doctor`" + ` to identify
-stale claims blocking ready work, then claim normally:
+Stale claims are automatically overwritten when you run the normal claim command — no special recovery flag is required. To inspect a specific issue's stale time: ` + "`np show <ID> --json | jq '.claim_stale_at'`" + `. To reclaim, just claim normally:
 
 ` + "```" + `
 np claim ready --author <your-name>
@@ -227,14 +225,14 @@ Run ` + "`np admin backup`" + ` before any destructive operation (resets, restor
 
 ` + "```" + `
 np admin backup    # create a backup in .np/ (default filename includes the database prefix)
-np admin doctor    # detect stale claims, no-ready-issues analysis, suggest unblock actions
+np admin doctor    # run 16 diagnostic checks: database integrity, environment, graph health, issue lifecycle
 np show <ID>       # full issue detail including readiness and relationships
 np issue history <ID> # audit trail of all changes
 ` + "```" + `
 
 ## Automated Fixes
 
-` + "`np admin fix`" + ` applies automated remediations for conditions that ` + "`np admin doctor`" + ` detects. Every fix subcommand name matches the corresponding doctor check ` + "`category`" + ` slug. When a doctor finding's ` + "`category`" + ` matches an ` + "`np admin fix`" + ` subcommand, invoke that subcommand to apply the remediation:
+` + "`np admin fix`" + ` applies automated remediations for conditions that ` + "`np admin doctor`" + ` detects. Every fix subcommand name matches the corresponding doctor check slug (the ` + "`check`" + ` field in JSON output; hyphenated slugs match subcommand names exactly). When a doctor finding's ` + "`check`" + ` value matches an ` + "`np admin fix`" + ` subcommand, invoke that subcommand to apply the remediation:
 
 ` + "```" + `
 np admin fix git-ignore                              # add .np/ to .gitignore

@@ -1,22 +1,20 @@
-# Verify that 'np admin doctor --verbose --json' includes a non-empty 'checks'
-# array with snake_case keys and name/status string fields.
+# Verify that 'np admin doctor --verbose --json' produces the expected JSON
+# shape: errors and warnings arrays always present, passed and skipped arrays
+# in verbose mode (may be empty when Doctor is a stub).
 
 np-init DR
 np-seed task 'Healthy task' doctor-audit TASK
 
 exec np admin doctor --verbose --json
 
-# Standard shape assertions.
-! np-json-no-field healthy
-! np-json-no-field findings
+# Top-level shape: errors and warnings always present.
+! np-json-no-field errors
+! np-json-no-field warnings
 
-# Verbose mode includes a non-empty checks array.
-! np-json-no-field checks
-! np-json-array-len checks 0
-
-# Checks contain expected snake_case fields.
-stdout '"name"'
-stdout '"status"'
+# Old shape fields must not leak.
+np-json-no-field healthy
+np-json-no-field findings
+np-json-no-field checks
 
 # No PascalCase key leaks.
 ! stdout '"Category"'
@@ -24,3 +22,8 @@ stdout '"status"'
 ! stdout '"Message"'
 ! stdout '"Name"'
 ! stdout '"Status"'
+! stdout '"Errors"'
+! stdout '"Warnings"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

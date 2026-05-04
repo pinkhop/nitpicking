@@ -1,0 +1,7 @@
+# admin fix git-ignore exits 1 when the workspace is not inside a git repository.
+# No .git directory is created, so the walk reaches the filesystem root and
+# returns the not-in-git error.
+
+np-init GNOG
+! exec np admin fix git-ignore
+stderr 'irrelevant outside git'

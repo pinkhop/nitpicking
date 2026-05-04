@@ -203,7 +203,8 @@ func detectBlockingCycles(allIDs []string, blocks map[string][]string) (cycles [
 }
 
 // blockingWalkState holds the mutable state for a single DFS traversal of the
-// blocking DAG that builds the []TreeNode slice for rendering.
+// blocking DAG that builds the []TreeNode slice for rendering. It is single-use
+// and not safe for concurrent access.
 type blockingWalkState struct {
 	// byID provides issue data for each non-closed ID.
 	byID map[string]driving.IssueListItemDTO
@@ -212,15 +213,14 @@ type blockingWalkState struct {
 	// seen maps an issue ID to the parent node ID at its first appearance in the
 	// walk. An empty string means the issue appeared as a root (depth 0).
 	seen map[string]string
-	// nodes accumulates the output in traversal order.
+	// nodes accumulates the output in traversal order without title truncation;
+	// truncation is applied by buildBlockingNodes after the walk completes.
 	nodes []TreeNode
-	// termWidth drives title truncation (0 = non-TTY, no truncation).
-	termWidth int
 }
 
 // walk appends a TreeNode (or a back-reference node) for id at the given depth,
 // then recurses into its children. parentID is the caller's issue ID, or "" when
-// id is a root.
+// id is a root. Titles are stored verbatim; callers apply truncation post-walk.
 func (w *blockingWalkState) walk(id, parentID string, depth int) {
 	if firstParent, already := w.seen[id]; already {
 		// This node was already rendered earlier in the walk. Emit a back-reference
@@ -235,15 +235,11 @@ func (w *blockingWalkState) walk(id, parentID string, depth int) {
 	}
 	w.seen[id] = parentID
 
-	item := w.byID[id]
-	overhead := treeBaseOverhead + depth*2
-	item.Title = cmdutil.TruncateTitle(item.Title, cmdutil.AvailableTitleWidth(w.termWidth, overhead))
-
 	w.nodes = append(w.nodes, TreeNode{
 		Kind:      NodeKindIssue,
 		Depth:     depth,
 		IssueID:   id,
-		IssueItem: item,
+		IssueItem: w.byID[id],
 	})
 
 	for _, childID := range w.blocks[id] {
@@ -251,8 +247,48 @@ func (w *blockingWalkState) walk(id, parentID string, depth int) {
 	}
 }
 
+// blockingMaxTreeCellWidth returns the maximum TREE column cell width across all
+// rendered nodes. Issue nodes contribute depth*2+issueIDLen; back-reference nodes
+// contribute depth*2+issueIDLen+" shown above under "+parentIDLen (or the shorter
+// "shown above" variant when the first occurrence was at a root). Both ID widths
+// are assumed to be 10 chars (cmdutil.issueIDWidth). Pass the result to
+// cmdutil.UniformTreeOverhead to derive the full title overhead.
+//
+// Back-reference rows can exceed issue-row TREE widths at the same depth because
+// they carry two IDs plus a prose label. The max cell width determines the TREE
+// column padding that TableWriter applies to every row in the table, so computing
+// it from the actual nodes (rather than just the max issue depth) prevents
+// pre-truncated titles from overflowing the terminal when back-refs dominate.
+func blockingMaxTreeCellWidth(nodes []TreeNode) int {
+	maxWidth := 10 // minimum: a root issue with a 10-char ID at depth 0
+	for _, node := range nodes {
+		var cellWidth int
+		switch node.Kind {
+		case NodeKindIssue:
+			cellWidth = node.Depth*2 + 10
+		case NodeKindBackRef:
+			if node.BackRefParentID != "" {
+				cellWidth = node.Depth*2 + 10 + len(" shown above under ") + 10
+			} else {
+				cellWidth = node.Depth*2 + 10 + len(" shown above")
+			}
+		}
+		if cellWidth > maxWidth {
+			maxWidth = cellWidth
+		}
+	}
+	return maxWidth
+}
+
 // buildBlockingNodes walks the blocking DAG from the given roots in order and
 // returns a flat []TreeNode slice for rendering via RenderTreeText.
+//
+// Title truncation is applied in two passes: first the walk collects all nodes
+// without truncation so that back-reference row widths are visible, then
+// blockingMaxTreeCellWidth computes the actual maximum TREE column width across
+// every row type. That width drives a uniform titleOverhead for all issue nodes,
+// guaranteeing every title is pre-truncated to the same available space regardless
+// of depth. A zero termWidth (non-TTY) suppresses truncation.
 func buildBlockingNodes(
 	roots []string,
 	blocks map[string][]string,
@@ -260,14 +296,26 @@ func buildBlockingNodes(
 	termWidth int,
 ) []TreeNode {
 	state := &blockingWalkState{
-		byID:      byID,
-		blocks:    blocks,
-		seen:      make(map[string]string, len(byID)),
-		termWidth: termWidth,
+		byID:   byID,
+		blocks: blocks,
+		seen:   make(map[string]string, len(byID)),
 	}
 	for _, rootID := range roots {
 		state.walk(rootID, "", 0)
 	}
+
+	if termWidth > 0 {
+		maxCellWidth := blockingMaxTreeCellWidth(state.nodes)
+		titleOverhead := cmdutil.UniformTreeOverhead(maxCellWidth)
+		availWidth := cmdutil.AvailableTitleWidth(termWidth, titleOverhead)
+		for i := range state.nodes {
+			if state.nodes[i].Kind == NodeKindIssue {
+				state.nodes[i].IssueItem.Title = cmdutil.TruncateTitle(
+					state.nodes[i].IssueItem.Title, availWidth)
+			}
+		}
+	}
+
 	return state.nodes
 }
 

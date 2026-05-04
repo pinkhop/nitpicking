@@ -69,8 +69,8 @@ var modifiers = []string{
 	"surge", "trace", "vault", "vibe", "whirl",
 }
 
-// GenerateAgentName produces a Docker-style random agent name in the format
-// "adjective-noun-modifier" (e.g., "dashing-storage-glitter"). Each
+// GenerateAgentName produces a random agent name in the format
+// "agent-adjective-noun-modifier" (e.g., "agent-dashing-storage-glitter"). Each
 // invocation returns a fresh random name using the package-level PCG generator.
 // The result is not reproducible across calls; use GenerateAgentNameFromSeed
 // when determinism is required.
@@ -78,13 +78,13 @@ func GenerateAgentName() string {
 	adj := randomElement(agentNamePRNG, adjectives)
 	noun := randomElement(agentNamePRNG, nouns)
 	mod := randomElement(agentNamePRNG, modifiers)
-	return adj + "-" + noun + "-" + mod
+	return "agent-" + adj + "-" + noun + "-" + mod
 }
 
-// GenerateAgentNameFromSeed produces a Docker-style deterministic agent name
-// in the format "adjective-noun-modifier" derived from seed. The same seed
-// value always yields the same name; distinct seeds overwhelmingly produce
-// distinct names.
+// GenerateAgentNameFromSeed produces a deterministic agent name in the format
+// "agent-adjective-noun-modifier" derived from seed. The same seed value
+// always yields the same name; distinct seeds overwhelmingly produce distinct
+// names.
 //
 // An empty seed returns ErrEmptyAgentNameSeed. Empty seeds almost always
 // indicate an unexpanded shell variable rather than a deliberate choice, and
@@ -107,7 +107,7 @@ func GenerateAgentNameFromSeed(seed string) (string, error) {
 	adj := randomElement(rng, adjectives)
 	noun := randomElement(rng, nouns)
 	mod := randomElement(rng, modifiers)
-	return adj + "-" + noun + "-" + mod, nil
+	return "agent-" + adj + "-" + noun + "-" + mod, nil
 }
 
 // seedFromString derives two uint64 PCG seed values from an arbitrary string

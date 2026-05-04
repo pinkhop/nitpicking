@@ -1,0 +1,13 @@
+# admin fix git-ignore --json emits valid JSON with the spec-required keys.
+# Tests the amend path: added=true, created=false, path present.
+
+mkdir .git
+np-init GJSN
+exec np admin fix git-ignore --json
+np-json-has added true
+np-json-has created false
+# ! np-json-no-field means "assert the field IS present" (negates the no-field assertion).
+! np-json-no-field path
+
+-- .gitignore --
+*.log

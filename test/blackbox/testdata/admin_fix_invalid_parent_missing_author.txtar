@@ -1,0 +1,17 @@
+# admin fix invalid-parent-reference exits non-zero when --author is omitted
+# and NP_AUTHOR is not set. The CLI marks --author as Required, so urfave/cli
+# rejects the invocation before the action runs.
+# Mutation guard: a dangling issue is seeded and confirmed still present after
+# the failed run by running the fix successfully on the next invocation.
+
+np-init MAUT
+env NP_AUTHOR=
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''MAUT-aaaaa'', ''task'', ''Orphaned task'', ''open'', ''P2'', datetime(''now''), ''MAUT-zzzzz'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''MAUT-aaaaa'', ''Orphaned task'', '''', '''')'
+
+! exec np admin fix invalid-parent-reference
+
+# The dangling reference must still be present (no mutations occurred).
+exec np admin fix invalid-parent-reference --author verify-agent
+stdout '1 issue fixed\.'

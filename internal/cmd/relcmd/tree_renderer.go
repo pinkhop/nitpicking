@@ -85,14 +85,16 @@ func RenderTreeText(ios *iostreams.IOStreams, nodes []TreeNode) error {
 		case NodeKindBackRef:
 			// Back-reference row for an issue already rendered earlier in the output.
 			// The TREE column shows the issue ID and where it appeared first.
+			// Dim styling makes these annotation rows visually recede relative to
+			// full issue rows, clarifying they are redirects, not primary data.
 			indent := strings.Repeat("  ", node.Depth)
 			var label string
 			if node.BackRefParentID != "" {
-				label = fmt.Sprintf("%s↑ %s shown above under %s", indent, node.IssueID, node.BackRefParentID)
+				label = fmt.Sprintf("%s%s shown above under %s", indent, node.IssueID, node.BackRefParentID)
 			} else {
-				label = fmt.Sprintf("%s↑ %s shown above", indent, node.IssueID)
+				label = fmt.Sprintf("%s%s shown above", indent, node.IssueID)
 			}
-			tw.AddRow(label, "", "", "", "")
+			tw.AddRow(cs.Dim(label), "", "", "", "")
 		}
 	}
 

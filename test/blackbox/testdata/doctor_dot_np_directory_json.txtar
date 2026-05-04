@@ -1,0 +1,11 @@
+# dot-np-directory check: JSON output contains the error in the errors array
+# and exits 2. warnings is always present as an empty array.
+
+! exec np admin doctor --json
+np-json-array-len errors 1
+np-json-array-len warnings 0
+stdout '"dot-np-directory"'
+stdout 'no .np/ directory found'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

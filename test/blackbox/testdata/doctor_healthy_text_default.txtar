@@ -1,0 +1,19 @@
+# Healthy text output (default mode): a healthy workspace with a CLAUDE.md and
+# .gitignore that includes .np/ exits 0 and produces the spec-exact summary
+# "16 checks, 0 findings." Agent-instructions passes, git-ignore passes.
+
+np-init HLTD
+np-seed task 'Healthy task' hltd-agent TASK
+
+exec np admin doctor
+stdout 'np admin doctor'
+stdout '16 checks, 0 findings.'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.
+-- .git/config --
+[core]
+	repositoryformatversion = 0
+	filemode = true
+-- .gitignore --
+.np/

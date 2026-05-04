@@ -1,0 +1,27 @@
+# Smoke test: np rel list --rel parent-child renders long-titled issues without
+# truncation in non-TTY (piped) mode. This exercises the parent-child rendering
+# path with titles that exceed typical terminal widths, verifying the command
+# completes without error and emits full titles when stdout is not a TTY.
+#
+# Note: the TTY-mode title-truncation consistency fix (NP-eezgx) is covered by
+# the unit test TestRenderParentChildSection_ChildTitleWidthEqualsRootTitleWidth,
+# which controls terminal width and TTY mode programmatically.
+
+np-init PC
+
+np-seed epic 'Root epic with a long title that exceeds typical terminal widths in most configurations' testuser ROOT
+np-seed task 'Child task with a long title that exceeds typical terminal widths in most configurations' testuser CHILD --parent $ROOT
+
+# The parent-child section renders without error.
+exec np rel list --rel parent-child
+
+# Both issue IDs appear in the output.
+stdout $ROOT
+stdout $CHILD
+
+# Both full titles appear (non-TTY: no truncation should occur).
+stdout 'Root epic with a long title'
+stdout 'Child task with a long title'
+
+# The section header is present with correct counts.
+stdout 'Parent-child \(1 roots, 2 issues\)'

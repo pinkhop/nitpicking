@@ -62,8 +62,9 @@ func newNameCmd(f *cmdutil.Factory) *cli.Command {
 	return &cli.Command{
 		Name:  "name",
 		Usage: "Generate a random agent name",
-		Description: `Generates a three-word agent name (e.g., "keen-flint-trace") suitable for
-use as the --author identity on every np mutation command.
+		Description: `Generates an agent name in the format "agent-adjective-noun-modifier"
+(e.g., "agent-keen-flint-trace") suitable for use as the --author identity
+on every np mutation command.
 
 Without --seed, each call produces a fresh random name.
 

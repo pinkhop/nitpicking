@@ -1,0 +1,11 @@
+# agent-instructions check: JSON output when no agent instruction file exists.
+# The warnings array contains the finding; errors is empty. Exits 1.
+
+np-init AINJ
+
+! exec np admin doctor --json
+np-json-array-len errors 0
+np-json-array-len warnings 1
+stdout '"agent-instructions"'
+stdout 'no instruction files exist'
+

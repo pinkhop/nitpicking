@@ -77,7 +77,6 @@ An issue is still claimed but the claimer is gone.
 Check:
 
 ```bash
-$ np admin doctor
 $ np show <ISSUE-ID> --json | jq '.claim_stale_at'
 ```
 
@@ -124,13 +123,44 @@ Fix:
 - restore from backup if the database is damaged
 - use reset only when you really intend to wipe the database
 
+## Database Not in .gitignore
+
+Symptom:
+
+`np admin doctor` reports a `git-ignore` warning: ".np/ directory is not ignored by git".
+
+Fix:
+
+```bash
+$ np admin fix git-ignore
+```
+
+Use `--dry-run` to preview before applying. The fix is idempotent — re-running it is safe.
+
+## Invalid Parent References
+
+Symptom:
+
+`np admin doctor` reports an `invalid-parent-reference` finding, or issues behave unexpectedly because their parent issue no longer exists.
+
+Fix:
+
+```bash
+$ np admin fix invalid-parent-reference --author <name>
+```
+
+Use `--dry-run` to preview which issues would be affected before applying. Repaired issues become top-level issues; an audit comment is recorded on each one.
+
 ## Useful Diagnostics
 
-Doctor:
+Doctor — runs 16 checks across four categories (database, environment, graph health, issue lifecycle):
 
 ```bash
 $ np admin doctor --verbose
+$ np admin doctor --json --verbose
 ```
+
+Exit codes: `0` = all passed, `1` = warnings present, `2` = errors present. See [Command Reference](command-reference.md#admin-doctor) for the full flag reference and JSON output shape.
 
 Relationship graph:
 

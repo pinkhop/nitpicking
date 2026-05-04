@@ -1,0 +1,13 @@
+# admin fix git-ignore --dry-run prints a preview and does not modify the file.
+# cmp verifies the file content is completely unchanged (not just that .np/ is absent).
+
+mkdir .git
+np-init GDRY
+exec np admin fix git-ignore --dry-run
+stdout 'Would add'
+cmp .gitignore expected.gitignore
+
+-- .gitignore --
+*.log
+-- expected.gitignore --
+*.log

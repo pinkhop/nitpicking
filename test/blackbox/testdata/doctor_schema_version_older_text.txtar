@@ -1,0 +1,16 @@
+# schema-version check (older DB): setting the schema_version metadata to a
+# value less than the binary's current version triggers an error. Unlike the
+# newer-DB case, SkipsAll does not fire — column-data-validity and its
+# dependents still run on a best-effort basis. Exits 2.
+
+np-init SVOLD
+
+np-seed-sql 'UPDATE metadata SET value = ''1'' WHERE key = ''schema_version'''
+
+! exec np admin doctor
+stdout 'Schema version'
+stdout 'schema is at v1'
+stdout 'np admin upgrade'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

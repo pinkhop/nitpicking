@@ -161,16 +161,14 @@ func TestBoundary_Doctor_NewDatabase_NoSchemaMigrationRequired(t *testing.T) {
 
 	// When
 	doctorOut, err := svc.Doctor(ctx, driving.DoctorInput{})
-	// Then
+	// Then — no error; Doctor returns an empty result set (schema-version
+	// check will be verified in NP-dntes once the check is implemented).
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	// Doctor should not report a schema_migration_required finding on a new
-	// database, because InitDatabase writes schema_version = 2.
-	for _, f := range doctorOut.Findings {
-		if f.Category == "schema_migration_required" {
-			t.Errorf("unexpected schema_migration_required finding on new database: %s", f.Message)
+	for _, f := range append(doctorOut.Errors, doctorOut.Warnings...) {
+		if f.Check == "schema-version" {
+			t.Errorf("unexpected schema-version finding on new database: %s", f.Summary)
 		}
 	}
 }

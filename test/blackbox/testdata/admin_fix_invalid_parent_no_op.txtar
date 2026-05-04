@@ -1,0 +1,5 @@
+# admin fix invalid-parent-reference reports no-op when no dangling references exist.
+
+np-init NOOP
+exec np admin fix invalid-parent-reference --author fix-agent
+stdout 'No invalid parent references found'

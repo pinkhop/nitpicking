@@ -1,0 +1,18 @@
+# closed-parent-with-open-child check: a closed parent with an open child
+# triggers an error. SQL sets parent state directly (np close would refuse
+# to close a parent with open children). Exits 2.
+# "(s)" in summary needs escaping in regex assertions.
+
+np-init CPOC
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''CPOC-ppppp'', ''epic'', ''Closed parent'', ''closed'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''CPOC-ppppp'', ''Closed parent'', '''', '''')'
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''CPOC-ccccc'', ''task'', ''Open child'', ''open'', ''P2'', datetime(''now''), ''CPOC-ppppp'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''CPOC-ccccc'', ''Open child'', '''', '''')'
+
+! exec np admin doctor
+stdout 'Closed parent with open child'
+stdout '1 closed issue\(s\) with non-closed children'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

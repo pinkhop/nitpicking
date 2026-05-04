@@ -1,0 +1,17 @@
+# long-deferrals check: using --long-deferral-threshold 1ms makes any fresh
+# deferral appear stale, triggering a warning without needing time manipulation.
+# Exits 1. Summary contains "(s)" which must be escaped in regex.
+
+np-init LDFT
+np-seed task 'Stale deferred task' ldft-agent TASK
+
+exec np claim $TASK --author ldft-agent --json
+np-capture TASK_CLAIM claim_id
+exec np issue defer --claim $TASK_CLAIM --json
+
+! exec np admin doctor --long-deferral-threshold 1ms
+stdout 'Long deferrals'
+stdout '1 deferred issue\(s\)'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

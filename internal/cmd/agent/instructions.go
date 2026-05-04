@@ -211,9 +211,7 @@ JSONEND
 
 ## Stale Claims
 
-If no ready issues exist and there are stale claims, stale claims are automatically
-overwritten when you run the normal claim command. Run ` + "`np admin doctor`" + ` to identify
-stale claims blocking ready work, then claim normally:
+Stale claims are automatically overwritten when you run the normal claim command — no special recovery flag is required. To inspect a specific issue's stale time: ` + "`np show <ID> --json | jq '.claim_stale_at'`" + `. To reclaim, just claim normally:
 
 ` + "```" + `
 np claim ready --author <your-name>
@@ -227,10 +225,21 @@ Run ` + "`np admin backup`" + ` before any destructive operation (resets, restor
 
 ` + "```" + `
 np admin backup    # create a backup in .np/ (default filename includes the database prefix)
-np admin doctor    # detect stale claims, no-ready-issues analysis, suggest unblock actions
+np admin doctor    # run 16 diagnostic checks: database integrity, environment, graph health, issue lifecycle
 np show <ID>       # full issue detail including readiness and relationships
 np issue history <ID> # audit trail of all changes
 ` + "```" + `
+
+## Automated Fixes
+
+` + "`np admin fix`" + ` applies automated remediations for conditions that ` + "`np admin doctor`" + ` detects. Every fix subcommand name matches the corresponding doctor check slug (the ` + "`check`" + ` field in JSON output; hyphenated slugs match subcommand names exactly). When a doctor finding's ` + "`check`" + ` value matches an ` + "`np admin fix`" + ` subcommand, invoke that subcommand to apply the remediation:
+
+` + "```" + `
+np admin fix git-ignore                              # add .np/ to .gitignore
+np admin fix invalid-parent-reference --author <name>  # clear dangling parent references
+` + "```" + `
+
+Use ` + "`--dry-run`" + ` to preview any fix before applying it. Use ` + "`--json`" + ` for machine-readable output.
 
 ## JSON Agent API
 
@@ -290,7 +299,7 @@ Commands that list issues (` + "`np list`" + `, ` + "`np ready`" + `, ` + "`np b
 
 ### Default columns
 
-The default column set is: **ID, PRIORITY, ROLE, STATE, TITLE**. These are the columns shown when no ` + "`--columns`" + ` flag is provided.
+The default column set is: **ID, PRIORITY, ROLE, STATE, TITLE**. These are the columns shown when no ` + "`--columns`" + ` flag is provided. In text output, the PRIORITY column header is abbreviated to **P** to save space; data values are P0–P4.
 
 ### Selecting columns with --columns
 

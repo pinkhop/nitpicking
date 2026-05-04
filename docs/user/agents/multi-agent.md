@@ -49,7 +49,6 @@ Claims expire after their stale time. Once stale, another agent can claim the is
 Check the situation:
 
 ```bash
-$ np admin doctor
 $ np show <ISSUE-ID> --json | jq '.claim_stale_at'
 ```
 

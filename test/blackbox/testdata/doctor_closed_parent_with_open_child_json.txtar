@@ -1,0 +1,21 @@
+# closed-parent-with-open-child check: JSON output with a closed parent and
+# open child. Uses direct SQL to set the parent state (bypasses domain
+# constraint). The affected array contains the parent with non_closed_children.
+# Exits 2.
+
+np-init CPOJ
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''CPOJ-ppppp'', ''epic'', ''Closed parent'', ''closed'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''CPOJ-ppppp'', ''Closed parent'', '''', '''')'
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''CPOJ-ccccc'', ''task'', ''Open child'', ''open'', ''P2'', datetime(''now''), ''CPOJ-ppppp'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''CPOJ-ccccc'', ''Open child'', '''', '''')'
+
+! exec np admin doctor --json
+np-json-array-len errors 1
+np-json-array-len warnings 0
+stdout '"closed-parent-with-open-child"'
+stdout '"non_closed_children"'
+stdout 'CPOJ-ppppp'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

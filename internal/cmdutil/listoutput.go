@@ -57,6 +57,48 @@ func ConvertListItems(items []driving.IssueListItemDTO) []ListItemOutput {
 // meaningful with an ellipsis.
 const minTitleWidth = 10
 
+// treeBaseOverhead is the non-title character overhead for the rel list tree
+// table at zero indentation depth. The TREE column holds a 10-char ID (12 with
+// 2-char tab padding), P is 2 chars (4 with padding), ROLE is 5 chars (7 with
+// padding), and STATE is 14 chars worst-case (16 with padding), summing to 39.
+//
+// When the table contains rows at depth > 0, the TREE column expands by 2
+// chars per depth level. Because TableWriter pads every column to its maximum
+// width across all rows, ALL rows in a mixed-depth table pay the same expanded
+// TREE column cost. Callers must therefore account for the global maximum cell
+// width — not the per-row depth — when computing the uniform overhead.
+const treeBaseOverhead = 39
+
+// issueIDWidth is the assumed display width of an issue ID within the TREE
+// column, embedded in treeBaseOverhead. Subtracting it isolates the overhead
+// that comes from non-TREE columns (P, ROLE, STATE plus tab padding = 29).
+const issueIDWidth = 10
+
+// UniformTreeOverhead computes the total non-title column overhead for rel list
+// tree tables given the maximum TREE cell width across all rendered rows.
+//
+// The formula is maxCellWidth + (treeBaseOverhead - issueIDWidth): the first
+// term is the actual TREE column width (which TableWriter pads to uniformly),
+// and the second term (29) is the fixed overhead from the P, ROLE, and STATE
+// columns with their tab padding.
+//
+// Both the parent-child and blocking sections use this formula. For a
+// pure-issue tree without back-references, prefer UniformIssueTreeOverhead.
+// For blocking trees with back-reference rows, maxCellWidth must be computed
+// from the actual node list because back-ref rows are wider than issue rows at
+// the same depth.
+func UniformTreeOverhead(maxCellWidth int) int {
+	return maxCellWidth + (treeBaseOverhead - issueIDWidth)
+}
+
+// UniformIssueTreeOverhead is a convenience wrapper around UniformTreeOverhead
+// for pure-issue trees (no back-references). It derives the maximum TREE cell
+// width from maxDepth: at the deepest level each issue row is issueIDWidth wide
+// plus 2 chars of indent per level.
+func UniformIssueTreeOverhead(maxDepth int) int {
+	return UniformTreeOverhead(issueIDWidth + maxDepth*2)
+}
+
 // TruncateTitle truncates a title string to fit within maxWidth columns.
 // If the title fits, it is returned unchanged. If it exceeds maxWidth, the
 // last visible character is replaced with "…" (U+2026). When maxWidth is

@@ -1,0 +1,14 @@
+# admin fix git-ignore appends .np/ to an existing .gitignore.
+# The walk finds .gitignore in $WORK (the np root dir), amends it,
+# and reports success.
+
+mkdir .git
+np-init GFIX
+exec np admin fix git-ignore
+stdout 'Added'
+stdout '\.np/'
+grep '\.np/' .gitignore
+
+-- .gitignore --
+*.log
+node_modules/

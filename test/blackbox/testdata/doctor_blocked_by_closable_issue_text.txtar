@@ -1,0 +1,21 @@
+# blocked-by-closable-issue check: when a task is blocked by an epic whose
+# children are all closed, a warning fires. The closable-parent-issues check
+# also fires for the epic. Both are warnings; exits 1. Escape "(s)".
+
+np-init BBCI
+np-seed epic 'Blocker epic' bbci-agent BLOCKER
+np-seed task 'Child of blocker' bbci-agent BLOCKER_CHILD --parent $BLOCKER
+np-seed task 'Blocked task' bbci-agent BLOCKED
+
+np-seed-rel BLOCKED blocked_by BLOCKER bbci-agent
+
+exec np claim $BLOCKER_CHILD --author bbci-agent --json
+np-capture CHILD_CLAIM claim_id
+exec np close --claim $CHILD_CLAIM --reason 'test: close child to make blocker closable' --json
+
+! exec np admin doctor
+stdout 'Blocked by closable issue'
+stdout '1 issue\(s\) blocked by a closable issue'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

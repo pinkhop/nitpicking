@@ -216,6 +216,10 @@ func (s *upgradeServiceStub) ResetDatabase(_ context.Context) error {
 	panic("upgradeServiceStub: ResetDatabase not expected during upgrade")
 }
 
+func (s *upgradeServiceStub) RepairInvalidParentReferences(_ context.Context, _ driving.RepairInvalidParentsInput) (driving.RepairInvalidParentsOutput, error) {
+	panic("upgradeServiceStub: RepairInvalidParentReferences not expected during upgrade")
+}
+
 // --- Helpers ---
 
 // errMigrationRequired is a sentinel that wraps domain.ErrSchemaMigrationRequired

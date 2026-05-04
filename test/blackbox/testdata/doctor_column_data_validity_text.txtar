@@ -1,0 +1,17 @@
+# column-data-validity check: inserting an issue with an invalid created_at
+# timestamp triggers a data-validity error. column-data-validity and its
+# dependents are cascade-blocked. Exits 2.
+
+np-init CDVT
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''CDVT-aaaaa'', ''task'', ''Bad timestamp issue'', ''open'', ''P2'', ''not-a-valid-date'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''CDVT-aaaaa'', ''Bad timestamp issue'', '''', '''')'
+
+! exec np admin doctor
+stdout 'Column data validity'
+stdout 'malformed value'
+stdout 'of 16 checks ran'
+stdout 'checks skipped \(cascade prerequisite failed\)'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

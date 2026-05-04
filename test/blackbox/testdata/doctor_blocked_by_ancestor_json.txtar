@@ -1,0 +1,17 @@
+# blocked-by-ancestor check: JSON output when a task is blocked by its parent.
+# The warnings array contains the finding with affected rows. Exits 1.
+
+np-init BBAJ
+np-seed epic 'Parent epic' bbaj-agent PARENT
+np-seed task 'Child task' bbaj-agent CHILD --parent $PARENT
+
+np-seed-rel CHILD blocked_by PARENT bbaj-agent
+
+! exec np admin doctor --json
+np-json-array-len errors 0
+np-json-array-len warnings 1
+stdout '"blocked-by-ancestor"'
+stdout '"blocking_ancestor"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

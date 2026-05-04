@@ -1,0 +1,15 @@
+# schema-version check (newer DB): JSON output. SkipsAll fires, skipping all
+# remaining checks. Exits 2.
+
+np-init SVNJ
+
+np-seed-sql 'UPDATE metadata SET value = ''99'' WHERE key = ''schema_version'''
+
+! exec np admin doctor --json
+np-json-array-len errors 1
+np-json-array-len warnings 0
+stdout '"schema-version"'
+stdout 'upgrade the np binary'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

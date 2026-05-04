@@ -1,0 +1,17 @@
+# storage-integrity check: inserting a row into the relationships table with a
+# target_id that does not exist in issues causes PRAGMA foreign_key_check to
+# report a violation. column-data-validity and its dependents are cascade-skipped.
+# Exits 2. Parens in summary regex must be escaped.
+
+np-init SINT
+np-seed task 'Real issue' sint-agent TASK
+
+np-seed-sql 'INSERT INTO relationships (source_id, target_id, rel_type) VALUES (''SINT-aaaaa'', ''SINT-zzzzz'', ''blocked_by'')'
+
+! exec np admin doctor
+stdout 'Storage integrity'
+stdout 'of 16 checks ran'
+stdout 'checks skipped \(cascade prerequisite failed\)'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

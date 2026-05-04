@@ -58,7 +58,7 @@ var columnRegistry = map[string]Column{
 	},
 	"PRIORITY": {
 		Name:   "PRIORITY",
-		Header: "PRIORITY",
+		Header: "P",
 		Render: func(item driving.IssueListItemDTO, rc RenderContext) string {
 			if rc.ColorScheme != nil {
 				return rc.ColorScheme.Yellow(item.Priority.String())
@@ -246,7 +246,7 @@ func OverheadForColumns(cols []Column) int {
 		case "ID":
 			overhead += 12 // e.g., "PKHP-a3bxr" (10) + padding
 		case "PRIORITY":
-			overhead += 4 // "P2" + padding
+			overhead += 4 // "P2" + padding; assumes header "P" (1 char) is narrower than any data value P0–P4
 		case "PARENT_ID":
 			overhead += 12 // "PKHP-a3bxr" or empty + padding
 		case "PARENT_CREATED":

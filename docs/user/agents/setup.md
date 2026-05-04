@@ -33,7 +33,7 @@ Generate a stable agent name:
 
 ```bash
 $ np agent name --seed=$PPID
-blue-seal-echo
+agent-blue-seal-echo
 ```
 
 Use that name consistently for `--author` during the session.

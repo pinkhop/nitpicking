@@ -174,6 +174,13 @@ type Service interface {
 	// status and a healthy flag.
 	Doctor(ctx context.Context, input DoctorInput) (DoctorOutput, error)
 
+	// RepairInvalidParentReferences scans every non-deleted issue for a
+	// parent_id that refers to an absent or soft-deleted parent, clears those
+	// references, and records an audit comment on each affected issue. When
+	// input.DryRun is true, the scan runs but no writes are performed and the
+	// output describes what would have been fixed.
+	RepairInvalidParentReferences(ctx context.Context, input RepairInvalidParentsInput) (RepairInvalidParentsOutput, error)
+
 	// GC performs garbage collection.
 	GC(ctx context.Context, input GCInput) (GCOutput, error)
 

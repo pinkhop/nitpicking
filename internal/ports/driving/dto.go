@@ -731,138 +731,206 @@ type PropagateLabelOutput struct {
 
 // --- Diagnostics DTOs ---
 
-// DoctorSeverity represents the severity level of a diagnostic check.
-// Higher numeric values indicate more severe checks.
-type DoctorSeverity int
+// DoctorSeverity represents the severity of a doctor finding. The two-level
+// model (error, warning) maps directly to the JSON contract; string values
+// are used because the external representation matters.
+type DoctorSeverity string
 
 const (
-	// SeverityInfo is the lowest severity — informational checks.
-	SeverityInfo DoctorSeverity = iota
-	// SeverityWarning is the middle severity — potential problems.
-	SeverityWarning
-	// SeverityError is the highest severity — integrity or correctness issues.
-	SeverityError
+	// SeverityError represents a data integrity or correctness violation.
+	SeverityError DoctorSeverity = "error"
+	// SeverityWarning represents a workflow anomaly or misconfiguration.
+	SeverityWarning DoctorSeverity = "warning"
 )
 
-// String returns the human-readable label for a severity level.
+// String returns the severity as its string value.
 func (s DoctorSeverity) String() string {
-	switch s {
-	case SeverityError:
-		return "error"
-	case SeverityWarning:
-		return "warning"
-	case SeverityInfo:
-		return "info"
-	default:
-		return "unknown"
-	}
+	return string(s)
 }
 
 // ParseDoctorSeverity converts a string to a DoctorSeverity. Returns an error
-// for unrecognized values.
+// for values outside the two-level model (error, warning).
 func ParseDoctorSeverity(s string) (DoctorSeverity, error) {
 	switch s {
 	case "error":
 		return SeverityError, nil
 	case "warning":
 		return SeverityWarning, nil
-	case "info":
-		return SeverityInfo, nil
 	default:
-		return 0, fmt.Errorf("invalid severity %q: must be error, warning, or info", s)
+		return "", fmt.Errorf("invalid severity %q: must be error or warning", s)
 	}
 }
 
-// ActionKind identifies the type of action recommended by a DoctorFinding.
-// The CLI adapter maps each kind to a specific np command string; other
-// adapters (web, TUI) can map the same kind to buttons, keybindings, etc.
-type ActionKind string
-
-const (
-	// ActionKindRunGC suggests running garbage collection.
-	ActionKindRunGC ActionKind = "run_gc"
-	// ActionKindUndefer suggests restoring the deferred issue identified by IssueID.
-	ActionKindUndefer ActionKind = "undefer"
-	// ActionKindUnblockRelationship suggests removing the stale blocked_by
-	// relationship between SourceID and TargetID.
-	ActionKindUnblockRelationship ActionKind = "unblock_relationship"
-	// ActionKindCloseCompleted suggests closing all epics whose children are
-	// fully closed.
-	ActionKindCloseCompleted ActionKind = "close_completed"
-	// ActionKindInvestigateCorruption suggests backing up and investigating
-	// data corruption; no parameters are needed.
-	ActionKindInvestigateCorruption ActionKind = "investigate_corruption"
-	// ActionKindExecSQL suggests running the SQL statement in SQL directly
-	// against the database.
-	ActionKindExecSQL ActionKind = "exec_sql"
-	// ActionKindAddToGitignore suggests adding a path to .gitignore.
-	ActionKindAddToGitignore ActionKind = "add_to_gitignore"
-)
-
-// ActionHint describes a structured action a caller should take to address
-// a DoctorFinding. The Kind field names the action; the remaining fields
-// supply the parameters that action requires. Fields irrelevant to a given
-// Kind will be zero.
-type ActionHint struct {
-	// Kind names the action to take.
-	Kind ActionKind `json:"kind"`
-	// IssueID is the issue to act on (Undefer).
-	IssueID string `json:"issue_id,omitzero"`
-	// SourceID and TargetID identify the two ends of the relationship to
-	// remove (UnblockRelationship).
-	SourceID string `json:"source_id,omitzero"`
-	// TargetID is the second issue in the relationship to remove.
-	TargetID string `json:"target_id,omitzero"`
-	// SQL is the statement to execute against the database (ExecSQL).
-	SQL string `json:"sql,omitzero"`
+// DoctorFix describes the remediation for a DoctorFinding. Exactly one of
+// Command or Instructions is set: Command for an executable np CLI command,
+// Instructions for free-form manual guidance.
+type DoctorFix struct {
+	// Command is the np CLI command to run, when the fix is automated.
+	Command string `json:"command,omitzero"`
+	// Instructions provides free-form remediation guidance for manual fixes.
+	Instructions string `json:"instructions,omitzero"`
 }
 
-// DoctorFinding represents a single diagnostic finding.
+// DoctorFinding represents a single diagnostic check finding. WhyItMatters is
+// populated only when verbose output is requested. Affected is nil for checks
+// that have no per-issue row schema (system and environment checks).
 type DoctorFinding struct {
-	// Category identifies the kind of finding.
-	Category string `json:"category"`
-	// Severity is "warning" or "error".
-	Severity string `json:"severity"`
-	// Message describes the finding.
-	Message string `json:"message"`
-	// IssueIDs lists affected issues.
-	IssueIDs []string `json:"issue_ids,omitzero"`
-	// Action describes a structured remediation action the caller should take.
-	// Nil when no specific action is recommended.
-	Action *ActionHint `json:"action,omitzero"`
+	// Check is the check's slug (e.g., "invalid-parent-reference").
+	Check string `json:"check"`
+	// Description is a one-sentence description of what the check detects.
+	Description string `json:"description"`
+	// WhyItMatters explains the impact; present only in verbose output.
+	WhyItMatters string `json:"why_it_matters,omitzero"`
+	// Summary describes what was found on this run.
+	Summary string `json:"summary"`
+	// Affected holds per-check typed rows. Nil for checks with no row schema.
+	Affected []any `json:"affected,omitzero"`
+	// Fix describes how to remediate the finding.
+	Fix DoctorFix `json:"fix"`
+}
+
+// DoctorPassedCheck carries identifying information for a check that passed;
+// present in verbose output.
+type DoctorPassedCheck struct {
+	// Check is the check's slug.
+	Check string `json:"check"`
+	// Description is a one-sentence description of what the check verifies.
+	Description string `json:"description"`
+}
+
+// DoctorSkippedCheck carries identifying information for a check that was
+// skipped because a prerequisite failed; present in verbose output.
+type DoctorSkippedCheck struct {
+	// Check is the check's slug.
+	Check string `json:"check"`
+	// Description is a one-sentence description of what the check verifies.
+	Description string `json:"description"`
+	// Prerequisite is the slug of the check whose failure caused this skip.
+	Prerequisite string `json:"prerequisite"`
 }
 
 // DoctorInput holds the parameters for running diagnostics.
 type DoctorInput struct {
-	// MinSeverity is the minimum severity threshold. Checks below this
-	// threshold are skipped and their findings are excluded.
+	// MinSeverity controls display filtering; findings below this level are
+	// omitted from output. Filtering does not affect the exit code.
 	MinSeverity DoctorSeverity
-	// AdditionalFindings are findings from checks that run outside the
-	// service layer (e.g., filesystem checks). They are merged with
-	// service-generated findings before classification.
-	AdditionalFindings []DoctorFinding
-}
-
-// DoctorCheckResult records the pass/fail/skipped status of a single
-// diagnostic check.
-type DoctorCheckResult struct {
-	// Name is the check's identifier shown in output.
-	Name string
-	// Status is "pass", "fail", or "skipped".
-	Status string
-	// Detail is a human-readable description of the check result.
-	Detail string
+	// LongDeferralThreshold is the duration after which a deferred issue is
+	// considered stale. Zero means use the default (7 days).
+	LongDeferralThreshold time.Duration
+	// WorkDir is the starting directory for the dot-np-directory check's
+	// upward filesystem walk. Defaults to os.Getwd() when empty.
+	WorkDir string
+	// DBPath is the absolute path to the database file, supplied by the
+	// CLI so the database-exists check can inspect the file before (or
+	// without) an open SQLite connection. Empty when no .np/ was found.
+	DBPath string
+	// DBOpenError carries the error from opening the database, set by the
+	// CLI when the store could not be opened. The database-exists check
+	// uses this to report "cannot be opened by SQLite" when the file exists
+	// and is non-empty but SQLite rejected it.
+	DBOpenError error
 }
 
 // DoctorOutput holds the results of the doctor diagnostic.
 type DoctorOutput struct {
-	// Findings contains findings from active (non-skipped) checks only.
-	Findings []DoctorFinding
-	// Checks contains the pass/fail/skipped status of every registered
-	// diagnostic check.
-	Checks []DoctorCheckResult
-	// Healthy is true when no active findings exist.
-	Healthy bool
+	// Errors contains all error-severity findings.
+	Errors []DoctorFinding `json:"errors"`
+	// Warnings contains all warning-severity findings.
+	Warnings []DoctorFinding `json:"warnings"`
+	// Passed lists checks that ran and found no issues; present in verbose output.
+	Passed []DoctorPassedCheck `json:"passed,omitzero"`
+	// Skipped lists checks skipped because a prerequisite failed; present in
+	// verbose output.
+	Skipped []DoctorSkippedCheck `json:"skipped,omitzero"`
+}
+
+// --- Per-check affected-row types ---
+// Each type corresponds to a check that has a per-issue row schema.
+// JSON field names match the spec exactly.
+
+// ClosedParentWithOpenChildRow is emitted by the closed-parent-with-open-child
+// check. One row per closed parent that still has non-closed children.
+type ClosedParentWithOpenChildRow struct {
+	// Issue is the closed parent's ID.
+	Issue string `json:"issue"`
+	// NonClosedChildren lists the parent's non-closed children, sorted ascending.
+	NonClosedChildren []string `json:"non_closed_children"`
+}
+
+// InvalidParentReferenceRow is emitted by the invalid-parent-reference check.
+// One row per child issue with a dangling parent reference.
+type InvalidParentReferenceRow struct {
+	// Issue is the child issue's ID.
+	Issue string `json:"issue"`
+	// MissingParentID is the referenced parent that does not resolve to a live
+	// issue.
+	MissingParentID string `json:"missing_parent_id"`
+}
+
+// BlockedByAncestorRow is emitted by the blocked-by-ancestor check. One row
+// per (issue, ancestor) pair.
+type BlockedByAncestorRow struct {
+	// Issue is the blocked issue's ID.
+	Issue string `json:"issue"`
+	// BlockingAncestor is the ancestor issue that is blocking it.
+	BlockingAncestor string `json:"blocking_ancestor"`
+}
+
+// BlockedByClosableIssueRow is emitted by the blocked-by-closable-issue check.
+// One row per (issue, closable blocker) pair.
+type BlockedByClosableIssueRow struct {
+	// Issue is the blocked issue's ID.
+	Issue string `json:"issue"`
+	// ClosableBlocker is the blocker that is eligible to be closed.
+	ClosableBlocker string `json:"closable_blocker"`
+}
+
+// BlockedByDeferredIssueRow is emitted by the blocked-by-deferred-issue check.
+// One row per (issue, deferred blocker) pair.
+type BlockedByDeferredIssueRow struct {
+	// Issue is the blocked issue's ID.
+	Issue string `json:"issue"`
+	// Blocker is the deferred blocking issue's ID.
+	Blocker string `json:"blocker"`
+}
+
+// BlockerCycleRow is emitted by the blocker-cycles check. One row per cycle.
+// The cycle array begins with the lowest-ID issue and follows blocked_by edges
+// around the loop; the last element is blocked by the first.
+type BlockerCycleRow struct {
+	// Cycle lists the issue IDs in canonical order.
+	Cycle []string `json:"cycle"`
+}
+
+// PriorityInversionRow is emitted by the priority-inversions check. One row
+// per (child, parent) pair where the child has strictly higher priority.
+type PriorityInversionRow struct {
+	// Issue is the child issue's ID.
+	Issue string `json:"issue"`
+	// Parent is the parent issue's ID.
+	Parent string `json:"parent"`
+	// ChildPriority is the child's priority label (e.g., "P0").
+	ChildPriority string `json:"child_priority"`
+	// ParentPriority is the parent's priority label (e.g., "P3").
+	ParentPriority string `json:"parent_priority"`
+}
+
+// ClosableParentIssueRow is emitted by the closable-parent-issues check.
+// One row per closable parent.
+type ClosableParentIssueRow struct {
+	// Issue is the closable parent's ID.
+	Issue string `json:"issue"`
+}
+
+// LongDeferralRow is emitted by the long-deferrals check. One row per stale
+// deferred issue.
+type LongDeferralRow struct {
+	// Issue is the deferred issue's ID.
+	Issue string `json:"issue"`
+	// DeferredAt is when the issue entered the deferred state (RFC3339 UTC).
+	DeferredAt time.Time `json:"deferred_at"`
+	// LastActivityAt is the most recent activity timestamp (RFC3339 UTC).
+	LastActivityAt time.Time `json:"last_activity_at"`
 }
 
 // GraphDataOutput holds the data needed to render an issue graph.
@@ -872,6 +940,34 @@ type GraphDataOutput struct {
 	// Relationships contains all relationships for the included issues,
 	// projected as flat DTOs with string fields.
 	Relationships []RelationshipDTO
+}
+
+// RepairInvalidParentsInput carries the parameters for repairing dangling
+// parent references via the admin fix subcommand.
+type RepairInvalidParentsInput struct {
+	// Author is the name to record on audit comments for each repaired issue.
+	Author string
+	// DryRun, when true, identifies affected issues and returns them without
+	// performing any writes.
+	DryRun bool
+}
+
+// RepairedParentRecord describes a single issue whose dangling parent
+// reference was cleared (or would be cleared in dry-run mode).
+type RepairedParentRecord struct {
+	// IssueID is the string representation of the issue that was repaired.
+	IssueID string
+	// RemovedParentID is the string representation of the dangling parent
+	// that was removed from the issue.
+	RemovedParentID string
+}
+
+// RepairInvalidParentsOutput holds the result of a
+// RepairInvalidParentReferences operation.
+type RepairInvalidParentsOutput struct {
+	// Repaired lists each issue whose dangling parent reference was cleared.
+	// In dry-run mode this slice represents what would have been fixed.
+	Repaired []RepairedParentRecord
 }
 
 // GCInput holds the parameters for garbage collection.

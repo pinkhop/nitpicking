@@ -6,4 +6,4 @@ np-seed task 'Blocked task' alice BLOCKED
 np-seed-rel BLOCKED blocked_by BLOCKER alice
 
 exec np blocked
-stdout '^ID\s+PRIORITY\s+ROLE\s+STATE\s+TITLE'
+stdout '^ID\s+P\s+ROLE\s+STATE\s+TITLE'

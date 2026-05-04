@@ -1,0 +1,20 @@
+# long-deferrals check: JSON output using a 1ms threshold. The warnings array
+# contains the finding with deferred_at and last_activity_at in affected rows.
+# Exits 1.
+
+np-init LDFJ
+np-seed task 'Stale deferred task' ldfj-agent TASK
+
+exec np claim $TASK --author ldfj-agent --json
+np-capture TASK_CLAIM claim_id
+exec np issue defer --claim $TASK_CLAIM --json
+
+! exec np admin doctor --long-deferral-threshold 1ms --json
+np-json-array-len errors 0
+np-json-array-len warnings 1
+stdout '"long-deferrals"'
+stdout '"deferred_at"'
+stdout '"last_activity_at"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

@@ -72,6 +72,9 @@ Commands are grouped by the categories shown in `np help`.
   - [admin backup](#admin-backup)
   - [admin completion](#admin-completion)
   - [admin doctor](#admin-doctor)
+  - [admin fix](#admin-fix)
+    - [admin fix git-ignore](#admin-fix-git-ignore)
+    - [admin fix invalid-parent-reference](#admin-fix-invalid-parent-reference)
   - [admin gc](#admin-gc)
   - [admin reset](#admin-reset)
   - [admin restore](#admin-restore)
@@ -138,7 +141,7 @@ $ np init FOO --json
 - The prefix is stored permanently in the database; it cannot be changed after initialization.
 - Running `np init` in a directory that already has a `.np/` directory produces exit code 5.
 - `np` discovers the database by walking up from the current working directory, so you only need one `.np/` per workspace tree — even if the project spans multiple subdirectories.
-- Add `.np/` to your `.gitignore` if you do not want to track the database in version control.
+- Add `.np/` to your `.gitignore` if you do not want to track the database in version control. Run `np admin fix git-ignore` to do this automatically, or `np admin doctor` to check whether it is needed.
 
 ---
 
@@ -2004,23 +2007,23 @@ np agent name [options]
 ```json
 $ np agent name --json
 {
-  "name": "kind-comet-quest"
+  "name": "agent-kind-comet-quest"
 }
 ```
 
 ```text
 $ np agent name
-blue-seal-echo
+agent-blue-seal-echo
 ```
 
 Agents should use `--seed=$PPID` to produce a stable identity tied to their process ID. The same seed always yields the same name:
 
 ```text
 $ np agent name --seed=$PPID
-calm-spruce-spray
+agent-calm-spruce-spray
 
 $ np agent name --seed=$PPID
-calm-spruce-spray
+agent-calm-spruce-spray
 ```
 
 **Exit codes:**
@@ -2031,7 +2034,7 @@ calm-spruce-spray
 
 **Notes:**
 
-- Without `--seed`, each call produces a fresh random name using an adjective-noun-verb pattern. Names are not guaranteed to be unique, but collisions are rare.
+- Without `--seed`, each call produces a fresh random name in the format `agent-adjective-noun-modifier` (e.g., `agent-bold-ember-flux`). Names are not guaranteed to be unique, but collisions are rare.
 - With `--seed=<value>`, the name is derived deterministically from the seed string — the same seed always yields the same generated name. Providing an empty seed is an error.
 - Agents should use `--seed=$PPID` so that resuming a session with the same process ID produces the same author identity.
 - Humans can use any stable identifier; this command is primarily for agents.
@@ -2158,21 +2161,24 @@ $ np admin completion fish > ~/.config/fish/completions/np.fish
 
 ### admin doctor
 
-Run diagnostics on the database. Detects stale claims, analyzes why no issues are ready, and suggests unblocking actions.
+Run a suite of 16 diagnostic checks against the issue database and the surrounding workspace environment. Doctor is read-only — it never modifies the database, the filesystem, or any external state.
+
+Checks span four categories: Database (seven checks including workspace presence, storage health, schema validity, and referential integrity), Environment (git-ignore status and agent-instruction presence), Graph health (blocker cycles, ancestor blocks, deferred blockers, closable blockers, and priority inversions), and Issue lifecycle (closable parents and long-deferred issues).
 
 **Synopsis:**
 
 ```
-np admin doctor [options]
+np admin doctor [--verbose] [--severity <level>] [--json] [--long-deferral-threshold <duration>]
 ```
 
 **Flags:**
 
-| Flag | Description |
-|------|-------------|
-| `--verbose`, `-v` | Show per-check pass/fail status for every diagnostic. |
-| `--severity` | Minimum severity threshold: `error`, `warning`, `info`. Default: `info`. |
-| `--json` | Output machine-readable JSON. |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--verbose`, `-v` | bool | false | Show every check (passing and failing), include why-it-matters context for findings, and list affected issues. |
+| `--severity` | string | `warning` | Filter displayed findings to this severity or higher. Values: `warning`, `error`. Filtering affects display only — the exit code reflects the unfiltered result. |
+| `--json` | bool | false | Output machine-readable JSON instead of text. The `--verbose` flag still applies. |
+| `--long-deferral-threshold` | duration | `7d` | Override the staleness threshold for the `long-deferrals` check. Accepts Go duration syntax extended with `d` (days) and `w` (weeks). Also configurable via `NP_LONG_DEFERRAL_THRESHOLD`; the flag takes precedence. |
 
 **Examples:**
 
@@ -2185,19 +2191,186 @@ $ np admin doctor --verbose
 ```
 
 ```
-$ np admin doctor --severity warning
+$ np admin doctor --severity error
+```
+
+```
+$ np admin doctor --json
+```
+
+```
+$ np admin doctor --json --verbose
+```
+
+```
+$ np admin doctor --long-deferral-threshold 14d
 ```
 
 **Exit codes:**
 
 | Code | Meaning |
 |------|---------|
-| 0 | Diagnostics completed successfully. |
+| 0 | All checks passed (no errors, no warnings). |
+| 1 | One or more warnings, no errors. |
+| 2 | One or more errors (regardless of warnings). |
+
+The `--severity` flag does not affect the exit code — only what is displayed.
+
+**JSON output shape:**
+
+The JSON output always contains `errors` and `warnings` arrays (possibly empty). Each entry carries `check` (the check's slug), `description`, `summary`, an optional `affected` array (schema varies per check), and a `fix` object (`{"command": "..."}` for automated fixes or `{"instructions": "..."}` for manual steps). With `--verbose`, entries gain a `why_it_matters` field; a top-level `passed` array lists every passing check; and a top-level `skipped` array (present when a database prerequisite cascade fails) lists skipped checks with their `check`, `description`, and `prerequisite` fields.
 
 **Notes:**
 
-- Checks include stale claims, issues with no ready path, cycles, orphaned issues, and more.
-- Use `--severity error` to skip informational and warning checks — useful for CI integration.
+- `np admin fix` subcommand names match doctor check slugs exactly. When a finding's `check` value matches an `np admin fix` subcommand name, run that subcommand to apply the automated remediation. See [admin fix](#admin-fix).
+- Use `--severity error` to suppress warnings and show only errors — useful for CI integration where warnings are acceptable noise.
+- The `--long-deferral-threshold` flag (or `NP_LONG_DEFERRAL_THRESHOLD` env var) controls when the `long-deferrals` check considers a deferred issue stale. The default is `7d`.
+
+---
+
+### admin fix
+
+Apply automated remediations for conditions that `np admin doctor` detects. Each subcommand corresponds to a doctor check slug; run the subcommand to apply the remediation mechanically and idempotently.
+
+There is no `--all` mode — each fix is invoked explicitly so the operator decides per-fix rather than blanket-approving a batch. Use `--dry-run` on any subcommand to preview changes before applying them.
+
+See [admin doctor](#admin-doctor) for the diagnostics that surface conditions these fixes address.
+
+**Synopsis:**
+
+```
+np admin fix <subcommand> [flags]
+```
+
+Running `np admin fix` with no subcommand lists available subcommands and exits 0.
+
+**Common flags:**
+
+Every `np admin fix` subcommand supports the following flags. Subcommand-specific flags are listed in each subcommand's section.
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--dry-run` | bool | false | Show what the fix would do without making any changes. |
+| `--json` | bool | false | Output machine-readable JSON instead of human-readable text. |
+| `--author` | string | none | Author name recorded on audit comments for database mutations. Required only for subcommands that mutate the database; sources from `NP_AUTHOR` when not set. |
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Fix completed successfully, or dry-run produced output successfully. |
+| 1 | Precondition not met, unrecognized flag, or unrecoverable error (subcommand-specific; see below). |
+| 3 | Unknown subcommand. |
+| 5 | Database error. |
+
+---
+
+#### admin fix git-ignore
+
+Add `.np/` to the project's `.gitignore` file so that the issue database is not accidentally committed to git.
+
+**Synopsis:**
+
+```
+np admin fix git-ignore [options]
+```
+
+The `--author` flag is not required — this subcommand makes no database mutations.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Show what would change without modifying any files. |
+| `--json` | Output machine-readable JSON. |
+
+**Examples:**
+
+```
+$ np admin fix git-ignore
+Added '.np/' to /path/to/repo/.gitignore.
+```
+
+```
+$ np admin fix git-ignore --dry-run
+Would add '.np/' to /path/to/repo/.gitignore.
+Re-run without --dry-run to apply.
+```
+
+```
+$ np admin fix git-ignore --json
+{"added": true, "created": false, "path": "/path/to/repo/.gitignore"}
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success (entry added, file created, or already-ignored no-op). |
+| 1 | Not inside a git repository, unrecognized flag, or unrecoverable filesystem error. |
+
+**Notes:**
+
+- The fix walks upward from the `.np/` directory to find the nearest `.gitignore`. If none exists between `.np/` and the repository root, a new `.gitignore` is created at the repository root (alongside `.git`).
+- The operation is idempotent — re-running after a successful add reports no changes needed and exits 0.
+- Any of the four entry forms (`.np`, `.np/`, `/.np`, `/.np/`) in an existing `.gitignore` are recognised as already ignoring `.np/`.
+
+---
+
+#### admin fix invalid-parent-reference
+
+Remove dangling parent references from issues whose parent does not exist in the database. Affected issues become top-level issues. An audit comment is recorded on every repaired issue.
+
+**Synopsis:**
+
+```
+np admin fix invalid-parent-reference --author <name> [options]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--author string` | Author name recorded on audit comments for each repaired issue. Required. Sources from `NP_AUTHOR` when not set on the command line. |
+| `--dry-run` | Show what would change without modifying the database. |
+| `--json` | Output machine-readable JSON. |
+
+**Examples:**
+
+```
+$ np admin fix invalid-parent-reference --author alice
+Removing dangling parent references...
+
+Cleaned NP-jkl78 (was → NP-mno90)
+
+1 issue fixed.
+```
+
+```
+$ np admin fix invalid-parent-reference --author alice --dry-run
+Would clean NP-jkl78 (parent NP-mno90 does not exist)
+
+Would fix 1 issue. Re-run without --dry-run to apply.
+```
+
+```
+$ np admin fix invalid-parent-reference --author alice --json
+{"fixed": [{"issue": "NP-jkl78", "removed_parent_id": "NP-mno90"}], "count": 1}
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Fix completed successfully, or no invalid references found (no-op). |
+| 1 | Missing `--author` flag or unrecognized flag. |
+| 5 | Database error. |
+
+**Notes:**
+
+- The fix does not require claiming the affected issues — this is an intentional exception because the issues are in an inconsistent state and the audit comment provides equivalent accountability.
+- Both absent and soft-deleted parents are treated as dangling references and cleaned up.
+- Removing a dangling parent reference does not affect the issue's own children — only the upward link is severed.
 
 ---
 

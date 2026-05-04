@@ -5,4 +5,4 @@ np-seed epic 'Parent epic' alice EPIC
 np-seed task 'Child task' alice CHILD --parent $EPIC
 
 exec np epic children $EPIC
-stdout '^ID\s+PRIORITY\s+ROLE\s+STATE\s+TITLE'
+stdout '^ID\s+P\s+ROLE\s+STATE\s+TITLE'

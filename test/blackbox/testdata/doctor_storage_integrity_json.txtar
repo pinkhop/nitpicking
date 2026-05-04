@@ -1,0 +1,14 @@
+# storage-integrity check: JSON output with a FK violation. Exits 2.
+
+np-init SNTJ
+np-seed task 'Real issue' sntj-agent TASK
+
+np-seed-sql 'INSERT INTO relationships (source_id, target_id, rel_type) VALUES (''SNTJ-aaaaa'', ''SNTJ-zzzzz'', ''blocked_by'')'
+
+! exec np admin doctor --json
+np-json-array-len errors 1
+np-json-array-len warnings 0
+stdout '"storage-integrity"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

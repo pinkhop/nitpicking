@@ -396,10 +396,14 @@ func TestRun_TextOutput_Header_PrintsDefaultColumnHeaders(t *testing.T) {
 	}
 	output := buf.String()
 	firstLine := strings.SplitN(output, "\n", 2)[0]
-	expectedHeaders := []string{"ID", "PRIORITY", "ROLE", "STATE", "TITLE"}
-	for _, hdr := range expectedHeaders {
-		if !strings.Contains(firstLine, hdr) {
-			t.Errorf("expected header row to contain %q, first line: %q", hdr, firstLine)
+	headerFields := strings.Fields(firstLine)
+	headerSet := make(map[string]bool, len(headerFields))
+	for _, f := range headerFields {
+		headerSet[f] = true
+	}
+	for _, hdr := range []string{"ID", "P", "ROLE", "STATE", "TITLE"} {
+		if !headerSet[hdr] {
+			t.Errorf("expected header row field %q, first line: %q", hdr, firstLine)
 		}
 	}
 }
@@ -453,9 +457,11 @@ func TestRun_TextOutput_CustomColumns_ShowsOnlySelectedColumns(t *testing.T) {
 	if !strings.Contains(firstLine, "STATE") {
 		t.Errorf("expected STATE in header, first line: %q", firstLine)
 	}
-	// PRIORITY should not appear since it was not selected.
-	if strings.Contains(firstLine, "PRIORITY") {
-		t.Errorf("PRIORITY should not appear in custom column set, first line: %q", firstLine)
+	// P (PRIORITY) should not appear since it was not selected.
+	for _, field := range strings.Fields(firstLine) {
+		if field == "P" {
+			t.Errorf("P (PRIORITY) should not appear in custom column set, first line: %q", firstLine)
+		}
 	}
 }
 

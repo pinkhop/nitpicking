@@ -1,0 +1,22 @@
+# blocked-by-closable-issue check: JSON output when a task is blocked by a
+# closable epic. The warnings array contains the finding. Exits 1.
+
+np-init BBCJ
+np-seed epic 'Blocker epic' bbcj-agent BLOCKER
+np-seed task 'Child of blocker' bbcj-agent BLOCKER_CHILD --parent $BLOCKER
+np-seed task 'Blocked task' bbcj-agent BLOCKED
+
+np-seed-rel BLOCKED blocked_by BLOCKER bbcj-agent
+
+exec np claim $BLOCKER_CHILD --author bbcj-agent --json
+np-capture CHILD_CLAIM claim_id
+exec np close --claim $CHILD_CLAIM --reason 'test: close child to make blocker closable' --json
+
+! exec np admin doctor --json
+np-json-array-len errors 0
+! np-json-array-len warnings 0
+stdout '"blocked-by-closable-issue"'
+stdout '"closable_blocker"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

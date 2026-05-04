@@ -1,23 +1,23 @@
 # Verify that 'np admin doctor --json' produces valid JSON output with the
-# expected top-level shape: snake_case keys, boolean 'healthy', array 'findings'
-# with category/severity/message fields, and no PascalCase key leaks.
+# expected top-level shape: snake_case keys, 'errors' and 'warnings' arrays
+# matching the spec contract, and no PascalCase key leaks.
 
 np-init DR
 np-seed task 'Healthy task' doctor-audit TASK
 
 exec np admin doctor --json
 
-# Top-level shape: healthy (boolean) and findings (array) present.
-! np-json-no-field healthy
-! np-json-no-field findings
+# Top-level shape: errors and warnings arrays are always present.
+! np-json-no-field errors
+! np-json-no-field warnings
+
+# Old shape fields must not leak.
+np-json-no-field healthy
+np-json-no-field findings
+np-json-no-field checks
 
 # No is_deleted field leaks into doctor output.
 np-json-no-field is_deleted
-
-# Findings contain expected snake_case fields.
-stdout '"category"'
-stdout '"severity"'
-stdout '"message"'
 
 # No PascalCase key leaks.
 ! stdout '"Category"'
@@ -25,3 +25,8 @@ stdout '"message"'
 ! stdout '"Message"'
 ! stdout '"IssueIDs"'
 ! stdout '"Suggestion"'
+! stdout '"Errors"'
+! stdout '"Warnings"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

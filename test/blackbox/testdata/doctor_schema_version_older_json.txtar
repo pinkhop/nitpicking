@@ -1,0 +1,15 @@
+# schema-version check (older DB): JSON output. The errors array has one entry
+# for schema-version. column-data-validity and other checks still run (older-DB
+# case does not trigger SkipsAll). Exits 2.
+
+np-init SVOJ
+
+np-seed-sql 'UPDATE metadata SET value = ''1'' WHERE key = ''schema_version'''
+
+! exec np admin doctor --json
+np-json-array-len errors 1
+stdout '"schema-version"'
+stdout 'np admin upgrade'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

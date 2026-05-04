@@ -20,7 +20,7 @@ Inside `.np/` in the workspace where you ran `np init`.
 Yes. Each initialized workspace has its own database.
 
 **Should I commit `.np/`?**  
-Usually no. Treat it as local state unless you have a specific reason to move it with the repo.
+Usually no. Treat it as local state unless you have a specific reason to move it with the repo. Run `np admin fix git-ignore` to add `.np/` to your `.gitignore` automatically, or run `np admin doctor` to check whether it is needed.
 
 ## Workflow
 

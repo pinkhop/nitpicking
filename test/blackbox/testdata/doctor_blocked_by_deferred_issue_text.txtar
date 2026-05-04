@@ -1,0 +1,20 @@
+# blocked-by-deferred-issue check: when a task is blocked by an issue that
+# has been deferred, a warning fires. Uses "np issue defer" (not "np defer").
+# Exits 1. Escape "(s)" in regex.
+
+np-init BBDI
+np-seed task 'Deferred blocker' bbdi-agent BLOCKER
+np-seed task 'Blocked task' bbdi-agent BLOCKED
+
+np-seed-rel BLOCKED blocked_by BLOCKER bbdi-agent
+
+exec np claim $BLOCKER --author bbdi-agent --json
+np-capture BLOCKER_CLAIM claim_id
+exec np issue defer --claim $BLOCKER_CLAIM --json
+
+! exec np admin doctor
+stdout 'Blocked by deferred issue'
+stdout '1 issue\(s\) blocked by a deferred issue'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

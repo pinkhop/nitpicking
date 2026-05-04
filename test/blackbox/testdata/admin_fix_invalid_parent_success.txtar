@@ -1,0 +1,31 @@
+# admin fix invalid-parent-reference clears dangling parent references and adds
+# audit comments. Dangling references cannot be created through the np API
+# (domain validation prevents them), so the inconsistent state is seeded
+# directly via SQL. The sqlite3 CLI does not enforce foreign keys (unlike the
+# np process which sets PRAGMA foreign_keys = ON), so the direct INSERT works.
+
+np-init FIXT
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''FIXT-aaaaa'', ''task'', ''Orphaned one'', ''open'', ''P2'', datetime(''now''), ''FIXT-zzzzz'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''FIXT-aaaaa'', ''Orphaned one'', '''', '''')'
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''FIXT-bbbbb'', ''task'', ''Orphaned two'', ''open'', ''P2'', datetime(''now''), ''FIXT-zzzzz'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''FIXT-bbbbb'', ''Orphaned two'', '''', '''')'
+
+exec np admin fix invalid-parent-reference --author fix-agent
+stdout 'Removing dangling parent references'
+stdout 'Cleaned FIXT-aaaaa'
+stdout 'Cleaned FIXT-bbbbb'
+stdout '2 issues fixed'
+
+# Verify spec-exact audit comment body on FIXT-aaaaa (both sentences required).
+# testscript stdout accepts single-quoted Go regexps; '.' matches the literal
+# single-quote characters that appear around 'np admin fix invalid-parent-reference'.
+exec np comment list FIXT-aaaaa --json
+stdout 'Removed dangling parent reference FIXT-zzzzz; parent did not exist in the database\.'
+stdout 'Automated cleanup by .np admin fix invalid-parent-reference'
+
+# Verify spec-exact audit comment body on FIXT-bbbbb as well.
+exec np comment list FIXT-bbbbb --json
+stdout 'Removed dangling parent reference FIXT-zzzzz; parent did not exist in the database\.'
+stdout 'Automated cleanup by .np admin fix invalid-parent-reference'

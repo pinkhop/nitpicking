@@ -1,0 +1,13 @@
+# dot-np-directory check: running from a directory with no .np/ ancestor fires
+# an error, cascades 13 skips, and exits 2.
+# agent-instructions passes (CLAUDE.md present); git-ignore is NotApplicable
+# (no .git directory), so 2 of 16 checks run.
+
+! exec np admin doctor
+stdout '.np/ directory'
+stdout 'no .np/ directory found'
+stdout '2 of 16 checks ran'
+stdout '13 checks skipped \(cascade prerequisite failed\)'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

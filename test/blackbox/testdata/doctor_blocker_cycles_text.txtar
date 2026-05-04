@@ -1,0 +1,25 @@
+# blocker-cycles check: seeds a 3-issue cycle (A blocked_by B, B blocked_by C,
+# C blocked_by A) and a self-loop (BKCY-sssss blocked_by BKCY-sssss via SQL,
+# since domain.NewRelationship rejects self-relationships). Both are detected.
+# Exits 1. Escape "(s)" in regex.
+
+np-init BKCY
+np-seed task 'Cycle node A' bkcy-agent A
+np-seed task 'Cycle node B' bkcy-agent B
+np-seed task 'Cycle node C' bkcy-agent C
+
+np-seed-rel A blocked_by B bkcy-agent
+np-seed-rel B blocked_by C bkcy-agent
+np-seed-rel C blocked_by A bkcy-agent
+
+# Self-loop: inserted via SQL because the np rel add command rejects self-references.
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''BKCY-sssss'', ''task'', ''Self-looping task'', ''open'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''BKCY-sssss'', ''Self-looping task'', '''', '''')'
+np-seed-sql 'INSERT INTO relationships (source_id, target_id, rel_type) VALUES (''BKCY-sssss'', ''BKCY-sssss'', ''blocked_by'')'
+
+! exec np admin doctor
+stdout 'Blocker cycles'
+stdout '2 blocker cycle\(s\) detected'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

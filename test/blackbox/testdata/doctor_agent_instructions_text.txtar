@@ -1,0 +1,10 @@
+# agent-instructions check: when no CLAUDE.md or AGENTS.md exists in the
+# working directory, a warning is emitted. This fixture omits the CLAUDE.md
+# file section so the check fires. Exits 1 (warning only).
+
+np-init AINS
+
+! exec np admin doctor
+stdout 'Agent instructions'
+stdout 'no instruction files exist'
+

@@ -505,6 +505,76 @@ func TestRenderTreeText_ColumnAlignmentPreservedNonTTY(t *testing.T) {
 	}
 }
 
+// TestRenderTreeText_BackRefRowIsDimOnTTY verifies that back-reference rows
+// carry ANSI dim styling on TTY output, distinguishing them from full issue rows.
+func TestRenderTreeText_BackRefRowIsDimOnTTY(t *testing.T) {
+	t.Parallel()
+
+	// Given: a node slice containing a single back-reference row at depth 1.
+	nodes := []relcmd.TreeNode{
+		{
+			Kind:            relcmd.NodeKindBackRef,
+			IssueID:         "NP-abc12",
+			Depth:           1,
+			BackRefParentID: "NP-xyz99",
+		},
+	}
+
+	// When: rendering with TTY enabled.
+	ios, _, out, _ := iostreams.Test()
+	ios.SetStdoutTTY(true)
+	if err := relcmd.RenderTreeText(ios, nodes); err != nil {
+		t.Fatalf("RenderTreeText failed: %v", err)
+	}
+
+	raw := out.String()
+
+	// Then: the raw output contains the ANSI dim sequence.
+	const dimSeq = "\033[2m"
+	if !strings.Contains(raw, dimSeq) {
+		t.Errorf("expected ANSI dim sequence %q in TTY output; raw: %q", dimSeq, raw)
+	}
+	// Then: the back-reference text is present after stripping ANSI.
+	stripped := cmdutil.StripANSI(raw)
+	if !strings.Contains(stripped, "NP-abc12 shown above under NP-xyz99") {
+		t.Errorf("expected back-ref text in stripped output; stripped: %q", stripped)
+	}
+}
+
+// TestRenderTreeText_BackRefRowIsPlainOnNonTTY verifies that back-reference rows
+// emit no ANSI sequences when stdout is not a TTY, keeping piped output clean.
+func TestRenderTreeText_BackRefRowIsPlainOnNonTTY(t *testing.T) {
+	t.Parallel()
+
+	// Given: a back-reference node with no parent (root-level back-ref).
+	nodes := []relcmd.TreeNode{
+		{
+			Kind:    relcmd.NodeKindBackRef,
+			IssueID: "NP-abc12",
+			Depth:   0,
+		},
+	}
+
+	// When: rendering with non-TTY output.
+	ios, _, out, _ := iostreams.Test()
+	ios.SetStdoutTTY(false)
+	if err := relcmd.RenderTreeText(ios, nodes); err != nil {
+		t.Fatalf("RenderTreeText failed: %v", err)
+	}
+
+	raw := out.String()
+
+	// Then: no ANSI escape sequences are present.
+	stripped := cmdutil.StripANSI(raw)
+	if raw != stripped {
+		t.Errorf("expected no ANSI sequences in non-TTY output; raw: %q", raw)
+	}
+	// Then: the back-reference text is present.
+	if !strings.Contains(raw, "NP-abc12 shown above") {
+		t.Errorf("expected back-ref text in non-TTY output; raw: %q", raw)
+	}
+}
+
 // --- Utility ---
 
 // nonEmptyLines splits output into lines, discarding blank lines.

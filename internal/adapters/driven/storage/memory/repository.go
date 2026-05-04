@@ -769,6 +769,20 @@ func (r *Repository) IntegrityCheck(_ context.Context) error {
 	return nil
 }
 
+// ForeignKeyCheck always returns zero in the in-memory adapter because the
+// in-memory store enforces referential integrity through domain invariants
+// rather than SQLite foreign-key constraints.
+func (r *Repository) ForeignKeyCheck(_ context.Context) (int, error) {
+	return 0, nil
+}
+
+// ValidateColumnData always returns zero in the in-memory adapter because the
+// in-memory store only ever holds well-formed domain values — there is no raw
+// SQL layer that could accept malformed timestamps, enums, or JSON blobs.
+func (r *Repository) ValidateColumnData(_ context.Context) (int, error) {
+	return 0, nil
+}
+
 // GetSchemaVersion always returns 2 in the in-memory adapter because the
 // in-memory store is always freshly initialized at v2. There is no on-disk
 // v1 schema to migrate.

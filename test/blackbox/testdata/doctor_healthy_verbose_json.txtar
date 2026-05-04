@@ -1,0 +1,43 @@
+# Healthy verbose JSON: on a fully healthy workspace the passed array contains
+# exactly 16 entries in canonical registry order. The .git/ directory and
+# .gitignore with .np/ make git-ignore pass (not NotApplicable). Exit 0.
+#
+# Ordering: The passed array is serialized in registry order. We verify that
+# "dot-np-directory" (first) appears before "long-deferrals" (last) in the
+# output, which catches registry-reordering regressions. Each slug is also
+# verified to appear in the output.
+
+np-init HLVJ
+np-seed task 'Healthy task' hlvj-agent TASK
+
+exec np admin doctor --verbose --json
+np-json-array-len errors 0
+np-json-array-len warnings 0
+np-json-array-len passed 16
+stdout '"dot-np-directory"'
+stdout '"database-exists"'
+stdout '"storage-integrity"'
+stdout '"schema-version"'
+stdout '"column-data-validity"'
+stdout '"closed-parent-with-open-child"'
+stdout '"invalid-parent-reference"'
+stdout '"agent-instructions"'
+stdout '"git-ignore"'
+stdout '"blocked-by-ancestor"'
+stdout '"blocked-by-closable-issue"'
+stdout '"blocked-by-deferred-issue"'
+stdout '"blocker-cycles"'
+stdout '"priority-inversions"'
+stdout '"closable-parent-issues"'
+stdout '"long-deferrals"'
+# Ordering check: first slug must precede last slug in the JSON array.
+! stdout '"long-deferrals"[^}]*"dot-np-directory"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.
+-- .git/config --
+[core]
+	repositoryformatversion = 0
+	filemode = true
+-- .gitignore --
+.np/

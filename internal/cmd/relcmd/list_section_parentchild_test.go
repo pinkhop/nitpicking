@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/cmd/relcmd"
+	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/iostreams"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
@@ -412,6 +413,60 @@ func TestRenderParentChildSection_ClosedGrandchild_SubtreeDropped(t *testing.T) 
 	// Then: header shows 1 root and 3 issues (root + child + openGrandchild).
 	if !strings.Contains(output, "Parent-child (1 roots, 3 issues)") {
 		t.Errorf("expected 1 root, 3 issues; output:\n%s", output)
+	}
+}
+
+// TestRenderParentChildSection_ChildTitleWidthEqualsRootTitleWidth verifies that
+// child issue titles are truncated to the same width as root issue titles in TTY
+// mode. In a table all rows share the same TREE column width (the maximum across
+// all rows), so all rows have the same available title space regardless of depth.
+func TestRenderParentChildSection_ChildTitleWidthEqualsRootTitleWidth(t *testing.T) {
+	t.Parallel()
+
+	// Given: a root with one child, both with very long titles.
+	svc := setupService(t)
+	longTitle := strings.Repeat("X", 200)
+	rootID := createTreeEpic(t, svc, longTitle, "")
+	_ = createTreeTask(t, svc, longTitle, rootID.String())
+
+	ios, _, out, _ := iostreams.Test()
+	ios.SetStdoutTTY(true)
+	ios.SetTerminalWidth(90)
+
+	// When: rendering the parent-child section.
+	err := relcmd.RenderParentChildSection(t.Context(), svc, ios)
+	if err != nil {
+		t.Fatalf("renderParentChildSection failed: %v", err)
+	}
+
+	// Then: both rows should have titles truncated to the same visible length.
+	// Count the X characters in each row (before the ellipsis).
+	//
+	// With termWidth=90 and UniformIssueTreeOverhead(maxDepth=1)=41,
+	// the available title width = 90-41 = 49 chars. TruncateTitle replaces the last
+	// rune with "…", so 48 X chars + "…" = 49 visible runes. Both root and child must
+	// get exactly 48 X chars — if root got 50 and child got 48, that would be the bug.
+	const wantXCount = 48
+	output := out.String()
+	var xCounts []int
+	for _, line := range strings.Split(output, "\n") {
+		stripped := cmdutil.StripANSI(line)
+		xCount := strings.Count(stripped, "X")
+		if xCount > 0 {
+			xCounts = append(xCounts, xCount)
+		}
+	}
+
+	if len(xCounts) != 2 {
+		t.Fatalf("expected 2 rows with X titles; got %d counts %v; output:\n%s",
+			len(xCounts), xCounts, output)
+	}
+
+	for i, got := range xCounts {
+		if got != wantXCount {
+			t.Errorf("row[%d]: got %d X chars in title, want %d; output:\n%s",
+				i, got, wantXCount, output)
+		}
 	}
 }
 

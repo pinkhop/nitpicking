@@ -1,0 +1,19 @@
+# closable-parent-issues check: JSON output when an epic is closable.
+# The warnings array contains the finding. Exits 1.
+
+np-init CLPJ
+np-seed epic 'Closable epic' clpj-agent EPIC
+np-seed task 'Completed child' clpj-agent CHILD --parent $EPIC
+
+exec np claim $CHILD --author clpj-agent --json
+np-capture CHILD_CLAIM claim_id
+exec np close --claim $CHILD_CLAIM --reason 'test: complete the child' --json
+
+! exec np admin doctor --json
+np-json-array-len errors 0
+np-json-array-len warnings 1
+stdout '"closable-parent-issues"'
+stdout $EPIC
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

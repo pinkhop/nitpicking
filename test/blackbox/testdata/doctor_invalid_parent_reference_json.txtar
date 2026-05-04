@@ -1,0 +1,21 @@
+# invalid-parent-reference check: JSON output using soft-deleted parent to avoid
+# triggering storage-integrity (FK is satisfied by the deleted row but the
+# doctor still reports it as invalid). Exits 2.
+
+np-init INVJ
+
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at) VALUES (''INVJ-ppppp'', ''task'', ''Parent'', ''open'', ''P2'', datetime(''now''))'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''INVJ-ppppp'', ''Parent'', '''', '''')'
+np-seed-sql 'INSERT INTO issues (issue_id, role, title, state, priority, created_at, parent_id) VALUES (''INVJ-ccccc'', ''task'', ''Orphaned child'', ''open'', ''P2'', datetime(''now''), ''INVJ-ppppp'')'
+np-seed-sql 'INSERT INTO issues_fts (issue_id, title, description, acceptance_criteria) VALUES (''INVJ-ccccc'', ''Orphaned child'', '''', '''')'
+np-seed-sql 'UPDATE issues SET deleted = 1 WHERE issue_id = ''INVJ-ppppp'''
+
+! exec np admin doctor --json
+np-json-array-len errors 1
+np-json-array-len warnings 0
+stdout '"invalid-parent-reference"'
+stdout '"missing_parent_id"'
+stdout 'INVJ-ppppp'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

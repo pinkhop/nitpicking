@@ -16,3 +16,6 @@ exec np admin doctor --json
 # The claim ID bearer token must not appear in the output.
 ! stdout $CLAIM@R
 ! stdout '"claim_id"'
+
+-- CLAUDE.md --
+Use np to manage issues. Run `np agent prime` for setup.

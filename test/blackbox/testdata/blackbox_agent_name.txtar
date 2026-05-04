@@ -1,8 +1,8 @@
-# Verify that 'np agent name' produces a three-part hyphenated name without
-# requiring a database (unseeded mode).
+# Verify that 'np agent name' produces an "agent-" prefixed four-part hyphenated
+# name without requiring a database (unseeded mode).
 
 exec np agent name
-stdout '^[a-z]+-[a-z]+-[a-z]+$'
+stdout '^agent-[a-z]+-[a-z]+-[a-z]+$'
 
 # Verify that '--seed=<value>' produces identical output on repeated calls.
 # Two invocations with the same seed must emit the same name.
@@ -15,20 +15,20 @@ cp stdout second_name.txt
 
 cmp first_name.txt second_name.txt
 
-# Verify that the seeded output still matches the three-word hyphenated shape.
+# Verify that the seeded output still matches the "agent-" prefixed four-part shape.
 
 exec np agent name --seed=hello
-stdout '^[a-z]+-[a-z]+-[a-z]+$'
+stdout '^agent-[a-z]+-[a-z]+-[a-z]+$'
 
 # Verify that a different seed produces a different name.
-# The two seeds are chosen empirically: 'hello' -> 'sharp-spark-chase',
-# 'world' -> 'grand-glacier-trace'.
+# The two seeds are chosen empirically: 'hello' -> 'agent-sharp-spark-chase',
+# 'world' -> 'agent-grand-glacier-trace'.
 
 exec np agent name --seed=hello
-stdout '^sharp-spark-chase$'
+stdout '^agent-sharp-spark-chase$'
 
 exec np agent name --seed=world
-stdout '^grand-glacier-trace$'
+stdout '^agent-grand-glacier-trace$'
 
 # Verify that whitespace-only seeds are rejected with a non-zero exit code.
 # urfave/cli strips trailing whitespace from string flags, so a seed of only

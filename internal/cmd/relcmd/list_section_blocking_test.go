@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/pinkhop/nitpicking/internal/cmd/relcmd"
+	"github.com/pinkhop/nitpicking/internal/cmdutil"
 	"github.com/pinkhop/nitpicking/internal/domain"
 	"github.com/pinkhop/nitpicking/internal/iostreams"
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
@@ -560,5 +561,160 @@ func TestRenderBlockingSection_RunList_DispatchedCorrectly(t *testing.T) {
 	// Then: the blocking section header appears in output.
 	if !strings.Contains(out.String(), "Blocking") {
 		t.Errorf("expected blocking section in output; got:\n%s", out.String())
+	}
+}
+
+// TestRenderBlockingSection_TriangleGraph_BackRefHasNoUpArrow verifies that
+// the triangle pattern (A→B, A→C, B→C) renders back-reference rows without
+// the "↑ " prefix. The arrow was confusing because it implied the row was
+// positioned at depth, whereas the plain-English "shown above under X" suffix
+// already conveys the redirect.
+func TestRenderBlockingSection_TriangleGraph_BackRefHasNoUpArrow(t *testing.T) {
+	t.Parallel()
+
+	// Given: A→B, A→C, B→C (triangle: A directly blocks B and C; B also blocks C).
+	svc := setupService(t)
+	a := createTask(t, svc, "A (root)")
+	b := createTask(t, svc, "B")
+	c := createTask(t, svc, "C (shared)")
+	addBlockedBy(t, svc, b.String(), a.String(), "test-agent") // B blocked_by A
+	addBlockedBy(t, svc, c.String(), a.String(), "test-agent") // C blocked_by A
+	addBlockedBy(t, svc, c.String(), b.String(), "test-agent") // C blocked_by B
+
+	// When: rendering the blocking section.
+	output := renderBlocking(t, svc, false)
+
+	// Then: C's ID appears exactly twice — once as the full row, once as a back-ref.
+	if count := strings.Count(output, c.String()); count != 2 {
+		t.Errorf("C %q should appear exactly 2 times (full + back-ref); got %d; output:\n%s",
+			c.String(), count, output)
+	}
+	// Then: the back-ref row names the parent where C was first rendered.
+	// A visits its children (B and C) in ascending ID order; whichever of B or C
+	// has the lower ID is visited first, determining whether C is first rendered
+	// under A (if C < B) or under B (if B < C). The test accepts either case so
+	// it does not depend on random ID ordering (NP-bbqhq).
+	backRefUnderA := c.String() + " shown above under " + a.String()
+	backRefUnderB := c.String() + " shown above under " + b.String()
+	if !strings.Contains(output, backRefUnderA) && !strings.Contains(output, backRefUnderB) {
+		t.Errorf("expected back-ref %q or %q; output:\n%s", backRefUnderA, backRefUnderB, output)
+	}
+	// Then: no up-arrow prefix on any line.
+	if strings.Contains(output, "↑") {
+		t.Errorf("unexpected '↑' prefix in output; output:\n%s", output)
+	}
+}
+
+// TestRenderBlockingSection_ChildTitleWidthEqualsRootTitleWidth verifies that
+// root and child issue titles are truncated to the same width in TTY mode.
+// TableWriter pads the TREE column to the widest row, so all rows pay the same
+// overhead regardless of depth. The fix uses cmdutil.UniformTreeOverhead with
+// the actual max TREE cell width across all rows.
+func TestRenderBlockingSection_ChildTitleWidthEqualsRootTitleWidth(t *testing.T) {
+	t.Parallel()
+
+	// Given: root A blocks child B, both with very long titles.
+	svc := setupService(t)
+	longTitle := strings.Repeat("X", 200)
+	a := createTask(t, svc, longTitle)
+	b := createTask(t, svc, longTitle)
+	addBlockedBy(t, svc, b.String(), a.String(), "test-agent") // B blocked_by A
+
+	ios, _, out, _ := iostreams.Test()
+	ios.SetStdoutTTY(true)
+	ios.SetTerminalWidth(90)
+
+	// When: rendering the blocking section with a 90-column TTY.
+	if err := relcmd.RenderBlockingSection(t.Context(), svc, ios); err != nil {
+		t.Fatalf("RenderBlockingSection failed: %v", err)
+	}
+
+	// Then: both rows have titles truncated to the same visible length.
+	//
+	// With termWidth=90 and UniformTreeOverhead(12)=41 (child at depth 1 is the
+	// widest row: 10-char ID + 2-char indent), the available title width = 90-41 = 49
+	// chars. TruncateTitle replaces the last rune with "…", so 48 X chars + "…" = 49
+	// visible runes. Both root (depth 0) and child (depth 1) must get exactly 48 X
+	// chars — if root got 50 and child got 48, that would be the bug this test catches.
+	const wantXCount = 48
+	output := out.String()
+	var xCounts []int
+	for _, line := range strings.Split(output, "\n") {
+		stripped := cmdutil.StripANSI(line)
+		xCount := strings.Count(stripped, "X")
+		if xCount > 0 {
+			xCounts = append(xCounts, xCount)
+		}
+	}
+
+	if len(xCounts) != 2 {
+		t.Fatalf("expected 2 rows with X titles; got %d counts %v; output:\n%s",
+			len(xCounts), xCounts, output)
+	}
+
+	for i, got := range xCounts {
+		if got != wantXCount {
+			t.Errorf("row[%d]: got %d X chars in title, want %d; output:\n%s",
+				i, got, wantXCount, output)
+		}
+	}
+}
+
+// TestRenderBlockingSection_DiamondGraph_TitleWidthUniformWithBackRef verifies
+// that in a diamond graph (A→B, A→C, B→D, C→D) — where D is a back-referenced
+// node — all four issue rows receive the same truncated title width. The back-ref
+// to D is emitted at depth 2 (under whichever of B or C is visited second), and
+// its TREE cell (" shown above under <parent>") is wider than any issue row at the
+// same depth. blockingMaxTreeCellWidth must consider back-ref rows so that the
+// uniform overhead accounts for the wider TREE column, preventing title overflow.
+func TestRenderBlockingSection_DiamondGraph_TitleWidthUniformWithBackRef(t *testing.T) {
+	t.Parallel()
+
+	// Given: A→B, A→C, B→D, C→D (diamond: D is reached from both B and C).
+	svc := setupService(t)
+	longTitle := strings.Repeat("X", 200)
+	a := createTask(t, svc, longTitle) // root
+	b := createTask(t, svc, longTitle)
+	c := createTask(t, svc, longTitle)
+	d := createTask(t, svc, longTitle)                         // shared node — appears once full, once as back-ref
+	addBlockedBy(t, svc, b.String(), a.String(), "test-agent") // B blocked_by A
+	addBlockedBy(t, svc, c.String(), a.String(), "test-agent") // C blocked_by A
+	addBlockedBy(t, svc, d.String(), b.String(), "test-agent") // D blocked_by B
+	addBlockedBy(t, svc, d.String(), c.String(), "test-agent") // D blocked_by C
+
+	ios, _, out, _ := iostreams.Test()
+	ios.SetStdoutTTY(true)
+	ios.SetTerminalWidth(90)
+
+	// When: rendering the blocking section with a 90-column TTY.
+	if err := relcmd.RenderBlockingSection(t.Context(), svc, ios); err != nil {
+		t.Fatalf("RenderBlockingSection failed: %v", err)
+	}
+
+	// Then: all four issue rows (A, B, C, D) have titles truncated to the same
+	// visible length. The exact X count depends on back-ref TREE cell width, not
+	// just max issue depth, because blockingMaxTreeCellWidth accounts for back-ref
+	// rows. Asserting uniformity is sufficient — the key invariant is that no issue
+	// row gets a different (wider) truncation than another.
+	output := out.String()
+	var xCounts []int
+	for _, line := range strings.Split(output, "\n") {
+		stripped := cmdutil.StripANSI(line)
+		if count := strings.Count(stripped, "X"); count > 0 {
+			xCounts = append(xCounts, count)
+		}
+	}
+
+	if len(xCounts) != 4 {
+		t.Fatalf("expected 4 rows with X titles (A, B, C, D); got %d counts %v; output:\n%s",
+			len(xCounts), xCounts, output)
+	}
+
+	first := xCounts[0]
+	for i, got := range xCounts {
+		if got != first {
+			t.Errorf("row[%d]: got %d X chars, want %d (same as row[0]); output:\n%s",
+				i, got, first, output)
+		}
 	}
 }

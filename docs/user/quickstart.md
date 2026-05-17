@@ -89,7 +89,7 @@ Before you change a task or close it, claim it:
 ```bash
 $ np claim ready --author alice
 Claimed FOO-a3bxr
-  Claim ID: a4dace30e46eb1ec14019c79a59c6b27
+  Claim ID: 5rvb5d3dhbx9081bmzcc5nccd8
   Author: alice
   Stale at: 2026-03-28 16:30:00
 ```
@@ -126,7 +126,7 @@ When the work is done, close it with a reason:
 
 ```bash
 $ np close \
-    --claim a4dace30e46eb1ec14019c79a59c6b27 \
+    --claim 5rvb5d3dhbx9081bmzcc5nccd8 \
     --reason "Login endpoint implemented and covered by tests."
 Closed FOO-a3bxr
 ```
@@ -138,7 +138,7 @@ Closed FOO-a3bxr
 If you claimed a task but are not finishing it now, release it:
 
 ```bash
-$ np issue release --claim a4dace30e46eb1ec14019c79a59c6b27
+$ np issue release --claim 5rvb5d3dhbx9081bmzcc5nccd8
 Released FOO-a3bxr
 ```
 

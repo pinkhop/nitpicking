@@ -344,7 +344,7 @@ Claim by ID:
 ```text
 $ np claim FOO-a3bxr --author alice
 [ok] Claimed FOO-a3bxr
-  Claim ID: 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5
+  Claim ID: 7q2w8r4t9y3p5x1n6m0kbcvfd2
   Author: alice
   Stale at: 2026-04-01 11:30:00
 ```
@@ -353,7 +353,7 @@ $ np claim FOO-a3bxr --author alice
 $ np claim FOO-a3bxr --author alice --json
 {
   "issue_id": "FOO-a3bxr",
-  "claim_id": "7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5",
+  "claim_id": "7q2w8r4t9y3p5x1n6m0kbcvfd2",
   "author": "alice",
   "created_at": "2026-04-01T09:30:00Z",
   "stale_at": "2026-04-01T11:30:00Z"
@@ -366,7 +366,7 @@ Claim the next issue from the ready queue:
 ```text
 $ np claim ready --author alice
 [ok] Claimed FOO-a3bxr
-  Claim ID: 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5
+  Claim ID: 7q2w8r4t9y3p5x1n6m0kbcvfd2
   Author: alice
   Stale at: 2026-04-01 11:30:00
 ```
@@ -377,7 +377,7 @@ Claim from the ready queue with filters:
 $ np claim ready --author alice --role task --label kind:bug --json
 {
   "issue_id": "FOO-d4kzs",
-  "claim_id": "9c4d7e2f1a6b5c8d3e0f4a7b2c1d6e9f",
+  "claim_id": "9k3h6g8j5d4f2s1a7b0n6m4cvt",
   "author": "alice",
   "created_at": "2026-04-01T09:45:00Z",
   "stale_at": "2026-04-01T11:45:00Z"
@@ -424,7 +424,7 @@ np close [options]
 **Examples:**
 
 ```text
-$ np close --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5 --reason "Login endpoint complete with JWT auth."
+$ np close --claim 7q2w8r4t9y3p5x1n6m0kbcvfd2 --reason "Login endpoint complete with JWT auth."
 Closed FOO-a3bxr
 ```
 
@@ -601,12 +601,12 @@ np issue release [options]
 **Examples:**
 
 ```
-$ np issue release --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5
+$ np issue release --claim 7q2w8r4t9y3p5x1n6m0kbcvfd2
 Released FOO-a3bxr
 ```
 
 ```
-$ np issue release --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5 --json
+$ np issue release --claim 7q2w8r4t9y3p5x1n6m0kbcvfd2 --json
 {
   "action": "release",
   "issue_id": "FOO-a3bxr"
@@ -734,7 +734,7 @@ np issue defer [options]
 **Examples:**
 
 ```
-$ np issue defer --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5
+$ np issue defer --claim 7q2w8r4t9y3p5x1n6m0kbcvfd2
 ```
 
 **Exit codes:**
@@ -771,7 +771,7 @@ np issue delete [options]
 **Examples:**
 
 ```
-$ np issue delete --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5 --confirm
+$ np issue delete --claim 7q2w8r4t9y3p5x1n6m0kbcvfd2 --confirm
 ```
 
 **Exit codes:**
@@ -1047,7 +1047,7 @@ $ np rel add FOO-a3bxr blocked_by FOO-b7mqd --author alice
 ```
 
 ```
-$ np rel add FOO-c4npt parent_of FOO-a3bxr --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5 --author alice
+$ np rel add FOO-c4npt parent_of FOO-a3bxr --claim 7q2w8r4t9y3p5x1n6m0kbcvfd2 --author alice
 ```
 
 ```
@@ -1455,7 +1455,7 @@ np label add [options] <key:value>
 **Examples:**
 
 ```
-$ np label add kind:bug --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5
+$ np label add kind:bug --claim 7q2w8r4t9y3p5x1n6m0kbcvfd2
 ```
 
 **Exit codes:**
@@ -1902,7 +1902,7 @@ JSONEND
 **Examples:**
 
 ```json
-$ np json update --claim 7f2e9a41c3d8b6e5a4f1c0d9b8a7e6f5 <<'JSONEND'
+$ np json update --claim 7q2w8r4t9y3p5x1n6m0kbcvfd2 <<'JSONEND'
 {
   "title": "Revised title",
   "priority": "P0"

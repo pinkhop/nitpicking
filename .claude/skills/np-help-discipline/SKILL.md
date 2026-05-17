@@ -1,6 +1,12 @@
 ---
 name: np-help-discipline
 description: Use when about to invoke an `np` (nitpicking) command, subcommand, or flag that has not been verified in the current session, or when unsure whether a flag or subcommand exists. Also use as the escape hatch for any `np` activity not covered by another skill (e.g., `np issue reopen`, `np issue undefer`, `np epic close-completed`, `np admin backup`, `np agent name`, `np json update`).
+license: MIT
+compatibility: Requires the nitpicking `np` CLI (>= 0.4.0) on PATH; no network access needed.
+allowed-tools: Bash(np admin backup:*) Bash(np admin doctor:*) Bash(np agent:*) Bash(np claim:*) Bash(np close:*) Bash(np epic:*) Bash(np issue:*) Bash(np json:*) Bash(np label:*) Bash(np list:*) Bash(np ready:*) Bash(np rel:*) Bash(np show:*)
+metadata:
+  author: nitpicking (np)
+  version: "0.4.0"
 ---
 
 # np-help-discipline

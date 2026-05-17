@@ -1,6 +1,12 @@
 ---
 name: np-reading-issues
-description: Use when the agent needs to understand a specific `np` (nitpicking) issue (typically right after claiming it), explore the issue's parent, siblings, or `refs` neighbours for context, look up an issue by ID, view its history, search for issues by text, or list issues by label or other filters. Triggers on prompts like "what does FOO-a3bxr cover", "what do I need to do for this issue", "do we already have an issue for X", "show me the history of FOO-a3bxr".
+description: Use when the agent needs to understand a specific `np` (nitpicking) issue (typically right after claiming it), explore its parent, siblings, or `refs` neighbours for context, view an issue's history, free-text search across issues, or list/filter issues by label, state, role, or parent. Triggers on prompts like "what does FOO-a3bxr cover", "what do I need to do for this issue", "do we already have an issue for X", "show me the history of FOO-a3bxr", "search issues for 'login timeout'", "list open epics", "list issues with label kind:bug". Not for ready-queue filtering (use `np-finding-work`) or inspecting the label vocabulary itself (use `np-labeling`).
+license: MIT
+compatibility: Requires the nitpicking `np` CLI (>= 0.4.0) on PATH; no network access needed.
+allowed-tools: Bash(np epic children:*) Bash(np issue history:*) Bash(np issue search:*) Bash(np list:*) Bash(np rel:*) Bash(np show:*)
+metadata:
+  author: nitpicking (np)
+  version: "0.4.0"
 ---
 
 # np-reading-issues
@@ -45,8 +51,12 @@ $ np show <PARENT-ID>
 **Siblings.** Other children of the same parent often share assumptions, ordering, or vocabulary:
 
 ```bash
-$ np epic children <PARENT-ID>
+$ np rel parent children <PARENT-ID>    # direct children of any parent (epic or task)
+$ np rel parent tree <PARENT-ID>        # full descendant hierarchy
+$ np epic children <PARENT-ID>          # equivalent when the parent is known to be an epic
 ```
+
+Prefer `np rel parent children` in general — it works regardless of whether the parent is an epic or a task. `np epic children` is the older, epic-specific form.
 
 **`refs` neighbours.** `refs` is the informational link `np` uses for "see also" relationships. The issue may point at related-but-not-blocking work that explains intent:
 

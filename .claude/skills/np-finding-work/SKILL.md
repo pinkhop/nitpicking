@@ -1,6 +1,12 @@
 ---
 name: np-finding-work
 description: Use when the agent needs to pick up the next ready issue from the `np` (nitpicking) tracker, claim a specific issue by ID, browse the ready queue, or filter ready work by label or role (e.g., "claim the next ready bug", "pick up the next task in area:auth", "claim FOO-a3bxr"). Does not cover reading the claimed issue's content or finishing work.
+license: MIT
+compatibility: Requires the nitpicking `np` CLI (>= 0.4.0) on PATH; no network access needed.
+allowed-tools: Bash(np agent name:*) Bash(np claim:*) Bash(np close:*) Bash(np issue defer:*) Bash(np issue release:*) Bash(np json update:*) Bash(np ready:*)
+metadata:
+  author: nitpicking (np)
+  version: "0.4.0"
 ---
 
 # np-finding-work
@@ -15,7 +21,7 @@ Every `np` mutation requires `--author <name>`. If no name has been chosen for t
 
 ```bash
 $ np agent name --seed=$PPID
-blue-seal-echo
+agent-blue-seal-echo
 ```
 
 Reuse that name for the rest of the session. Seeding with `$PPID` keeps the name stable across restarts of the same shell.

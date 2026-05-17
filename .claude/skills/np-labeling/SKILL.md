@@ -1,6 +1,12 @@
 ---
 name: np-labeling
 description: Use when the agent needs to add or remove labels on an existing `np` (nitpicking) issue (often across multiple issues at once), or inspect the workspace's label vocabulary for drift or to ground a new label key. Triggers on prompts like "add foo:bar to all issues about X", "remove the kind:bug label from FOO-a3bxr", "what labels are in use", "tag these issues with sprint:2026-w17". Does not cover label-based filtering of the ready queue (use `np-finding-work`) or label-based filtering during issue lookup (use `np-reading-issues`).
+license: MIT
+compatibility: Requires the nitpicking `np` CLI (>= 0.4.0) on PATH; no network access needed.
+allowed-tools: Bash(np claim:*) Bash(np issue release:*) Bash(np issue search:*) Bash(np json create:*) Bash(np label add:*) Bash(np label list-all:*) Bash(np label remove:*) Bash(np list:*) Bash(np ready:*)
+metadata:
+  author: nitpicking (np)
+  version: "0.4.0"
 ---
 
 # np-labeling
@@ -27,8 +33,8 @@ The claim ID is a bearer credential. Never paste it into a comment, commit messa
 ## Adding a label
 
 ```bash
-$ np label add kind:bug --claim a4dace30e46eb1ec14019c79a59c6b27
-$ np label add area:auth --claim a4dace30e46eb1ec14019c79a59c6b27
+$ np label add kind:bug --claim 5rvb5d3dhbx9081bmzcc5nccd8
+$ np label add area:auth --claim 5rvb5d3dhbx9081bmzcc5nccd8
 ```
 
 A label is a single `key:value` argument. Add multiple labels with multiple invocations.
@@ -38,7 +44,7 @@ A label is a single `key:value` argument. Add multiple labels with multiple invo
 `np label remove` takes the **key**, not the full `key:value`:
 
 ```bash
-$ np label remove kind --claim a4dace30e46eb1ec14019c79a59c6b27
+$ np label remove kind --claim 5rvb5d3dhbx9081bmzcc5nccd8
 ```
 
 That removes whatever value was stored under `kind` on this issue. If the exact remove syntax is unfamiliar, run `np label remove --help` to confirm.
@@ -52,7 +58,7 @@ The user often asks for labeling across a set ("add `task-group:auth-overhaul` t
 $ np list --label area:auth --state open --json
 
 # 2. For each target ID:
-$ np claim FOO-a3bxr --author blue-seal-echo
+$ np claim FOO-a3bxr --author agent-blue-seal-echo
 # capture the returned claim ID
 $ np label add task-group:auth-overhaul --claim <CID>
 $ np issue release --claim <CID>

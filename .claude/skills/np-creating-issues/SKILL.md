@@ -1,6 +1,12 @@
 ---
 name: np-creating-issues
 description: Use when the agent needs to file a new `np` (nitpicking) issue — an incidental discovery while working on something else, a child task or sub-epic when decomposing a parent epic, a deferred follow-up, or any new task or epic the user asks to be created. Triggers on prompts like "create an issue for ...", "file a follow-up", "decompose this epic into ...", "add a child task under FOO-c4npt".
+license: MIT
+compatibility: Requires the nitpicking `np` CLI (>= 0.4.0) on PATH; no network access needed.
+allowed-tools: Bash(np agent name:*) Bash(np json create:*) Bash(np json update:*) Bash(np rel add:*)
+metadata:
+  author: nitpicking (np)
+  version: "0.4.0"
 ---
 
 # np-creating-issues
@@ -15,7 +21,7 @@ Every creation requires `--author <name>`. If no name has been chosen for this s
 
 ```bash
 $ np agent name --seed=$PPID
-blue-seal-echo
+agent-blue-seal-echo
 ```
 
 Reuse that name for the rest of the session.
@@ -25,7 +31,7 @@ Reuse that name for the rest of the session.
 The minimal create:
 
 ```bash
-$ np json create --author blue-seal-echo <<'JSONEND'
+$ np json create --author agent-blue-seal-echo <<'JSONEND'
 {
   "title": "Fix retry helper to honour context cancellation",
   "priority": "P1"
@@ -50,7 +56,7 @@ Unknown fields are rejected.
 Epics are containers for grouped work. Set `role` explicitly:
 
 ```bash
-$ np json create --author blue-seal-echo <<'JSONEND'
+$ np json create --author agent-blue-seal-echo <<'JSONEND'
 {
   "role": "epic",
   "title": "Authentication overhaul",
@@ -60,7 +66,7 @@ $ np json create --author blue-seal-echo <<'JSONEND'
 JSONEND
 ```
 
-`np` enforces a maximum hierarchy depth of three (epic → epic → task). If decomposition wants more depth, that is a sign the hierarchy is doing too much; use `blocked_by` between peers instead.
+`np` enforces a maximum hierarchy depth of three (any three-level chain of issues — tasks may also have children, so `epic → task → task` is equally legal). If decomposition wants more depth, that is a sign the hierarchy is doing too much; use `blocked_by` between peers instead.
 
 ## CLI flags
 
@@ -75,7 +81,7 @@ JSONEND
 When the agent has claimed an epic and is breaking it into children:
 
 ```bash
-$ np json create --author blue-seal-echo <<'JSONEND'
+$ np json create --author agent-blue-seal-echo <<'JSONEND'
 {
   "title": "Implement JWT token generation service",
   "priority": "P1",
@@ -83,7 +89,7 @@ $ np json create --author blue-seal-echo <<'JSONEND'
 }
 JSONEND
 
-$ np json create --author blue-seal-echo <<'JSONEND'
+$ np json create --author agent-blue-seal-echo <<'JSONEND'
 {
   "title": "Replace session middleware with JWT validation",
   "priority": "P1",
@@ -101,7 +107,7 @@ After decomposing, release the epic claim — the epic itself stays open until a
 When a discovery should be tracked but not picked up immediately:
 
 ```bash
-$ np json create --deferred --author blue-seal-echo <<'JSONEND'
+$ np json create --deferred --author agent-blue-seal-echo <<'JSONEND'
 {
   "title": "Audit retry helpers for context handling",
   "description": "Spotted while working on FOO-a3bxr; not blocking, but should be reviewed.",
@@ -118,12 +124,12 @@ JSONEND
 
 - **Updating fields after creation** — escape-hatch via `np-help-discipline` for `np json update --help`.
 - **Adding labels to an existing issue** — use `np-labeling`.
-- **Adding non-parent relationships** (`blocked_by`, `blocks`, `refs`) — use `np-managing-relationships`. Parent attachment is the only relationship set via `np json create`.
+- **Adding non-parent relationships** (`blocked_by`, `blocks`, `refs`) — use `np-managing-relationships`. That skill also covers re-parenting and detaching parent–child links after creation.
 - **Claiming an existing issue** — use `np-finding-work`.
 
 ## Common mistakes
 
 - **Passing `acceptance_criteria` as a JSON array.** It is a single Markdown string. An array will be rejected.
-- **Setting `parent` via `np rel add`.** Parent is set via the `parent` field on `np json create`. `np rel add` is for `blocked_by`, `blocks`, and `refs`.
+- **Setting `parent` via `np rel add` without `--claim`.** Parent is most naturally set via the `parent` field on `np json create` at creation time. After creation, `np rel add <child> child_of <parent>` (or its `parent_of` mirror) works too, but it mutates the child's `parent` field and so requires `--claim <CID>` on the child — see `np-managing-relationships`.
 - **Omitting `role` when creating an epic.** `role` defaults to `task`. Set it explicitly when an epic is intended.
 - **Over-deep hierarchy.** Three levels is the cap. Reach for `blocked_by` to express ordering instead.

@@ -1,6 +1,12 @@
 ---
 name: np-commenting
 description: Use when the agent needs to add a comment to an `np` (nitpicking) issue — to record reasoning, capture an investigation finding, leave a handoff note, document a trade-off considered, or annotate any issue (including closed ones). Triggers on prompts like "add a comment to FOO-a3bxr saying ...", "leave a note on the issue", "record that we tried X", "comment on FOO-12345 that ...". Comments do not require a claim.
+license: MIT
+compatibility: Requires the nitpicking `np` CLI (>= 0.4.0) on PATH; no network access needed.
+allowed-tools: Bash(np agent name:*) Bash(np close:*) Bash(np json comment:*) Bash(np json update:*) Bash(np show:*)
+metadata:
+  author: nitpicking (np)
+  version: "0.4.0"
 ---
 
 # np-commenting
@@ -15,7 +21,7 @@ Commenting still requires `--author <name>`. If no name has been chosen for this
 
 ```bash
 $ np agent name --seed=$PPID
-blue-seal-echo
+agent-blue-seal-echo
 ```
 
 Reuse that name for the rest of the session.
@@ -25,7 +31,7 @@ Reuse that name for the rest of the session.
 Use the JSON entry point — agents prefer it over the interactive form:
 
 ```bash
-$ np json comment FOO-a3bxr --author blue-seal-echo <<'JSONEND'
+$ np json comment FOO-a3bxr --author agent-blue-seal-echo <<'JSONEND'
 {
   "body": "Approach taken: routed all session lookups through the new cache layer; benchmarked at 18% lower p99."
 }
@@ -51,7 +57,7 @@ Write for someone who has not seen the conversation. Avoid restating the issue t
 Comments require no claim, so the agent can leave context anywhere — a closed issue, an issue claimed by someone else, a deferred issue. This is the right tool when the user says "leave a note on FOO-12345" without that being a state transition.
 
 ```bash
-$ np json comment FOO-12345 --author blue-seal-echo <<'JSONEND'
+$ np json comment FOO-12345 --author agent-blue-seal-echo <<'JSONEND'
 {
   "body": "While working FOO-67890, noticed that the retry helper in `internal/retry` ignores context cancellation. Likely related."
 }

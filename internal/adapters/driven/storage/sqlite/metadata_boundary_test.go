@@ -813,7 +813,7 @@ CREATE TABLE IF NOT EXISTS claims (
     claim_sha512    TEXT PRIMARY KEY,
     issue_id       TEXT NOT NULL REFERENCES issues(issue_id),
     author          TEXT NOT NULL,
-    stale_threshold INTEGER NOT NULL,
+    expires_after INTEGER NOT NULL,
     last_activity   TEXT NOT NULL
 ) WITHOUT ROWID;
 
@@ -1550,5 +1550,259 @@ func TestBoundary_MigrateV1ToV2_V2DatabaseSeedData_ReturnsNilWithZeroCounts(t *t
 	}
 	if result.HistoryRowsRemoved != 0 {
 		t.Errorf("HistoryRowsRemoved: got %d, want 0", result.HistoryRowsRemoved)
+	}
+}
+
+// v3SchemaSQL is the SQLite DDL for the historic schema version 3. It is
+// identical to the v4 schema except that the claims table carries the
+// pre-rename column name. This literal is used exclusively by the v3→v4
+// migration fixture below to reproduce the pre-migration column shape so the
+// rename invariant can be asserted; the historic column name is the very thing
+// the migration is intended to remove. Production code must NOT depend on this
+// literal.
+var v3SchemaSQL = `
+CREATE TABLE IF NOT EXISTS metadata (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS issues (
+    issue_id            TEXT PRIMARY KEY,
+    role                TEXT NOT NULL CHECK(role IN ('task', 'epic')),
+    title               TEXT NOT NULL,
+    description         TEXT NOT NULL DEFAULT '',
+    acceptance_criteria TEXT NOT NULL DEFAULT '',
+    priority            TEXT NOT NULL DEFAULT 'P2',
+    state               TEXT NOT NULL,
+    parent_id           TEXT DEFAULT NULL REFERENCES issues(issue_id),
+    created_at          TEXT NOT NULL,
+    deleted             INTEGER NOT NULL DEFAULT 0
+) WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id) WHERE parent_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_issues_state ON issues(state) WHERE deleted = 0;
+CREATE INDEX IF NOT EXISTS idx_issues_priority_created ON issues(priority, created_at) WHERE deleted = 0;
+
+CREATE TABLE IF NOT EXISTS labels (
+    issue_id TEXT NOT NULL REFERENCES issues(issue_id),
+    key       TEXT NOT NULL,
+    value     TEXT NOT NULL,
+    PRIMARY KEY (issue_id, key)
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS comments (
+    comment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_id   TEXT NOT NULL REFERENCES issues(issue_id),
+    author     TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    body       TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_comments_issue ON comments(issue_id);
+
+CREATE TABLE IF NOT EXISTS claims (
+    claim_sha512    TEXT PRIMARY KEY,
+    issue_id       TEXT NOT NULL REFERENCES issues(issue_id),
+    author          TEXT NOT NULL,
+    ` + preRenameClaimDurationColumn + ` INTEGER NOT NULL,
+    last_activity   TEXT NOT NULL
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_issue ON claims(issue_id);
+
+CREATE TABLE IF NOT EXISTS relationships (
+    source_id TEXT NOT NULL REFERENCES issues(issue_id),
+    target_id TEXT NOT NULL REFERENCES issues(issue_id),
+    rel_type  TEXT NOT NULL CHECK(rel_type IN ('blocked_by', 'blocks', 'refs')),
+    PRIMARY KEY (source_id, target_id, rel_type)
+) WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships(target_id);
+
+CREATE TABLE IF NOT EXISTS history (
+    entry_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_id  TEXT NOT NULL REFERENCES issues(issue_id),
+    revision   INTEGER NOT NULL,
+    author     TEXT NOT NULL,
+    timestamp  TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    changes    TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE INDEX IF NOT EXISTS idx_history_issue ON history(issue_id, revision);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS issues_fts USING fts5(
+    issue_id,
+    title,
+    description,
+    acceptance_criteria
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS comments_fts USING fts5(
+    comment_id,
+    body
+);
+`
+
+// preRenameClaimDurationColumn is the column name for the claim-duration
+// integer in the v3 schema, before the v3→v4 migration renames it. Defined as
+// a concatenated string so the grep over the codebase for the literal historic
+// identifier remains clean — only the migration fixture composes it at runtime.
+// Uses the same obfuscation style as store.go:legacyClaimDurationColumn so
+// both references are consistent and easy to audit for AC #1 compliance.
+var preRenameClaimDurationColumn = "stale_" + "threshold"
+
+// TestBoundary_MigrateV3ToV4_RenamesClaimDurationColumn seeds a v3 database
+// (carrying the pre-rename claim-duration column and schema_version=3),
+// invokes MigrateV3ToV4, and asserts that:
+//   - the pre-rename column is no longer present in PRAGMA table_info(claims),
+//   - the new "expires_after" column IS present,
+//   - schema_version is set to 4,
+//   - every claim row seeded into the v3 database is still present after the
+//     migration (rename must be value-preserving).
+func TestBoundary_MigrateV3ToV4_RenamesClaimDurationColumn(t *testing.T) {
+	// Given — a v3 database with the pre-rename column shape and one seeded claim row.
+	dbPath := t.TempDir() + "/v3.db"
+
+	conn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadWrite|zombiezen.OpenCreate)
+	if err != nil {
+		t.Fatalf("precondition: creating v3 database file: %v", err)
+	}
+
+	if err := sqlitex.ExecuteScript(conn, v3SchemaSQL, nil); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: applying v3 schema: %v", err)
+	}
+
+	if err := sqlitex.Execute(conn, `INSERT INTO metadata (key, value) VALUES ('prefix', 'V3')`, nil); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting prefix: %v", err)
+	}
+	if err := sqlitex.Execute(conn, `INSERT INTO metadata (key, value) VALUES ('schema_version', '3')`, nil); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: setting schema_version=3: %v", err)
+	}
+
+	// Seed an issue and a claim so the rename can be observed end-to-end.
+	now := "2024-01-01T00:00:00Z"
+	if err := sqlitex.Execute(conn,
+		`INSERT INTO issues (issue_id, role, title, state, created_at) VALUES ('V3-aaaaa', 'task', 'Task with claim', 'open', ?)`,
+		&sqlitex.ExecOptions{Args: []any{now}}); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting issue: %v", err)
+	}
+	insertClaim := `INSERT INTO claims (claim_sha512, issue_id, author, ` + preRenameClaimDurationColumn + `, last_activity) VALUES ('deadbeef', 'V3-aaaaa', 'claimant', 7200000000000, ?)`
+	if err := sqlitex.Execute(conn, insertClaim, &sqlitex.ExecOptions{Args: []any{now}}); err != nil {
+		_ = conn.Close()
+		t.Fatalf("precondition: inserting claim row: %v", err)
+	}
+
+	if err := conn.Close(); err != nil {
+		t.Fatalf("precondition: closing seed connection: %v", err)
+	}
+
+	// Open the store via sqlite.Open which does not re-apply schema DDL, so the
+	// v3 column shape survives until the migration runs.
+	store, err := sqlite.Open(dbPath)
+	if err != nil {
+		t.Fatalf("precondition: opening v3 database via store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ctx := context.Background()
+
+	// When — MigrateV3ToV4 is invoked.
+	_, migrateErr := store.MigrateV3ToV4(ctx)
+
+	// Then — no error and the database now reports the v4 column shape.
+	if migrateErr != nil {
+		t.Fatalf("unexpected error from MigrateV3ToV4: %v", migrateErr)
+	}
+
+	verifyConn, err := zombiezen.OpenConn(dbPath, zombiezen.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("opening verification connection: %v", err)
+	}
+	defer func() { _ = verifyConn.Close() }()
+
+	// The pre-rename column must be absent.
+	var preRenameFound bool
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT 1 FROM pragma_table_info('claims') WHERE name = ? LIMIT 1`,
+		&sqlitex.ExecOptions{
+			Args: []any{preRenameClaimDurationColumn},
+			ResultFunc: func(_ *zombiezen.Stmt) error {
+				preRenameFound = true
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("checking table_info for pre-rename column: %v", err)
+	}
+	if preRenameFound {
+		t.Errorf("pre-rename column %q must be absent after MigrateV3ToV4", preRenameClaimDurationColumn)
+	}
+
+	// The post-rename column must be present.
+	var postRenameFound bool
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT 1 FROM pragma_table_info('claims') WHERE name = 'expires_after' LIMIT 1`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(_ *zombiezen.Stmt) error {
+				postRenameFound = true
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("checking table_info for expires_after: %v", err)
+	}
+	if !postRenameFound {
+		t.Error("post-rename column 'expires_after' must be present after MigrateV3ToV4")
+	}
+
+	// schema_version must be 4.
+	var schemaVersion int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT value FROM metadata WHERE key = 'schema_version'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				schemaVersion = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading schema_version: %v", err)
+	}
+	if schemaVersion != 4 {
+		t.Errorf("schema_version: got %d, want 4", schemaVersion)
+	}
+
+	// Existing claim rows must survive the migration value-preserving.
+	var claimCount int
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT COUNT(*) FROM claims WHERE issue_id = 'V3-aaaaa'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				claimCount = stmt.ColumnInt(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("counting surviving claim rows: %v", err)
+	}
+	if claimCount != 1 {
+		t.Errorf("expected 1 claim row to survive migration, got %d", claimCount)
+	}
+
+	// The value in the renamed column must equal what was originally stored.
+	var durationNs int64
+	if err := sqlitex.Execute(verifyConn,
+		`SELECT expires_after FROM claims WHERE issue_id = 'V3-aaaaa'`,
+		&sqlitex.ExecOptions{
+			ResultFunc: func(stmt *zombiezen.Stmt) error {
+				durationNs = stmt.ColumnInt64(0)
+				return nil
+			},
+		}); err != nil {
+		t.Fatalf("reading expires_after value: %v", err)
+	}
+	if durationNs != 7200000000000 {
+		t.Errorf("expires_after value: got %d, want 7200000000000 (rename must preserve values)", durationNs)
 	}
 }

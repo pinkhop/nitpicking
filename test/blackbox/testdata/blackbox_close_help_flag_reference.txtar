@@ -1,4 +1,4 @@
-# Verify that "np close --help" references --all (not stale --include-closed)
+# Verify that "np close --help" references --all (not the obsolete --include-closed)
 # when describing how to re-include closed issues in list output.
 # Regression test for NP-w9w32.
 

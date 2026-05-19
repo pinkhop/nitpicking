@@ -12,7 +12,7 @@ Commands are grouped by the categories shown in `np help`.
 ## Terminology
 
 - **Ready queue** — the set of issues that can be picked up now.
-- **Stale time** — the moment an active claim stops counting as active.
+- **Expires at** — the moment an active claim stops counting as active.
 - **Claim conflict** — exit code `3`, meaning the issue still has an active claim and the claim you supplied does not authorize the mutation.
 - **Example IDs** — examples use the `FOO-xxxxx` issue ID shape consistently.
 - **Example times** — example timestamps use UTC and cluster around `2026-04-01`.
@@ -231,7 +231,7 @@ Revision: 1  |  Author: alice
 ```
 
 ```json
-$ np show FOO-a3bxr --json | jq '.state, .claim_author, .claim_stale_at'
+$ np show FOO-a3bxr --json | jq '.state, .claim_author, .claim_expires_at'
 "claimed"
 "alice"
 "2026-04-01T11:30:00.000Z"
@@ -246,8 +246,8 @@ $ np show FOO-a3bxr --json | jq '.state, .claim_author, .claim_stale_at'
 
 **Notes:**
 
-- For claimed issues, JSON output includes `claim_author`, `claimed_at`, and `claim_stale_at`.
-- Claim IDs are only returned at claim time. `show --json` helps inspect claim ownership and staleness, but it does not reveal the bearer token again.
+- For claimed issues, JSON output includes `claim_author`, `claimed_at`, and `claim_expires_at`.
+- Claim IDs are only returned at claim time. `show --json` helps inspect claim ownership and expiry, but it does not reveal the bearer token again.
 
 ---
 
@@ -333,8 +333,8 @@ np claim [options] <ISSUE-ID | ready>
 | `--author`, `-a` | Author name for the claim. Required. Env: `NP_AUTHOR`. |
 | `--label` | Label filter in `key:value` or `key:*` format. Repeatable, AND semantics. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
 | `--role` | Filter by role: `task` or `epic`. With `ready`: filters which issue gets claimed. With an issue ID: guard-rail assertion (claim fails if unmet). |
-| `--duration` | Claim duration before the claim becomes stale (e.g., `30m`, `1h`, `4h`). Default: `2h`. Mutually exclusive with `--stale-at`. |
-| `--stale-at` | RFC3339 UTC stale time for the claim (e.g., `2026-04-02T14:00:00Z`). Must be in the future and within 24h. Mutually exclusive with `--duration`. |
+| `--duration` | Claim duration before the claim expires (e.g., `30m`, `1h`, `4h`). Default: `2h`. Mutually exclusive with `--expires-at`. |
+| `--expires-at` | RFC3339 UTC expiry time for the claim (e.g., `2026-04-02T14:00:00Z`). Must be in the future and within 24h. Mutually exclusive with `--duration`. |
 | `--json` | Output machine-readable JSON. |
 
 **Examples:**
@@ -346,7 +346,7 @@ $ np claim FOO-a3bxr --author alice
 [ok] Claimed FOO-a3bxr
   Claim ID: 7q2w8r4t9y3p5x1n6m0kbcvfd2
   Author: alice
-  Stale at: 2026-04-01 11:30:00
+  Expires at: 2026-04-01 11:30:00
 ```
 
 ```json
@@ -356,7 +356,7 @@ $ np claim FOO-a3bxr --author alice --json
   "claim_id": "7q2w8r4t9y3p5x1n6m0kbcvfd2",
   "author": "alice",
   "created_at": "2026-04-01T09:30:00Z",
-  "stale_at": "2026-04-01T11:30:00Z"
+  "expires_at": "2026-04-01T11:30:00Z"
 }
 ```
 
@@ -368,7 +368,7 @@ $ np claim ready --author alice
 [ok] Claimed FOO-a3bxr
   Claim ID: 7q2w8r4t9y3p5x1n6m0kbcvfd2
   Author: alice
-  Stale at: 2026-04-01 11:30:00
+  Expires at: 2026-04-01 11:30:00
 ```
 
 Claim from the ready queue with filters:
@@ -380,7 +380,7 @@ $ np claim ready --author alice --role task --label kind:bug --json
   "claim_id": "9k3h6g8j5d4f2s1a7b0n6m4cvt",
   "author": "alice",
   "created_at": "2026-04-01T09:45:00Z",
-  "stale_at": "2026-04-01T11:45:00Z"
+  "expires_at": "2026-04-01T11:45:00Z"
 }
 ```
 
@@ -390,15 +390,15 @@ $ np claim ready --author alice --role task --label kind:bug --json
 |------|---------|
 | 0 | Claim acquired successfully. |
 | 2 | Issue not found (by ID) or no ready issues found (with `ready`). |
-| 3 | Claim conflict — the issue is already claimed and the claim is not yet stale. |
+| 3 | Claim conflict — the issue is already claimed and the claim has not yet expired. |
 | 4 | Guard-rail assertion failed — the issue does not match `--label` or `--role`. |
 
 **Notes:**
 
 - The claim ID is a bearer token. Anyone with the claim ID can use it — there is no per-author verification on subsequent operations. Guard it accordingly.
-- Claiming an issue with a stale claim succeeds automatically. No special flag is required.
-- Attempting to claim an issue with another active claim returns a claim conflict. Wait for the stale time to pass or claim a different issue from the ready queue.
-- Use `--duration` or `--stale-at` to set the stale time.
+- Claiming an issue with an expired claim succeeds automatically. No special flag is required.
+- Attempting to claim an issue with another active claim returns a claim conflict. Wait for the expiry time to pass or claim a different issue from the ready queue.
+- Use `--duration` or `--expires-at` to set the expiry time.
 - See [Terminology](#terminology) and [`ready`](#ready) for the exact readiness rule.
 
 ---
@@ -2178,7 +2178,7 @@ np admin doctor [--verbose] [--severity <level>] [--json] [--long-deferral-thres
 | `--verbose`, `-v` | bool | false | Show every check (passing and failing), include why-it-matters context for findings, and list affected issues. |
 | `--severity` | string | `warning` | Filter displayed findings to this severity or higher. Values: `warning`, `error`. Filtering affects display only — the exit code reflects the unfiltered result. |
 | `--json` | bool | false | Output machine-readable JSON instead of text. The `--verbose` flag still applies. |
-| `--long-deferral-threshold` | duration | `7d` | Override the staleness threshold for the `long-deferrals` check. Accepts Go duration syntax extended with `d` (days) and `w` (weeks). Also configurable via `NP_LONG_DEFERRAL_THRESHOLD`; the flag takes precedence. |
+| `--long-deferral-threshold` | duration | `7d` | Override the inactivity threshold for the `long-deferrals` check. Accepts Go duration syntax extended with `d` (days) and `w` (weeks). Also configurable via `NP_LONG_DEFERRAL_THRESHOLD`; the flag takes precedence. |
 
 **Examples:**
 
@@ -2224,7 +2224,7 @@ The JSON output always contains `errors` and `warnings` arrays (possibly empty).
 
 - `np admin fix` subcommand names match doctor check slugs exactly. When a finding's `check` value matches an `np admin fix` subcommand name, run that subcommand to apply the automated remediation. See [admin fix](#admin-fix).
 - Use `--severity error` to suppress warnings and show only errors — useful for CI integration where warnings are acceptable noise.
-- The `--long-deferral-threshold` flag (or `NP_LONG_DEFERRAL_THRESHOLD` env var) controls when the `long-deferrals` check considers a deferred issue stale. The default is `7d`.
+- The `--long-deferral-threshold` flag (or `NP_LONG_DEFERRAL_THRESHOLD` env var) controls when the `long-deferrals` check considers a deferred issue long-untouched. The default is `7d`.
 
 ---
 

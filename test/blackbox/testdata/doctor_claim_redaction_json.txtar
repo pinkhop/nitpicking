@@ -1,7 +1,7 @@
 # Doctor JSON output must not expose claim IDs regardless of claim state.
 # The claim ID is a bearer token; leaking it would allow unauthorized
 # mutations. Claims are transient local bookkeeping — doctor no longer
-# reports stale claims as findings; it only reports structural issues.
+# reports expired claims as findings; it only reports structural issues.
 
 np-init DRRED
 np-seed task 'Claimed task for doctor' doctor-redact TASK

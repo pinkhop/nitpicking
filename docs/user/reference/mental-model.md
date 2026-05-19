@@ -68,9 +68,9 @@ Quick rules:
 - claim before mutating
 - comments do not require a claim
 - most relationships do not require a claim
-- stale claims are overwritten by later normal claims
+- expired claims are overwritten by later normal claims
 
-The claim ID is a bearer token. If you lose it, you wait for staleness and reclaim normally.
+The claim ID is a bearer token. If you lose it, you wait for expiry and reclaim normally.
 
 ## Readiness
 

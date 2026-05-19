@@ -575,7 +575,7 @@ func TestBoundary_BackupRestore_V1BackupClaimedRestoredAsOpen(t *testing.T) {
 	// Given — a hand-crafted v1 backup containing a claimed-state issue.
 	// The prefix uses only uppercase ASCII letters to satisfy validation.
 	const v1Backup = `{"prefix":"OLD","timestamp":"2026-01-01T00:00:00Z","version":1}
-{"issue_id":"OLD-aaaaa","role":"task","title":"Claimed task","state":"claimed","priority":"P2","created_at":"2026-01-01T00:00:00Z","labels":[],"comments":[],"relationships":[],"claims":[{"claim_sha512":"deadbeef","author":"claimant","stale_threshold":7200000000000,"last_activity":"2026-01-01T00:00:00Z"}],"history":[]}
+{"issue_id":"OLD-aaaaa","role":"task","title":"Claimed task","state":"claimed","priority":"P2","created_at":"2026-01-01T00:00:00Z","labels":[],"comments":[],"relationships":[],"claims":[{"claim_sha512":"deadbeef","author":"claimant","expires_after":7200000000000,"last_activity":"2026-01-01T00:00:00Z"}],"history":[]}
 `
 	env := newBoundaryEnv(t, "TEMP")
 

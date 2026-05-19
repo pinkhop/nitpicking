@@ -8,7 +8,7 @@ stdout 'claim'
 # np claim --help must work and show the positional argument usage.
 exec np claim --help
 stdout '<ISSUE-ID | ready>'
-stdout '--stale-at'
+stdout '--expires-at'
 stdout '--duration'
 
 # np issue --help must NOT list a claim subcommand.

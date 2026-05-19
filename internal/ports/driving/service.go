@@ -50,8 +50,8 @@ type Service interface {
 	// UpdateIssue updates a claimed issue's fields.
 	UpdateIssue(ctx context.Context, input UpdateIssueInput) error
 
-	// ExtendStaleThreshold extends the stale threshold on an active claim.
-	ExtendStaleThreshold(ctx context.Context, issueID string, claimID string, threshold time.Duration) error
+	// ExtendExpiry extends the expiry duration on an active claim.
+	ExtendExpiry(ctx context.Context, issueID string, claimID string, threshold time.Duration) error
 
 	// TransitionState changes the state of a claimed issue.
 	TransitionState(ctx context.Context, input TransitionInput) error
@@ -219,7 +219,7 @@ type Service interface {
 	// --- Schema Migration ---
 
 	// CheckSchemaVersion returns nil when the database is at the current
-	// schema version (v3). It returns a wrapped domain.ErrSchemaMigrationRequired
+	// schema version (v4). It returns a wrapped domain.ErrSchemaMigrationRequired
 	// when the schema is at an older version. Commands that gate on schema
 	// version call this method rather than accessing the storage adapter directly.
 	CheckSchemaVersion(ctx context.Context) error
@@ -240,4 +240,11 @@ type Service interface {
 	// distinguish the "already current" case. Returns a MigrationResult with counts
 	// for migrated, skipped, and invalid rows.
 	MigrateV2ToV3(ctx context.Context) (MigrationResult, error)
+
+	// MigrateV3ToV4 upgrades a v3 database to v4 schema in a single atomic
+	// transaction. The migration renames the legacy claim-duration column to
+	// claims.expires_after and records schema_version=4. The operation is
+	// idempotent: if the column has already been renamed (i.e., the database is
+	// already at v4), the migration is a no-op. Returns an empty MigrationResult.
+	MigrateV3ToV4(ctx context.Context) (MigrationResult, error)
 }

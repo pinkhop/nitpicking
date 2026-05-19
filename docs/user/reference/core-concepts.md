@@ -154,7 +154,7 @@ Quick rules:
 - Save the claim ID; it is the bearer token for later mutations.
 - Comments do not require a claim.
 - Non-structural relationships such as `blocked_by` and `refs` do not require a claim.
-- Stale claims can be overwritten by a later normal claim.
+- Expired claims can be overwritten by a later normal claim.
 
 The claim ID is sensitive. Treat it like a local bearer token: do not paste it
 into places where another process should not be able to use it.

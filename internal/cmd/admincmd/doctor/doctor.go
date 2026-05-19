@@ -652,7 +652,7 @@ filter by minimum severity, and --json for machine-readable output.`,
 			},
 			&cli.StringFlag{
 				Name:     "long-deferral-threshold",
-				Usage:    "Duration after which a deferred issue is considered stale (e.g., 7d, 14d). Default 7d.",
+				Usage:    "Duration after which a deferred issue is considered long-deferred (e.g., 7d, 14d). Default 7d.",
 				Sources:  cli.EnvVars("NP_LONG_DEFERRAL_THRESHOLD"),
 				Category: cmdutil.FlagCategorySupplemental,
 			},

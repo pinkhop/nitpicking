@@ -22,7 +22,7 @@ func TestIsTaskReady_OpenNoBlockersNoAncestors_Ready(t *testing.T) {
 func TestIsTaskReady_OpenWithActiveClaim_NotReady(t *testing.T) {
 	t.Parallel()
 
-	// When — open task with an active (non-stale) claim is not available for new claimants.
+	// When — open task with an active claim is not available for new claimants.
 	result := core.IsTaskReady(domain.StateOpen, true, nil, nil)
 
 	// Then

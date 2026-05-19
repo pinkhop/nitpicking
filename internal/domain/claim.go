@@ -8,12 +8,12 @@ import (
 	"time"
 )
 
-// DefaultStaleThreshold is the default duration after which a claim becomes
-// stale and eligible for stealing.
-const DefaultStaleThreshold = 2 * time.Hour
+// DefaultExpiryThreshold is the default duration after which a claim expires
+// and is eligible for being overwritten.
+const DefaultExpiryThreshold = 2 * time.Hour
 
-// MaxStaleThreshold is the maximum allowed stale threshold.
-const MaxStaleThreshold = 24 * time.Hour
+// MaxExpiryThreshold is the maximum allowed expiry threshold.
+const MaxExpiryThreshold = 24 * time.Hour
 
 // claimIDLength is the number of Crockford Base32 characters in a claim ID.
 // Each character encodes 5 bits; 26 characters encode 130 bits, of which
@@ -22,7 +22,7 @@ const MaxStaleThreshold = 24 * time.Hour
 const claimIDLength = 26
 
 // Claim represents active ownership of an issue. Claims are immutable value
-// objects — "extending" or "updating stale deadline" produces a new Claim.
+// objects — "extending" or "updating expiry deadline" produces a new Claim.
 //
 // A claim carries two identifiers: the token (Crockford Base32 string
 // returned to the caller) and the hash ID (SHA-512 hash of the token's
@@ -36,20 +36,20 @@ type Claim struct {
 	issueID   ID
 	author    Author
 	claimedAt time.Time
-	staleAt   time.Time
+	expiresAt time.Time
 }
 
 // NewClaimParams holds the parameters for creating a new claim.
 type NewClaimParams struct {
-	IssueID       ID
-	Author        Author
-	StaleDuration time.Duration
-	// StaleAt is an optional absolute timestamp at which the claim becomes
-	// stale. When non-zero, it takes precedence over StaleDuration. The
-	// caller is responsible for ensuring StaleAt is in the future and within
-	// MaxStaleThreshold of Now.
-	StaleAt time.Time
-	Now     time.Time
+	IssueID      ID
+	Author       Author
+	ExpiresAfter time.Duration
+	// ExpiresAt is an optional absolute timestamp at which the claim expires.
+	// When non-zero, it takes precedence over ExpiresAfter. The caller is
+	// responsible for ensuring ExpiresAt is in the future and within
+	// MaxExpiryThreshold of Now.
+	ExpiresAt time.Time
+	Now       time.Time
 }
 
 // NewClaim creates a new claim with a randomly generated claim ID.
@@ -66,25 +66,25 @@ func NewClaim(p NewClaimParams) (Claim, error) {
 		now = time.Now()
 	}
 
-	var staleAt time.Time
-	if !p.StaleAt.IsZero() {
-		// Absolute stale-at takes precedence over duration. The caller
-		// is responsible for validating that StaleAt is in the future
-		// and within MaxStaleThreshold of now; the domain enforces only
+	var expiresAt time.Time
+	if !p.ExpiresAt.IsZero() {
+		// Absolute expires-at takes precedence over duration. The caller
+		// is responsible for validating that ExpiresAt is in the future
+		// and within MaxExpiryThreshold of now; the domain enforces only
 		// the max-distance invariant.
-		if p.StaleAt.Sub(now) > MaxStaleThreshold {
-			return Claim{}, fmt.Errorf("stale-at %v is more than %v from now", p.StaleAt.Format(time.RFC3339), MaxStaleThreshold)
+		if p.ExpiresAt.Sub(now) > MaxExpiryThreshold {
+			return Claim{}, fmt.Errorf("expires-at %v is more than %v from now", p.ExpiresAt.Format(time.RFC3339), MaxExpiryThreshold)
 		}
-		staleAt = p.StaleAt
+		expiresAt = p.ExpiresAt
 	} else {
-		duration := p.StaleDuration
+		duration := p.ExpiresAfter
 		if duration == 0 {
-			duration = DefaultStaleThreshold
+			duration = DefaultExpiryThreshold
 		}
-		if duration > MaxStaleThreshold {
-			return Claim{}, fmt.Errorf("stale duration %v exceeds maximum %v", duration, MaxStaleThreshold)
+		if duration > MaxExpiryThreshold {
+			return Claim{}, fmt.Errorf("expiry duration %v exceeds maximum %v", duration, MaxExpiryThreshold)
 		}
-		staleAt = now.Add(duration)
+		expiresAt = now.Add(duration)
 	}
 
 	token := generateClaimID()
@@ -96,19 +96,19 @@ func NewClaim(p NewClaimParams) (Claim, error) {
 		issueID:   p.IssueID,
 		author:    p.Author,
 		claimedAt: now,
-		staleAt:   staleAt,
+		expiresAt: expiresAt,
 	}, nil
 }
 
 // ReconstructClaim rebuilds a Claim from persisted data without generating
 // a new ID. Used by the storage layer when loading claims from the database.
-func ReconstructClaim(id string, issueID ID, author Author, claimedAt time.Time, staleAt time.Time) Claim {
+func ReconstructClaim(id string, issueID ID, author Author, claimedAt time.Time, expiresAt time.Time) Claim {
 	return Claim{
 		id:        id,
 		issueID:   issueID,
 		author:    author,
 		claimedAt: claimedAt,
-		staleAt:   staleAt,
+		expiresAt: expiresAt,
 	}
 }
 
@@ -128,24 +128,24 @@ func (c Claim) IssueID() ID { return c.issueID }
 // Author returns the author who holds the claim.
 func (c Claim) Author() Author { return c.author }
 
-// IsStale reports whether the claim is stale at the given time.
-func (c Claim) IsStale(now time.Time) bool {
-	return now.After(c.staleAt)
+// IsExpired reports whether the claim has expired at the given time.
+func (c Claim) IsExpired(now time.Time) bool {
+	return now.After(c.expiresAt)
 }
 
 // ClaimedAt returns the timestamp when this claim was created.
 func (c Claim) ClaimedAt() time.Time { return c.claimedAt }
 
-// StaleAt returns the timestamp at which this claim becomes stale.
-func (c Claim) StaleAt() time.Time {
-	return c.staleAt
+// ExpiresAt returns the timestamp at which this claim expires.
+func (c Claim) ExpiresAt() time.Time {
+	return c.expiresAt
 }
 
-// WithStaleAt returns a new Claim with the staleAt timestamp updated.
+// WithExpiresAt returns a new Claim with the expiresAt timestamp updated.
 // Used by adapters to extend claim lifetimes (e.g., when updating an issue
-// pushes the stale deadline forward).
-func (c Claim) WithStaleAt(t time.Time) Claim {
-	c.staleAt = t
+// pushes the expiry deadline forward).
+func (c Claim) WithExpiresAt(t time.Time) Claim {
+	c.expiresAt = t
 	return c
 }
 

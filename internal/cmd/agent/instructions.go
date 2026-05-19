@@ -61,14 +61,14 @@ np claim ready --label kind:bug --role task --author <your-name>  # combine filt
 
 ` + "`--label`" + ` uses ` + "`key:value`" + ` or ` + "`key:*`" + ` format (repeatable, AND semantics). ` + "`--role`" + ` accepts ` + "`task`" + ` or ` + "`epic`" + `.
 
-Control claim staleness timing with ` + "`--duration`" + ` or ` + "`--stale-at`" + `:
+Control claim expiry timing with ` + "`--duration`" + ` or ` + "`--expires-at`" + `:
 
 ` + "```" + `
-np claim ready --duration 4h --author <your-name>                 # claim expires in 4 hours
-np claim ready --stale-at 2026-04-02T18:00:00Z --author <your-name>  # claim expires at specific time
+np claim ready --duration 4h --author <your-name>                    # claim expires in 4 hours
+np claim ready --expires-at 2026-04-02T18:00:00Z --author <your-name>  # claim expires at specific time
 ` + "```" + `
 
-` + "`--duration`" + ` sets how long until the claim goes stale (default 2h, max 24h). ` + "`--stale-at`" + ` sets an absolute RFC3339 UTC timestamp (must be in the future, max 24h from now). They are mutually exclusive.
+` + "`--duration`" + ` sets how long until the claim expires (default 2h, max 24h). ` + "`--expires-at`" + ` sets an absolute RFC3339 UTC timestamp (must be in the future, max 24h from now). They are mutually exclusive.
 
 ### 2. Work on the issue
 
@@ -207,11 +207,11 @@ JSONEND
 
 **Never record a claim ID in a comment, commit message, log, or any other shared or readable location.** The claim ID is a bearer credential — anyone who reads it can act on your claim, which defeats the entire purpose of claiming. Keep it private to the claiming agent.
 
-**There is no recovery if the claim ID is lost.** If compaction (or any other failure) erases it, the claim is effectively abandoned. It will eventually go stale and another agent will pick up the issue. Treat claim ID durability as a hard requirement, not a best-effort habit.
+**There is no recovery if the claim ID is lost.** If compaction (or any other failure) erases it, the claim is effectively abandoned. It will eventually expire and another agent will pick up the issue. Treat claim ID durability as a hard requirement, not a best-effort habit.
 
-## Stale Claims
+## Expired Claims
 
-Stale claims are automatically overwritten when you run the normal claim command — no special recovery flag is required. To inspect a specific issue's stale time: ` + "`np show <ID> --json | jq '.claim_stale_at'`" + `. To reclaim, just claim normally:
+Expired claims are automatically overwritten when you run the normal claim command — no special recovery flag is required. To inspect a specific issue's expiry time: ` + "`np show <ID> --json | jq '.claim_expires_at'`" + `. To reclaim, just claim normally:
 
 ` + "```" + `
 np claim ready --author <your-name>

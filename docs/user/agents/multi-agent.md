@@ -39,17 +39,17 @@ When `np claim <ID>` returns exit code `3`, someone else still holds the claim.
 Your options are:
 
 - claim something else with `np claim ready`
-- wait for the stale time to pass
-- inspect `claim_stale_at` with `np show <ID> --json`
+- wait for the expiry time to pass
+- inspect `claim_expires_at` with `np show <ID> --json`
 
-## Stale Claims
+## Expired Claims
 
-Claims expire after their stale time. Once stale, another agent can claim the issue normally. No special recovery flag is required.
+Claims expire after their expiry time. Once expired, another agent can claim the issue normally. No special recovery flag is required.
 
 Check the situation:
 
 ```bash
-$ np show <ISSUE-ID> --json | jq '.claim_stale_at'
+$ np show <ISSUE-ID> --json | jq '.claim_expires_at'
 ```
 
 Recover the work:
@@ -119,7 +119,7 @@ Common causes:
 - If the agent is done: close.
 - If the agent is pausing: release.
 - If the work should stop for now: defer.
-- If the agent crashed: wait for staleness, then reclaim normally.
+- If the agent crashed: wait for expiry, then reclaim normally.
 
 ## Related Docs
 

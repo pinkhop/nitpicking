@@ -503,7 +503,7 @@ func (r *Repository) InvalidateClaim(_ context.Context, claimID string) error {
 	return nil
 }
 
-func (r *Repository) UpdateClaimStaleAt(_ context.Context, claimID string, staleAt time.Time) error {
+func (r *Repository) UpdateClaimExpiresAt(_ context.Context, claimID string, expiresAt time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -512,21 +512,21 @@ func (r *Repository) UpdateClaimStaleAt(_ context.Context, claimID string, stale
 	if !ok {
 		return domain.ErrNotFound
 	}
-	r.claims[hashID] = c.WithStaleAt(staleAt)
+	r.claims[hashID] = c.WithExpiresAt(expiresAt)
 	return nil
 }
 
-func (r *Repository) ListStaleClaims(_ context.Context, now time.Time) ([]domain.Claim, error) {
+func (r *Repository) ListExpiredClaims(_ context.Context, now time.Time) ([]domain.Claim, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var stale []domain.Claim
+	var expired []domain.Claim
 	for _, c := range r.claims {
-		if c.IsStale(now) {
-			stale = append(stale, c)
+		if c.IsExpired(now) {
+			expired = append(expired, c)
 		}
 	}
-	return stale, nil
+	return expired, nil
 }
 
 func (r *Repository) ListActiveClaims(_ context.Context, now time.Time) ([]domain.Claim, error) {
@@ -535,22 +535,22 @@ func (r *Repository) ListActiveClaims(_ context.Context, now time.Time) ([]domai
 
 	var active []domain.Claim
 	for _, c := range r.claims {
-		if !c.IsStale(now) {
+		if !c.IsExpired(now) {
 			active = append(active, c)
 		}
 	}
 	return active, nil
 }
 
-// DeleteExpiredClaims removes all claim rows whose stale-at timestamp is on or
-// before now. Returns the count of deleted rows. Active claims are preserved.
+// DeleteExpiredClaims removes all claim rows whose expires-at timestamp is on
+// or before now. Returns the count of deleted rows. Active claims are preserved.
 func (r *Repository) DeleteExpiredClaims(_ context.Context, now time.Time) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	var count int
 	for id, c := range r.claims {
-		if c.IsStale(now) {
+		if c.IsExpired(now) {
 			delete(r.claimsByIssue, c.IssueID().String())
 			delete(r.claims, id)
 			count++
@@ -927,8 +927,8 @@ func (r *Repository) isIssueReady(t domain.Issue) bool {
 	return core.IsEpicReady(t.State(), hasActiveClaim, hasChildren, blockers, ancestors)
 }
 
-// hasActiveClaimInternal reports whether the issue has an active (non-stale)
-// claim. A stale claim is treated as nonexistent for readiness and display
+// hasActiveClaimInternal reports whether the issue has an active (unexpired)
+// claim. An expired claim is treated as nonexistent for readiness and display
 // purposes.
 func (r *Repository) hasActiveClaimInternal(id domain.ID) bool {
 	claimID, ok := r.claimsByIssue[id.String()]
@@ -936,7 +936,7 @@ func (r *Repository) hasActiveClaimInternal(id domain.ID) bool {
 		return false
 	}
 	c, exists := r.claims[claimID]
-	return exists && !c.IsStale(time.Now())
+	return exists && !c.IsExpired(time.Now())
 }
 
 func (r *Repository) isIssueBlocked(t domain.Issue) bool {

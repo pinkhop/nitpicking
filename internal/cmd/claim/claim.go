@@ -22,7 +22,7 @@ type claimOutput struct {
 	ClaimID   string `json:"claim_id"`
 	Author    string `json:"author"`
 	CreatedAt string `json:"created_at"`
-	StaleAt   string `json:"stale_at"`
+	ExpiresAt string `json:"expires_at"`
 }
 
 // RunClaimByIDInput holds the parameters for claiming an issue by ID,
@@ -32,7 +32,7 @@ type RunClaimByIDInput struct {
 	IssueID      string
 	Author       string
 	Duration     time.Duration
-	StaleAt      time.Time
+	ExpiresAt    time.Time
 	LabelFilters []driving.LabelFilterInput
 	Role         string
 	JSON         bool
@@ -52,12 +52,12 @@ func RunClaimByID(ctx context.Context, input RunClaimByIDInput) error {
 	}
 
 	result, err := input.Service.ClaimByID(ctx, driving.ClaimInput{
-		IssueID:        input.IssueID,
-		Author:         input.Author,
-		StaleThreshold: input.Duration,
-		StaleAt:        input.StaleAt,
-		LabelFilters:   input.LabelFilters,
-		Role:           roleFilter,
+		IssueID:      input.IssueID,
+		Author:       input.Author,
+		ExpiresAfter: input.Duration,
+		ExpiresAt:    input.ExpiresAt,
+		LabelFilters: input.LabelFilters,
+		Role:         roleFilter,
 	})
 	if err != nil {
 		return fmt.Errorf("claiming issue: %w", err)
@@ -74,7 +74,7 @@ type RunClaimReadyInput struct {
 	Role         string
 	LabelFilters []driving.LabelFilterInput
 	Duration     time.Duration
-	StaleAt      time.Time
+	ExpiresAt    time.Time
 	JSON         bool
 	WriteTo      io.Writer
 }
@@ -91,11 +91,11 @@ func RunClaimReady(ctx context.Context, input RunClaimReadyInput) error {
 		}
 	}
 	result, err := input.Service.ClaimNextReady(ctx, driving.ClaimNextReadyInput{
-		Author:         input.Author,
-		Role:           roleFilter,
-		LabelFilters:   input.LabelFilters,
-		StaleThreshold: input.Duration,
-		StaleAt:        input.StaleAt,
+		Author:       input.Author,
+		Role:         roleFilter,
+		LabelFilters: input.LabelFilters,
+		ExpiresAfter: input.Duration,
+		ExpiresAt:    input.ExpiresAt,
 	})
 	if err != nil {
 		return fmt.Errorf("claiming next ready issue: %w", err)
@@ -109,11 +109,11 @@ func RunClaimReady(ctx context.Context, input RunClaimReadyInput) error {
 // (case-insensitive).
 func NewCmd(f *cmdutil.Factory) *cli.Command {
 	var (
-		jsonOutput bool
-		author     string
-		role       string
-		duration   string
-		staleAtRaw string
+		jsonOutput   bool
+		author       string
+		role         string
+		duration     string
+		expiresAtRaw string
 	)
 
 	return &cli.Command{
@@ -130,7 +130,7 @@ know about. Pass the literal word "ready" to let np pick the highest-priority
 ready issue for you — this is the standard starting point for agents that need
 work. Use --role and --label to narrow what "ready" considers.
 
-Claims expire after a configurable duration (default 2 hours). Stale claims
+Claims expire after a configurable duration (default 2 hours). Expired claims
 are treated as nonexistent: any agent can overwrite them by claiming normally.`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -172,15 +172,15 @@ are treated as nonexistent: any agent can overwrite them by claiming normally.`,
 			},
 			&cli.StringFlag{
 				Name:        "duration",
-				Usage:       "Duration after which the claim becomes stale (e.g., 30m, 1h)",
+				Usage:       "Duration after which the claim expires (e.g., 30m, 1h)",
 				Category:    cmdutil.FlagCategorySupplemental,
 				Destination: &duration,
 			},
 			&cli.StringFlag{
-				Name:        "stale-at",
-				Usage:       "RFC3339 UTC timestamp when the claim becomes stale (e.g., 2026-04-02T14:00:00Z); mutually exclusive with --duration",
+				Name:        "expires-at",
+				Usage:       "RFC3339 UTC timestamp when the claim expires (e.g., 2026-04-02T14:00:00Z); mutually exclusive with --duration",
 				Category:    cmdutil.FlagCategorySupplemental,
-				Destination: &staleAtRaw,
+				Destination: &expiresAtRaw,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
@@ -202,9 +202,9 @@ are treated as nonexistent: any agent can overwrite them by claiming normally.`,
 				return cmdutil.FlagErrorf("%s", err)
 			}
 
-			// Mutual exclusivity: --duration and --stale-at cannot both be set.
-			if duration != "" && staleAtRaw != "" {
-				return cmdutil.FlagErrorf("--duration and --stale-at are mutually exclusive")
+			// Mutual exclusivity: --duration and --expires-at cannot both be set.
+			if duration != "" && expiresAtRaw != "" {
+				return cmdutil.FlagErrorf("--duration and --expires-at are mutually exclusive")
 			}
 
 			var dur time.Duration
@@ -215,9 +215,9 @@ are treated as nonexistent: any agent can overwrite them by claiming normally.`,
 				}
 			}
 
-			var staleAt time.Time
-			if staleAtRaw != "" {
-				staleAt, err = parseStaleAt(staleAtRaw)
+			var expiresAt time.Time
+			if expiresAtRaw != "" {
+				expiresAt, err = parseExpiresAt(expiresAtRaw)
 				if err != nil {
 					return cmdutil.FlagErrorf("%s", err)
 				}
@@ -237,7 +237,7 @@ are treated as nonexistent: any agent can overwrite them by claiming normally.`,
 					Role:         role,
 					LabelFilters: labelFilters,
 					Duration:     dur,
-					StaleAt:      staleAt,
+					ExpiresAt:    expiresAt,
 					JSON:         jsonOutput,
 					WriteTo:      f.IOStreams.Out,
 				})
@@ -254,7 +254,7 @@ are treated as nonexistent: any agent can overwrite them by claiming normally.`,
 				IssueID:      issueID.String(),
 				Author:       author,
 				Duration:     dur,
-				StaleAt:      staleAt,
+				ExpiresAt:    expiresAt,
 				LabelFilters: labelFilters,
 				Role:         role,
 				JSON:         jsonOutput,
@@ -264,33 +264,33 @@ are treated as nonexistent: any agent can overwrite them by claiming normally.`,
 	}
 }
 
-// maxStaleAtDistance is the maximum allowed distance between now and a
-// --stale-at timestamp. Matches domain.MaxStaleThreshold (24h) but is
+// maxExpiresAtDistance is the maximum allowed distance between now and an
+// --expires-at timestamp. Matches domain.MaxExpiryThreshold (24h) but is
 // defined locally to keep the CLI validation self-contained.
-const maxStaleAtDistance = 24 * time.Hour
+const maxExpiresAtDistance = 24 * time.Hour
 
-// parseStaleAt validates and parses a --stale-at flag value. The value must
-// be a valid RFC3339 timestamp in UTC (ending in "Z"), in the future, and
+// parseExpiresAt validates and parses an --expires-at flag value. The value
+// must be a valid RFC3339 timestamp in UTC (ending in "Z"), in the future, and
 // within 24 hours from now.
-func parseStaleAt(raw string) (time.Time, error) {
+func parseExpiresAt(raw string) (time.Time, error) {
 	// Require UTC suffix — reject non-UTC offsets before even attempting
 	// to parse, so the error message is specific.
 	if len(raw) == 0 || raw[len(raw)-1] != 'Z' {
-		return time.Time{}, fmt.Errorf("--stale-at must be a UTC timestamp ending in Z, got %q", raw)
+		return time.Time{}, fmt.Errorf("--expires-at must be a UTC timestamp ending in Z, got %q", raw)
 	}
 
 	t, err := time.Parse(time.RFC3339, raw)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("--stale-at must be a valid RFC3339 timestamp: %s", err)
+		return time.Time{}, fmt.Errorf("--expires-at must be a valid RFC3339 timestamp: %s", err)
 	}
 
 	now := time.Now()
 	if !t.After(now) {
-		return time.Time{}, fmt.Errorf("--stale-at must be in the future, got %s", raw)
+		return time.Time{}, fmt.Errorf("--expires-at must be in the future, got %s", raw)
 	}
 
-	if t.Sub(now) > maxStaleAtDistance {
-		return time.Time{}, fmt.Errorf("--stale-at must be within 24h from now, got %s", raw)
+	if t.Sub(now) > maxExpiresAtDistance {
+		return time.Time{}, fmt.Errorf("--expires-at must be within 24h from now, got %s", raw)
 	}
 
 	return t, nil
@@ -331,14 +331,14 @@ func writeClaimOutput(w io.Writer, jsonOut bool, result driving.ClaimOutput) err
 			ClaimID:   result.ClaimID,
 			Author:    result.Author,
 			CreatedAt: result.CreatedAt.Format(time.RFC3339),
-			StaleAt:   result.StaleAt.Format(time.RFC3339),
+			ExpiresAt: result.ExpiresAt.Format(time.RFC3339),
 		})
 	}
 
-	_, err := fmt.Fprintf(w, "Claimed %s\n  Claim ID: %s\n  Author: %s\n  Stale at: %s\n",
+	_, err := fmt.Fprintf(w, "Claimed %s\n  Claim ID: %s\n  Author: %s\n  Expires at: %s\n",
 		result.IssueID,
 		result.ClaimID,
 		result.Author,
-		result.StaleAt.Format(time.DateTime))
+		result.ExpiresAt.Format(time.DateTime))
 	return err
 }

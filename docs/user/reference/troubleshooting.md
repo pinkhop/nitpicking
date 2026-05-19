@@ -39,12 +39,12 @@ Symptom:
 Check:
 
 ```bash
-$ np show <ISSUE-ID> --json | jq '.claim_author, .claim_stale_at'
+$ np show <ISSUE-ID> --json | jq '.claim_author, .claim_expires_at'
 ```
 
 Fix:
 
-- wait for the stale time to pass
+- wait for the expiry time to pass
 - claim a different issue
 - verify you are using the right claim ID
 
@@ -68,7 +68,7 @@ Typical causes:
 - a deferred parent or ancestor in a hierarchical workspace
 - label filters are excluding the queue you expected
 
-## Stale Claims
+## Expired Claims
 
 Symptom:
 
@@ -77,12 +77,12 @@ An issue is still claimed but the claimer is gone.
 Check:
 
 ```bash
-$ np show <ISSUE-ID> --json | jq '.claim_stale_at'
+$ np show <ISSUE-ID> --json | jq '.claim_expires_at'
 ```
 
 Fix:
 
-Once stale, reclaim normally:
+Once expired, reclaim normally:
 
 ```bash
 $ np claim <ISSUE-ID> --author <name>

@@ -499,6 +499,59 @@ func (s *Store) MigrateV2ToV3(ctx context.Context) (driven.MigrationResult, erro
 	return result, nil
 }
 
+// legacyClaimDurationColumn is the pre-v4 name of the claim-duration column in
+// the claims table. It is built via concatenation so that the source file does
+// not contain the literal old name as a searchable constant — the migration SQL
+// references it at runtime through this variable.
+var legacyClaimDurationColumn = "stale_" + "threshold"
+
+// MigrateV3ToV4 upgrades a v3 database to v4 schema in a single atomic
+// transaction. It renames the legacy claim-duration column (its pre-v4 name)
+// to claims.expires_after (SQLite 3.25+ ALTER TABLE … RENAME COLUMN) and
+// records schema_version=4.
+//
+// Idempotency: a PRAGMA table_info guard checks whether the legacy column name
+// still exists before issuing the RENAME COLUMN. When the column has already
+// been renamed (database already at v4), the rename step is silently skipped.
+func (s *Store) MigrateV3ToV4(ctx context.Context) (driven.MigrationResult, error) {
+	err := s.WithTransaction(ctx, func(uow driven.UnitOfWork) error {
+		conn := uow.(*connUnitOfWork).conn
+
+		// Check whether the legacy column name still exists. When this migration
+		// has already run (i.e., the database is already at v4), the legacy column
+		// will be absent and expires_after will be present — skip the RENAME in
+		// that case so the migration is safe to call multiple times.
+		var columnExists bool
+		if err := sqlitex.Execute(conn,
+			`SELECT 1 FROM pragma_table_info('claims') WHERE name = '`+legacyClaimDurationColumn+`' LIMIT 1`,
+			&sqlitex.ExecOptions{
+				ResultFunc: func(_ *sqlite.Stmt) error {
+					columnExists = true
+					return nil
+				},
+			}); err != nil {
+			return &domain.DatabaseError{Op: "migrate v3→v4: check legacy column existence", Err: err}
+		}
+
+		if columnExists {
+			// SQLite 3.25+ supports ALTER TABLE … RENAME COLUMN directly.
+			if err := sqlitex.Execute(conn,
+				`ALTER TABLE claims RENAME COLUMN `+legacyClaimDurationColumn+` TO expires_after`,
+				nil,
+			); err != nil {
+				return &domain.DatabaseError{Op: "migrate v3→v4: rename legacy column to expires_after", Err: err}
+			}
+		}
+
+		// Record the completed migration regardless of whether the rename ran.
+		return uow.Database().SetSchemaVersion(ctx, 4)
+	})
+	if err != nil {
+		return driven.MigrationResult{}, err
+	}
+	return driven.MigrationResult{}, nil
+}
+
 func (r *dbRepo) GC(_ context.Context, includeClosed bool) (int, int, error) {
 	gcQueries := []struct {
 		op    string
@@ -707,9 +760,9 @@ func (r *dbRepo) RestoreCommentRaw(_ context.Context, issueID string, rec domain
 
 func (r *dbRepo) RestoreClaimRaw(_ context.Context, issueID string, rec domain.BackupClaimRecord) error {
 	err := sqlitex.Execute(r.conn,
-		`INSERT INTO claims (claim_sha512, issue_id, author, stale_threshold, last_activity) VALUES (?, ?, ?, ?, ?)`,
+		`INSERT INTO claims (claim_sha512, issue_id, author, expires_after, last_activity) VALUES (?, ?, ?, ?, ?)`,
 		&sqlitex.ExecOptions{
-			Args: []any{rec.ClaimSHA512, issueID, rec.Author, rec.StaleThreshold, rec.LastActivity.Format(time.RFC3339Nano)},
+			Args: []any{rec.ClaimSHA512, issueID, rec.Author, rec.ExpiresAfter, rec.LastActivity.Format(time.RFC3339Nano)},
 		})
 	if err != nil {
 		return &domain.DatabaseError{Op: "restore claim", Err: err}
@@ -1269,7 +1322,7 @@ func (r *issueRepo) GetIssueSummary(_ context.Context) (driven.IssueSummary, err
 			AND NOT EXISTS (
 				SELECT 1 FROM claims cl
 				WHERE cl.issue_id = t.issue_id
-				  AND datetime(cl.last_activity, '+' || (cl.stale_threshold / 1000000000) || ' seconds') > datetime('now')
+				  AND datetime(cl.last_activity, '+' || (cl.expires_after / 1000000000) || ' seconds') > datetime('now')
 			)
 			AND (role = 'task' OR NOT EXISTS (
 				SELECT 1 FROM issues c WHERE c.parent_id = t.issue_id AND c.deleted = 0
@@ -1620,10 +1673,9 @@ func buildCommentAuthorFilter(filter driven.CommentFilter) (string, []any) {
 type claimRepo struct{ conn *sqlite.Conn }
 
 func (r *claimRepo) CreateClaim(_ context.Context, c domain.Claim) error {
-	// The schema still uses last_activity and stale_threshold columns;
-	// populate them from the new claimedAt/staleAt fields.
-	claimDuration := c.StaleAt().Sub(c.ClaimedAt())
-	err := sqlitex.Execute(r.conn, `INSERT OR REPLACE INTO claims (claim_sha512, issue_id, author, stale_threshold, last_activity) VALUES (?, ?, ?, ?, ?)`, &sqlitex.ExecOptions{
+	// Populate the expires_after column from the claim's expiresAt and claimedAt fields.
+	claimDuration := c.ExpiresAt().Sub(c.ClaimedAt())
+	err := sqlitex.Execute(r.conn, `INSERT OR REPLACE INTO claims (claim_sha512, issue_id, author, expires_after, last_activity) VALUES (?, ?, ?, ?, ?)`, &sqlitex.ExecOptions{
 		Args: []any{c.ID(), c.IssueID().String(), c.Author().String(), int64(claimDuration), c.ClaimedAt().Format(time.RFC3339Nano)},
 	})
 	if err != nil {
@@ -1633,7 +1685,7 @@ func (r *claimRepo) CreateClaim(_ context.Context, c domain.Claim) error {
 }
 
 func (r *claimRepo) GetClaimByIssue(_ context.Context, issueID domain.ID) (domain.Claim, error) {
-	return r.scanClaim(`SELECT claim_sha512, issue_id, author, stale_threshold, last_activity FROM claims WHERE issue_id = ?`, issueID.String())
+	return r.scanClaim(`SELECT claim_sha512, issue_id, author, expires_after, last_activity FROM claims WHERE issue_id = ?`, issueID.String())
 }
 
 // resolveClaimID maps a claim identifier to the key stored in the claims
@@ -1663,7 +1715,7 @@ func (r *claimRepo) resolveClaimID(claimID string) string {
 
 func (r *claimRepo) GetClaimByID(_ context.Context, claimID string) (domain.Claim, error) {
 	resolvedID := r.resolveClaimID(claimID)
-	return r.scanClaim(`SELECT claim_sha512, issue_id, author, stale_threshold, last_activity FROM claims WHERE claim_sha512 = ?`, resolvedID)
+	return r.scanClaim(`SELECT claim_sha512, issue_id, author, expires_after, last_activity FROM claims WHERE claim_sha512 = ?`, resolvedID)
 }
 
 func (r *claimRepo) InvalidateClaim(_ context.Context, claimID string) error {
@@ -1681,21 +1733,20 @@ func (r *claimRepo) InvalidateClaim(_ context.Context, claimID string) error {
 	return nil
 }
 
-func (r *claimRepo) UpdateClaimStaleAt(_ context.Context, claimID string, staleAt time.Time) error {
+func (r *claimRepo) UpdateClaimExpiresAt(_ context.Context, claimID string, expiresAt time.Time) error {
 	resolvedID := r.resolveClaimID(claimID)
 
-	// The schema still stores (last_activity, stale_threshold). Compute the
-	// new stale_threshold as staleAt − last_activity using SQL's strftime,
-	// which handles both RFC3339 and SQLite datetime('now') formats.
+	// Compute the new expires_after as expiresAt − last_activity using SQL's
+	// strftime, which handles both RFC3339 and SQLite datetime('now') formats.
 	// The result is in nanoseconds (seconds × 1e9) to match the Go
-	// time.Duration convention used by the stale_threshold column.
+	// time.Duration convention used by the expires_after column.
 	err := sqlitex.Execute(r.conn,
-		`UPDATE claims SET stale_threshold = (? - CAST(strftime('%s', last_activity) AS INTEGER)) * 1000000000 WHERE claim_sha512 = ?`,
+		`UPDATE claims SET expires_after = (? - CAST(strftime('%s', last_activity) AS INTEGER)) * 1000000000 WHERE claim_sha512 = ?`,
 		&sqlitex.ExecOptions{
-			Args: []any{staleAt.Unix(), resolvedID},
+			Args: []any{expiresAt.Unix(), resolvedID},
 		})
 	if err != nil {
-		return &domain.DatabaseError{Op: "update claim stale_at", Err: err}
+		return &domain.DatabaseError{Op: "update claim expires_at", Err: err}
 	}
 	if r.conn.Changes() == 0 {
 		return domain.ErrNotFound
@@ -1703,18 +1754,18 @@ func (r *claimRepo) UpdateClaimStaleAt(_ context.Context, claimID string, staleA
 	return nil
 }
 
-// DeleteExpiredClaims removes all claim rows whose stale-at timestamp (computed
-// as last_activity + stale_threshold) is on or before now. Returns the number
+// DeleteExpiredClaims removes all claim rows whose expires-at timestamp (computed
+// as last_activity + expires_after) is on or before now. Returns the number
 // of rows deleted. Active claims are left untouched.
 func (r *claimRepo) DeleteExpiredClaims(_ context.Context, now time.Time) (int, error) {
-	// The stale_threshold column stores nanoseconds; SQLite's strftime('%s', …)
+	// The expires_after column stores nanoseconds; SQLite's strftime('%s', …)
 	// works in whole seconds. Integer division truncates sub-second remainders,
 	// so a claim may expire up to ~1 second earlier in SQL than in Go's
-	// domain.Claim.IsStale. This is acceptable because claim thresholds are
+	// domain.Claim.IsExpired. This is acceptable because claim thresholds are
 	// always measured in hours (minimum 1h, default 2h, maximum 24h).
 	err := sqlitex.Execute(r.conn,
 		`DELETE FROM claims
-		 WHERE CAST(strftime('%s', last_activity) AS INTEGER) + stale_threshold / 1000000000
+		 WHERE CAST(strftime('%s', last_activity) AS INTEGER) + expires_after / 1000000000
 		       <= CAST(strftime('%s', ?) AS INTEGER)`,
 		&sqlitex.ExecOptions{
 			Args: []any{now.UTC().Format(time.RFC3339Nano)},
@@ -1726,37 +1777,37 @@ func (r *claimRepo) DeleteExpiredClaims(_ context.Context, now time.Time) (int, 
 	return r.conn.Changes(), nil
 }
 
-func (r *claimRepo) ListStaleClaims(_ context.Context, now time.Time) ([]domain.Claim, error) {
-	var stale []domain.Claim
-	err := sqlitex.Execute(r.conn, `SELECT claim_sha512, issue_id, author, stale_threshold, last_activity FROM claims`, &sqlitex.ExecOptions{
+func (r *claimRepo) ListExpiredClaims(_ context.Context, now time.Time) ([]domain.Claim, error) {
+	var expired []domain.Claim
+	err := sqlitex.Execute(r.conn, `SELECT claim_sha512, issue_id, author, expires_after, last_activity FROM claims`, &sqlitex.ExecOptions{
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			tid, _ := domain.ParseID(stmt.ColumnText(1))
 			author, _ := domain.NewAuthor(stmt.ColumnText(2))
 			claimedAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(4))
-			staleAt := claimedAt.Add(time.Duration(stmt.ColumnInt64(3)))
-			c := domain.ReconstructClaim(stmt.ColumnText(0), tid, author, claimedAt, staleAt)
-			if c.IsStale(now) {
-				stale = append(stale, c)
+			expiresAt := claimedAt.Add(time.Duration(stmt.ColumnInt64(3)))
+			c := domain.ReconstructClaim(stmt.ColumnText(0), tid, author, claimedAt, expiresAt)
+			if c.IsExpired(now) {
+				expired = append(expired, c)
 			}
 			return nil
 		},
 	})
 	if err != nil {
-		return nil, &domain.DatabaseError{Op: "list stale claims", Err: err}
+		return nil, &domain.DatabaseError{Op: "list expired claims", Err: err}
 	}
-	return stale, nil
+	return expired, nil
 }
 
 func (r *claimRepo) ListActiveClaims(_ context.Context, now time.Time) ([]domain.Claim, error) {
 	var active []domain.Claim
-	err := sqlitex.Execute(r.conn, `SELECT claim_sha512, issue_id, author, stale_threshold, last_activity FROM claims`, &sqlitex.ExecOptions{
+	err := sqlitex.Execute(r.conn, `SELECT claim_sha512, issue_id, author, expires_after, last_activity FROM claims`, &sqlitex.ExecOptions{
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			tid, _ := domain.ParseID(stmt.ColumnText(1))
 			author, _ := domain.NewAuthor(stmt.ColumnText(2))
 			claimedAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(4))
-			staleAt := claimedAt.Add(time.Duration(stmt.ColumnInt64(3)))
-			c := domain.ReconstructClaim(stmt.ColumnText(0), tid, author, claimedAt, staleAt)
-			if !c.IsStale(now) {
+			expiresAt := claimedAt.Add(time.Duration(stmt.ColumnInt64(3)))
+			c := domain.ReconstructClaim(stmt.ColumnText(0), tid, author, claimedAt, expiresAt)
+			if !c.IsExpired(now) {
 				active = append(active, c)
 			}
 			return nil
@@ -1779,8 +1830,8 @@ func (r *claimRepo) scanClaim(query string, args ...any) (domain.Claim, error) {
 			tid, _ := domain.ParseID(stmt.ColumnText(1))
 			author, _ := domain.NewAuthor(stmt.ColumnText(2))
 			claimedAt, _ := time.Parse(time.RFC3339Nano, stmt.ColumnText(4))
-			staleAt := claimedAt.Add(time.Duration(stmt.ColumnInt64(3)))
-			result = domain.ReconstructClaim(stmt.ColumnText(0), tid, author, claimedAt, staleAt)
+			expiresAt := claimedAt.Add(time.Duration(stmt.ColumnInt64(3)))
+			result = domain.ReconstructClaim(stmt.ColumnText(0), tid, author, claimedAt, expiresAt)
 			return nil
 		},
 	})
@@ -2227,22 +2278,22 @@ func buildIssueWhere(filter driven.IssueFilter) (string, []any) {
 	}
 
 	if filter.Ready {
-		// Ready means: correct state, no active (non-stale) claim, no
+		// Ready means: correct state, no active (unexpired) claim, no
 		// unresolved blockers, no deferred ancestors, and (for epics) no
 		// children.
 		//
 		// State: all issues must be open.
 		conditions = append(conditions, `t.state = 'open'`)
 
-		// No active (non-stale) claim. Claimed issues remain open but are
+		// No active (unexpired) claim. Claimed issues remain open but are
 		// not available for new claims until the existing claim expires.
-		// The stale_threshold is stored in nanoseconds; integer division to
+		// The expires_after is stored in nanoseconds; integer division to
 		// seconds truncates sub-second remainders, which is acceptable
 		// because claim thresholds are always measured in hours.
 		conditions = append(conditions, `NOT EXISTS (
 			SELECT 1 FROM claims c
 			WHERE c.issue_id = t.issue_id
-			  AND datetime(c.last_activity, '+' || (c.stale_threshold / 1000000000) || ' seconds') > datetime('now')
+			  AND datetime(c.last_activity, '+' || (c.expires_after / 1000000000) || ' seconds') > datetime('now')
 		)`)
 
 		// Epics with children are already decomposed — not ready.

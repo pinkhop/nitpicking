@@ -106,7 +106,7 @@ func TestValidateClaim_DeferredIssue_Fails(t *testing.T) {
 func TestValidateClaim_ActiveClaim_Fails(t *testing.T) {
 	t.Parallel()
 
-	// An active (non-stale) claim always blocks a new claim — there is no
+	// An active (unexpired) claim always blocks a new claim — there is no
 	// steal mechanic.
 
 	// Given
@@ -124,7 +124,7 @@ func TestValidateClaim_ActiveClaim_Fails(t *testing.T) {
 		ActiveClaim: activeClaim,
 	}
 
-	// When — 1 hour later, still within the default 2h stale threshold
+	// When — 1 hour later, still within the default 2h expiry threshold
 	claimErr := core.ValidateClaim(status, now.Add(1*time.Hour))
 
 	// Then
@@ -133,10 +133,10 @@ func TestValidateClaim_ActiveClaim_Fails(t *testing.T) {
 	}
 }
 
-func TestValidateClaim_StaleClaim_Succeeds(t *testing.T) {
+func TestValidateClaim_ExpiredClaim_Succeeds(t *testing.T) {
 	t.Parallel()
 
-	// A stale claim is treated as nonexistent; the caller overwrites the
+	// An expired claim is treated as nonexistent; the caller overwrites the
 	// expired row when creating the new claim.
 
 	// Given
@@ -154,12 +154,12 @@ func TestValidateClaim_StaleClaim_Succeeds(t *testing.T) {
 		ActiveClaim: activeClaim,
 	}
 
-	// When — 3 hours later, past the default 2h stale threshold
+	// When — 3 hours later, past the default 2h expiry threshold
 	claimErr := core.ValidateClaim(status, now.Add(3*time.Hour))
 
 	// Then
 	if claimErr != nil {
-		t.Fatalf("unexpected error for stale claim: %v", claimErr)
+		t.Fatalf("unexpected error for expired claim: %v", claimErr)
 	}
 }
 
@@ -191,10 +191,10 @@ func TestValidateClaim_DeletedAndClaimed_DeletionTakesPrecedence(t *testing.T) {
 	}
 }
 
-func TestValidateClaim_ExactStaleAtBoundary_Fails(t *testing.T) {
+func TestValidateClaim_ExactExpiresAtBoundary_Fails(t *testing.T) {
 	t.Parallel()
 
-	// IsStale uses strict greater-than, so at the exact boundary the claim is
+	// IsExpired uses strict greater-than, so at the exact boundary the claim is
 	// still considered active and must be rejected.
 
 	// Given
@@ -212,11 +212,11 @@ func TestValidateClaim_ExactStaleAtBoundary_Fails(t *testing.T) {
 		ActiveClaim: activeClaim,
 	}
 
-	// When — attempt claim at the exact stale-at boundary
-	exactBoundary := activeClaim.StaleAt()
+	// When — attempt claim at the exact expires-at boundary
+	exactBoundary := activeClaim.ExpiresAt()
 	claimErr := core.ValidateClaim(status, exactBoundary)
 
-	// Then — at the exact boundary IsStale returns false (strict >),
+	// Then — at the exact boundary IsExpired returns false (strict >),
 	// so the claim is still active and must be rejected
 	if !errors.Is(claimErr, &domain.ClaimConflictError{}) {
 		t.Errorf("expected ClaimConflictError at exact boundary, got %v", claimErr)
@@ -246,7 +246,7 @@ func TestValidateClaim_SelfReclaimActiveClaimFails(t *testing.T) {
 	}
 
 	// When — same author tries to re-claim the same issue (1 hour later, still
-	// within the 2h stale threshold)
+	// within the 2h expiry threshold)
 	claimErr := core.ValidateClaim(status, now.Add(1*time.Hour))
 
 	// Then — conflict even for the same author; caller must use extend or wait
@@ -260,7 +260,7 @@ func TestValidateClaim_SelfReclaimActiveClaimFails(t *testing.T) {
 func TestValidateActiveClaim_ActiveClaim_Succeeds(t *testing.T) {
 	t.Parallel()
 
-	// Given — a claim created now (not yet stale).
+	// Given — a claim created now (not yet expired).
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	c, err := domain.NewClaim(domain.NewClaimParams{
 		IssueID: mustDomainID(t),
@@ -280,10 +280,10 @@ func TestValidateActiveClaim_ActiveClaim_Succeeds(t *testing.T) {
 	}
 }
 
-func TestValidateActiveClaim_StaleClaim_Fails(t *testing.T) {
+func TestValidateActiveClaim_ExpiredClaim_Fails(t *testing.T) {
 	t.Parallel()
 
-	// Given — a claim created long enough ago to be stale.
+	// Given — a claim created long enough ago to be expired.
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	c, err := domain.NewClaim(domain.NewClaimParams{
 		IssueID: mustDomainID(t),
@@ -294,11 +294,11 @@ func TestValidateActiveClaim_StaleClaim_Fails(t *testing.T) {
 		t.Fatalf("precondition: %v", err)
 	}
 
-	// When — validate 3 hours after creation (past the 2h stale threshold)
+	// When — validate 3 hours after creation (past the 2h expiry threshold)
 	validateErr := core.ValidateActiveClaim(c, now.Add(3*time.Hour))
 
-	// Then — ErrStaleClaim wraps the error
-	if !errors.Is(validateErr, domain.ErrStaleClaim) {
-		t.Errorf("expected ErrStaleClaim for stale claim, got %v", validateErr)
+	// Then — ErrExpiredClaim wraps the error
+	if !errors.Is(validateErr, domain.ErrExpiredClaim) {
+		t.Errorf("expected ErrExpiredClaim for expired claim, got %v", validateErr)
 	}
 }

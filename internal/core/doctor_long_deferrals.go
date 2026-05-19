@@ -12,7 +12,7 @@ import (
 	"github.com/pinkhop/nitpicking/internal/ports/driving"
 )
 
-// defaultLongDeferralThreshold is the staleness threshold used when
+// defaultLongDeferralThreshold is the threshold used when
 // DoctorInput.LongDeferralThreshold is zero.
 const defaultLongDeferralThreshold = 7 * 24 * time.Hour
 
@@ -80,7 +80,7 @@ func runLongDeferrals(ctx context.Context, svc *serviceImpl, input driving.Docto
 		affected[i] = r
 	}
 	return &doctorRunResult{
-		Summary:  fmt.Sprintf("%d deferred issue(s) have had no activity for more than the staleness threshold", len(rows)),
+		Summary:  fmt.Sprintf("%d deferred issue(s).", len(rows)),
 		Affected: affected,
 	}, nil
 }

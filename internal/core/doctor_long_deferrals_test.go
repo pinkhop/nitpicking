@@ -659,12 +659,12 @@ func TestRunLongDeferrals_DeferredIssueUpdated6DaysAgo_FindingAtCustomThreshold(
 }
 
 // TestRunLongDeferrals_MultipleDeferredIssues_RowsSortedAscending verifies
-// that when multiple stale deferred issues are found, rows are sorted
+// that when multiple long-deferred issues are found, rows are sorted
 // ascending by issue ID for deterministic output.
 func TestRunLongDeferrals_MultipleDeferredIssues_RowsSortedAscending(t *testing.T) {
 	t.Parallel()
 
-	// Given — two stale deferred issues with IDs NP-bbbbb and NP-aaaaa.
+	// Given — two long-deferred issues with IDs NP-bbbbb and NP-aaaaa.
 	eightDaysAgo := time.Now().Add(-8 * 24 * time.Hour)
 	issueA := buildDeferredIssue(t, "NP-aaaaa", eightDaysAgo)
 	issueB := buildDeferredIssue(t, "NP-bbbbb", eightDaysAgo)
@@ -698,17 +698,17 @@ func TestRunLongDeferrals_MultipleDeferredIssues_RowsSortedAscending(t *testing.
 	}
 }
 
-// TestRunLongDeferrals_MixedStaleAndFresh_OnlyStaleReturned verifies that a
-// fresh deferred issue (below the threshold) is not included when a stale one
-// also exists.
-func TestRunLongDeferrals_MixedStaleAndFresh_OnlyStaleReturned(t *testing.T) {
+// TestRunLongDeferrals_MixedLongAndFresh_OnlyLongReturned verifies that a
+// fresh deferred issue (below the threshold) is not included when a long-deferred
+// one also exists.
+func TestRunLongDeferrals_MixedLongAndFresh_OnlyLongReturned(t *testing.T) {
 	t.Parallel()
 
-	// Given — one stale (8 days) and one fresh (2 days) deferred issue.
-	issueStale := buildDeferredIssue(t, "NP-aaaaa", time.Now().Add(-8*24*time.Hour))
+	// Given — one long-deferred (8 days) and one fresh (2 days) deferred issue.
+	issueLong := buildDeferredIssue(t, "NP-aaaaa", time.Now().Add(-8*24*time.Hour))
 	issueFresh := buildDeferredIssue(t, "NP-bbbbb", time.Now().Add(-2*24*time.Hour))
 	svc := newDeferralSvc(deferralScenario{
-		issues: []domain.Issue{issueStale, issueFresh},
+		issues: []domain.Issue{issueLong, issueFresh},
 		historyFor: map[string][]historyEntry{
 			"NP-aaaaa": {{ts: time.Now().Add(-8 * 24 * time.Hour), eventType: history.EventStateChanged}},
 			"NP-bbbbb": {{ts: time.Now().Add(-2 * 24 * time.Hour), eventType: history.EventStateChanged}},
@@ -717,7 +717,7 @@ func TestRunLongDeferrals_MixedStaleAndFresh_OnlyStaleReturned(t *testing.T) {
 
 	// When
 	result, err := runLongDeferrals(t.Context(), svc, driving.DoctorInput{})
-	// Then — only the stale issue appears.
+	// Then — only the long-deferred issue appears.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -841,7 +841,7 @@ func TestRunLongDeferrals_DeferredAtIgnoresNonDeferralStateChanges(t *testing.T)
 func TestRunLongDeferrals_RowTimestampsPopulated(t *testing.T) {
 	t.Parallel()
 
-	// Given — a stale deferred issue.
+	// Given — a long-deferred issue.
 	eightDaysAgo := time.Now().Add(-8 * 24 * time.Hour)
 	issue := buildDeferredIssue(t, "NP-aaaaa", eightDaysAgo)
 	svc := newDeferralSvc(deferralScenario{

@@ -85,11 +85,11 @@ func TestClaimConflictError_IncludesStructuredContext(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	staleAt := time.Date(2026, 3, 23, 14, 0, 0, 0, time.UTC)
+	expiresAt := time.Date(2026, 3, 23, 14, 0, 0, 0, time.UTC)
 	err := &domain.ClaimConflictError{
 		IssueID:       "FOO-abc12",
 		CurrentHolder: "alice",
-		StaleAt:       staleAt,
+		ExpiresAt:     expiresAt,
 	}
 
 	// When
@@ -103,7 +103,7 @@ func TestClaimConflictError_IncludesStructuredContext(t *testing.T) {
 		t.Errorf("expected current holder in message, got %q", msg)
 	}
 	if !strings.Contains(msg, "2026-03-23") {
-		t.Errorf("expected stale-at date in message, got %q", msg)
+		t.Errorf("expected expires-at date in message, got %q", msg)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestClaimConflictError_Is_MatchesClaimConflictError(t *testing.T) {
 	err := &domain.ClaimConflictError{
 		IssueID:       "FOO-abc12",
 		CurrentHolder: "bob",
-		StaleAt:       time.Now(),
+		ExpiresAt:     time.Now(),
 	}
 	wrapped := fmt.Errorf("claim: %w", err)
 
@@ -131,11 +131,11 @@ func TestClaimConflictError_AsType_ExtractsContext(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	staleAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	expiresAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	err := &domain.ClaimConflictError{
 		IssueID:       "FOO-xyz99",
 		CurrentHolder: "agent-7",
-		StaleAt:       staleAt,
+		ExpiresAt:     expiresAt,
 	}
 	wrapped := fmt.Errorf("operation failed: %w", err)
 
@@ -152,8 +152,8 @@ func TestClaimConflictError_AsType_ExtractsContext(t *testing.T) {
 	if ce.CurrentHolder != "agent-7" {
 		t.Errorf("expected CurrentHolder agent-7, got %s", ce.CurrentHolder)
 	}
-	if !ce.StaleAt.Equal(staleAt) {
-		t.Errorf("expected StaleAt %v, got %v", staleAt, ce.StaleAt)
+	if !ce.ExpiresAt.Equal(expiresAt) {
+		t.Errorf("expected ExpiresAt %v, got %v", expiresAt, ce.ExpiresAt)
 	}
 }
 
@@ -206,7 +206,7 @@ func TestSentinelErrors_AreDistinct(t *testing.T) {
 		domain.ErrCycleDetected,
 		domain.ErrDeletedIssue,
 		domain.ErrTerminalState,
-		domain.ErrStaleClaim,
+		domain.ErrExpiredClaim,
 	}
 
 	// Then — each sentinel is distinct from every other
@@ -232,7 +232,7 @@ func TestSentinelErrors_MatchWhenWrapped(t *testing.T) {
 		{"ErrDeletedIssue", domain.ErrDeletedIssue},
 		{"ErrTerminalState", domain.ErrTerminalState},
 		{"ErrDepthExceeded", domain.ErrDepthExceeded},
-		{"ErrStaleClaim", domain.ErrStaleClaim},
+		{"ErrExpiredClaim", domain.ErrExpiredClaim},
 	}
 
 	for _, tc := range cases {

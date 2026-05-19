@@ -33,6 +33,9 @@ type upgradeServiceStub struct {
 
 	// migrateV2ToV3Fn returns the result for MigrateV2ToV3.
 	migrateV2ToV3Fn func(ctx context.Context) (driving.MigrationResult, error)
+
+	// migrateV3ToV4Fn returns the result for MigrateV3ToV4.
+	migrateV3ToV4Fn func(ctx context.Context) (driving.MigrationResult, error)
 }
 
 // CheckSchemaVersion delegates to checkSchemaVersionFn.
@@ -48,6 +51,11 @@ func (s *upgradeServiceStub) MigrateV1ToV2(ctx context.Context) (driving.Migrati
 // MigrateV2ToV3 delegates to migrateV2ToV3Fn.
 func (s *upgradeServiceStub) MigrateV2ToV3(ctx context.Context) (driving.MigrationResult, error) {
 	return s.migrateV2ToV3Fn(ctx)
+}
+
+// MigrateV3ToV4 delegates to migrateV3ToV4Fn.
+func (s *upgradeServiceStub) MigrateV3ToV4(ctx context.Context) (driving.MigrationResult, error) {
+	return s.migrateV3ToV4Fn(ctx)
 }
 
 // The remaining methods are required to satisfy the driving.Service interface
@@ -94,8 +102,8 @@ func (s *upgradeServiceStub) UpdateIssue(_ context.Context, _ driving.UpdateIssu
 	panic("upgradeServiceStub: UpdateIssue not expected during upgrade")
 }
 
-func (s *upgradeServiceStub) ExtendStaleThreshold(_ context.Context, _, _ string, _ time.Duration) error {
-	panic("upgradeServiceStub: ExtendStaleThreshold not expected during upgrade")
+func (s *upgradeServiceStub) ExtendExpiry(_ context.Context, _, _ string, _ time.Duration) error {
+	panic("upgradeServiceStub: ExtendExpiry not expected during upgrade")
 }
 
 func (s *upgradeServiceStub) TransitionState(_ context.Context, _ driving.TransitionInput) error {
@@ -230,46 +238,68 @@ var errMigrationRequired = &domain.DatabaseError{
 	Err: fmt.Errorf("%w: database needs migration", domain.ErrSchemaMigrationRequired),
 }
 
-// newV3Stub returns an upgradeServiceStub whose CheckSchemaVersion returns nil
-// (the database is already at v3). Migration methods panic because they must
-// not be called for an up-to-date database.
-func newV3Stub() *upgradeServiceStub {
+// newV4Stub returns an upgradeServiceStub whose CheckSchemaVersion returns nil
+// (the database is already at v4, the current schema version). Migration methods
+// panic because they must not be called for an up-to-date database.
+func newV4Stub() *upgradeServiceStub {
 	return &upgradeServiceStub{
 		checkSchemaVersionFn: func(_ context.Context) error { return nil },
 		migrateV1ToV2Fn: func(_ context.Context) (driving.MigrationResult, error) {
-			panic("upgradeServiceStub: MigrateV1ToV2 must not be called on v3 database")
+			panic("upgradeServiceStub: MigrateV1ToV2 must not be called on v4 database")
 		},
 		migrateV2ToV3Fn: func(_ context.Context) (driving.MigrationResult, error) {
-			panic("upgradeServiceStub: MigrateV2ToV3 must not be called on v3 database")
+			panic("upgradeServiceStub: MigrateV2ToV3 must not be called on v4 database")
+		},
+		migrateV3ToV4Fn: func(_ context.Context) (driving.MigrationResult, error) {
+			panic("upgradeServiceStub: MigrateV3ToV4 must not be called on v4 database")
 		},
 	}
 }
 
-// newV2Stub returns an upgradeServiceStub whose CheckSchemaVersion returns
-// ErrSchemaMigrationRequired (v2 database), MigrateV1ToV2 returns a zero-count
-// result (no-op, since v1→v2 was already applied), and MigrateV2ToV3 returns
-// the provided v23Result.
-func newV2Stub(v23Result driving.MigrationResult) *upgradeServiceStub {
+// newV3Stub returns an upgradeServiceStub whose CheckSchemaVersion returns
+// ErrSchemaMigrationRequired (v3 database). Earlier migrations are no-ops;
+// v3→v4 returns the provided v34Result.
+func newV3Stub(v34Result driving.MigrationResult) *upgradeServiceStub {
 	return &upgradeServiceStub{
 		checkSchemaVersionFn: func(_ context.Context) error {
 			return errMigrationRequired
 		},
 		migrateV1ToV2Fn: func(_ context.Context) (driving.MigrationResult, error) {
-			// v1→v2 is a no-op on a v2 database — all SQL changes match zero rows
-			// and SetSchemaVersion(2) is idempotent. Return zero counts to mirror
-			// what the real adapter would return in this scenario.
+			return driving.MigrationResult{}, nil
+		},
+		migrateV2ToV3Fn: func(_ context.Context) (driving.MigrationResult, error) {
+			return driving.MigrationResult{}, nil
+		},
+		migrateV3ToV4Fn: func(_ context.Context) (driving.MigrationResult, error) {
+			return v34Result, nil
+		},
+	}
+}
+
+// newV2Stub returns an upgradeServiceStub whose CheckSchemaVersion returns
+// ErrSchemaMigrationRequired (v2 database). MigrateV1ToV2 returns a zero-count
+// result (no-op), MigrateV2ToV3 returns the provided v23Result, and
+// MigrateV3ToV4 returns the provided v34Result.
+func newV2Stub(v23Result, v34Result driving.MigrationResult) *upgradeServiceStub {
+	return &upgradeServiceStub{
+		checkSchemaVersionFn: func(_ context.Context) error {
+			return errMigrationRequired
+		},
+		migrateV1ToV2Fn: func(_ context.Context) (driving.MigrationResult, error) {
 			return driving.MigrationResult{}, nil
 		},
 		migrateV2ToV3Fn: func(_ context.Context) (driving.MigrationResult, error) {
 			return v23Result, nil
 		},
+		migrateV3ToV4Fn: func(_ context.Context) (driving.MigrationResult, error) {
+			return v34Result, nil
+		},
 	}
 }
 
 // newV1Stub returns an upgradeServiceStub whose CheckSchemaVersion returns
-// ErrSchemaMigrationRequired (v1 database), MigrateV1ToV2 returns v12Result,
-// and MigrateV2ToV3 returns v23Result.
-func newV1Stub(v12Result, v23Result driving.MigrationResult) *upgradeServiceStub {
+// ErrSchemaMigrationRequired (v1 database). All three migration steps run.
+func newV1Stub(v12Result, v23Result, v34Result driving.MigrationResult) *upgradeServiceStub {
 	return &upgradeServiceStub{
 		checkSchemaVersionFn: func(_ context.Context) error {
 			return errMigrationRequired
@@ -279,6 +309,9 @@ func newV1Stub(v12Result, v23Result driving.MigrationResult) *upgradeServiceStub
 		},
 		migrateV2ToV3Fn: func(_ context.Context) (driving.MigrationResult, error) {
 			return v23Result, nil
+		},
+		migrateV3ToV4Fn: func(_ context.Context) (driving.MigrationResult, error) {
+			return v34Result, nil
 		},
 	}
 }
@@ -423,17 +456,18 @@ func TestNewCmd_RunFn_UpToDate_JSONOutput(t *testing.T) {
 
 // --- Run — business logic via stub service ---
 
-// TestRun_V3Database_ReportsUpToDate verifies that a database already at v3
-// causes Run to emit "up_to_date" status without invoking any migration.
-func TestRun_V3Database_ReportsUpToDate(t *testing.T) {
+// TestRun_V4Database_ReportsUpToDate verifies that a database already at v4
+// (the current schema version) causes Run to emit "up_to_date" status without
+// invoking any migration.
+func TestRun_V4Database_ReportsUpToDate(t *testing.T) {
 	t.Parallel()
 
-	// Given — a service stub that reports the database is already at v3, and a
+	// Given — a service stub that reports the database is already at v4, and a
 	// runFn that wires it in and delegates to Run.
 	ios, _, stdout, _ := iostreams.Test()
 	f := &cmdutil.Factory{IOStreams: ios}
 
-	stub := newV3Stub()
+	stub := newV4Stub()
 	runFn := func(ctx context.Context, input upgrade.RunInput) error {
 		input.Svc = stub
 		return upgrade.Run(ctx, input)
@@ -476,7 +510,7 @@ func TestRun_V2Database_MigratesV2ToV3_ReportsMigrated(t *testing.T) {
 		IdempotencyKeysMigrated:   4,
 		IdempotencyKeysSkipped:    1,
 		InvalidLabelValuesSkipped: 2,
-	})
+	}, driving.MigrationResult{})
 	runFn := func(ctx context.Context, input upgrade.RunInput) error {
 		input.Svc = stub
 		return upgrade.Run(ctx, input)
@@ -534,6 +568,7 @@ func TestRun_V1Database_MigratesV1ToV3_ReportsBothCounters(t *testing.T) {
 			IdempotencyKeysMigrated: 6,
 			IdempotencyKeysSkipped:  0,
 		},
+		driving.MigrationResult{},
 	)
 	runFn := func(ctx context.Context, input upgrade.RunInput) error {
 		input.Svc = stub
@@ -585,7 +620,7 @@ func TestRun_V2Database_JSONOutputContainsNewCounters(t *testing.T) {
 	stub := newV2Stub(driving.MigrationResult{
 		IdempotencyKeysMigrated: 2,
 		IdempotencyKeysSkipped:  0,
-	})
+	}, driving.MigrationResult{})
 	runFn := func(ctx context.Context, input upgrade.RunInput) error {
 		input.Svc = stub
 		return upgrade.Run(ctx, input)
@@ -633,6 +668,9 @@ func TestRun_CheckSchemaVersionError_ReturnsError(t *testing.T) {
 		migrateV2ToV3Fn: func(_ context.Context) (driving.MigrationResult, error) {
 			panic("upgradeServiceStub: MigrateV2ToV3 must not be called when CheckSchemaVersion returns a non-migration error")
 		},
+		migrateV3ToV4Fn: func(_ context.Context) (driving.MigrationResult, error) {
+			panic("upgradeServiceStub: MigrateV3ToV4 must not be called when CheckSchemaVersion returns a non-migration error")
+		},
 	}
 	runFn := func(ctx context.Context, input upgrade.RunInput) error {
 		input.Svc = stub
@@ -649,5 +687,78 @@ func TestRun_CheckSchemaVersionError_ReturnsError(t *testing.T) {
 	}
 	if !errors.Is(err, sentinelErr) {
 		t.Errorf("expected error chain to contain sentinel error, got: %v", err)
+	}
+}
+
+// TestRunUpgrade_V3ToV4_RenamesColumn verifies that a v3 database (the previous
+// schema version) is migrated to v4 by chaining the v3→v4 step. The test
+// exercises the new upgradeServiceStub.migrateV3ToV4Fn field, and asserts that
+// the upgrade output reflects the v3→v4 migration in both the success status
+// and the human-readable text rendering. Earlier-version migrations must be
+// no-ops on a v3 database.
+func TestRunUpgrade_V3ToV4_RenamesColumn(t *testing.T) {
+	t.Parallel()
+
+	// Given — a service stub that simulates a v3 database whose v3→v4 step is
+	// invoked and reports that one claim column was renamed.
+	ios, _, stdout, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+
+	var v3ToV4Called bool
+	stub := newV3Stub(driving.MigrationResult{})
+	stub.migrateV3ToV4Fn = func(_ context.Context) (driving.MigrationResult, error) {
+		v3ToV4Called = true
+		return driving.MigrationResult{}, nil
+	}
+	runFn := func(ctx context.Context, input upgrade.RunInput) error {
+		input.Svc = stub
+		return upgrade.Run(ctx, input)
+	}
+
+	// When — the upgrade command runs on a v3 database with --json output.
+	cmd := upgrade.NewCmd(f, runFn)
+	err := cmd.Run(t.Context(), []string{"upgrade", "--json"})
+	// Then — Run completes successfully, MigrateV3ToV4 was invoked, status is
+	// "migrated", and the JSON includes a v4-aware status field.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !v3ToV4Called {
+		t.Error("expected MigrateV3ToV4 to be invoked on a v3 database, but it was not called")
+	}
+	var out map[string]interface{}
+	if decodeErr := json.Unmarshal(stdout.Bytes(), &out); decodeErr != nil {
+		t.Fatalf("invalid JSON: %v — raw: %s", decodeErr, stdout.String())
+	}
+	if out["status"] != "migrated" {
+		t.Errorf("status: got %v, want %q", out["status"], "migrated")
+	}
+}
+
+// TestRunUpgrade_V3ToV4_TextOutput_MentionsV4 verifies that the human-readable
+// success message reports the database was migrated to v4, distinguishing the
+// new schema version from the previous v3 message.
+func TestRunUpgrade_V3ToV4_TextOutput_MentionsV4(t *testing.T) {
+	t.Parallel()
+
+	// Given — a v3 database whose v3→v4 migration succeeds.
+	ios, _, stdout, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+
+	stub := newV3Stub(driving.MigrationResult{})
+	runFn := func(ctx context.Context, input upgrade.RunInput) error {
+		input.Svc = stub
+		return upgrade.Run(ctx, input)
+	}
+
+	// When — invoke upgrade with default (text) output.
+	cmd := upgrade.NewCmd(f, runFn)
+	err := cmd.Run(t.Context(), []string{"upgrade"})
+	// Then — the text output mentions "v4" so users see the new version.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "v4") {
+		t.Errorf("expected text output to mention v4 (the new schema version), got: %q", stdout.String())
 	}
 }

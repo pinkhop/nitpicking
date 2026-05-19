@@ -152,7 +152,7 @@ $ np admin doctor --verbose
 
 - Claim before mutating.
 - Comment before closing when the work involved a decision, tradeoff, or investigation.
-- Release abandoned work instead of letting claims go stale.
+- Release abandoned work instead of letting claims expire.
 - Use `np admin doctor` when the queue stops making sense.
 - Keep the early workflow simple. Add labels when filtering, routing, or grouping becomes useful. Reach for epics only when flat tasks plus labels are not enough.
 

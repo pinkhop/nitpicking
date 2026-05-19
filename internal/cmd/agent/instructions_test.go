@@ -230,22 +230,22 @@ func TestAgentInstructions_DocumentsDurationFlag(t *testing.T) {
 	output := agent.AgentInstructions()
 
 	// Then — the instructions must document the --duration flag so agents
-	// know they can control claim staleness timing.
+	// know they can control claim expiry timing.
 	if !strings.Contains(output, "--duration") {
 		t.Error("expected instructions to document --duration flag")
 	}
 }
 
-func TestAgentInstructions_DocumentsStaleAtFlag(t *testing.T) {
+func TestAgentInstructions_DocumentsExpiresAtFlag(t *testing.T) {
 	t.Parallel()
 
 	// When
 	output := agent.AgentInstructions()
 
-	// Then — the instructions must document the --stale-at flag so agents
-	// know they can set an absolute stale time.
-	if !strings.Contains(output, "--stale-at") {
-		t.Error("expected instructions to document --stale-at flag")
+	// Then — the instructions must document the --expires-at flag so agents
+	// know they can set an absolute expiry time.
+	if !strings.Contains(output, "--expires-at") {
+		t.Error("expected instructions to document --expires-at flag")
 	}
 }
 
@@ -258,7 +258,7 @@ func TestAgentInstructions_DoesNotMentionOldFlagNames(t *testing.T) {
 	// Then — old flag names that were removed in previous refactors must not
 	// appear anywhere in the instructions.
 	oldFlags := []string{
-		"--stale-threshold",
+		"--expires-after-threshold",
 		"--steal-if-needed",
 		"--with-role",
 		"--with-label",

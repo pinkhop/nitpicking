@@ -1917,9 +1917,9 @@ func TestDeleteIssue_TaskSucceeds(t *testing.T) {
 	}
 }
 
-// --- ExtendStaleThreshold ---
+// --- ExtendExpiry ---
 
-func TestExtendStaleThreshold_Succeeds(t *testing.T) {
+func TestExtendExpiry_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -1933,7 +1933,7 @@ func TestExtendStaleThreshold_Succeeds(t *testing.T) {
 	})
 
 	// When
-	err := svc.ExtendStaleThreshold(t.Context(), created.Issue.ID().String(), created.ClaimID, 12*time.Hour)
+	err := svc.ExtendExpiry(t.Context(), created.Issue.ID().String(), created.ClaimID, 12*time.Hour)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -2868,30 +2868,30 @@ func TestGC_DeletesExpiredClaims(t *testing.T) {
 	author := mustAuthor(t, "gc-agent")
 
 	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
-		Role: domain.RoleTask, Title: "Stale-claimed task", Author: author,
+		Role: domain.RoleTask, Title: "Expired-claimed task", Author: author,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create issue: %v", err)
 	}
 	_, err = svc.ClaimByID(ctx, driving.ClaimInput{
-		IssueID:        created.Issue.ID().String(),
-		Author:         author,
-		StaleThreshold: 1 * time.Nanosecond,
+		IssueID:      created.Issue.ID().String(),
+		Author:       author,
+		ExpiresAfter: 1 * time.Nanosecond,
 	})
 	if err != nil {
 		t.Fatalf("precondition: claim issue: %v", err)
 	}
 
-	// Let the claim go stale.
+	// Let the claim expire.
 	time.Sleep(2 * time.Millisecond)
 
 	// Confirm the claim exists in the store before GC.
-	staleClaims, err := repo.ListStaleClaims(ctx, time.Now())
+	expiredClaims, err := repo.ListExpiredClaims(ctx, time.Now())
 	if err != nil {
-		t.Fatalf("precondition: list stale claims: %v", err)
+		t.Fatalf("precondition: list expired claims: %v", err)
 	}
-	if len(staleClaims) != 1 {
-		t.Fatalf("precondition: expected 1 stale claim, got %d", len(staleClaims))
+	if len(expiredClaims) != 1 {
+		t.Fatalf("precondition: expected 1 expired claim, got %d", len(expiredClaims))
 	}
 
 	// When — run GC.
@@ -2916,20 +2916,20 @@ func TestGC_DeletesExpiredClaims(t *testing.T) {
 		t.Errorf("expected 1 issue after GC, got %d", len(list.Items))
 	}
 
-	// No stale claims remain in the store.
-	staleClaims, err = repo.ListStaleClaims(ctx, time.Now())
+	// No expired claims remain in the store.
+	expiredClaims, err = repo.ListExpiredClaims(ctx, time.Now())
 	if err != nil {
-		t.Fatalf("list stale claims after GC: %v", err)
+		t.Fatalf("list expired claims after GC: %v", err)
 	}
-	if len(staleClaims) != 0 {
-		t.Errorf("expected 0 stale claims after GC, got %d", len(staleClaims))
+	if len(expiredClaims) != 0 {
+		t.Errorf("expected 0 expired claims after GC, got %d", len(expiredClaims))
 	}
 }
 
 func TestGC_PreservesActiveClaims(t *testing.T) {
 	t.Parallel()
 
-	// Given — one issue with an active (non-stale) claim.
+	// Given — one issue with an active (unexpired) claim.
 	ctx := t.Context()
 	svc, repo := setupService(t)
 	author := mustAuthor(t, "gc-agent")
@@ -4474,7 +4474,7 @@ func TestGetIssueSummary_CountsByState(t *testing.T) {
 	}
 
 	// The 2 unclaimed open tasks should be ready; the claimed task is not
-	// ready because it has an active non-stale claim.
+	// ready because it has an active unexpired claim.
 	if summary.Ready != 2 {
 		t.Errorf("ready: got %d, want 2", summary.Ready)
 	}
@@ -4883,12 +4883,12 @@ func TestShowIssue_ClaimedAndBlocked_ClaimedTakesPrecedence(t *testing.T) {
 }
 
 // TestCloseWithReason_ExpiredClaim_Fails verifies that close fails with a clear
-// error when the claim used as authorization has gone stale. Callers must
+// error when the claim used as authorization has expired. Callers must
 // re-claim the issue before retrying.
 func TestCloseWithReason_ExpiredClaim_Fails(t *testing.T) {
 	t.Parallel()
 
-	// Given — a task claimed with a 1 ns stale threshold so it expires immediately.
+	// Given — a task claimed with a 1 ns expiry threshold so it expires immediately.
 	ctx := t.Context()
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
@@ -4903,36 +4903,36 @@ func TestCloseWithReason_ExpiredClaim_Fails(t *testing.T) {
 	}
 
 	claimOut, err := svc.ClaimByID(ctx, driving.ClaimInput{
-		IssueID:        created.Issue.ID().String(),
-		Author:         author,
-		StaleThreshold: 1 * time.Nanosecond,
+		IssueID:      created.Issue.ID().String(),
+		Author:       author,
+		ExpiresAfter: 1 * time.Nanosecond,
 	})
 	if err != nil {
 		t.Fatalf("precondition: claim issue: %v", err)
 	}
 
-	// Let the claim go stale.
+	// Let the claim expire.
 	time.Sleep(2 * time.Millisecond)
 
-	// When — attempt to close using the stale claim.
+	// When — attempt to close using the expired claim.
 	closeErr := svc.CloseWithReason(ctx, driving.CloseWithReasonInput{
 		IssueID: created.Issue.ID().String(),
 		ClaimID: claimOut.ClaimID,
 		Reason:  "done",
 	})
 
-	// Then — must fail with ErrStaleClaim so the caller knows to re-claim.
-	if !errors.Is(closeErr, domain.ErrStaleClaim) {
-		t.Errorf("expected ErrStaleClaim, got %v", closeErr)
+	// Then — must fail with ErrExpiredClaim so the caller knows to re-claim.
+	if !errors.Is(closeErr, domain.ErrExpiredClaim) {
+		t.Errorf("expected ErrExpiredClaim, got %v", closeErr)
 	}
 }
 
 // TestUpdateIssue_ExpiredClaim_Fails verifies that json update fails with a
-// clear error when the claim has gone stale.
+// clear error when the claim has expired.
 func TestUpdateIssue_ExpiredClaim_Fails(t *testing.T) {
 	t.Parallel()
 
-	// Given — a task claimed with a 1 ns stale threshold so it expires immediately.
+	// Given — a task claimed with a 1 ns expiry threshold so it expires immediately.
 	ctx := t.Context()
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
@@ -4947,18 +4947,18 @@ func TestUpdateIssue_ExpiredClaim_Fails(t *testing.T) {
 	}
 
 	claimOut, err := svc.ClaimByID(ctx, driving.ClaimInput{
-		IssueID:        created.Issue.ID().String(),
-		Author:         author,
-		StaleThreshold: 1 * time.Nanosecond,
+		IssueID:      created.Issue.ID().String(),
+		Author:       author,
+		ExpiresAfter: 1 * time.Nanosecond,
 	})
 	if err != nil {
 		t.Fatalf("precondition: claim issue: %v", err)
 	}
 
-	// Let the claim go stale.
+	// Let the claim expire.
 	time.Sleep(2 * time.Millisecond)
 
-	// When — attempt to update using the stale claim.
+	// When — attempt to update using the expired claim.
 	revisedTitle := "Revised title"
 	updateErr := svc.UpdateIssue(ctx, driving.UpdateIssueInput{
 		IssueID: created.Issue.ID().String(),
@@ -4966,9 +4966,9 @@ func TestUpdateIssue_ExpiredClaim_Fails(t *testing.T) {
 		Title:   &revisedTitle,
 	})
 
-	// Then — must fail with ErrStaleClaim so the caller knows to re-claim.
-	if !errors.Is(updateErr, domain.ErrStaleClaim) {
-		t.Errorf("expected ErrStaleClaim, got %v", updateErr)
+	// Then — must fail with ErrExpiredClaim so the caller knows to re-claim.
+	if !errors.Is(updateErr, domain.ErrExpiredClaim) {
+		t.Errorf("expected ErrExpiredClaim, got %v", updateErr)
 	}
 }
 
@@ -5052,7 +5052,7 @@ func TestClaimByID_DeferredIssue_Fails(t *testing.T) {
 // TestClaimByID_SelfReclaimActiveClaim_Fails verifies that the same author
 // cannot re-claim an issue they already hold an active claim on. There is no
 // special bypass for the current claim holder; callers must use
-// ExtendStaleThreshold or wait for the claim to expire.
+// ExtendExpiry or wait for the claim to expire.
 func TestClaimByID_SelfReclaimActiveClaim_Fails(t *testing.T) {
 	t.Parallel()
 

@@ -1,6 +1,6 @@
 // Package upgrade implements the "admin upgrade" command, which migrates
-// the nitpicking database from its current schema version to v3. The command
-// chains the v1→v2 and v2→v3 migrations in sequence so that a single
+// the nitpicking database from its current schema version to v4. The command
+// chains the v1→v2, v2→v3, and v3→v4 migrations in sequence so that a single
 // invocation carries a database from any supported source version to the
 // current version.
 package upgrade
@@ -21,7 +21,7 @@ import (
 
 // upgradeOutput is the JSON representation of the upgrade command result.
 type upgradeOutput struct {
-	// Status is either "up_to_date" (already at v3) or "migrated" (one or more
+	// Status is either "up_to_date" (already at v4) or "migrated" (one or more
 	// migration steps were applied). When "migrated", the counter fields report
 	// the number of rows affected by each step; fields for steps that were
 	// skipped (e.g., v1→v2 counters on a v2 database) are zero.
@@ -83,18 +83,18 @@ type RunInput struct {
 }
 
 // Run executes the upgrade workflow: checks the schema version and, when the
-// database is below v3, applies the pending migrations in sequence. A v1
-// database receives both the v1→v2 and v2→v3 steps; a v2 database receives
-// only the v2→v3 step; a v3 database is reported as up to date immediately.
+// database is below v4, applies the pending migrations in sequence. A v1
+// database receives v1→v2, v2→v3, and v3→v4; a v2 database receives v2→v3
+// and v3→v4; a v3 database receives only v3→v4; a v4 database is reported as
+// up to date immediately.
 //
-// Both migration functions are safe to call on an already-migrated database
-// (v1→v2 is a no-op on a v2 database because the SQL changes are idempotent,
-// and v2→v3 has an explicit PRAGMA table_info guard). The chained call
-// therefore always applies the v1→v2 step first, followed by v2→v3, so that a
-// v1 database reaches v3 in a single invocation without requiring the caller
-// to know the source version.
+// All migration functions are safe to call on an already-migrated database
+// (v1→v2 is a no-op on a v2 database; v2→v3 and v3→v4 have explicit PRAGMA
+// table_info guards). The chained call therefore always applies all three steps
+// in order, so that a database at any supported source version reaches v4 in a
+// single invocation without requiring the caller to know the source version.
 func Run(ctx context.Context, input RunInput) error {
-	// Fast path: database is already at v3 — no migration needed.
+	// Fast path: database is already at v4 — no migration needed.
 	checkErr := input.Svc.CheckSchemaVersion(ctx)
 	if checkErr == nil {
 		return writeResult(input, upgradeOutput{Status: "up_to_date"})
@@ -124,6 +124,14 @@ func Run(ctx context.Context, input RunInput) error {
 		return fmt.Errorf("migrating v2→v3: %w", err)
 	}
 
+	// Migrate v3→v4. MigrateV3ToV4 contains a PRAGMA table_info guard that
+	// skips the column rename when the legacy column no longer exists (i.e., the
+	// database is already at v4), so calling it on an up-to-date database is safe.
+	_, err = input.Svc.MigrateV3ToV4(ctx)
+	if err != nil {
+		return fmt.Errorf("migrating v3→v4: %w", err)
+	}
+
 	return writeResult(input, upgradeOutput{
 		Status:                        "migrated",
 		ClaimedIssuesConverted:        v12Result.ClaimedIssuesConverted,
@@ -150,7 +158,7 @@ func writeResult(input RunInput, out upgradeOutput) error {
 		// that produced non-zero counts, to avoid confusing output when a v2
 		// database is upgraded (v1→v2 counters are all zero).
 		_, err := fmt.Fprintf(input.Out,
-			"%s Database migrated to v3 (claimed issues converted: %d, history rows removed: %d, legacy relationships translated: %d, idempotency keys migrated: %d, idempotency keys skipped: %d, invalid label values skipped: %d)\n",
+			"%s Database migrated to v4 (claimed issues converted: %d, history rows removed: %d, legacy relationships translated: %d, idempotency keys migrated: %d, idempotency keys skipped: %d, invalid label values skipped: %d)\n",
 			input.ColorScheme.SuccessIcon(),
 			out.ClaimedIssuesConverted,
 			out.HistoryRowsRemoved,
@@ -164,7 +172,7 @@ func writeResult(input RunInput, out upgradeOutput) error {
 }
 
 // NewCmd constructs the "admin upgrade" command, which checks the database
-// schema version and applies any pending migrations to bring it to v3. An
+// schema version and applies any pending migrations to bring it to v4. An
 // optional runFn parameter replaces the default Run for testing; when injected,
 // the service is not constructed and the runFn receives only the IOStreams
 // fields of RunInput (Svc is nil).
@@ -175,21 +183,24 @@ func NewCmd(f *cmdutil.Factory, runFn ...func(context.Context, RunInput) error) 
 		Name:  "upgrade",
 		Usage: "Check for and apply database schema upgrades",
 		Description: `Checks whether the database schema is current and applies any pending
-upgrades to bring it to v3 (the current version).
+upgrades to bring it to v4 (the current version).
 
 The command chains migrations in sequence so that a single invocation carries
-a database from any supported source version to v3:
+a database from any supported source version to v4:
 
-  v1 → v2 → v3: converts "claimed" issue states back to "open", removes
+  v1 → v2 → v3 → v4: converts "claimed" issue states back to "open", removes
     obsolete history event types, translates legacy v0.2.0 relationship names,
-    then carries non-NULL idempotency_key column values forward as
-    idempotency:<value> label rows and drops the column.
+    carries non-NULL idempotency_key column values forward as
+    idempotency:<value> label rows, drops the column, then renames the
+    legacy claim-duration column to claims.expires_after.
 
-  v2 → v3: carries non-NULL idempotency_key column values forward as
-    idempotency:<value> label rows and drops the idempotency_key column and
-    its unique partial index.
+  v2 → v3 → v4: carries non-NULL idempotency_key column values forward as
+    idempotency:<value> label rows, drops the idempotency_key column and
+    its unique partial index, then renames the legacy claim-duration column.
 
-  v3 (current): reports "up to date" without making any changes.
+  v3 → v4: renames the legacy claim-duration column to claims.expires_after.
+
+  v4 (current): reports "up to date" without making any changes.
 
 Each migration step runs in a single atomic transaction — the entire upgrade
 either fully succeeds or leaves the database unchanged.

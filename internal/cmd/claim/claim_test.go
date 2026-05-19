@@ -96,8 +96,8 @@ func TestRunClaimByID_ValidIssue_Succeeds(t *testing.T) {
 	if !bytes.Contains(buf.Bytes(), []byte("test-agent")) {
 		t.Errorf("expected author name in output, got: %s", output)
 	}
-	if !bytes.Contains(buf.Bytes(), []byte("Stale at:")) {
-		t.Errorf("expected 'Stale at:' in output, got: %s", output)
+	if !bytes.Contains(buf.Bytes(), []byte("Expires at:")) {
+		t.Errorf("expected 'Expires at:' in output, got: %s", output)
 	}
 }
 
@@ -139,8 +139,8 @@ func TestRunClaimByID_JSONOutput_ReturnsStructuredResult(t *testing.T) {
 	if _, ok := result["created_at"]; !ok {
 		t.Error("expected created_at field in JSON output")
 	}
-	if _, ok := result["stale_at"]; !ok {
-		t.Error("expected stale_at field in JSON output")
+	if _, ok := result["expires_at"]; !ok {
+		t.Error("expected expires_at field in JSON output")
 	}
 }
 
@@ -399,24 +399,24 @@ func TestRunClaimByID_WithLabelGuardRail_Wildcard_MatchesAnyValue(t *testing.T) 
 	}
 }
 
-// --- RunClaimByID StaleAt Tests ---
+// --- RunClaimByID ExpiresAt Tests ---
 
-func TestRunClaimByID_WithStaleAt_Succeeds(t *testing.T) {
+func TestRunClaimByID_WithExpiresAt_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc := setupService(t)
-	issueID := createTask(t, svc, "Stale-at task")
-	staleAt := time.Now().Add(3 * time.Hour).UTC().Truncate(time.Second)
+	issueID := createTask(t, svc, "Expires-at task")
+	expiresAt := time.Now().Add(3 * time.Hour).UTC().Truncate(time.Second)
 
 	var buf bytes.Buffer
 	input := claim.RunClaimByIDInput{
-		Service: svc,
-		IssueID: issueID.String(),
-		Author:  mustAuthor(t, "test-agent"),
-		StaleAt: staleAt,
-		JSON:    true,
-		WriteTo: &buf,
+		Service:   svc,
+		IssueID:   issueID.String(),
+		Author:    mustAuthor(t, "test-agent"),
+		ExpiresAt: expiresAt,
+		JSON:      true,
+		WriteTo:   &buf,
 	}
 
 	// When
@@ -432,12 +432,12 @@ func TestRunClaimByID_WithStaleAt_Succeeds(t *testing.T) {
 	if result["issue_id"] != issueID.String() {
 		t.Errorf("issue_id: got %q, want %q", result["issue_id"], issueID.String())
 	}
-	gotStaleAt, err := time.Parse(time.RFC3339, result["stale_at"].(string))
+	gotExpiresAt, err := time.Parse(time.RFC3339, result["expires_at"].(string))
 	if err != nil {
-		t.Fatalf("stale_at not valid RFC3339: %v", err)
+		t.Fatalf("expires_at not valid RFC3339: %v", err)
 	}
-	if !gotStaleAt.Equal(staleAt) {
-		t.Errorf("stale_at: got %v, want %v", gotStaleAt, staleAt)
+	if !gotExpiresAt.Equal(expiresAt) {
+		t.Errorf("expires_at: got %v, want %v", gotExpiresAt, expiresAt)
 	}
 }
 
@@ -473,21 +473,21 @@ func TestRunClaimReady_WithReadyIssue_Succeeds(t *testing.T) {
 	}
 }
 
-func TestRunClaimReady_WithStaleAt_Succeeds(t *testing.T) {
+func TestRunClaimReady_WithExpiresAt_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	svc := setupService(t)
-	issueID := createTask(t, svc, "Ready stale-at task")
-	staleAt := time.Now().Add(5 * time.Hour).UTC().Truncate(time.Second)
+	issueID := createTask(t, svc, "Ready expires-at task")
+	expiresAt := time.Now().Add(5 * time.Hour).UTC().Truncate(time.Second)
 
 	var buf bytes.Buffer
 	input := claim.RunClaimReadyInput{
-		Service: svc,
-		Author:  mustAuthor(t, "test-agent"),
-		StaleAt: staleAt,
-		JSON:    true,
-		WriteTo: &buf,
+		Service:   svc,
+		Author:    mustAuthor(t, "test-agent"),
+		ExpiresAt: expiresAt,
+		JSON:      true,
+		WriteTo:   &buf,
 	}
 
 	// When
@@ -503,12 +503,12 @@ func TestRunClaimReady_WithStaleAt_Succeeds(t *testing.T) {
 	if result["issue_id"] != issueID.String() {
 		t.Errorf("issue_id: got %q, want %q", result["issue_id"], issueID.String())
 	}
-	gotStaleAt, err := time.Parse(time.RFC3339, result["stale_at"].(string))
+	gotExpiresAt, err := time.Parse(time.RFC3339, result["expires_at"].(string))
 	if err != nil {
-		t.Fatalf("stale_at not valid RFC3339: %v", err)
+		t.Fatalf("expires_at not valid RFC3339: %v", err)
 	}
-	if !gotStaleAt.Equal(staleAt) {
-		t.Errorf("stale_at: got %v, want %v", gotStaleAt, staleAt)
+	if !gotExpiresAt.Equal(expiresAt) {
+		t.Errorf("expires_at: got %v, want %v", gotExpiresAt, expiresAt)
 	}
 }
 

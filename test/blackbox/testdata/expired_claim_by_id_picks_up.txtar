@@ -1,14 +1,14 @@
-# Verify that 'np claim <ID>' picks up a stale claim when the claim has expired.
-# The new claim is associated with the requesting agent — no --steal flag needed.
+# Verify that 'np claim <ID>' picks up an expired claim. The new claim is
+# associated with the requesting agent — no --steal flag needed.
 
 np-init STEAL
 np-seed task 'Only issue' agent-alpha TASK
 
-# Agent A claims with 1ms duration so it's immediately stale.
+# Agent A claims with 1ms duration so the claim expires immediately.
 exec np claim $TASK --author agent-alpha --duration 1ms --json
 np-capture CLAIM_A claim_id
 
-# Agent B claims the now-stale issue — no --steal flag needed.
+# Agent B claims the now-expired issue — no --steal flag needed.
 exec np claim $TASK --author agent-beta --json
 np-capture CLAIM_B claim_id
 

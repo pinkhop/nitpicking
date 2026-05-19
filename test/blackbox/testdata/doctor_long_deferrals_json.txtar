@@ -3,7 +3,7 @@
 # Exits 1.
 
 np-init LDFJ
-np-seed task 'Stale deferred task' ldfj-agent TASK
+np-seed task 'Long-deferred task' ldfj-agent TASK
 
 exec np claim $TASK --author ldfj-agent --json
 np-capture TASK_CLAIM claim_id

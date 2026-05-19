@@ -18,7 +18,7 @@ const (
 	ExitNotFound ExitCode = 2
 
 	// ExitClaimConflict indicates the issue is already claimed and the
-	// claim is not stale, or the claim ID does not match.
+	// claim has not expired, or the claim ID does not match.
 	ExitClaimConflict ExitCode = 3
 
 	// ExitValidation indicates invalid input (bad flags, missing required

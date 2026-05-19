@@ -1,9 +1,9 @@
-# Doctor verbose JSON output for stale claims must not expose claim IDs.
+# Doctor verbose JSON output for expired claims must not expose claim IDs.
 
 np-init DRVRB
-np-seed task 'Stale for verbose doctor' doctor-redact TASK
+np-seed task 'Expired for verbose doctor' doctor-redact TASK
 
-# Claim with a 1ms duration so the claim is immediately stale.
+# Claim with a 1ms duration so the claim expires immediately.
 exec np claim $TASK --author doctor-redact --duration 1ms --json
 np-capture CLAIM claim_id
 

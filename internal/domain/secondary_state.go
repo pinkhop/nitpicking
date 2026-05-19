@@ -13,7 +13,7 @@ const (
 	// when the primary state does not warrant a qualifier.
 	SecondaryNone SecondaryState = iota
 
-	// SecondaryClaimed indicates an open issue has an active (non-stale) claim.
+	// SecondaryClaimed indicates an open issue has an active (non-expired) claim.
 	// Claimed takes precedence over ready and blocked in display priority.
 	SecondaryClaimed
 

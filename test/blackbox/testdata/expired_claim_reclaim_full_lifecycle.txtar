@@ -1,10 +1,10 @@
-# Verify that reclaiming a stale claim allows the full lifecycle: update the
+# Verify that reclaiming an expired claim allows the full lifecycle: update the
 # issue and close it using the new claim ID.
 
 np-init STEAL
 np-seed task 'Lifecycle after reclaim' agent-alpha TASK
 
-# Agent A claims, then agent B reclaims after the claim goes stale.
+# Agent A claims, then agent B reclaims after the claim expires.
 exec np claim $TASK --author agent-alpha --duration 1ms --json
 exec np claim $TASK --author agent-beta --json
 np-capture CLAIM_B claim_id

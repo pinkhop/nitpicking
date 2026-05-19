@@ -142,14 +142,14 @@ type CreateIssueOutput struct {
 
 // ClaimInput holds the parameters for claiming an issue.
 type ClaimInput struct {
-	IssueID        string
-	Author         string
-	StaleThreshold time.Duration
-	// StaleAt is an optional absolute timestamp at which the claim becomes
-	// stale. When non-zero, it takes precedence over StaleThreshold. The
-	// caller is responsible for validating that StaleAt is in the future
-	// and within 24 hours; the service passes it through to the domain.
-	StaleAt time.Time
+	IssueID      string
+	Author       string
+	ExpiresAfter time.Duration
+	// ExpiresAt is an optional absolute timestamp at which the claim expires.
+	// When non-zero, it takes precedence over ExpiresAfter. The caller is
+	// responsible for validating that ExpiresAt is in the future and within
+	// 24 hours; the service passes it through to the domain.
+	ExpiresAt time.Time
 	// LabelFilters specifies label guard-rail assertions when claiming by ID.
 	// If non-empty, the issue must match all filters or the claim fails with a
 	// descriptive error naming the issue and unmet condition.
@@ -166,21 +166,21 @@ type ClaimOutput struct {
 	IssueID   string
 	Author    string
 	CreatedAt time.Time
-	StaleAt   time.Time
+	ExpiresAt time.Time
 }
 
 // ClaimNextReadyInput holds the parameters for claiming the next ready issue.
 // The service selects the highest-priority open issue that has no active
-// (non-stale) claim held by another author, no unresolved blockers, and
+// (unexpired) claim held by another author, no unresolved blockers, and
 // matches all provided label and role filters.
 type ClaimNextReadyInput struct {
-	Author         string
-	Role           domain.Role
-	LabelFilters   []LabelFilterInput
-	StaleThreshold time.Duration
-	// StaleAt is an optional absolute timestamp at which the claim becomes
-	// stale. When non-zero, it takes precedence over StaleThreshold.
-	StaleAt time.Time
+	Author       string
+	Role         domain.Role
+	LabelFilters []LabelFilterInput
+	ExpiresAfter time.Duration
+	// ExpiresAt is an optional absolute timestamp at which the claim expires.
+	// When non-zero, it takes precedence over ExpiresAfter.
+	ExpiresAt time.Time
 }
 
 // UpdateIssueInput holds the parameters for updating a claimed domain.
@@ -326,7 +326,7 @@ type ShowIssueOutput struct {
 	ClaimID           string
 	ClaimAuthor       string
 	ClaimedAt         time.Time
-	ClaimStaleAt      time.Time
+	ClaimExpiresAt    time.Time
 }
 
 // BlockerDetail holds enriched information about an issue that blocks this
@@ -815,7 +815,7 @@ type DoctorInput struct {
 	// omitted from output. Filtering does not affect the exit code.
 	MinSeverity DoctorSeverity
 	// LongDeferralThreshold is the duration after which a deferred issue is
-	// considered stale. Zero means use the default (7 days).
+	// considered long-deferred. Zero means use the default (7 days).
 	LongDeferralThreshold time.Duration
 	// WorkDir is the starting directory for the dot-np-directory check's
 	// upward filesystem walk. Defaults to os.Getwd() when empty.
@@ -922,8 +922,8 @@ type ClosableParentIssueRow struct {
 	Issue string `json:"issue"`
 }
 
-// LongDeferralRow is emitted by the long-deferrals check. One row per stale
-// deferred issue.
+// LongDeferralRow is emitted by the long-deferrals check. One row per
+// long-deferred issue.
 type LongDeferralRow struct {
 	// Issue is the deferred issue's ID.
 	Issue string `json:"issue"`
@@ -979,7 +979,7 @@ type GCInput struct {
 type GCOutput struct {
 	DeletedIssuesRemoved int
 	ClosedIssuesRemoved  int
-	// ExpiredClaimsDeleted is the number of stale claim rows that were
+	// ExpiredClaimsDeleted is the number of expired claim rows that were
 	// removed. This count is always populated regardless of IncludeClosed.
 	ExpiredClaimsDeleted int
 }

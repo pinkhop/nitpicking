@@ -1,14 +1,14 @@
-# Verify that 'np claim <ID> --json' on a stale claim produces valid JSON
+# Verify that 'np claim <ID> --json' on an expired claim produces valid JSON
 # with snake_case keys. Stealing mechanics (--steal flag, stolen field) are
-# removed; a stale claim is simply overwritten by a new claim.
+# removed; an expired claim is simply overwritten by a new claim.
 
 np-init CI
-np-seed task 'Task for stale claim reclaim audit' steal-audit TASK
+np-seed task 'Task for expired claim reclaim audit' steal-audit TASK
 
-# Create a claim with a very short duration so it goes stale immediately.
+# Create a claim with a very short duration so it expires immediately.
 exec np claim $TASK --author original-claimer --duration 1ms --json
 
-# Claim the issue again after the previous claim goes stale.
+# Claim the issue again after the previous claim expires.
 exec np claim $TASK --author steal-audit --json
 ! np-json-no-field claim_id
 np-json-no-field stolen

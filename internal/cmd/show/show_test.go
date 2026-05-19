@@ -480,12 +480,12 @@ func TestRun_JSONOutput_ClaimedIssue_OmitsClaimID(t *testing.T) {
 	if _, exists := raw["claim_id"]; exists {
 		t.Errorf("claim_id must not appear in show --json output; bearer token leaked")
 	}
-	// claim_author and claim_stale_at should still be present.
+	// claim_author and claim_expires_at should still be present.
 	if _, exists := raw["claim_author"]; !exists {
 		t.Errorf("claim_author should be present for a claimed issue")
 	}
-	if _, exists := raw["claim_stale_at"]; !exists {
-		t.Errorf("claim_stale_at should be present for a claimed issue")
+	if _, exists := raw["claim_expires_at"]; !exists {
+		t.Errorf("claim_expires_at should be present for a claimed issue")
 	}
 }
 
@@ -1238,9 +1238,9 @@ func TestRun_TextOutput_ExpiredClaim_TreatedAsUnclaimed(t *testing.T) {
 	issueID := createTask(t, svc, "Expired claim task")
 
 	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
-		IssueID: issueID.String(),
-		Author:  mustAuthor(t, "expired-claimer"),
-		StaleAt: time.Now().Add(-time.Hour),
+		IssueID:   issueID.String(),
+		Author:    mustAuthor(t, "expired-claimer"),
+		ExpiresAt: time.Now().Add(-time.Hour),
 	})
 	if err != nil {
 		t.Fatalf("precondition: claim failed: %v", err)
@@ -1277,9 +1277,9 @@ func TestRun_JSONOutput_ExpiredClaim_OmitsClaimFields(t *testing.T) {
 	issueID := createTask(t, svc, "Expired claim JSON task")
 
 	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
-		IssueID: issueID.String(),
-		Author:  mustAuthor(t, "json-expired-claimer"),
-		StaleAt: time.Now().Add(-time.Hour),
+		IssueID:   issueID.String(),
+		Author:    mustAuthor(t, "json-expired-claimer"),
+		ExpiresAt: time.Now().Add(-time.Hour),
 	})
 	if err != nil {
 		t.Fatalf("precondition: claim failed: %v", err)
@@ -1303,7 +1303,7 @@ func TestRun_JSONOutput_ExpiredClaim_OmitsClaimFields(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &raw); err != nil {
 		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
 	}
-	for _, field := range []string{"claim_author", "claimed_at", "claim_stale_at"} {
+	for _, field := range []string{"claim_author", "claimed_at", "claim_expires_at"} {
 		if _, exists := raw[field]; exists {
 			t.Errorf("%s must not appear for an issue with an expired claim, got: %s", field, buf.String())
 		}
@@ -1326,9 +1326,9 @@ func TestRun_TextOutput_BlockerWithExpiredClaim_OmitsClaimAuthor(t *testing.T) {
 	}
 
 	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
-		IssueID: blockerID.String(),
-		Author:  mustAuthor(t, "expired-blocker-claimer"),
-		StaleAt: time.Now().Add(-time.Hour),
+		IssueID:   blockerID.String(),
+		Author:    mustAuthor(t, "expired-blocker-claimer"),
+		ExpiresAt: time.Now().Add(-time.Hour),
 	})
 	if err != nil {
 		t.Fatalf("precondition: claim blocker failed: %v", err)

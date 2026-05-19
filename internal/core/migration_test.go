@@ -27,6 +27,10 @@ type fakeMigrator struct {
 	// migrateV2ToV3Fn is called by MigrateV2ToV3. If nil, the method returns
 	// an empty MigrationResult and nil error.
 	migrateV2ToV3Fn func(ctx context.Context) (driven.MigrationResult, error)
+
+	// migrateV3ToV4Fn is called by MigrateV3ToV4. If nil, the method returns
+	// an empty MigrationResult and nil error.
+	migrateV3ToV4Fn func(ctx context.Context) (driven.MigrationResult, error)
 }
 
 // CheckSchemaVersion delegates to checkSchemaVersionFn if set, otherwise
@@ -52,6 +56,15 @@ func (f *fakeMigrator) MigrateV1ToV2(ctx context.Context) (driven.MigrationResul
 func (f *fakeMigrator) MigrateV2ToV3(ctx context.Context) (driven.MigrationResult, error) {
 	if f.migrateV2ToV3Fn != nil {
 		return f.migrateV2ToV3Fn(ctx)
+	}
+	return driven.MigrationResult{}, nil
+}
+
+// MigrateV3ToV4 delegates to migrateV3ToV4Fn if set, otherwise returns zero
+// MigrationResult and nil error.
+func (f *fakeMigrator) MigrateV3ToV4(ctx context.Context) (driven.MigrationResult, error) {
+	if f.migrateV3ToV4Fn != nil {
+		return f.migrateV3ToV4Fn(ctx)
 	}
 	return driven.MigrationResult{}, nil
 }
@@ -235,5 +248,102 @@ func TestMigrateV1ToV2_NoMigrator_ReturnsError(t *testing.T) {
 	// Then — an error is returned.
 	if err == nil {
 		t.Fatal("expected error from MigrateV1ToV2 with nil migrator, got nil")
+	}
+}
+
+// --- MigrateV3ToV4: errNoMigrator guard ---
+
+// TestMigrateV3ToV4_NoMigrator_ReturnsError verifies that calling MigrateV3ToV4
+// on a service constructed without a Migrator returns an error rather than
+// silently succeeding. Mirrors the guard on MigrateV1ToV2 and MigrateV2ToV3.
+func TestMigrateV3ToV4_NoMigrator_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Given — a service with no migrator (nil).
+	repo := memory.NewRepository()
+	tx := memory.NewTransactor(repo)
+	svc := core.New(tx, nil)
+
+	// When — MigrateV3ToV4 is called.
+	_, err := svc.MigrateV3ToV4(t.Context())
+
+	// Then — an error is returned.
+	if err == nil {
+		t.Fatal("expected error from MigrateV3ToV4 with nil migrator, got nil")
+	}
+}
+
+// --- MigrateV3ToV4: successful delegation ---
+
+// TestMigrateV3ToV4_WithMigrator_Delegates verifies that MigrateV3ToV4
+// delegates to the Migrator port. The v3→v4 migration is a column rename
+// and does not produce per-row counters, so the returned DTO has all
+// counter fields at zero.
+func TestMigrateV3ToV4_WithMigrator_Delegates(t *testing.T) {
+	t.Parallel()
+
+	// Given — a fake migrator that records the call and returns an empty result.
+	var called bool
+	m := &fakeMigrator{
+		migrateV3ToV4Fn: func(_ context.Context) (driven.MigrationResult, error) {
+			called = true
+			return driven.MigrationResult{}, nil
+		},
+	}
+	svc := setupServiceWithMigrator(t, m)
+
+	// When — MigrateV3ToV4 is called.
+	result, err := svc.MigrateV3ToV4(t.Context())
+	// Then — the migrator was invoked and no error was returned.
+	if err != nil {
+		t.Fatalf("unexpected error from MigrateV3ToV4: %v", err)
+	}
+	if !called {
+		t.Fatal("expected MigrateV3ToV4 to delegate to the Migrator port, but the fake was not called")
+	}
+	// All DTO counter fields should be zero — v3→v4 carries no per-row counts.
+	if result.ClaimedIssuesConverted != 0 {
+		t.Errorf("ClaimedIssuesConverted: got %d, want 0", result.ClaimedIssuesConverted)
+	}
+	if result.HistoryRowsRemoved != 0 {
+		t.Errorf("HistoryRowsRemoved: got %d, want 0", result.HistoryRowsRemoved)
+	}
+	if result.LegacyRelationshipsTranslated != 0 {
+		t.Errorf("LegacyRelationshipsTranslated: got %d, want 0", result.LegacyRelationshipsTranslated)
+	}
+	if result.IdempotencyKeysMigrated != 0 {
+		t.Errorf("IdempotencyKeysMigrated: got %d, want 0", result.IdempotencyKeysMigrated)
+	}
+	if result.IdempotencyKeysSkipped != 0 {
+		t.Errorf("IdempotencyKeysSkipped: got %d, want 0", result.IdempotencyKeysSkipped)
+	}
+	if result.InvalidLabelValuesSkipped != 0 {
+		t.Errorf("InvalidLabelValuesSkipped: got %d, want 0", result.InvalidLabelValuesSkipped)
+	}
+}
+
+// TestMigrateV3ToV4_MigratorReturnsError_PropagatesError verifies that if the
+// Migrator port returns an error, MigrateV3ToV4 propagates it to the caller.
+func TestMigrateV3ToV4_MigratorReturnsError_PropagatesError(t *testing.T) {
+	t.Parallel()
+
+	// Given — a fake migrator that fails.
+	sentinel := &domain.DatabaseError{Op: "migrate v3→v4", Err: errors.New("disk full")}
+	m := &fakeMigrator{
+		migrateV3ToV4Fn: func(_ context.Context) (driven.MigrationResult, error) {
+			return driven.MigrationResult{}, sentinel
+		},
+	}
+	svc := setupServiceWithMigrator(t, m)
+
+	// When — MigrateV3ToV4 is called.
+	_, err := svc.MigrateV3ToV4(t.Context())
+
+	// Then — the error from the migrator is returned.
+	if err == nil {
+		t.Fatal("expected error from MigrateV3ToV4 when migrator fails, got nil")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Errorf("expected error wrapping sentinel, got: %T — %v", err, err)
 	}
 }

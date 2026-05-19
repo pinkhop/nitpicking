@@ -48,14 +48,14 @@ $ np claim ready --author <your-name> --label kind:bug
 $ np claim ready --author <your-name> --role task --label skill:go
 ```
 
-Optional staleness controls (mutually exclusive):
+Optional expiry controls (mutually exclusive):
 
 ```bash
 $ np claim ready --author <your-name> --duration 4h
-$ np claim ready --author <your-name> --stale-at 2026-04-28T18:00:00Z
+$ np claim ready --author <your-name> --expires-at 2026-04-28T18:00:00Z
 ```
 
-`--duration` defaults to 2h, max 24h. `--stale-at` is RFC3339 UTC.
+`--duration` defaults to 2h, max 24h. `--expires-at` is RFC3339 UTC.
 
 Prefer JSON when another tool will parse the result:
 
@@ -71,7 +71,7 @@ When the issue ID is already known:
 $ np claim FOO-a3bxr --author <your-name>
 ```
 
-If exit code `3` comes back, someone else holds the claim. Either claim something else, wait for staleness, or ask the user.
+If exit code `3` comes back, someone else holds the claim. Either claim something else, wait for expiry, or ask the user.
 
 ## Capturing the claim ID
 
@@ -79,11 +79,11 @@ If exit code `3` comes back, someone else holds the claim. Either claim somethin
 
 - Treat the claim ID as a bearer credential — anyone holding it can act on the claim.
 - Never write it into a comment, commit message, log, or any shared location.
-- If the claim ID is lost, the claim is effectively abandoned; it will eventually go stale and another agent can pick it up.
+- If the claim ID is lost, the claim is effectively abandoned; it will eventually expire and another agent can pick it up.
 
-## Stale claims
+## Expired claims
 
-If `np claim ready` reports no ready issues but stale claims exist, running it again normally will reclaim them — `np` overwrites stale claims atomically. No special flag is needed.
+If `np claim ready` reports no ready issues but expired claims exist, running it again normally will reclaim them — `np` overwrites expired claims atomically. No special flag is needed.
 
 ## What this skill does not cover
 

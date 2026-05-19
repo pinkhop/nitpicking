@@ -33,10 +33,10 @@ var (
 	// hierarchy depth (3 levels).
 	ErrDepthExceeded = errors.New("hierarchy depth exceeded")
 
-	// ErrStaleClaim indicates an operation was attempted with a claim that has
-	// passed its stale-at timestamp. The caller must re-claim the issue before
+	// ErrExpiredClaim indicates an operation was attempted with a claim that has
+	// passed its expires-at timestamp. The caller must re-claim the issue before
 	// retrying the operation.
-	ErrStaleClaim = errors.New("claim is stale")
+	ErrExpiredClaim = errors.New("claim is expired")
 
 	// ErrSchemaMigrationRequired indicates the database is at an older schema
 	// version (v1) and must be upgraded before most commands can operate. The
@@ -92,9 +92,9 @@ func NewMultiValidationError(fields map[string]string) *ValidationError {
 	return &ValidationError{Fields: fields}
 }
 
-// ClaimConflictError indicates an issue is already claimed and the claim is
-// not stale. It carries structured context so that callers (especially AI
-// agents) can decide whether to wait or steal.
+// ClaimConflictError indicates an issue is already claimed and the claim has
+// not yet expired. It carries structured context so that callers (especially
+// AI agents) can decide whether to wait or take over.
 type ClaimConflictError struct {
 	// IssueID is the ID of the issue that could not be claimed.
 	IssueID string
@@ -102,16 +102,16 @@ type ClaimConflictError struct {
 	// CurrentHolder is the author who holds the active claim.
 	CurrentHolder string
 
-	// StaleAt is the timestamp at which the current claim becomes stale
-	// and eligible for stealing.
-	StaleAt time.Time
+	// ExpiresAt is the timestamp at which the current claim expires and
+	// becomes eligible for being overwritten.
+	ExpiresAt time.Time
 }
 
 // Error returns a human-readable description of the claim conflict.
 func (e *ClaimConflictError) Error() string {
 	return fmt.Sprintf(
 		"claim conflict: issue %s is claimed by %q until %s",
-		e.IssueID, e.CurrentHolder, e.StaleAt.Format(time.RFC3339),
+		e.IssueID, e.CurrentHolder, e.ExpiresAt.Format(time.RFC3339),
 	)
 }
 

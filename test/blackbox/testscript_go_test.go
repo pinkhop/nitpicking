@@ -1202,7 +1202,7 @@ CREATE TABLE IF NOT EXISTS claims (
     claim_sha512    TEXT PRIMARY KEY,
     issue_id       TEXT NOT NULL REFERENCES issues(issue_id),
     author          TEXT NOT NULL,
-    stale_threshold INTEGER NOT NULL,
+    expires_after INTEGER NOT NULL,
     last_activity   TEXT NOT NULL
 ) WITHOUT ROWID;
 

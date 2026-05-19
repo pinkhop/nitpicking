@@ -196,9 +196,9 @@ func TestInvalidateClaim_NotFound_ReturnsError(t *testing.T) {
 	}
 }
 
-// --- UpdateClaimStaleAt ---
+// --- UpdateClaimExpiresAt ---
 
-func TestUpdateClaimStaleAt_UpdatesTimestamp(t *testing.T) {
+func TestUpdateClaimExpiresAt_UpdatesTimestamp(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repo := memory.NewRepository()
@@ -220,27 +220,27 @@ func TestUpdateClaimStaleAt_UpdatesTimestamp(t *testing.T) {
 		t.Fatalf("precondition: persist claim: %v", err)
 	}
 
-	newStaleAt := now.Add(6 * time.Hour)
+	newExpiresAt := now.Add(6 * time.Hour)
 
 	// When — update using the hash ID
-	err = repo.UpdateClaimStaleAt(ctx, c.ID(), newStaleAt)
+	err = repo.UpdateClaimExpiresAt(ctx, c.ID(), newExpiresAt)
 	// Then
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	got, _ := repo.GetClaimByIssue(ctx, issueID)
-	if !got.StaleAt().Equal(newStaleAt) {
-		t.Errorf("expected staleAt %v, got %v", newStaleAt, got.StaleAt())
+	if !got.ExpiresAt().Equal(newExpiresAt) {
+		t.Errorf("expected expiresAt %v, got %v", newExpiresAt, got.ExpiresAt())
 	}
 }
 
-func TestUpdateClaimStaleAt_NotFound_ReturnsError(t *testing.T) {
+func TestUpdateClaimExpiresAt_NotFound_ReturnsError(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repo := memory.NewRepository()
 
 	// When
-	err := repo.UpdateClaimStaleAt(ctx, "nonexistent", time.Now())
+	err := repo.UpdateClaimExpiresAt(ctx, "nonexistent", time.Now())
 
 	// Then
 	if !errors.Is(err, domain.ErrNotFound) {
@@ -248,28 +248,28 @@ func TestUpdateClaimStaleAt_NotFound_ReturnsError(t *testing.T) {
 	}
 }
 
-// --- ListStaleClaims ---
+// --- ListExpiredClaims ---
 
-func TestListStaleClaims_ReturnsStaleClaims(t *testing.T) {
+func TestListExpiredClaims_ReturnsExpiredClaims(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repo := memory.NewRepository()
 
-	// Given — one stale claim (created 3h ago with 2h threshold), one fresh
-	staleIssueID := mustIssueID(t)
+	// Given — one expired claim (created 3h ago with 2h threshold), one fresh
+	expiredIssueID := mustIssueID(t)
 	freshIssueID := mustIssueID(t)
 	author := mustAuthor(t, "grace")
 	now := time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC)
 	threeHoursAgo := now.Add(-3 * time.Hour)
 	tenMinutesAgo := now.Add(-10 * time.Minute)
 
-	staleClaim, err := domain.NewClaim(domain.NewClaimParams{
-		IssueID: staleIssueID,
+	expiredClaim, err := domain.NewClaim(domain.NewClaimParams{
+		IssueID: expiredIssueID,
 		Author:  author,
 		Now:     threeHoursAgo,
 	})
 	if err != nil {
-		t.Fatalf("precondition: create stale claim: %v", err)
+		t.Fatalf("precondition: create expired claim: %v", err)
 	}
 
 	freshClaim, err := domain.NewClaim(domain.NewClaimParams{
@@ -281,27 +281,27 @@ func TestListStaleClaims_ReturnsStaleClaims(t *testing.T) {
 		t.Fatalf("precondition: create fresh claim: %v", err)
 	}
 
-	for _, c := range []domain.Claim{staleClaim, freshClaim} {
+	for _, c := range []domain.Claim{expiredClaim, freshClaim} {
 		if err := repo.CreateClaim(ctx, c); err != nil {
 			t.Fatalf("precondition: persist claim: %v", err)
 		}
 	}
 
 	// When
-	stale, err := repo.ListStaleClaims(ctx, now)
+	expired, err := repo.ListExpiredClaims(ctx, now)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(stale) != 1 {
-		t.Fatalf("expected 1 stale claim, got %d", len(stale))
+	if len(expired) != 1 {
+		t.Fatalf("expected 1 expired claim, got %d", len(expired))
 	}
-	if stale[0].IssueID() != staleIssueID {
-		t.Errorf("expected stale claim for %s, got %s", staleIssueID, stale[0].IssueID())
+	if expired[0].IssueID() != expiredIssueID {
+		t.Errorf("expected expired claim for %s, got %s", expiredIssueID, expired[0].IssueID())
 	}
 }
 
-func TestListStaleClaims_EmptyWhenNoneStale(t *testing.T) {
+func TestListExpiredClaims_EmptyWhenNoneExpired(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repo := memory.NewRepository()
@@ -323,14 +323,14 @@ func TestListStaleClaims_EmptyWhenNoneStale(t *testing.T) {
 		t.Fatalf("precondition: persist claim: %v", err)
 	}
 
-	// When — query at the same time as creation (not stale yet)
-	stale, err := repo.ListStaleClaims(ctx, now)
+	// When — query at the same time as creation (not expired yet)
+	expired, err := repo.ListExpiredClaims(ctx, now)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(stale) != 0 {
-		t.Errorf("expected 0 stale claims, got %d", len(stale))
+	if len(expired) != 0 {
+		t.Errorf("expected 0 expired claims, got %d", len(expired))
 	}
 }
 
@@ -341,9 +341,9 @@ func TestListActiveClaims_ReturnsActiveClaims(t *testing.T) {
 	ctx := context.Background()
 	repo := memory.NewRepository()
 
-	// Given — one active claim, one stale
+	// Given — one active claim, one expired
 	activeIssueID := mustIssueID(t)
-	staleIssueID := mustIssueID(t)
+	expiredIssueID := mustIssueID(t)
 	author := mustAuthor(t, "ivan")
 	now := time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC)
 	threeHoursAgo := now.Add(-3 * time.Hour)
@@ -358,16 +358,16 @@ func TestListActiveClaims_ReturnsActiveClaims(t *testing.T) {
 		t.Fatalf("precondition: create active claim: %v", err)
 	}
 
-	staleClaim, err := domain.NewClaim(domain.NewClaimParams{
-		IssueID: staleIssueID,
+	expiredClaim, err := domain.NewClaim(domain.NewClaimParams{
+		IssueID: expiredIssueID,
 		Author:  author,
 		Now:     threeHoursAgo,
 	})
 	if err != nil {
-		t.Fatalf("precondition: create stale claim: %v", err)
+		t.Fatalf("precondition: create expired claim: %v", err)
 	}
 
-	for _, c := range []domain.Claim{activeClaim, staleClaim} {
+	for _, c := range []domain.Claim{activeClaim, expiredClaim} {
 		if err := repo.CreateClaim(ctx, c); err != nil {
 			t.Fatalf("precondition: persist claim: %v", err)
 		}
@@ -387,7 +387,7 @@ func TestListActiveClaims_ReturnsActiveClaims(t *testing.T) {
 	}
 }
 
-func TestListActiveClaims_EmptyWhenAllStale(t *testing.T) {
+func TestListActiveClaims_EmptyWhenAllExpired(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repo := memory.NewRepository()

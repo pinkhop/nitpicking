@@ -77,14 +77,14 @@ func TestNewClaim_ValidParams_Succeeds(t *testing.T) {
 	if !c.Author().Equal(author) {
 		t.Errorf("expected author alice, got %s", c.Author())
 	}
-	// Verify staleAt is now + DefaultStaleThreshold.
-	expectedStaleAt := now.Add(domain.DefaultStaleThreshold)
-	if !c.StaleAt().Equal(expectedStaleAt) {
-		t.Errorf("expected stale at %v, got %v", expectedStaleAt, c.StaleAt())
+	// Verify expiresAt is now + DefaultExpiryThreshold.
+	expectedExpiresAt := now.Add(domain.DefaultExpiryThreshold)
+	if !c.ExpiresAt().Equal(expectedExpiresAt) {
+		t.Errorf("expected expires at %v, got %v", expectedExpiresAt, c.ExpiresAt())
 	}
 }
 
-func TestNewClaim_CustomStaleDuration_Succeeds(t *testing.T) {
+func TestNewClaim_CustomExpiresAfter_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -92,103 +92,103 @@ func TestNewClaim_CustomStaleDuration_Succeeds(t *testing.T) {
 
 	// When
 	c, err := domain.NewClaim(domain.NewClaimParams{
-		IssueID:       mustID(t),
-		Author:        mustAuthor(t, "bob"),
-		StaleDuration: 6 * time.Hour,
-		Now:           now,
+		IssueID:      mustID(t),
+		Author:       mustAuthor(t, "bob"),
+		ExpiresAfter: 6 * time.Hour,
+		Now:          now,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	expected := now.Add(6 * time.Hour)
-	if !c.StaleAt().Equal(expected) {
-		t.Errorf("expected stale at %v, got %v", expected, c.StaleAt())
+	if !c.ExpiresAt().Equal(expected) {
+		t.Errorf("expected expires at %v, got %v", expected, c.ExpiresAt())
 	}
 }
 
-func TestNewClaim_AbsoluteStaleAt_Succeeds(t *testing.T) {
+func TestNewClaim_AbsoluteExpiresAt_Succeeds(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	staleAt := now.Add(3 * time.Hour)
+	expiresAt := now.Add(3 * time.Hour)
 
 	// When
 	c, err := domain.NewClaim(domain.NewClaimParams{
-		IssueID: mustID(t),
-		Author:  mustAuthor(t, "bob"),
-		StaleAt: staleAt,
-		Now:     now,
+		IssueID:   mustID(t),
+		Author:    mustAuthor(t, "bob"),
+		ExpiresAt: expiresAt,
+		Now:       now,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !c.StaleAt().Equal(staleAt) {
-		t.Errorf("expected stale at %v, got %v", staleAt, c.StaleAt())
+	if !c.ExpiresAt().Equal(expiresAt) {
+		t.Errorf("expected expires at %v, got %v", expiresAt, c.ExpiresAt())
 	}
 }
 
-func TestNewClaim_AbsoluteStaleAt_TakesPrecedenceOverDuration(t *testing.T) {
+func TestNewClaim_AbsoluteExpiresAt_TakesPrecedenceOverDuration(t *testing.T) {
 	t.Parallel()
 
-	// Given — both StaleAt and StaleDuration are set; StaleAt should win.
+	// Given — both ExpiresAt and ExpiresAfter are set; ExpiresAt should win.
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	staleAt := now.Add(5 * time.Hour)
+	expiresAt := now.Add(5 * time.Hour)
 
 	// When
 	c, err := domain.NewClaim(domain.NewClaimParams{
-		IssueID:       mustID(t),
-		Author:        mustAuthor(t, "bob"),
-		StaleDuration: 1 * time.Hour,
-		StaleAt:       staleAt,
-		Now:           now,
+		IssueID:      mustID(t),
+		Author:       mustAuthor(t, "bob"),
+		ExpiresAfter: 1 * time.Hour,
+		ExpiresAt:    expiresAt,
+		Now:          now,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !c.StaleAt().Equal(staleAt) {
-		t.Errorf("expected stale at %v (from StaleAt), got %v", staleAt, c.StaleAt())
+	if !c.ExpiresAt().Equal(expiresAt) {
+		t.Errorf("expected expires at %v (from ExpiresAt), got %v", expiresAt, c.ExpiresAt())
 	}
 }
 
-func TestNewClaim_AbsoluteStaleAt_ExceedsMax_Fails(t *testing.T) {
+func TestNewClaim_AbsoluteExpiresAt_ExceedsMax_Fails(t *testing.T) {
 	t.Parallel()
 
-	// Given — StaleAt is more than 24h from now.
+	// Given — ExpiresAt is more than 24h from now.
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	staleAt := now.Add(25 * time.Hour)
+	expiresAt := now.Add(25 * time.Hour)
 
 	// When
 	_, err := domain.NewClaim(domain.NewClaimParams{
-		IssueID: mustID(t),
-		Author:  mustAuthor(t, "bob"),
-		StaleAt: staleAt,
-		Now:     now,
+		IssueID:   mustID(t),
+		Author:    mustAuthor(t, "bob"),
+		ExpiresAt: expiresAt,
+		Now:       now,
 	})
 
 	// Then
 	if err == nil {
-		t.Fatal("expected error for stale-at exceeding max distance")
+		t.Fatal("expected error for expires-at exceeding max distance")
 	}
 }
 
-func TestNewClaim_StaleDurationExceedsMax_Fails(t *testing.T) {
+func TestNewClaim_ExpiresAfterExceedsMax_Fails(t *testing.T) {
 	t.Parallel()
 
 	// When
 	_, err := domain.NewClaim(domain.NewClaimParams{
-		IssueID:       mustID(t),
-		Author:        mustAuthor(t, "bob"),
-		StaleDuration: 25 * time.Hour,
-		Now:           time.Now(),
+		IssueID:      mustID(t),
+		Author:       mustAuthor(t, "bob"),
+		ExpiresAfter: 25 * time.Hour,
+		Now:          time.Now(),
 	})
 
 	// Then
 	if err == nil {
-		t.Fatal("expected error for stale duration exceeding max")
+		t.Fatal("expected error for expires-after exceeding max")
 	}
 }
 
@@ -222,7 +222,7 @@ func TestNewClaim_ZeroAuthor_Fails(t *testing.T) {
 	}
 }
 
-func TestClaim_IsStale_BeforeThreshold_NotStale(t *testing.T) {
+func TestClaim_IsExpired_BeforeThreshold_NotExpired(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -234,15 +234,15 @@ func TestClaim_IsStale_BeforeThreshold_NotStale(t *testing.T) {
 	})
 
 	// When
-	stale := c.IsStale(now.Add(1 * time.Hour))
+	expired := c.IsExpired(now.Add(1 * time.Hour))
 
 	// Then
-	if stale {
-		t.Error("expected not stale within threshold")
+	if expired {
+		t.Error("expected not expired within threshold")
 	}
 }
 
-func TestClaim_IsStale_AfterThreshold_Stale(t *testing.T) {
+func TestClaim_IsExpired_AfterThreshold_Expired(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -254,15 +254,15 @@ func TestClaim_IsStale_AfterThreshold_Stale(t *testing.T) {
 	})
 
 	// When
-	stale := c.IsStale(now.Add(3 * time.Hour))
+	expired := c.IsExpired(now.Add(3 * time.Hour))
 
 	// Then
-	if !stale {
-		t.Error("expected stale after threshold")
+	if !expired {
+		t.Error("expected expired after threshold")
 	}
 }
 
-func TestClaim_StaleAt_ReturnsCorrectTimestamp(t *testing.T) {
+func TestClaim_ExpiresAt_ReturnsCorrectTimestamp(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -274,16 +274,16 @@ func TestClaim_StaleAt_ReturnsCorrectTimestamp(t *testing.T) {
 	})
 
 	// When
-	staleAt := c.StaleAt()
+	expiresAt := c.ExpiresAt()
 
 	// Then
 	expected := now.Add(2 * time.Hour)
-	if !staleAt.Equal(expected) {
-		t.Errorf("expected stale at %v, got %v", expected, staleAt)
+	if !expiresAt.Equal(expected) {
+		t.Errorf("expected expires at %v, got %v", expected, expiresAt)
 	}
 }
 
-func TestClaim_WithStaleAt_ReturnsNewClaim(t *testing.T) {
+func TestClaim_WithExpiresAt_ReturnsNewClaim(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -295,21 +295,21 @@ func TestClaim_WithStaleAt_ReturnsNewClaim(t *testing.T) {
 	})
 
 	// When
-	newStaleAt := now.Add(6 * time.Hour)
-	updated := original.WithStaleAt(newStaleAt)
+	newExpiresAt := now.Add(6 * time.Hour)
+	updated := original.WithExpiresAt(newExpiresAt)
 
-	// Then — updated claim has the new staleAt
-	if !updated.StaleAt().Equal(newStaleAt) {
-		t.Errorf("expected staleAt %v, got %v", newStaleAt, updated.StaleAt())
+	// Then — updated claim has the new expiresAt
+	if !updated.ExpiresAt().Equal(newExpiresAt) {
+		t.Errorf("expected expiresAt %v, got %v", newExpiresAt, updated.ExpiresAt())
 	}
 	// Original is unchanged (value semantics)
-	originalExpected := now.Add(domain.DefaultStaleThreshold)
-	if !original.StaleAt().Equal(originalExpected) {
-		t.Errorf("expected original staleAt %v, got %v", originalExpected, original.StaleAt())
+	originalExpected := now.Add(domain.DefaultExpiryThreshold)
+	if !original.ExpiresAt().Equal(originalExpected) {
+		t.Errorf("expected original expiresAt %v, got %v", originalExpected, original.ExpiresAt())
 	}
 }
 
-func TestClaim_IsStale_AtExactThreshold_NotStale(t *testing.T) {
+func TestClaim_IsExpired_AtExactThreshold_NotExpired(t *testing.T) {
 	t.Parallel()
 
 	// Given — claim created at a known time with default 2h threshold
@@ -323,13 +323,13 @@ func TestClaim_IsStale_AtExactThreshold_NotStale(t *testing.T) {
 		t.Fatalf("precondition: %v", err)
 	}
 
-	// When — check staleness at exactly the stale-at boundary
-	exactBoundary := c.StaleAt()
-	stale := c.IsStale(exactBoundary)
+	// When — check expiry at exactly the expires-at boundary
+	exactBoundary := c.ExpiresAt()
+	expired := c.IsExpired(exactBoundary)
 
-	// Then — at the exact boundary, the claim is not yet stale (strict >)
-	if stale {
-		t.Error("expected not stale at exact threshold boundary")
+	// Then — at the exact boundary, the claim is not yet expired (strict >)
+	if expired {
+		t.Error("expected not expired at exact threshold boundary")
 	}
 }
 
@@ -342,10 +342,10 @@ func TestReconstructClaim_PreservesHashID(t *testing.T) {
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	threshold := 4 * time.Hour
 	original, err := domain.NewClaim(domain.NewClaimParams{
-		IssueID:       issueID,
-		Author:        author,
-		StaleDuration: threshold,
-		Now:           now,
+		IssueID:      issueID,
+		Author:       author,
+		ExpiresAfter: threshold,
+		Now:          now,
 	})
 	if err != nil {
 		t.Fatalf("precondition: %v", err)
@@ -376,8 +376,8 @@ func TestReconstructClaim_PreservesHashID(t *testing.T) {
 	if !reconstructed.ClaimedAt().Equal(original.ClaimedAt()) {
 		t.Errorf("ClaimedAt: expected %v, got %v", original.ClaimedAt(), reconstructed.ClaimedAt())
 	}
-	if !reconstructed.StaleAt().Equal(original.StaleAt()) {
-		t.Errorf("StaleAt: expected %v, got %v", original.StaleAt(), reconstructed.StaleAt())
+	if !reconstructed.ExpiresAt().Equal(original.ExpiresAt()) {
+		t.Errorf("ExpiresAt: expected %v, got %v", original.ExpiresAt(), reconstructed.ExpiresAt())
 	}
 }
 
@@ -450,7 +450,7 @@ func TestNewClaim_ClaimedAt_EqualsNow(t *testing.T) {
 	}
 }
 
-func TestNewClaim_StaleAtField_EqualsNowPlusDuration(t *testing.T) {
+func TestNewClaim_ExpiresAtField_EqualsNowPlusDuration(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -459,22 +459,22 @@ func TestNewClaim_StaleAtField_EqualsNowPlusDuration(t *testing.T) {
 
 	// When
 	c, err := domain.NewClaim(domain.NewClaimParams{
-		IssueID:       mustID(t),
-		Author:        mustAuthor(t, "alice"),
-		StaleDuration: threshold,
-		Now:           now,
+		IssueID:      mustID(t),
+		Author:       mustAuthor(t, "alice"),
+		ExpiresAfter: threshold,
+		Now:          now,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	expected := now.Add(threshold)
-	if !c.StaleAt().Equal(expected) {
-		t.Errorf("expected StaleAt() = %v, got %v", expected, c.StaleAt())
+	if !c.ExpiresAt().Equal(expected) {
+		t.Errorf("expected ExpiresAt() = %v, got %v", expected, c.ExpiresAt())
 	}
 }
 
-func TestNewClaim_DefaultThreshold_StaleAtEqualsNowPlusDefault(t *testing.T) {
+func TestNewClaim_DefaultThreshold_ExpiresAtEqualsNowPlusDefault(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -490,9 +490,9 @@ func TestNewClaim_DefaultThreshold_StaleAtEqualsNowPlusDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	expected := now.Add(domain.DefaultStaleThreshold)
-	if !c.StaleAt().Equal(expected) {
-		t.Errorf("expected StaleAt() = %v, got %v", expected, c.StaleAt())
+	expected := now.Add(domain.DefaultExpiryThreshold)
+	if !c.ExpiresAt().Equal(expected) {
+		t.Errorf("expected ExpiresAt() = %v, got %v", expected, c.ExpiresAt())
 	}
 }
 
@@ -501,10 +501,10 @@ func TestReconstructClaim_ClaimedAt_PreservesInput(t *testing.T) {
 
 	// Given
 	claimedAt := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	staleAt := claimedAt.Add(4 * time.Hour)
+	expiresAt := claimedAt.Add(4 * time.Hour)
 
 	// When
-	c := domain.ReconstructClaim("somehash", mustID(t), mustAuthor(t, "alice"), claimedAt, staleAt)
+	c := domain.ReconstructClaim("somehash", mustID(t), mustAuthor(t, "alice"), claimedAt, expiresAt)
 
 	// Then
 	if !c.ClaimedAt().Equal(claimedAt) {
@@ -512,19 +512,19 @@ func TestReconstructClaim_ClaimedAt_PreservesInput(t *testing.T) {
 	}
 }
 
-func TestReconstructClaim_StaleAt_PreservesInput(t *testing.T) {
+func TestReconstructClaim_ExpiresAt_PreservesInput(t *testing.T) {
 	t.Parallel()
 
 	// Given
 	claimedAt := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	staleAt := claimedAt.Add(4 * time.Hour)
+	expiresAt := claimedAt.Add(4 * time.Hour)
 
 	// When
-	c := domain.ReconstructClaim("somehash", mustID(t), mustAuthor(t, "alice"), claimedAt, staleAt)
+	c := domain.ReconstructClaim("somehash", mustID(t), mustAuthor(t, "alice"), claimedAt, expiresAt)
 
 	// Then
-	if !c.StaleAt().Equal(staleAt) {
-		t.Errorf("expected StaleAt() = %v, got %v", staleAt, c.StaleAt())
+	if !c.ExpiresAt().Equal(expiresAt) {
+		t.Errorf("expected ExpiresAt() = %v, got %v", expiresAt, c.ExpiresAt())
 	}
 }
 

@@ -91,7 +91,7 @@ $ np claim ready --author alice
 Claimed FOO-a3bxr
   Claim ID: 5rvb5d3dhbx9081bmzcc5nccd8
   Author: alice
-  Stale at: 2026-03-28 16:30:00
+  Expires at: 2026-03-28 16:30:00
 ```
 
 Save the claim ID. You need it for later mutations.

@@ -38,7 +38,7 @@ type showOutput struct {
 	Children           []childOutput            `json:"children,omitzero"`
 	ClaimAuthor        string                   `json:"claim_author,omitzero"`
 	ClaimedAt          string                   `json:"claimed_at,omitzero"`
-	ClaimStaleAt       string                   `json:"claim_stale_at,omitzero"`
+	ClaimExpiresAt     string                   `json:"claim_expires_at,omitzero"`
 	Relationships      []relationshipOutput     `json:"relationships,omitzero"`
 	Labels             map[string]string        `json:"labels,omitzero"`
 	Comments           []commentOutput          `json:"comments,omitzero"`
@@ -127,8 +127,8 @@ func Run(ctx context.Context, input RunInput) error {
 			out.ClaimedAt = cmdutil.FormatJSONTimestamp(result.ClaimedAt)
 		}
 
-		if !result.ClaimStaleAt.IsZero() {
-			out.ClaimStaleAt = cmdutil.FormatJSONTimestamp(result.ClaimStaleAt)
+		if !result.ClaimExpiresAt.IsZero() {
+			out.ClaimExpiresAt = cmdutil.FormatJSONTimestamp(result.ClaimExpiresAt)
 		}
 
 		for _, rel := range result.Relationships {
@@ -211,12 +211,17 @@ func Run(ctx context.Context, input RunInput) error {
 	_, _ = fmt.Fprintln(w)
 
 	// --- Claim info ---
+	// The trailing spaces after each label are chosen so that the value column
+	// starts at a uniform offset of 12 visible characters from the left margin
+	// (label length + padding = 12). The cs.Dim() ANSI wrapping adds invisible
+	// bytes that must not be counted; the padding here is on literal ASCII only.
+	// "Claimed by:" = 10 + 2sp = 12, "Expires at:" = 10 + 2sp = 12.
 	if result.ClaimID != "" {
 		_, _ = fmt.Fprintf(w, "%s  %s\n", cs.Dim("Claimed by:"), result.ClaimAuthor)
-		if !result.ClaimStaleAt.IsZero() {
-			dur := time.Until(result.ClaimStaleAt)
-			staleStr := result.ClaimStaleAt.UTC().Format("2006-01-02 15:04 UTC") + fmt.Sprintf(" (in %s)", formatDuration(dur))
-			_, _ = fmt.Fprintf(w, "%s    %s\n", cs.Dim("Stale at:"), staleStr)
+		if !result.ClaimExpiresAt.IsZero() {
+			dur := time.Until(result.ClaimExpiresAt)
+			expiresAtStr := result.ClaimExpiresAt.UTC().Format("2006-01-02 15:04 UTC") + fmt.Sprintf(" (in %s)", formatDuration(dur))
+			_, _ = fmt.Fprintf(w, "%s  %s\n", cs.Dim("Expires at:"), expiresAtStr)
 		}
 	} else {
 		_, _ = fmt.Fprintf(w, "%s  %s\n", cs.Dim("Claimed by:"), "(none)")
@@ -224,6 +229,7 @@ func Run(ctx context.Context, input RunInput) error {
 	_, _ = fmt.Fprintln(w)
 
 	// --- Timestamps, author, and revision ---
+	// "Created:" = 8 + 4sp = 12, "Author:" = 7 + 5sp = 12, "Revision:" = 9 + 3sp = 12.
 	_, _ = fmt.Fprintf(w, "%s    %s\n", cs.Dim("Created:"), result.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"))
 	_, _ = fmt.Fprintf(w, "%s     %s\n", cs.Dim("Author:"), result.Author)
 	_, _ = fmt.Fprintf(w, "%s   %s\n", cs.Dim("Revision:"), fmt.Sprintf("%d", result.Revision))
@@ -412,7 +418,7 @@ func writeRelationshipSection(w io.Writer, _ *iostreams.ColorScheme, header stri
 
 // formatDuration formats a time.Duration into a human-readable short form
 // like "2h", "45m", "3d", or "1h30m". Used for relative timestamps in text
-// output (e.g., "in 2h" for stale-at, "2h ago" for claimed-at).
+// output (e.g., "in 2h" for expires-at, "2h ago" for claimed-at).
 func formatDuration(d time.Duration) string {
 	if d < 0 {
 		d = -d

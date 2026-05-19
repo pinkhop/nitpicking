@@ -28,7 +28,7 @@ Usually no. Treat it as local state unless you have a specific reason to move it
 Yes, if you want the tracker to reflect what is actively in progress and what is ready.
 
 **What happens if I forget to close or release a claim?**  
-The claim remains active until it goes stale, then another normal claim can overwrite it.
+The claim remains active until it expires, then another normal claim can overwrite it.
 
 **Can I work on multiple issues at once?**  
 Yes, but it is easy to create a messy queue that way. Most teams should prefer one active claim per agent unless there is a clear reason otherwise.

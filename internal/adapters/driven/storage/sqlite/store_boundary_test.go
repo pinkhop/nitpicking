@@ -181,7 +181,7 @@ func TestBoundary_DeleteAndNotFound(t *testing.T) {
 	}
 }
 
-func TestBoundary_ExtendStaleThreshold(t *testing.T) {
+func TestBoundary_ExtendExpiry(t *testing.T) {
 	// Given
 	svc := setupBoundaryService(t)
 	ctx := t.Context()
@@ -192,7 +192,7 @@ func TestBoundary_ExtendStaleThreshold(t *testing.T) {
 	})
 
 	// When
-	err := svc.ExtendStaleThreshold(ctx, createOut.Issue.ID().String(), createOut.ClaimID, 8*time.Hour)
+	err := svc.ExtendExpiry(ctx, createOut.Issue.ID().String(), createOut.ClaimID, 8*time.Hour)
 	// Then
 	if err != nil {
 		t.Fatalf("extending threshold: %v", err)

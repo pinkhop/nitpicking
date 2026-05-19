@@ -27,7 +27,7 @@ func TestTaskSecondaryState_OpenNotBlocked_Ready(t *testing.T) {
 func TestTaskSecondaryState_OpenWithActiveClaim_Claimed(t *testing.T) {
 	t.Parallel()
 
-	// Given — open task with an active (non-stale) claim.
+	// Given — open task with an active claim.
 
 	// When — claimed takes priority over ready.
 	result := core.TaskSecondaryState(domain.StateOpen, true, nil, nil)

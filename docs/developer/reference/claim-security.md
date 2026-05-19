@@ -12,7 +12,7 @@ Claim IDs do **not** protect against:
 
 - Remote attackers brute-forcing credentials over a network.
 - Determined adversaries with physical access to the database file.
-- Long-lived credential theft (claim IDs expire via the stale threshold — default 2 hours, maximum 24 hours).
+- Long-lived credential theft (claim IDs expire via the expiry threshold — default 2 hours, maximum 24 hours).
 
 The adversary model is narrow: a co-located agent that might guess or collide with another agent's claim, or a developer mistake that inadvertently leaks a claim ID through command output. That's it.
 
@@ -45,7 +45,7 @@ Claim IDs are none of those things:
 | Property | Passwords | Claim IDs |
 |----------|-----------|-----------|
 | Entropy | ~40–80 bits (user-chosen) | 128 bits (random) |
-| Lifetime | Months to years | Hours (stale threshold) |
+| Lifetime | Months to years | Hours (expiry threshold) |
 | Adversary | Remote attacker with hash dump | Co-located agent or developer mistake |
 | Brute-force feasibility | Feasible without slow hash | Infeasible at 128 bits regardless of hash speed |
 

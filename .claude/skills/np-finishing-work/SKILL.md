@@ -13,7 +13,7 @@ metadata:
 
 ## Overview
 
-A claimed `np` issue must end in one of three transitions: closed, released, or deferred. Abandoning a claim blocks other agents until it goes stale, so always transition explicitly when work stops.
+A claimed `np` issue must end in one of three transitions: closed, released, or deferred. Abandoning a claim blocks other agents until it expires, so always transition explicitly when work stops.
 
 ## Prerequisites
 
@@ -72,4 +72,4 @@ Defer hides the issue from the ready queue until someone undefers it. Use it for
 
 - **Closing without a reason.** Always pass `--reason` so the closing comment captures why the work stopped.
 - **Choosing release when defer was meant, or vice versa.** Release returns the issue to the ready queue immediately. Defer hides it. Pick deliberately.
-- **Forgetting to transition at all.** A claim left open blocks ready work until it goes stale — usually two hours.
+- **Forgetting to transition at all.** A claim left open blocks ready work until it expires — usually two hours.

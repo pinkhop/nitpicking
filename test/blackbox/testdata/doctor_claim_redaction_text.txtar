@@ -1,9 +1,9 @@
-# Doctor text output for stale claims must not expose claim IDs.
+# Doctor text output for expired claims must not expose claim IDs.
 
 np-init DRTXT
-np-seed task 'Stale for text doctor' doctor-redact TASK
+np-seed task 'Expired for text doctor' doctor-redact TASK
 
-# Claim with a 1ms duration so the claim is immediately stale.
+# Claim with a 1ms duration so the claim expires immediately.
 exec np claim $TASK --author doctor-redact --duration 1ms --json
 np-capture CLAIM claim_id
 

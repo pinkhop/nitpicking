@@ -317,7 +317,7 @@ func doctorRegistry() []doctorCheckEntry {
 			Category:     categoryIssueLifecycle,
 			Severity:     driving.SeverityWarning,
 			Description:  "Detects issues whose children are all closed and can therefore be closed to acknowledge the work is done.",
-			WhyItMatters: "Leaving completed parents open inflates active-work queries with stale entries and obscures real progress.",
+			WhyItMatters: "Leaving completed parents open inflates active-work queries with outdated entries and obscures real progress.",
 			// Static Fix.Command preserves the `[--include-tasks]` placeholder
 			// for callers that surface registry entries directly. FixFn overrides
 			// this when a real finding fires.

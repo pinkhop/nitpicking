@@ -122,9 +122,9 @@ func TestBoundary_ReleaseClaim_InvalidatesClaim(t *testing.T) {
 	}
 }
 
-// --- ExtendStaleThreshold (UpdateClaimStaleAt) ---
+// --- ExtendExpiry (UpdateClaimExpiresAt) ---
 
-func TestBoundary_ExtendStaleThreshold_UpdatesThreshold(t *testing.T) {
+func TestBoundary_ExtendExpiry_UpdatesThreshold(t *testing.T) {
 	// Given
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
@@ -136,23 +136,23 @@ func TestBoundary_ExtendStaleThreshold_UpdatesThreshold(t *testing.T) {
 		IssueID: taskOut.Issue.ID().String(), Author: author(t, "alice"),
 	})
 
-	// Capture the stale_at before extending.
+	// Capture the expires_at before extending.
 	showBefore, _ := svc.ShowIssue(ctx, taskOut.Issue.ID().String())
 
 	// When
-	err := svc.ExtendStaleThreshold(ctx, taskOut.Issue.ID().String(), claimOut.ClaimID, 8*time.Hour)
+	err := svc.ExtendExpiry(ctx, taskOut.Issue.ID().String(), claimOut.ClaimID, 8*time.Hour)
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	showAfter, _ := svc.ShowIssue(ctx, taskOut.Issue.ID().String())
-	if !showAfter.ClaimStaleAt.After(showBefore.ClaimStaleAt) {
-		t.Errorf("stale_at should be later after extending threshold: before=%v, after=%v",
-			showBefore.ClaimStaleAt, showAfter.ClaimStaleAt)
+	if !showAfter.ClaimExpiresAt.After(showBefore.ClaimExpiresAt) {
+		t.Errorf("expires_at should be later after extending threshold: before=%v, after=%v",
+			showBefore.ClaimExpiresAt, showAfter.ClaimExpiresAt)
 	}
 }
 
-// --- StaleClaims (via Doctor) ---
+// --- ExpiredClaims (via Doctor) ---
 
 func TestBoundary_Doctor_NewDatabase_NoSchemaMigrationRequired(t *testing.T) {
 	// Given — a freshly initialised database which sets schema_version = 2.
@@ -173,9 +173,9 @@ func TestBoundary_Doctor_NewDatabase_NoSchemaMigrationRequired(t *testing.T) {
 	}
 }
 
-// --- ListActiveClaims (via Doctor no-stale scenario) ---
+// --- ListActiveClaims (via Doctor no-expired scenario) ---
 
-func TestBoundary_ClaimByID_WithStaleThreshold_SetsExpiry(t *testing.T) {
+func TestBoundary_ClaimByID_WithExpiresAfter_SetsExpiry(t *testing.T) {
 	// Given
 	svc := setupBoundarySvc(t)
 	ctx := t.Context()
@@ -184,23 +184,23 @@ func TestBoundary_ClaimByID_WithStaleThreshold_SetsExpiry(t *testing.T) {
 		Role: domain.RoleTask, Title: "Custom threshold", Author: author(t, "alice"),
 	})
 
-	// When — claim with custom stale threshold
+	// When — claim with custom expiry threshold
 	_, err := svc.ClaimByID(ctx, driving.ClaimInput{
-		IssueID:        taskOut.Issue.ID().String(),
-		Author:         author(t, "alice"),
-		StaleThreshold: 4 * time.Hour,
+		IssueID:      taskOut.Issue.ID().String(),
+		Author:       author(t, "alice"),
+		ExpiresAfter: 4 * time.Hour,
 	})
 	// Then
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	showOut, _ := svc.ShowIssue(ctx, taskOut.Issue.ID().String())
-	if showOut.ClaimStaleAt.IsZero() {
-		t.Error("expected non-zero stale_at with custom threshold")
+	if showOut.ClaimExpiresAt.IsZero() {
+		t.Error("expected non-zero expires_at with custom threshold")
 	}
-	// The stale_at should be roughly 4 hours in the future (within 1 minute tolerance).
+	// The expires_at should be roughly 4 hours in the future (within 1 minute tolerance).
 	expectedMin := time.Now().Add(3 * time.Hour)
-	if showOut.ClaimStaleAt.Before(expectedMin) {
-		t.Errorf("stale_at should be ~4h in future, got %v", showOut.ClaimStaleAt)
+	if showOut.ClaimExpiresAt.Before(expectedMin) {
+		t.Errorf("expires_at should be ~4h in future, got %v", showOut.ClaimExpiresAt)
 	}
 }

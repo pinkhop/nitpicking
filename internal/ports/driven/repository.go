@@ -15,7 +15,7 @@ const DefaultLimit = 20
 // CurrentSchemaVersion is the database schema version that this binary
 // expects. The doctor's schema-version check compares the stored version
 // against this constant; the SQLite adapter writes it on initialisation.
-const CurrentSchemaVersion = 3
+const CurrentSchemaVersion = 4
 
 // NormalizeLimit applies the default limit when the caller passes zero.
 // A zero limit is treated as "use the default", not "unlimited". To request
@@ -331,21 +331,20 @@ type ClaimRepository interface {
 	// InvalidateClaim removes the active claim from an domain.
 	InvalidateClaim(ctx context.Context, claimID string) error
 
-	// UpdateClaimStaleAt updates the stale-at timestamp on a claim,
-	// effectively extending the claim's lifetime. Replaces the former
-	// UpdateClaimLastActivity and UpdateClaimThreshold methods.
-	UpdateClaimStaleAt(ctx context.Context, claimID string, staleAt time.Time) error
+	// UpdateClaimExpiresAt updates the expires-at timestamp on a claim,
+	// effectively extending the claim's lifetime.
+	UpdateClaimExpiresAt(ctx context.Context, claimID string, expiresAt time.Time) error
 
-	// ListStaleClaims returns all claims that are stale as of the given time.
-	ListStaleClaims(ctx context.Context, now time.Time) ([]domain.Claim, error)
+	// ListExpiredClaims returns all claims that have expired as of the given time.
+	ListExpiredClaims(ctx context.Context, now time.Time) ([]domain.Claim, error)
 
-	// ListActiveClaims returns all claims that are not stale as of the given
+	// ListActiveClaims returns all claims that have not expired as of the given
 	// time.
 	ListActiveClaims(ctx context.Context, now time.Time) ([]domain.Claim, error)
 
-	// DeleteExpiredClaims removes all claim rows whose stale-at timestamp is
+	// DeleteExpiredClaims removes all claim rows whose expires-at timestamp is
 	// on or before now. Returns the number of rows deleted. Active claims
-	// (stale-at is in the future) are not touched.
+	// (expires-at is in the future) are not touched.
 	DeleteExpiredClaims(ctx context.Context, now time.Time) (int, error)
 }
 
@@ -558,7 +557,7 @@ type MigrationResult struct {
 // storage adapter package.
 type Migrator interface {
 	// CheckSchemaVersion returns nil when the database schema is at the
-	// current version (v3). It returns a wrapped domain.ErrSchemaMigrationRequired
+	// current version (v4). It returns a wrapped domain.ErrSchemaMigrationRequired
 	// when the schema is at an older version. Callers use this to determine
 	// whether a migration is needed before issuing regular database commands.
 	CheckSchemaVersion(ctx context.Context) error
@@ -578,4 +577,11 @@ type Migrator interface {
 	// distinguish the "already current" case. Returns a MigrationResult describing
 	// the number of rows affected by each migration step.
 	MigrateV2ToV3(ctx context.Context) (MigrationResult, error)
+
+	// MigrateV3ToV4 upgrades a v3 database to v4 schema in a single atomic
+	// transaction. It renames the claims.expires_after column from its legacy
+	// name and records schema_version=4. The operation is idempotent: when the
+	// legacy column no longer exists (database already at v4), the rename step
+	// is skipped. Returns an empty MigrationResult.
+	MigrateV3ToV4(ctx context.Context) (MigrationResult, error)
 }

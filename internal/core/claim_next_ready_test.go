@@ -113,7 +113,7 @@ func TestClaimNextReady_NoReadyIssues_ReturnsNotFound(t *testing.T) {
 func TestClaimNextReady_AllIssuesClaimed_ReturnsNotFound(t *testing.T) {
 	t.Parallel()
 
-	// Given — one issue exists but is already claimed with a non-stale claim.
+	// Given — one issue exists but is already claimed with an unexpired claim.
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
 	_, err := svc.CreateIssue(t.Context(), driving.CreateIssueInput{
@@ -138,42 +138,42 @@ func TestClaimNextReady_AllIssuesClaimed_ReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestClaimNextReady_StaleClaim_TreatedAsReady(t *testing.T) {
+func TestClaimNextReady_ExpiredClaim_TreatedAsReady(t *testing.T) {
 	t.Parallel()
 
-	// Given — one issue claimed with a very short stale threshold so it's
-	// immediately stale. A stale claim is treated as nonexistent, so the
+	// Given — one issue claimed with a very short expiry threshold so it's
+	// immediately expired. An expired claim is treated as nonexistent, so the
 	// issue should appear ready again.
 	svc, _ := setupService(t)
 	author := mustAuthor(t, "alice")
 	created, err := svc.CreateIssue(t.Context(), driving.CreateIssueInput{
 		Role:   domain.RoleTask,
-		Title:  "Stale task",
+		Title:  "Expired task",
 		Author: author,
 	})
 	if err != nil {
 		t.Fatalf("precondition: create issue: %v", err)
 	}
 
-	// Claim with a 1-nanosecond threshold so it goes stale immediately.
+	// Claim with a 1-nanosecond threshold so it expires immediately.
 	_, err = svc.ClaimByID(t.Context(), driving.ClaimInput{
-		IssueID:        created.Issue.ID().String(),
-		Author:         author,
-		StaleThreshold: 1 * time.Nanosecond,
+		IssueID:      created.Issue.ID().String(),
+		Author:       author,
+		ExpiresAfter: 1 * time.Nanosecond,
 	})
 	if err != nil {
 		t.Fatalf("precondition: claim issue: %v", err)
 	}
 
-	// Let the claim go stale.
+	// Let the claim expire.
 	time.Sleep(2 * time.Millisecond)
 
-	// When — a second author claims; the stale claim is overwritten.
+	// When — a second author claims; the expired claim is overwritten.
 	bob := mustAuthor(t, "bob")
 	output, err := svc.ClaimNextReady(t.Context(), driving.ClaimNextReadyInput{
 		Author: bob,
 	})
-	// Then — claim succeeds because stale claims are treated as nonexistent.
+	// Then — claim succeeds because expired claims are treated as nonexistent.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

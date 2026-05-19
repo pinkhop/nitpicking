@@ -1,22 +1,22 @@
-# Doctor stale-relationship hint (blocked-by-closable-issue check) must use
+# Doctor obsolete-relationship hint (blocked-by-closable-issue check) must use
 # "np rel remove … blocked_by …" when the fix is automated.
 # See NP-kthe6 and NP-mr6p1 for the original bug history.
 #
-# This test verifies the Doctor command runs cleanly when a stale blocked_by
+# This test verifies the Doctor command runs cleanly when an obsolete blocked_by
 # edge exists. The specific hint rendering is covered once the graph-health
 # checks are implemented (NP-c4ma9).
 
 np-init DRREL
 np-seed task 'Active blocker (stays open)' doctor-hint-agent ACTIVE_BLOCKER
-np-seed task 'Stale blocker (will be closed)' doctor-hint-agent STALE_BLOCKER
+np-seed task 'Obsolete blocker (will be closed)' doctor-hint-agent OBSOLETE_BLOCKER
 np-seed task 'Blocked task' doctor-hint-agent BLOCKED
 np-seed-rel BLOCKED blocked_by ACTIVE_BLOCKER doctor-hint-agent
-np-seed-rel BLOCKED blocked_by STALE_BLOCKER doctor-hint-agent
+np-seed-rel BLOCKED blocked_by OBSOLETE_BLOCKER doctor-hint-agent
 
-# Close only the stale blocker so its blocked_by edge becomes stale.
-exec np claim $STALE_BLOCKER --author doctor-hint-agent --json
-np-capture STALE_CLAIM claim_id
-exec np close --claim $STALE_CLAIM --reason 'test: make relationship stale' --json
+# Close only the obsolete blocker so its blocked_by edge becomes obsolete.
+exec np claim $OBSOLETE_BLOCKER --author doctor-hint-agent --json
+np-capture OBSOLETE_CLAIM claim_id
+exec np close --claim $OBSOLETE_CLAIM --reason 'test: make relationship obsolete' --json
 
 # Doctor must run without error.
 exec np admin doctor

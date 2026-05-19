@@ -229,9 +229,9 @@ func TestRun_JSON_VerboseMode_WhyItMattersPresent(t *testing.T) {
 	}
 	warnFinding := driving.DoctorFinding{
 		Check:        "long-deferrals",
-		Description:  "Detects stale deferred issues.",
+		Description:  "Detects long-deferred issues.",
 		WhyItMatters: "Long-untouched deferrals are usually forgotten work.",
-		Summary:      "1 issue stale.",
+		Summary:      "1 long-deferred issue.",
 		Fix:          driving.DoctorFix{Instructions: "Review each long-deferred issue."},
 	}
 	doctorFunc := func(_ context.Context, _ driving.DoctorInput) (driving.DoctorOutput, error) {
@@ -291,7 +291,7 @@ func TestRun_JSON_SeverityErrorFilter_WarningsEmpty(t *testing.T) {
 			Warnings: []driving.DoctorFinding{
 				{
 					Check:   "long-deferrals",
-					Summary: "1 stale issue.",
+					Summary: "1 long-deferred issue.",
 					Fix:     driving.DoctorFix{Instructions: "Review deferred issues."},
 				},
 			},
@@ -642,7 +642,7 @@ func TestRun_JSON_DeterministicOrdering(t *testing.T) {
 			Warnings: []driving.DoctorFinding{
 				{
 					Check:   "long-deferrals",
-					Summary: "2 stale issues.",
+					Summary: "2 long-deferred issues.",
 					Affected: []any{
 						driving.LongDeferralRow{Issue: "NP-ccc03"},
 						driving.LongDeferralRow{Issue: "NP-ddd04"},
@@ -1276,7 +1276,7 @@ func TestRun_Text_VerboseMode_SeverityErrorFilter_HidesWarnings(t *testing.T) {
 					WhyItMatters: "Long-untouched deferred issues are usually forgotten work.",
 					Summary:      "2 issues are long-deferred.",
 					Affected: []any{
-						driving.LongDeferralRow{Issue: "NP-stale1"},
+						driving.LongDeferralRow{Issue: "NP-dfrd1"},
 					},
 					Fix: driving.DoctorFix{Instructions: "Review each."},
 				},
@@ -1301,7 +1301,7 @@ func TestRun_Text_VerboseMode_SeverityErrorFilter_HidesWarnings(t *testing.T) {
 	if strings.Contains(out, "Why it matters") {
 		t.Errorf("warning expansion must be hidden with --severity error in verbose:\n%s", out)
 	}
-	if strings.Contains(out, "NP-stale1") {
+	if strings.Contains(out, "NP-dfrd1") {
 		t.Errorf("warning's affected row must be hidden with --severity error:\n%s", out)
 	}
 	if strings.Contains(out, "Review each.") {

@@ -389,9 +389,9 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow driven.UnitOfWork, 
 		return output, err
 	}
 
-	// Invalidate any stale claim before creating the new one. ValidateClaim
-	// treats stale claims as nonexistent, so if we reach here with an active
-	// claim it is guaranteed to be stale.
+	// Invalidate any expired claim before creating the new one. ValidateClaim
+	// treats expired claims as nonexistent, so if we reach here with an active
+	// claim it is guaranteed to be expired.
 	if activeClaim.ID() != "" {
 		if err := uow.Claims().InvalidateClaim(ctx, activeClaim.ID()); err != nil {
 			return output, err
@@ -400,11 +400,11 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow driven.UnitOfWork, 
 
 	// Create new claim.
 	c, err := domain.NewClaim(domain.NewClaimParams{
-		IssueID:       issueID,
-		Author:        author,
-		StaleDuration: input.StaleThreshold,
-		StaleAt:       input.StaleAt,
-		Now:           now,
+		IssueID:      issueID,
+		Author:       author,
+		ExpiresAfter: input.ExpiresAfter,
+		ExpiresAt:    input.ExpiresAt,
+		Now:          now,
 	})
 	if err != nil {
 		return output, err
@@ -420,7 +420,7 @@ func (s *serviceImpl) claimWithinTx(ctx context.Context, uow driven.UnitOfWork, 
 	output.IssueID = input.IssueID
 	output.Author = input.Author
 	output.CreatedAt = c.ClaimedAt()
-	output.StaleAt = c.StaleAt()
+	output.ExpiresAt = c.ExpiresAt()
 	return output, nil
 }
 
@@ -446,10 +446,10 @@ func (s *serviceImpl) ClaimNextReady(ctx context.Context, input driving.ClaimNex
 		}
 
 		result, err := s.claimWithinTx(ctx, uow, driving.ClaimInput{
-			IssueID:        items[0].ID.String(),
-			Author:         input.Author,
-			StaleThreshold: input.StaleThreshold,
-			StaleAt:        input.StaleAt,
+			IssueID:      items[0].ID.String(),
+			Author:       input.Author,
+			ExpiresAfter: input.ExpiresAfter,
+			ExpiresAt:    input.ExpiresAt,
 		})
 		if err != nil {
 			return err
@@ -489,7 +489,7 @@ func (s *serviceImpl) OneShotUpdate(ctx context.Context, input driving.OneShotUp
 		if err != nil {
 			return err
 		}
-		if err := s.applyIssueUpdates(ctx, uow, parsedID, claimResult.ClaimID, author, now, claimResult.StaleAt, fields); err != nil {
+		if err := s.applyIssueUpdates(ctx, uow, parsedID, claimResult.ClaimID, author, now, claimResult.ExpiresAt, fields); err != nil {
 			return err
 		}
 
@@ -523,7 +523,7 @@ func (s *serviceImpl) UpdateIssue(ctx context.Context, input driving.UpdateIssue
 		if err != nil {
 			return err
 		}
-		newStaleAt := now.Add(c.StaleAt().Sub(c.ClaimedAt()))
+		newExpiresAt := now.Add(c.ExpiresAt().Sub(c.ClaimedAt()))
 
 		// Add comment if provided.
 		if input.CommentBody != "" {
@@ -541,12 +541,12 @@ func (s *serviceImpl) UpdateIssue(ctx context.Context, input driving.UpdateIssue
 			}
 		}
 
-		// Apply updates and extend claim staleAt.
-		return s.applyIssueUpdates(ctx, uow, parsedID, input.ClaimID, c.Author(), now, newStaleAt, fields)
+		// Apply updates and extend claim expiresAt.
+		return s.applyIssueUpdates(ctx, uow, parsedID, input.ClaimID, c.Author(), now, newExpiresAt, fields)
 	})
 }
 
-func (s *serviceImpl) ExtendStaleThreshold(ctx context.Context, issueID string, claimID string, threshold time.Duration) error {
+func (s *serviceImpl) ExtendExpiry(ctx context.Context, issueID string, claimID string, threshold time.Duration) error {
 	parsedID, err := domain.ParseID(issueID)
 	if err != nil {
 		return domain.NewValidationError("issue_id", fmt.Sprintf("invalid issue ID %q: %s", issueID, err))
@@ -559,10 +559,10 @@ func (s *serviceImpl) ExtendStaleThreshold(ctx context.Context, issueID string, 
 		if c.IssueID() != parsedID {
 			return fmt.Errorf("claim does not match issue %s", issueID)
 		}
-		// Compute new staleAt from the claim's original claimedAt and the
+		// Compute new expiresAt from the claim's original claimedAt and the
 		// requested threshold.
-		newStaleAt := c.ClaimedAt().Add(threshold)
-		return uow.Claims().UpdateClaimStaleAt(ctx, claimID, newStaleAt)
+		newExpiresAt := c.ClaimedAt().Add(threshold)
+		return uow.Claims().UpdateClaimExpiresAt(ctx, claimID, newExpiresAt)
 	})
 }
 
@@ -718,7 +718,7 @@ func (s *serviceImpl) TransitionState(ctx context.Context, input driving.Transit
 
 // DeferIssue transitions a claimed issue to the deferred state and releases
 // the claim — all within a single transaction. The caller supplies a valid
-// claim ID; if the claim does not match the issue or has gone stale, an error
+// claim ID; if the claim does not match the issue or has expired, an error
 // is returned and the issue is unchanged.
 func (s *serviceImpl) DeferIssue(ctx context.Context, input driving.DeferIssueInput) error {
 	issueID, err := domain.ParseID(input.IssueID)
@@ -847,7 +847,7 @@ func (s *serviceImpl) DeleteIssue(ctx context.Context, input driving.DeleteInput
 				return &domain.ClaimConflictError{
 					IssueID:       issueID.String(),
 					CurrentHolder: result.Conflicts[0].ClaimedBy,
-					StaleAt:       time.Now(),
+					ExpiresAt:     time.Now(),
 				}
 			}
 
@@ -960,11 +960,11 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id string) (driving.ShowIss
 		blockers, _ := uow.Relationships().GetBlockerStatuses(ctx, parsedID)
 		ancestors, _ := uow.Issues().GetAncestorStatuses(ctx, parsedID)
 
-		// Determine whether there is an active (non-stale) claim on this issue.
-		// A stale claim is treated as absent for readiness and display purposes.
+		// Determine whether there is an active (unexpired) claim on this issue.
+		// An expired claim is treated as absent for readiness and display purposes.
 		hasActiveClaim := false
 		if ac, claimErr := uow.Claims().GetClaimByIssue(ctx, parsedID); claimErr == nil {
-			hasActiveClaim = !ac.IsStale(time.Now())
+			hasActiveClaim = !ac.IsExpired(time.Now())
 		}
 
 		if t.IsTask() {
@@ -1072,7 +1072,7 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id string) (driving.ShowIss
 			detail.Title = blocker.Title()
 			detail.State = blocker.State()
 			blockerClaim, claimErr := uow.Claims().GetClaimByIssue(ctx, targetID)
-			if claimErr == nil && !blockerClaim.IsStale(time.Now()) {
+			if claimErr == nil && !blockerClaim.IsExpired(time.Now()) {
 				detail.ClaimAuthor = blockerClaim.Author().String()
 			}
 			output.BlockerDetails = append(output.BlockerDetails, detail)
@@ -1080,10 +1080,10 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id string) (driving.ShowIss
 
 		// Claim info.
 		activeClaim, err := uow.Claims().GetClaimByIssue(ctx, parsedID)
-		if err == nil && !activeClaim.IsStale(time.Now()) {
+		if err == nil && !activeClaim.IsExpired(time.Now()) {
 			output.ClaimID = activeClaim.ID()
 			output.ClaimAuthor = activeClaim.Author().String()
-			output.ClaimStaleAt = activeClaim.StaleAt()
+			output.ClaimExpiresAt = activeClaim.ExpiresAt()
 			// claimed_at is stored directly on the claim row — no history
 			// lookup required now that EventClaimed is removed.
 			output.ClaimedAt = activeClaim.ClaimedAt()
@@ -1337,7 +1337,7 @@ func (s *serviceImpl) PropagateLabel(ctx context.Context, input driving.Propagat
 				&domain.ClaimConflictError{
 					IssueID:       item.ID,
 					CurrentHolder: child.ClaimAuthor,
-					StaleAt:       child.ClaimStaleAt,
+					ExpiresAt:     child.ClaimExpiresAt,
 				},
 			)
 		}
@@ -1360,8 +1360,8 @@ func (s *serviceImpl) PropagateLabel(ctx context.Context, input driving.Propagat
 				}
 				fields := updateFields{LabelSet: []driving.LabelInput{labelInput}}
 				propagateNow := time.Now()
-				newStaleAt := propagateNow.Add(c.StaleAt().Sub(c.ClaimedAt()))
-				return s.applyIssueUpdates(ctx, uow, target.issueID, c.ID(), author, propagateNow, newStaleAt, fields)
+				newExpiresAt := propagateNow.Add(c.ExpiresAt().Sub(c.ClaimedAt()))
+				return s.applyIssueUpdates(ctx, uow, target.issueID, c.ID(), author, propagateNow, newExpiresAt, fields)
 			})
 			if updateErr != nil {
 				return output, fmt.Errorf("updating claimed descendant %s: %w", target.issueID, updateErr)
@@ -1762,11 +1762,11 @@ func (s *serviceImpl) AddComment(ctx context.Context, input driving.AddCommentIn
 			return histErr
 		}
 
-		// Extend claim staleAt if the issue is currently claimed.
+		// Extend claim expiresAt if the issue is currently claimed.
 		activeClaim, err := uow.Claims().GetClaimByIssue(ctx, parsedIssueID)
 		if err == nil {
-			newStaleAt := now.Add(activeClaim.StaleAt().Sub(activeClaim.ClaimedAt()))
-			_ = uow.Claims().UpdateClaimStaleAt(ctx, activeClaim.ID(), newStaleAt)
+			newExpiresAt := now.Add(activeClaim.ExpiresAt().Sub(activeClaim.ClaimedAt()))
+			_ = uow.Claims().UpdateClaimExpiresAt(ctx, activeClaim.ID(), newExpiresAt)
 		}
 
 		c, err := uow.Comments().GetComment(ctx, id)
@@ -2665,7 +2665,7 @@ func parseOptionalID(s *string) (*domain.ID, error) {
 	return &id, nil
 }
 
-func (s *serviceImpl) applyIssueUpdates(ctx context.Context, uow driven.UnitOfWork, issueID domain.ID, claimID string, author domain.Author, now time.Time, staleAt time.Time, fields updateFields) error {
+func (s *serviceImpl) applyIssueUpdates(ctx context.Context, uow driven.UnitOfWork, issueID domain.ID, claimID string, author domain.Author, now time.Time, expiresAt time.Time, fields updateFields) error {
 	t, err := uow.Issues().GetIssue(ctx, issueID, false)
 	if err != nil {
 		return err
@@ -2798,8 +2798,8 @@ func (s *serviceImpl) applyIssueUpdates(ctx context.Context, uow driven.UnitOfWo
 		}
 	}
 
-	// Extend claim staleAt to reflect the recent activity.
-	return uow.Claims().UpdateClaimStaleAt(ctx, claimID, staleAt)
+	// Extend claim expiresAt to reflect the recent activity.
+	return uow.Claims().UpdateClaimExpiresAt(ctx, claimID, expiresAt)
 }
 
 // --- Reset ---
@@ -2854,13 +2854,13 @@ func (s *serviceImpl) ResetDatabase(ctx context.Context) error {
 
 // --- Schema Migration ---
 
-// errNoMigrator is returned by CheckSchemaVersion, MigrateV1ToV2, and
-// MigrateV2ToV3 when the service was constructed without a Migrator (e.g., in
-// tests backed by the in-memory adapter).
+// errNoMigrator is returned by CheckSchemaVersion, MigrateV1ToV2,
+// MigrateV2ToV3, and MigrateV3ToV4 when the service was constructed without a
+// Migrator (e.g., in tests backed by the in-memory adapter).
 var errNoMigrator = errors.New("schema migration is not supported by the backing store")
 
 // CheckSchemaVersion delegates to the Migrator port to verify the database
-// schema version. It returns nil on a v3 database and a wrapped
+// schema version. It returns nil on a v4 database and a wrapped
 // domain.ErrSchemaMigrationRequired on any older version.
 func (s *serviceImpl) CheckSchemaVersion(ctx context.Context) error {
 	if s.migrator == nil {
@@ -2907,6 +2907,32 @@ func (s *serviceImpl) MigrateV2ToV3(ctx context.Context) (driving.MigrationResul
 	}, nil
 }
 
+// MigrateV3ToV4 delegates the v3→v4 schema migration to the Migrator port.
+// It renames the legacy claim-duration column to claims.expires_after and
+// records schema_version=4 — all within a single atomic transaction. Returns
+// an empty MigrationResult because no row counts are tracked for this step.
+func (s *serviceImpl) MigrateV3ToV4(ctx context.Context) (driving.MigrationResult, error) {
+	if s.migrator == nil {
+		return driving.MigrationResult{}, errNoMigrator
+	}
+	r, err := s.migrator.MigrateV3ToV4(ctx)
+	if err != nil {
+		return driving.MigrationResult{}, err
+	}
+	// The v3→v4 migration is a schema-only column rename; the driven
+	// MigrationResult carries no per-row counts. Return an explicit mapping
+	// from r, mirroring MigrateV1ToV2 and MigrateV2ToV3, so that if
+	// MigrationResult gains v3→v4 fields in the future they propagate here.
+	return driving.MigrationResult{
+		ClaimedIssuesConverted:        r.ClaimedIssuesConverted,
+		HistoryRowsRemoved:            r.HistoryRowsRemoved,
+		LegacyRelationshipsTranslated: r.LegacyRelationshipsTranslated,
+		IdempotencyKeysMigrated:       r.IdempotencyKeysMigrated,
+		IdempotencyKeysSkipped:        r.IdempotencyKeysSkipped,
+		InvalidLabelValuesSkipped:     r.InvalidLabelValuesSkipped,
+	}, nil
+}
+
 // enrichListItemSecondaryStates populates the SecondaryState field on each
 // IssueListItem. For tasks, the secondary state is derived from IsBlocked and
 // State — no extra queries are needed because the SQL already computes blocking
@@ -2935,8 +2961,8 @@ func computeListSecondaryState(ctx context.Context, uow driven.UnitOfWork, item 
 		return domain.SecondaryNone
 
 	case domain.StateOpen:
-		// An active (non-stale) claim takes display priority over ready and blocked.
-		if ac, claimErr := uow.Claims().GetClaimByIssue(ctx, item.ID); claimErr == nil && !ac.IsStale(time.Now()) {
+		// An active (unexpired) claim takes display priority over ready and blocked.
+		if ac, claimErr := uow.Claims().GetClaimByIssue(ctx, item.ID); claimErr == nil && !ac.IsExpired(time.Now()) {
 			return domain.SecondaryClaimed
 		}
 		if item.Role == domain.RoleTask {

@@ -21,9 +21,9 @@ type IssueClaimStatus struct {
 // ValidateClaim checks whether an issue can be claimed.
 //
 // Claims are only valid on open issues. Closed and deferred issues cannot be
-// claimed — reopen operations are claim-free. A stale claim is treated as
+// claimed — reopen operations are claim-free. An expired claim is treated as
 // nonexistent — the caller is responsible for deleting or overwriting the
-// expired row before creating the new claim. An active (non-stale) claim
+// expired row before creating the new claim. An active (unexpired) claim
 // always produces a ClaimConflictError, because steal mechanics have been
 // removed; callers must wait for the existing claim to expire.
 //
@@ -43,8 +43,8 @@ func ValidateClaim(status IssueClaimStatus, now time.Time) error {
 		return nil
 	}
 
-	if status.ActiveClaim.IsStale(now) {
-		// Stale claims are treated as nonexistent; the caller will overwrite
+	if status.ActiveClaim.IsExpired(now) {
+		// Expired claims are treated as nonexistent; the caller will overwrite
 		// the expired row when creating the new claim.
 		return nil
 	}
@@ -52,21 +52,21 @@ func ValidateClaim(status IssueClaimStatus, now time.Time) error {
 	return &domain.ClaimConflictError{
 		IssueID:       status.ActiveClaim.IssueID().String(),
 		CurrentHolder: status.ActiveClaim.Author().String(),
-		StaleAt:       status.ActiveClaim.StaleAt(),
+		ExpiresAt:     status.ActiveClaim.ExpiresAt(),
 	}
 }
 
 // ValidateActiveClaim checks that a claim retrieved from storage has not yet
-// gone stale. Operations that mutate an issue (update, close, defer, delete)
+// expired. Operations that mutate an issue (update, close, defer, delete)
 // must call this after loading the claim so that expired claims are rejected
 // with a clear error rather than silently accepted.
 //
-// Returns nil if the claim is still active, or ErrStaleClaim if it has
-// passed its stale-at timestamp.
+// Returns nil if the claim is still active, or ErrExpiredClaim if it has
+// passed its expires-at timestamp.
 func ValidateActiveClaim(c domain.Claim, now time.Time) error {
-	if c.IsStale(now) {
-		return fmt.Errorf("claim %s expired at %s; re-claim the issue before retrying: %w",
-			c.ID(), c.StaleAt().Format(time.RFC3339), domain.ErrStaleClaim)
+	if c.IsExpired(now) {
+		return fmt.Errorf("claim %s expired at %s: %w",
+			c.ID(), c.ExpiresAt().Format(time.RFC3339), domain.ErrExpiredClaim)
 	}
 	return nil
 }

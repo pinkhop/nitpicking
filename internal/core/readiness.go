@@ -6,7 +6,7 @@ import "github.com/pinkhop/nitpicking/internal/domain"
 //
 // A task is ready when:
 //  1. Its state is open.
-//  2. It has no active (non-stale) claim — claimed issues are already being
+//  2. It has no active (non-expired) claim — claimed issues are already being
 //     worked on and are not available for new claimants.
 //  3. It has no unresolved blocked_by relationships (closed or deleted
 //     targets count as resolved).
@@ -25,7 +25,7 @@ func IsTaskReady(state domain.State, hasActiveClaim bool, blockers []domain.Bloc
 //
 // An epic is ready when:
 //  1. Its state is open.
-//  2. It has no active (non-stale) claim — claimed epics are already being
+//  2. It has no active (non-expired) claim — claimed epics are already being
 //     decomposed and are not available for new claimants.
 //  3. It has no children (needs decomposition).
 //  4. It has no unresolved blocked_by relationships.

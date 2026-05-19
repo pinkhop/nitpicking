@@ -1,5 +1,5 @@
 # Verify that list-style JSON commands never leak claim_id, claim_author,
-# or claim_stale_at fields for claimed issues.
+# or claim_expires_at fields for claimed issues.
 
 np-init REDACT
 np-seed task 'Claimed for redaction test' redact-agent TASK --claim
@@ -10,7 +10,7 @@ np-seed-rel BLOCKED blocked_by TASK redact-agent
 exec np list --json
 ! stdout '"claim_id"'
 ! stdout '"claim_author"'
-! stdout '"claim_stale_at"'
+! stdout '"claim_expires_at"'
 
 # list --state open --json — claimed issues are open in primary state
 exec np list --state open --json

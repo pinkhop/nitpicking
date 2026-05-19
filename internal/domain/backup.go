@@ -126,10 +126,10 @@ type BackupClaimRecord struct {
 	// Author is the claim holder's name.
 	Author string `json:"author"`
 
-	// StaleThreshold is the claim duration in nanoseconds, derived from
-	// StaleAt minus ClaimedAt. The JSON field name is retained for backup
-	// format compatibility.
-	StaleThreshold int64 `json:"stale_threshold"`
+	// ExpiresAfter is the claim duration in nanoseconds, derived from
+	// ExpiresAt minus ClaimedAt. Stored as the expiry duration for compact
+	// representation in backup files.
+	ExpiresAfter int64 `json:"expires_after"`
 
 	// LastActivity is the timestamp when the claim was created (claimedAt).
 	// The JSON field name is retained for backup format compatibility.

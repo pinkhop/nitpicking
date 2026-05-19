@@ -214,13 +214,8 @@ func Run(ctx context.Context, input RunInput) error {
 	if result.ClaimID != "" {
 		_, _ = fmt.Fprintf(w, "%s  %s\n", cs.Dim("Claimed by:"), result.ClaimAuthor)
 		if !result.ClaimStaleAt.IsZero() {
-			staleStr := result.ClaimStaleAt.UTC().Format("2006-01-02 15:04 UTC")
 			dur := time.Until(result.ClaimStaleAt)
-			if dur > 0 {
-				staleStr += fmt.Sprintf(" (in %s)", formatDuration(dur))
-			} else {
-				staleStr += " (stale)"
-			}
+			staleStr := result.ClaimStaleAt.UTC().Format("2006-01-02 15:04 UTC") + fmt.Sprintf(" (in %s)", formatDuration(dur))
 			_, _ = fmt.Fprintf(w, "%s    %s\n", cs.Dim("Stale at:"), staleStr)
 		}
 	} else {

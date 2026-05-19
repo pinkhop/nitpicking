@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pinkhop/nitpicking/internal/adapters/driven/storage/memory"
 	"github.com/pinkhop/nitpicking/internal/cmd/show"
@@ -1226,6 +1227,130 @@ func TestRun_TextOutput_AuthorAppearsBeforeRevision(t *testing.T) {
 	}
 	if authorIdx >= revisionIdx {
 		t.Errorf("expected Author to appear before Revision in text output, but Author at %d, Revision at %d", authorIdx, revisionIdx)
+	}
+}
+
+func TestRun_TextOutput_ExpiredClaim_TreatedAsUnclaimed(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task whose claim expired before show is called.
+	svc := setupService(t)
+	issueID := createTask(t, svc, "Expired claim task")
+
+	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
+		IssueID: issueID.String(),
+		Author:  mustAuthor(t, "expired-claimer"),
+		StaleAt: time.Now().Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := show.RunInput{
+		Service: svc,
+		IssueID: issueID.String(),
+		JSON:    false,
+		WriteTo: &buf,
+	}
+
+	// When
+	err = show.Run(t.Context(), input)
+	// Then — expired claim must be invisible; issue appears as if never claimed.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "(none)") {
+		t.Errorf("expected '(none)' for expired claim, got:\n%s", output)
+	}
+	if strings.Contains(output, "expired-claimer") {
+		t.Errorf("expired claim author must not appear in output, got:\n%s", output)
+	}
+}
+
+func TestRun_JSONOutput_ExpiredClaim_OmitsClaimFields(t *testing.T) {
+	t.Parallel()
+
+	// Given — a task whose claim expired before show is called.
+	svc := setupService(t)
+	issueID := createTask(t, svc, "Expired claim JSON task")
+
+	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
+		IssueID: issueID.String(),
+		Author:  mustAuthor(t, "json-expired-claimer"),
+		StaleAt: time.Now().Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := show.RunInput{
+		Service: svc,
+		IssueID: issueID.String(),
+		JSON:    true,
+		WriteTo: &buf,
+	}
+
+	// When
+	err = show.Run(t.Context(), input)
+	// Then — claim fields must be absent, matching the unclaimed case.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(buf.Bytes(), &raw); err != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", err, buf.String())
+	}
+	for _, field := range []string{"claim_author", "claimed_at", "claim_stale_at"} {
+		if _, exists := raw[field]; exists {
+			t.Errorf("%s must not appear for an issue with an expired claim, got: %s", field, buf.String())
+		}
+	}
+}
+
+func TestRun_TextOutput_BlockerWithExpiredClaim_OmitsClaimAuthor(t *testing.T) {
+	t.Parallel()
+
+	// Given — a blocked task whose blocker has an expired claim.
+	svc := setupService(t)
+	blockerID := createTask(t, svc, "Blocker with expired claim")
+	blockedID := createTask(t, svc, "Blocked task")
+
+	if err := svc.AddRelationship(t.Context(), blockedID.String(), driving.RelationshipInput{
+		TargetID: blockerID.String(),
+		Type:     domain.RelBlockedBy,
+	}, mustAuthor(t, "test-agent")); err != nil {
+		t.Fatalf("precondition: add relationship failed: %v", err)
+	}
+
+	_, err := svc.ClaimByID(t.Context(), driving.ClaimInput{
+		IssueID: blockerID.String(),
+		Author:  mustAuthor(t, "expired-blocker-claimer"),
+		StaleAt: time.Now().Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim blocker failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	input := show.RunInput{
+		Service: svc,
+		IssueID: blockedID.String(),
+		JSON:    false,
+		WriteTo: &buf,
+	}
+
+	// When
+	err = show.Run(t.Context(), input)
+	// Then — expired claim on the blocker must not surface as a claim author annotation.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	if strings.Contains(output, "expired-blocker-claimer") {
+		t.Errorf("expired blocker claim author must not appear in output, got:\n%s", output)
 	}
 }
 

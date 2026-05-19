@@ -1072,7 +1072,7 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id string) (driving.ShowIss
 			detail.Title = blocker.Title()
 			detail.State = blocker.State()
 			blockerClaim, claimErr := uow.Claims().GetClaimByIssue(ctx, targetID)
-			if claimErr == nil {
+			if claimErr == nil && !blockerClaim.IsStale(time.Now()) {
 				detail.ClaimAuthor = blockerClaim.Author().String()
 			}
 			output.BlockerDetails = append(output.BlockerDetails, detail)
@@ -1080,7 +1080,7 @@ func (s *serviceImpl) ShowIssue(ctx context.Context, id string) (driving.ShowIss
 
 		// Claim info.
 		activeClaim, err := uow.Claims().GetClaimByIssue(ctx, parsedID)
-		if err == nil {
+		if err == nil && !activeClaim.IsStale(time.Now()) {
 			output.ClaimID = activeClaim.ID()
 			output.ClaimAuthor = activeClaim.Author().String()
 			output.ClaimStaleAt = activeClaim.StaleAt()

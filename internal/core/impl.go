@@ -1762,11 +1762,18 @@ func (s *serviceImpl) AddComment(ctx context.Context, input driving.AddCommentIn
 			return histErr
 		}
 
-		// Extend claim expiresAt if the issue is currently claimed.
-		activeClaim, err := uow.Claims().GetClaimByIssue(ctx, parsedIssueID)
-		if err == nil {
+		// A comment from any author refreshes an active claim, but must not
+		// resurrect an already-expired one (NP-vnkpp).
+		activeClaim, claimErr := uow.Claims().GetClaimByIssue(ctx, parsedIssueID)
+		if claimErr != nil {
+			if !errors.Is(claimErr, domain.ErrNotFound) {
+				return fmt.Errorf("looking up claim for expiry extension: %w", claimErr)
+			}
+		} else if !activeClaim.IsExpired(now) {
 			newExpiresAt := now.Add(activeClaim.ExpiresAt().Sub(activeClaim.ClaimedAt()))
-			_ = uow.Claims().UpdateClaimExpiresAt(ctx, activeClaim.ID(), newExpiresAt)
+			if extErr := uow.Claims().UpdateClaimExpiresAt(ctx, activeClaim.ID(), newExpiresAt); extErr != nil {
+				return fmt.Errorf("extending claim expiry after comment: %w", extErr)
+			}
 		}
 
 		c, err := uow.Comments().GetComment(ctx, id)

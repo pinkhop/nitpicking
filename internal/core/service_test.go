@@ -1144,6 +1144,77 @@ func TestAddComment_RecordsCommentAddedHistory(t *testing.T) {
 	}
 }
 
+// TestAddComment_ExpiredClaim_DoesNotExtendExpiresAt verifies that adding a
+// comment to an issue whose claim has already expired does NOT push the
+// claim's expires_at forward (NP-vnkpp). The fix guards the extension with
+// activeClaim.IsExpired(now) and must not resurrect stale claims.
+func TestAddComment_ExpiredClaim_DoesNotExtendExpiresAt(t *testing.T) {
+	t.Parallel()
+
+	// Given — an issue claimed by alice with a negative expiry so the claim is
+	// born already expired; no sleep required.
+	ctx := t.Context()
+	svc, repo := setupService(t)
+	alice := mustAuthor(t, "alice")
+	bob := mustAuthor(t, "bob")
+
+	created, err := svc.CreateIssue(ctx, driving.CreateIssueInput{
+		Role:   domain.RoleTask,
+		Title:  "Expired-claim comment target",
+		Author: alice,
+	})
+	if err != nil {
+		t.Fatalf("precondition: create issue: %v", err)
+	}
+
+	_, err = svc.ClaimByID(ctx, driving.ClaimInput{
+		IssueID:      created.Issue.ID().String(),
+		Author:       alice,
+		ExpiresAfter: -1 * time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("precondition: claim issue: %v", err)
+	}
+
+	// Snapshot the claim's expires_at before the comment is added so we can
+	// assert it is unchanged.
+	preComment, err := repo.GetClaimByIssue(ctx, created.Issue.ID())
+	if err != nil {
+		t.Fatalf("precondition: read claim before comment: %v", err)
+	}
+	originalExpiresAt := preComment.ExpiresAt()
+
+	// Sanity-check: the claim really is expired at the moment of the
+	// `When` step. If this fails, the rest of the test proves nothing.
+	if !preComment.IsExpired(time.Now()) {
+		t.Fatalf("precondition: claim should be expired before comment, expires_at=%v now=%v",
+			originalExpiresAt, time.Now())
+	}
+
+	// When — a different author adds a comment to the issue. (The canonical
+	// reproducer uses a third-party commenter; the fix treats every author
+	// identically.)
+	_, err = svc.AddComment(ctx, driving.AddCommentInput{
+		IssueID: created.Issue.ID().String(),
+		Author:  bob,
+		Body:    "Third-party comment on an issue with an expired claim.",
+	})
+	// Then — AddComment must succeed (comments do not require claiming) and
+	// the expired claim's expires_at must NOT have moved.
+	if err != nil {
+		t.Fatalf("AddComment returned error: %v", err)
+	}
+
+	postComment, err := repo.GetClaimByIssue(ctx, created.Issue.ID())
+	if err != nil {
+		t.Fatalf("read claim after comment: %v", err)
+	}
+	if !postComment.ExpiresAt().Equal(originalExpiresAt) {
+		t.Errorf("expired claim was resurrected by AddComment: expires_at moved from %v to %v",
+			originalExpiresAt, postComment.ExpiresAt())
+	}
+}
+
 // --- ShowIssue ---
 
 func TestShowIssue_PopulatesFlatFields(t *testing.T) {

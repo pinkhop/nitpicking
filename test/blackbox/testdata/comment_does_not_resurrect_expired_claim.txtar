@@ -1,0 +1,48 @@
+# Comments must not resurrect an expired claim. NP-vnkpp reproducer.
+#
+# Pre-fix bug: AddComment unconditionally extended the claim's expires_at
+# whenever a claim row existed, so a third-party comment on an issue with an
+# already-expired claim silently pushed expires_at to now + original_duration.
+# That gave the stale holder a bearer lock they should have lost.
+#
+# Post-fix: AddComment guards the extension with activeClaim.IsExpired(now)
+# and leaves expired claims untouched.
+
+np-init RES
+np-seed task 'Issue with claim that will expire' agent-alpha TASK
+
+# --- Given: agent-alpha holds a 1-second claim ---
+
+exec np claim $TASK --author agent-alpha --duration 1s --json
+np-capture CLAIM_A claim_id
+
+# Let the claim expire. The expired claim row remains in the database
+# (it is not garbage-collected until `np admin gc` or similar runs) so
+# AddComment will still find a claim row via GetClaimByIssue.
+exec sleep 2
+
+# Sanity-check: with the claim expired, np show must hide the claim
+# fields (ShowIssue filters out expired claims via IsExpired).
+exec np show $TASK --json
+np-json-no-field claim_author
+np-json-no-field claim_expires_at
+
+# --- When: a different author adds a comment ---
+
+stdin comment.json
+exec np json comment $TASK --author agent-beta
+
+# --- Then: the expired claim must NOT have been resurrected ---
+#
+# If the bug is present, AddComment will have pushed expires_at to
+# now + 1s, which is well in the future when this show runs. The
+# resurrected claim would then surface as an active claim and
+# claim_expires_at would appear in the JSON. The fix keeps the claim
+# expired, so claim_expires_at stays absent.
+
+exec np show $TASK --json
+np-json-no-field claim_author
+np-json-no-field claim_expires_at
+
+-- comment.json --
+{"body": "Third-party comment on an issue whose claim has already expired."}

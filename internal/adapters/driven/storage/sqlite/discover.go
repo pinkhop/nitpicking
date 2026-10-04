@@ -65,7 +65,7 @@ func LookupDatabase(dir string) (string, error) {
 func InitDatabaseDir(baseDir string) (string, error) {
 	npPath := filepath.Join(baseDir, npDirName)
 
-	if err := os.MkdirAll(npPath, 0o750); err != nil {
+	if err := os.MkdirAll(npPath, 0o700); err != nil {
 		return "", fmt.Errorf("creating %s directory: %w", npDirName, err)
 	}
 

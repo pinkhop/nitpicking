@@ -91,7 +91,7 @@ func Run(_ context.Context, input RunInput) error {
 		if input.DryRun {
 			return emitDryRun(input.Out, target, true, input.JSON)
 		}
-		if err := os.WriteFile(target, []byte(".np/\n"), 0o644); err != nil { // #nosec G304 G306 -- target is derived from the discovered .np/ directory; 0o644 is standard for a world-readable git-committed file
+		if err := os.WriteFile(target, []byte(".np/\n"), 0o600); err != nil { // #nosec G304 -- target is derived from the discovered .np/ directory
 			return fmt.Errorf("creating %s: %w", target, err)
 		}
 		return emitCreated(input.Out, target, input.JSON)
@@ -112,7 +112,7 @@ func Run(_ context.Context, input RunInput) error {
 	}
 
 	newContent := appendEntry(content)
-	if err := os.WriteFile(target, newContent, 0o644); err != nil { // #nosec G304 G306 -- target is derived from the discovered .np/ directory; 0o644 is standard for a world-readable git-committed file
+	if err := os.WriteFile(target, newContent, 0o600); err != nil { // #nosec G304 G703 -- target is derived from the discovered .np/ directory
 		return fmt.Errorf("writing %s: %w", target, err)
 	}
 	return emitAdded(input.Out, target, input.JSON)

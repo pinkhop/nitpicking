@@ -37,10 +37,10 @@ make fmt                # Run all formatters (gofumpt + goimports)
 make lint               # go vet, gofumpt, goimports, ineffassign, errcheck, staticcheck
 
 # Security
-make sec                # gosec (static security scan) + govulncheck (CVE check)
+make security           # gosec (static security scan) + govulncheck (CVE check)
 
 # CI
-make ci                 # Full pipeline: build → lint → sec → test-units
+make ci                 # Full pipeline: build → lint → security → test-units
 ```
 
 ## Architecture

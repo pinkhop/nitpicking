@@ -32,10 +32,10 @@ The `Makefile` is the canonical entry point for local development tasks.
 | `make test-boundary` | Run SQLite boundary tests (`-tags=boundary`) |
 | `make test-blackbox` | Run blackbox tests (`-tags=blackbox`) |
 | `make lint` | Run `go vet`, `gofumpt`, `goimports`, `ineffassign`, `errcheck`, and `staticcheck` |
-| `make sec` | Run `gosec` and `govulncheck` |
+| `make security` | Run `gosec` and `govulncheck` (alias: `make sec`) |
 | `make fmt` | Run `gofumpt` and `goimports` in write mode |
 | `make coverage` | Generate unit-test coverage output under `coverage/` |
-| `make ci` | Run the full local CI sequence: build, lint, sec, test |
+| `make ci` | Run the full local CI sequence: build, lint, security, test |
 | `make clean` | Remove build output, coverage output, and Go test cache |
 
 ## Build Notes
@@ -80,8 +80,8 @@ invoked through `go tool`. No separate global installation is required.
 | `ineffassign` | `make lint-ineffassign` | Detect never-read assignments |
 | `errcheck` | `make lint-errcheck` | Detect unchecked errors |
 | `staticcheck` | `make lint-staticcheck` | Advanced static analysis |
-| `gosec` | `make sec-gosec` | Static security scanning |
-| `govulncheck` | `make sec-govulncheck` | Dependency vulnerability scanning |
+| `gosec` | `make security-gosec` | Static security scanning |
+| `govulncheck` | `make security-govulncheck` | Dependency vulnerability scanning |
 
 There is no `golangci-lint` wrapper in this project. The individual tools and
 targets are the source of truth.

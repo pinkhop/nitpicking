@@ -39,6 +39,10 @@ make lint               # go vet, gofumpt, goimports, ineffassign, errcheck, sta
 # Security
 make security           # gosec (static security scan) + govulncheck (CVE check)
 
+# Dependencies
+make deps-outdated      # List direct and tool dependencies with newer releases
+make deps-upgrade       # Upgrade them to latest (follow with make fmt and make ci)
+
 # CI
 make ci                 # Full pipeline: build → lint → security → test-units
 ```

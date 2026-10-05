@@ -33,6 +33,8 @@ The `Makefile` is the canonical entry point for local development tasks.
 | `make test-blackbox` | Run blackbox tests (`-tags=blackbox`) |
 | `make lint` | Run `go vet`, `gofumpt`, `goimports`, `ineffassign`, `errcheck`, and `staticcheck` |
 | `make security` | Run `gosec` and `govulncheck` (alias: `make sec`) |
+| `make deps-outdated` | List direct and tool dependencies that have newer releases |
+| `make deps-upgrade` | Upgrade direct and tool dependencies to their latest releases |
 | `make fmt` | Run `gofumpt` and `goimports` in write mode |
 | `make coverage` | Generate unit-test coverage output under `coverage/` |
 | `make ci` | Run the full local CI sequence: build, lint, security, test |

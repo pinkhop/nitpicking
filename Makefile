@@ -11,6 +11,7 @@
 #     make test                     Run unit tests (alias for test-units)
 #     make lint                     Run all linters
 #     make security                 Run all security scanners
+#     make deps-outdated            List outdated direct and tool dependencies
 #     make coverage                 Generate unit test coverage report
 #     make clean                    Remove all build and coverage artifacts
 #
@@ -298,6 +299,39 @@ security: security-gosec security-govulncheck
 ## sec: Run all security scanners (alias for security).
 .PHONY: sec
 sec: security
+
+################################################################################
+# DEPENDENCIES
+################################################################################
+
+## deps-outdated: List direct and tool dependencies with newer releases.
+##
+## Reports only the modules this project chooses versions for: the direct
+## requirements of the main module and the modules providing the tools in
+## go.mod's tool block. Indirect dependencies are omitted because their
+## versions follow from what those modules require, and forcing them newer
+## than their requirers have been tested against is rarely worthwhile.
+## Queries the module proxy, so it needs network access.
+.PHONY: deps-outdated
+deps-outdated:
+	@go list -m -u -f '{{if .Update}}{{.Path}} {{.Version}} -> {{.Update.Version}}{{end}}' \
+		$$( { go list -m -f '{{if not (or .Main .Indirect)}}{{.Path}}{{end}}' all; \
+		      go list -f '{{.Module.Path}}' tool; } | sort -u ) | \
+		grep . || echo "All direct and tool dependencies are up to date."
+
+## deps-upgrade: Upgrade direct and tool dependencies to their latest releases.
+##
+## Upgrades every package the module builds or tests, together with their
+## dependencies, then every tool in go.mod's tool block, and finally tidies
+## go.mod and go.sum. Tool dependencies are upgraded without -u so that the
+## libraries the tools pull in stay at the versions the tools require.
+## Review the go.mod diff and run `make ci` afterwards: newer formatters and
+## linters can report findings that older releases did not.
+.PHONY: deps-upgrade
+deps-upgrade:
+	go get -u -t ./...
+	go get tool
+	go mod tidy
 
 ################################################################################
 # CI

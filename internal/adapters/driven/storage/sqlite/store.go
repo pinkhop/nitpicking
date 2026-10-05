@@ -137,12 +137,17 @@ type connUnitOfWork struct {
 	conn *sqlite.Conn
 }
 
-func (u *connUnitOfWork) Issues() driven.IssueRepository               { return &issueRepo{conn: u.conn} }
-func (u *connUnitOfWork) Comments() driven.CommentRepository           { return &commentRepo{conn: u.conn} }
-func (u *connUnitOfWork) Claims() driven.ClaimRepository               { return &claimRepo{conn: u.conn} }
+func (u *connUnitOfWork) Issues() driven.IssueRepository { return &issueRepo{conn: u.conn} }
+
+func (u *connUnitOfWork) Comments() driven.CommentRepository { return &commentRepo{conn: u.conn} }
+
+func (u *connUnitOfWork) Claims() driven.ClaimRepository { return &claimRepo{conn: u.conn} }
+
 func (u *connUnitOfWork) Relationships() driven.RelationshipRepository { return &relRepo{conn: u.conn} }
-func (u *connUnitOfWork) History() driven.HistoryRepository            { return &histRepo{conn: u.conn} }
-func (u *connUnitOfWork) Database() driven.DatabaseRepository          { return &dbRepo{conn: u.conn} }
+
+func (u *connUnitOfWork) History() driven.HistoryRepository { return &histRepo{conn: u.conn} }
+
+func (u *connUnitOfWork) Database() driven.DatabaseRepository { return &dbRepo{conn: u.conn} }
 
 // --- DatabaseRepository ---
 

@@ -578,10 +578,12 @@ func (r *checkFakeDBRepo) ValidateColumnData(_ context.Context) (int, error) {
 func (r *checkFakeDBRepo) GetSchemaVersion(_ context.Context) (int, error) {
 	return r.schemaVersion, nil
 }
-func (r *checkFakeDBRepo) SetSchemaVersion(_ context.Context, _ int) error       { return nil }
-func (r *checkFakeDBRepo) InitDatabase(_ context.Context, _ string) error        { return nil }
-func (r *checkFakeDBRepo) GetPrefix(_ context.Context) (string, error)           { return "TST", nil }
-func (r *checkFakeDBRepo) GC(_ context.Context, _ bool) (int, int, error)        { return 0, 0, nil }
+func (r *checkFakeDBRepo) SetSchemaVersion(_ context.Context, _ int) error { return nil }
+func (r *checkFakeDBRepo) InitDatabase(_ context.Context, _ string) error  { return nil }
+func (r *checkFakeDBRepo) GetPrefix(_ context.Context) (string, error)     { return "TST", nil }
+
+func (r *checkFakeDBRepo) GC(_ context.Context, _ bool) (int, int, error) { return 0, 0, nil }
+
 func (r *checkFakeDBRepo) CountDeletedRatio(_ context.Context) (int, int, error) { return 0, 0, nil }
 func (r *checkFakeDBRepo) ClearAllData(_ context.Context) error                  { return nil }
 func (r *checkFakeDBRepo) RestoreIssueRaw(_ context.Context, _ domain.BackupIssueRecord) error {

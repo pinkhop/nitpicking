@@ -10,7 +10,8 @@
 #     make build VERSION=1.2.3      Build with a specific version baked in
 #     make test                     Run unit tests (alias for test-units)
 #     make lint                     Run all linters
-#     make sec                      Run all security scanners
+#     make security                 Run all security scanners
+#     make deps-outdated            List outdated direct and tool dependencies
 #     make coverage                 Generate unit test coverage report
 #     make clean                    Remove all build and coverage artifacts
 #
@@ -263,35 +264,74 @@ lint: lint-vet lint-gofumpt lint-goimports lint-ineffassign lint-errcheck lint-s
 # SECURITY
 ################################################################################
 
-## sec-gosec: Scan for security problems in Go source code.
+## security-gosec: Scan for security problems in Go source code.
 ##
 ## gosec inspects the Go AST and SSA representation to find common security
 ## issues such as SQL injection, hard-coded credentials, insecure random number
 ## generation, and unsafe use of crypto primitives. The -quiet flag suppresses
 ## informational output and shows only findings. The -exclude-generated flag
-## skips files containing the "Code generated ... DO NOT EDIT" comment.
-.PHONY: sec-gosec
-sec-gosec:
+## skips files containing the "Code generated ... DO NOT EDIT" comment. The
+## scanner runs at the version pinned by the tool directive in go.mod.
+.PHONY: security-gosec
+security-gosec:
 	@echo "Running gosec..."
 	go tool github.com/securego/gosec/v2/cmd/gosec -quiet -exclude-generated ./...
 
-## sec-govulncheck: Check dependencies for known vulnerabilities.
+## security-govulncheck: Check dependencies for known vulnerabilities.
 ##
 ## govulncheck analyzes your module's dependency graph and compiled code to
 ## find calls to functions in packages with known CVEs. Unlike simple
 ## dependency scanners, it reports only vulnerabilities whose affected symbols
-## your code actually uses.
-.PHONY: sec-govulncheck
-sec-govulncheck:
+## your code actually uses. The scanner runs at the version pinned by the tool
+## directive in go.mod; the vulnerability database it queries is always live.
+.PHONY: security-govulncheck
+security-govulncheck:
 	@echo "Running govulncheck..."
 	go tool golang.org/x/vuln/cmd/govulncheck ./...
 
-## sec: Run all security scanners.
+## security: Run all security scanners.
 ##
-## Executes every sec-* target. Intended for CI pipelines and pre-release
+## Executes every security-* target. Intended for CI pipelines and pre-release
 ## verification.
+.PHONY: security
+security: security-gosec security-govulncheck
+
+## sec: Run all security scanners (alias for security).
 .PHONY: sec
-sec: sec-gosec sec-govulncheck
+sec: security
+
+################################################################################
+# DEPENDENCIES
+################################################################################
+
+## deps-outdated: List direct and tool dependencies with newer releases.
+##
+## Reports only the modules this project chooses versions for: the direct
+## requirements of the main module and the modules providing the tools in
+## go.mod's tool block. Indirect dependencies are omitted because their
+## versions follow from what those modules require, and forcing them newer
+## than their requirers have been tested against is rarely worthwhile.
+## Queries the module proxy, so it needs network access.
+.PHONY: deps-outdated
+deps-outdated:
+	@go list -m -u -f '{{if .Update}}{{.Path}} {{.Version}} -> {{.Update.Version}}{{end}}' \
+		$$( { go list -m -f '{{if not (or .Main .Indirect)}}{{.Path}}{{end}}' all; \
+		      go list -f '{{.Module.Path}}' tool; } | sort -u ) | \
+		grep . || echo "All direct and tool dependencies are up to date."
+
+## deps-upgrade: Upgrade direct and tool dependencies to their latest releases.
+##
+## Upgrades every package the module builds or tests, together with their
+## dependencies, then every tool in go.mod's tool block, and finally tidies
+## go.mod and go.sum. Tool dependencies are upgraded without -u so that the
+## libraries the tools pull in stay at the versions the tools require.
+## Review the go.mod diff and run `make ci` afterwards: newer formatters and
+## linters can report findings that older releases did not.
+.PHONY: deps-upgrade
+deps-upgrade:
+	go get -u -t ./...
+	go get tool
+	go mod tidy
 
 ################################################################################
 # CI
@@ -303,7 +343,7 @@ sec: sec-gosec sec-govulncheck
 ## same order a CI system would. Useful for verifying everything passes before
 ## pushing.
 .PHONY: ci
-ci: build lint sec test-units
+ci: build lint security test-units
 
 ################################################################################
 # CLEANUP

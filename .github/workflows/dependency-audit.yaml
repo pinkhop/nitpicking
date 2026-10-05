@@ -18,4 +18,4 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - run: make sec
+      - run: make security

@@ -123,35 +123,69 @@ func TestNewNameCmd_SeedFlag_ForwardsSeedToService(t *testing.T) {
 	}
 }
 
+// TestNewNameCmd_SeedWithSurroundingWhitespace_ForwardsSeedVerbatim verifies
+// that a non-blank seed reaches the service unmodified. The blank-seed check
+// must not normalize valid seeds, because trimming would change the name that
+// an existing seed deterministically produces.
+func TestNewNameCmd_SeedWithSurroundingWhitespace_ForwardsSeedVerbatim(t *testing.T) {
+	// Given
+	ios, _, _, _ := iostreams.Test()
+	f := &cmdutil.Factory{IOStreams: ios}
+	stub := &stubAgentService{name: "seeded-name-result"}
+	original := newAgentService
+	newAgentService = func(_ *cmdutil.Factory) (agentService, error) {
+		return stub, nil
+	}
+	t.Cleanup(func() { newAgentService = original })
+
+	// When
+	err := newNameCmd(f).Run(t.Context(), []string{"name", "--seed", "  my-stable-seed\t"})
+	// Then
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stub.capturedSeed != "  my-stable-seed\t" {
+		t.Fatalf("seed forwarded to service: got %q, want %q", stub.capturedSeed, "  my-stable-seed\t")
+	}
+}
+
 // TestNewNameCmd_BlankSeed_IsRejected verifies that --seed values that are
-// empty or contain only whitespace are rejected with a FlagError. urfave/cli
-// strips trailing whitespace from string flags, so whitespace-only seeds arrive
-// with seed=="" and IsSet("seed")==true — the same condition as an explicit
-// --seed="" — and must be caught identically.
+// empty or contain only whitespace are rejected with a FlagError, whether the
+// value is attached with "=" or passed as a separate argument. urfave/cli
+// delivers flag values byte for byte, so the command itself must recognize
+// whitespace-only seeds as blank.
 func TestNewNameCmd_BlankSeed_IsRejected(t *testing.T) {
 	cases := []struct {
 		name string
-		seed string
+		args []string
 	}{
-		{"empty string", "--seed="},
-		{"spaces only", "--seed=   "},
-		{"tab only", "--seed=\t"},
-		{"mixed whitespace", "--seed=\t\n "},
+		{"empty string with equals", []string{"name", "--seed="}},
+		{"spaces only with equals", []string{"name", "--seed=   "}},
+		{"tab only with equals", []string{"name", "--seed=\t"}},
+		{"mixed whitespace with equals", []string{"name", "--seed=\t\n "}},
+		{"empty string as separate argument", []string{"name", "--seed", ""}},
+		{"spaces only as separate argument", []string{"name", "--seed", "   "}},
+		{"mixed whitespace as separate argument", []string{"name", "--seed", "\t\n "}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Validation fires before the service is constructed, so no
-			// newAgentService swap is needed. Do not call t.Parallel() here
-			// because the sibling tests that do swap newAgentService are
-			// also not parallel — mixing the two would introduce races.
+			// Do not call t.Parallel() here: this test swaps the
+			// package-level newAgentService, as do its sibling tests.
 
-			// Given
+			// Given — a stub service, so a seed that slips past validation
+			// produces a clean assertion failure rather than a nil-pointer
+			// panic from the Factory's unset Store.
 			ios, _, _, _ := iostreams.Test()
 			f := &cmdutil.Factory{IOStreams: ios}
+			original := newAgentService
+			newAgentService = func(_ *cmdutil.Factory) (agentService, error) {
+				return &stubAgentService{name: "agent-should-not-be-generated"}, nil
+			}
+			t.Cleanup(func() { newAgentService = original })
 
 			// When
-			err := newNameCmd(f).Run(t.Context(), []string{"name", tc.seed})
+			err := newNameCmd(f).Run(t.Context(), tc.args)
 
 			// Then
 			if err == nil {

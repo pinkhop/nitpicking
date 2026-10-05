@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/urfave/cli/v3"
 
@@ -93,15 +94,16 @@ workspace.`,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			// Reject --seed when the flag is explicitly set but its
-			// value is empty after urfave/cli normalisation. The CLI
-			// framework strips trailing whitespace from string flags,
-			// so whitespace-only seeds (e.g. --seed="   " or --seed=$UNSET)
-			// arrive here as seed=="" with IsSet returning true.
-			// Such seeds are semantically equivalent to omitting the flag
-			// but would silently fall through to the unseeded random path,
-			// masking misconfigured shell variables. Callers should omit
-			// the flag entirely when they want random generation.
-			if cmd.IsSet("seed") && seed == "" {
+			// value is empty or whitespace-only (e.g., --seed="   " or
+			// --seed=$UNSET). urfave/cli delivers flag values byte for
+			// byte, so the trim must happen here. A blank seed would
+			// otherwise either fall through to the unseeded random path
+			// or derive a name from whitespace — both mask a
+			// misconfigured shell variable. Only the check trims; a
+			// non-blank seed is forwarded verbatim so that its derived
+			// name stays stable. Callers should omit the flag entirely
+			// when they want random generation.
+			if cmd.IsSet("seed") && strings.TrimSpace(seed) == "" {
 				return cmdutil.FlagErrorf("--seed must not be blank; use a non-whitespace value or omit the flag entirely")
 			}
 
